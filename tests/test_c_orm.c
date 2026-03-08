@@ -11,7 +11,7 @@ TEST test_c_orm_connect_and_disconnect(void) {
     res = c_orm_connect(&db, C_ORM_DIALECT_SQLITE, "file.db");
     ASSERT_EQ(0, res);
     ASSERT_NEQ(NULL, db);
-    
+
     /* Disconnect is void currently but needs coverage */
     c_orm_disconnect(db);
 #endif
@@ -31,7 +31,7 @@ TEST test_c_orm_connect_and_disconnect(void) {
 TEST test_c_orm_postgres_connect(void) {
     c_orm_db_t* db = NULL;
     int res;
-    
+
 #ifdef C_ORM_HAVE_POSTGRES
     res = c_orm_connect(&db, C_ORM_DIALECT_POSTGRES, "user=postgres");
     ASSERT_EQ(0, res);
@@ -47,7 +47,7 @@ TEST test_c_orm_postgres_connect(void) {
 TEST test_c_orm_mysql_connect(void) {
     c_orm_db_t* db = NULL;
     int res;
-    
+
 #ifdef C_ORM_HAVE_MYSQL
     res = c_orm_connect(&db, C_ORM_DIALECT_MYSQL, "user=root");
     ASSERT_EQ(0, res);
@@ -83,17 +83,18 @@ static c_orm_dialect_t get_active_dialect(void) {
 TEST test_c_orm_migrate(void) {
     c_orm_db_t* db = NULL;
     c_orm_dialect_t dialect = get_active_dialect();
-    int32_t version;
+    int version;
+    int res;
     if (dialect == C_ORM_DIALECT_UNKNOWN) SKIP();
 
-    int res = c_orm_connect(&db, dialect, "file.db");
+    res = c_orm_connect(&db, dialect, "file.db");
     ASSERT_EQ(0, res);
-    
+
     /* Initial state should be 0 */
     res = c_orm_migrate_current_version(db, &version);
     ASSERT_EQ(0, res);
     ASSERT_EQ(0, version);
-    
+
     /* Apply migrations up */
     res = c_orm_migrate(db, "migrations");
     ASSERT_EQ(0, res);
@@ -101,19 +102,19 @@ TEST test_c_orm_migrate(void) {
     res = c_orm_migrate_current_version(db, &version);
     ASSERT_EQ(0, res);
     ASSERT_EQ(1, version);
-    
+
     /* Apply another migration up */
     res = c_orm_migrate(db, "migrations");
     ASSERT_EQ(0, res);
-    
+
     res = c_orm_migrate_current_version(db, &version);
     ASSERT_EQ(0, res);
     ASSERT_EQ(2, version);
-    
+
     /* Rollback 1 version */
     res = c_orm_migrate_rollback(db, "migrations");
     ASSERT_EQ(0, res);
-    
+
     res = c_orm_migrate_current_version(db, &version);
     ASSERT_EQ(0, res);
     ASSERT_EQ(1, version);
@@ -124,13 +125,13 @@ TEST test_c_orm_migrate(void) {
 
     res = c_orm_migrate(db, NULL);
     ASSERT_EQ(-1, res);
-    
+
     res = c_orm_migrate_rollback(NULL, "migrations");
     ASSERT_EQ(-1, res);
 
     res = c_orm_migrate_rollback(db, NULL);
     ASSERT_EQ(-1, res);
-    
+
     res = c_orm_migrate_current_version(NULL, &version);
     ASSERT_EQ(-1, res);
 
@@ -144,9 +145,10 @@ TEST test_c_orm_migrate(void) {
 TEST test_c_orm_execute(void) {
     c_orm_db_t* db = NULL;
     c_orm_dialect_t dialect = get_active_dialect();
+    int res;
     if (dialect == C_ORM_DIALECT_UNKNOWN) SKIP();
 
-    int res = c_orm_connect(&db, dialect, "file.db");
+    res = c_orm_connect(&db, dialect, "file.db");
     ASSERT_EQ(0, res);
 
     res = c_orm_execute(db, "SELECT 1");
@@ -165,13 +167,13 @@ TEST test_c_orm_execute(void) {
 TEST test_c_orm_execute_params_valid(void) {
     c_orm_db_t* db = NULL;
     c_orm_dialect_t dialect = get_active_dialect();
+    int res;
+    c_orm_param_t params[5];
     if (dialect == C_ORM_DIALECT_UNKNOWN) SKIP();
 
-    int res = c_orm_connect(&db, dialect, "file.db");
+    res = c_orm_connect(&db, dialect, "file.db");
     ASSERT_EQ(0, res);
 
-    c_orm_param_t params[5];
-    
     params[0].type = C_ORM_PARAM_INTEGER;
     params[0].value.int_val = 42;
 
@@ -200,13 +202,13 @@ TEST test_c_orm_execute_params_valid(void) {
 TEST test_c_orm_execute_params_invalid(void) {
     c_orm_db_t* db = NULL;
     c_orm_dialect_t dialect = get_active_dialect();
+    int res;
+    c_orm_param_t param;
     if (dialect == C_ORM_DIALECT_UNKNOWN) SKIP();
 
-    int res = c_orm_connect(&db, dialect, "file.db");
+    res = c_orm_connect(&db, dialect, "file.db");
     ASSERT_EQ(0, res);
 
-    c_orm_param_t param;
-    
     /* Null text */
     param.type = C_ORM_PARAM_TEXT;
     param.value.text_val = NULL;
@@ -251,9 +253,10 @@ TEST test_c_orm_execute_params_invalid(void) {
 TEST test_c_orm_transactions(void) {
     c_orm_db_t* db = NULL;
     c_orm_dialect_t dialect = get_active_dialect();
+    int res;
     if (dialect == C_ORM_DIALECT_UNKNOWN) SKIP();
 
-    int res = c_orm_connect(&db, dialect, "file.db");
+    res = c_orm_connect(&db, dialect, "file.db");
     ASSERT_EQ(0, res);
 
     /* Normal flow */
@@ -293,13 +296,14 @@ static void test_logger_cb(const char* query, double duration_ms, void* user_dat
 TEST test_c_orm_logging(void) {
     c_orm_db_t* db = NULL;
     c_orm_dialect_t dialect = get_active_dialect();
+    int res;
+    int mock_user_data = 42;
     if (dialect == C_ORM_DIALECT_UNKNOWN) SKIP();
 
-    int res = c_orm_connect(&db, dialect, "file.db");
+    res = c_orm_connect(&db, dialect, "file.db");
     ASSERT_EQ(0, res);
 
     /* Test setting logger */
-    int mock_user_data = 42;
     res = c_orm_set_logger(db, test_logger_cb, &mock_user_data);
     ASSERT_EQ(0, res);
 
@@ -337,6 +341,7 @@ TEST test_c_orm_pool(void) {
     c_orm_db_t* db1 = NULL;
     c_orm_db_t* db2 = NULL;
     c_orm_db_t* db3 = NULL;
+    c_orm_db_t* fake_db = NULL;
     int res;
 
     c_orm_dialect_t dialect = get_active_dialect();
@@ -392,7 +397,6 @@ TEST test_c_orm_pool(void) {
     ASSERT_EQ(-1, res);
 
     /* Release an unknown connection */
-    c_orm_db_t* fake_db;
     c_orm_connect(&fake_db, dialect, "other.db");
     res = c_orm_pool_release(pool, fake_db);
     ASSERT_EQ(-2, res);
@@ -443,13 +447,13 @@ TEST test_c_orm_fluent_query(void) {
     /* Add clauses */
     res = c_orm_query_select(q, "id, name");
     ASSERT_EQ(0, res);
-    
+
     res = c_orm_query_where(q, "age > 18");
     ASSERT_EQ(0, res);
-    
+
     res = c_orm_query_order_by(q, "name ASC");
     ASSERT_EQ(0, res);
-    
+
     res = c_orm_query_limit(q, 10);
     ASSERT_EQ(0, res);
 
@@ -467,7 +471,7 @@ TEST test_c_orm_fluent_query(void) {
     ASSERT_EQ(0, res);
     res = c_orm_query_order_by(q, "id DESC");
     ASSERT_EQ(0, res);
-    
+
     res = c_orm_query_build(q, &sql);
     ASSERT_EQ(0, res);
     ASSERT_STR_EQ("SELECT count(*) FROM users WHERE id = 1 ORDER BY id DESC LIMIT 10", sql);
@@ -501,8 +505,8 @@ TEST test_c_orm_fluent_query(void) {
 
 static int g_async_cb_count = 0;
 static void test_async_cb(int status, void* user_data) {
-    g_async_cb_count++;
     int* marker = (int*)user_data;
+    g_async_cb_count++;
     if (marker) {
         *marker = status;
     }
@@ -511,19 +515,20 @@ static void test_async_cb(int status, void* user_data) {
 TEST test_c_orm_async(void) {
     c_orm_db_t* db = NULL;
     c_orm_dialect_t dialect = get_active_dialect();
-    if (dialect == C_ORM_DIALECT_UNKNOWN) SKIP();
-
-    int res = c_orm_connect(&db, dialect, "file.db");
-    ASSERT_EQ(0, res);
-
+    int res;
     int job_marker_1 = -99;
     int job_marker_2 = -99;
+    if (dialect == C_ORM_DIALECT_UNKNOWN) SKIP();
+
+    res = c_orm_connect(&db, dialect, "file.db");
+    ASSERT_EQ(0, res);
+
     g_async_cb_count = 0;
 
     /* Queue jobs */
     res = c_orm_execute_async(db, "SELECT 1", test_async_cb, &job_marker_1);
     ASSERT_EQ(0, res);
-    
+
     res = c_orm_execute_async(db, "SELECT 2", test_async_cb, &job_marker_2);
     ASSERT_EQ(0, res);
 

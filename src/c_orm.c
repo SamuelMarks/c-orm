@@ -59,7 +59,7 @@ struct c_orm_db {
     void* native_conn;
     c_orm_log_cb_t logger;
     void* logger_user_data;
-    int32_t simulated_migration_version;
+    int simulated_migration_version;
     c_orm_mutex_t mutex;
 
     /* Async simulation queue */
@@ -239,7 +239,7 @@ int c_orm_migrate_rollback(c_orm_db_t* db, const char* migrations_dir) {
     return 0;
 }
 
-int c_orm_migrate_current_version(c_orm_db_t* db, int32_t* current_version) {
+int c_orm_migrate_current_version(c_orm_db_t* db, int* current_version) {
     if (!db || !current_version) return -1;
 
     c_orm_lock(db);
@@ -643,10 +643,10 @@ int c_orm_query_build(c_orm_query_t* query, char** sql_out) {
     if (query->has_limit) {
         char limit_str[32];
 #if defined(_MSC_VER)
-        sprintf_s(limit_str, sizeof(limit_str), " LIMIT " NUM_FORMAT, (long long)query->limit);
+        sprintf_s(limit_str, sizeof(limit_str), " LIMIT " NUM_FORMAT, (long)query->limit);
         strcat_s(sql, size, limit_str);
 #else
-        sprintf(limit_str, " LIMIT " NUM_FORMAT, (long long)query->limit);
+        sprintf(limit_str, " LIMIT " NUM_FORMAT, (long)query->limit);
         strcat(sql, limit_str);
 #endif
     }

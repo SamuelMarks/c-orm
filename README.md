@@ -1,6 +1,7 @@
 c-orm
 =====
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![CI](https://github.com/SamuelMarks/c-orm/actions/workflows/ci.yml/badge.svg)](https://github.com/SamuelMarks/c-orm/actions/workflows/ci.yml)
 [![Doc Coverage](https://img.shields.io/badge/docs-100%25-brightgreen.svg)](#)
 [![Test Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](#)
 [![C Standard](https://img.shields.io/badge/C-89-blue.svg)](#)
@@ -21,6 +22,21 @@ It provides primitives analogous to Python's SQLAlchemy/Alembic or Rust's Diesel
 - **Abstracted Schema Migrations**: Alembic-style schema migrations and version tracking.
 - **CRUD Code Generation**: Generate pure C structs and CRUD boilerplates straight from your DB Schema AST using the `db_codegen` module.
 - **Async Execution Simulation**: Queue-based async execution mechanisms designed for easy integration with event loops.
+
+## Feature Status
+
+| Feature | Status | Description |
+| :--- | :---: | :--- |
+| SQLite Backend | ✅ | Full support for SQLite. |
+| PostgreSQL Backend | 🚧 | Stubs exist; pending native libpq integration. |
+| MySQL Backend | 🚧 | Stubs exist; pending native mysqlclient integration. |
+| Connection Pooling | ✅ | Thread-safe connection pool implemented. |
+| Fluent Query Builder | ✅ | SELECT, WHERE, ORDER BY, LIMIT supported. |
+| Parameterized Queries | ✅ | Type-safe binding primitives available. |
+| Schema Migrations | 🚧 | Version tracking and up/down stubbed. |
+| Code Generation | ✅ | SQL to C struct and CRUD generation functional. |
+| Async Execution | ✅ | Queue-based simulation for event loops. |
+| ORM Object Mapping | 🚧 | Full automated struct-to-row mapping pending. |
 
 ## Installation
 

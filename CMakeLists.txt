@@ -4,7 +4,7 @@ project(c-orm C)
 # Set C standards
 set(CMAKE_C_STANDARD 90)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
 option(C_ORM_BACKEND_SQLITE "Enable SQLite backend" ON)
 option(C_ORM_BACKEND_POSTGRES "Enable PostgreSQL backend" OFF)

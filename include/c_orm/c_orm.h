@@ -12,7 +12,6 @@ extern "C" {
 #endif /* __cplusplus */
 
 #include <stddef.h>
-#include <stdint.h>
 
 #if defined(_WIN32)
 #if !defined(_X86_) && !defined(_AMD64_) && !defined(_ARM_) && !defined(_ARM64_)
@@ -37,12 +36,13 @@ typedef pthread_mutex_t c_orm_mutex_t;
 #endif
 
 #if defined(_MSC_VER)
-#define NUM_FORMAT "%I64d"
+#define NUM_FORMAT "%ld"
 #else
-#define NUM_FORMAT "%lld"
+#define NUM_FORMAT "%ld"
 #endif
 
 /**
+ * @brief Supported database dialects.
  * @brief Supported database dialects.
  */
 typedef enum {
@@ -84,7 +84,7 @@ typedef enum {
 typedef struct {
     c_orm_param_type_t type; /**< Type of the parameter */
     union {
-        long long int_val;   /**< Integer value */
+        long int_val;        /**< Integer value */
         double real_val;     /**< Real/Float value */
         const char* text_val;/**< Null-terminated text value */
         struct {
@@ -160,7 +160,7 @@ int c_orm_migrate_rollback(c_orm_db_t* db, const char* migrations_dir);
  * @param current_version Pointer to an integer to receive the version.
  * @return 0 on success, non-zero on error.
  */
-int c_orm_migrate_current_version(c_orm_db_t* db, int32_t* current_version);
+int c_orm_migrate_current_version(c_orm_db_t* db, int* current_version);
 
 /**
  * @brief Set the logging callback for a database connection.
