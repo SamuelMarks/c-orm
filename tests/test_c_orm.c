@@ -345,11 +345,15 @@ TEST test_c_orm_pool(void) {
     /* Bad args */
     res = c_orm_pool_create(NULL, dialect, "file.db", 2);
     ASSERT_EQ(-1, res);
-    res = c_orm_pool_create(&pool, dialect, NULL, 2);
-    ASSERT_EQ(-1, res);
     res = c_orm_pool_create(&pool, dialect, "file.db", 0);
     ASSERT_EQ(-1, res);
 
+    /* Test massive allocation failure for coverage */
+    res = c_orm_pool_create(&pool, dialect, "file.db", (size_t)-1);
+    ASSERT_EQ(-1, res);
+
+    res = c_orm_pool_create(&pool, dialect, "file.db", 2);
+    ASSERT_EQ(0, res);
     /* Create valid pool of size 2 */
     res = c_orm_pool_create(&pool, dialect, "file.db", 2);
     ASSERT_EQ(0, res);

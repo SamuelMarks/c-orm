@@ -53,7 +53,9 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git
   GIT_TAG        master
 )
-FetchContent_MakeAvailable(cdd_c)
+if(NOT cdd_c_POPULATED)
+    FetchContent_Populate(cdd_c)
+endif()
 
 add_library(c-orm
     src/c_orm.c

@@ -49,13 +49,20 @@ int db_codegen_struct_header(const struct DatabaseSchema *schema, FILE *out, con
   return 0;
 }
 
-static const char* fk_action_to_str(enum DatabaseForeignKeyAction action) {
+/**
+ * @brief Convert a DatabaseForeignKeyAction enum to a string representation.
+ * @param action The action to convert.
+ * @param out_str Pointer to a const char* to store the resulting string.
+ * @return 0 on success, EINVAL if out_str is NULL.
+ */
+static int fk_action_to_str(enum DatabaseForeignKeyAction action, const char** out_str) {
+    if (!out_str) return EINVAL;
     switch (action) {
-        case DB_FK_ACTION_CASCADE: return "CASCADE";
-        case DB_FK_ACTION_SET_NULL: return "SET NULL";
-        case DB_FK_ACTION_SET_DEFAULT: return "SET DEFAULT";
-        case DB_FK_ACTION_RESTRICT: return "RESTRICT";
-        default: return NULL;
+        case DB_FK_ACTION_CASCADE: *out_str = "CASCADE"; return 0;
+        case DB_FK_ACTION_SET_NULL: *out_str = "SET NULL"; return 0;
+        case DB_FK_ACTION_SET_DEFAULT: *out_str = "SET DEFAULT"; return 0;
+        case DB_FK_ACTION_RESTRICT: *out_str = "RESTRICT"; return 0;
+        default: *out_str = NULL; return 0;
     }
 }
 
@@ -120,10 +127,16 @@ int db_codegen_sql(const struct DatabaseSchema *schema, FILE *out, const char *d
           fprintf(out, " REFERENCES %s(%s)", col->foreign_key_table, col->foreign_key_column ? col->foreign_key_column : "id");
 
           if (col->on_delete != DB_FK_ACTION_NONE) {
-              fprintf(out, " ON DELETE %s", fk_action_to_str(col->on_delete));
+              const char* action_str = NULL;
+              if (fk_action_to_str(col->on_delete, &action_str) == 0 && action_str) {
+                  fprintf(out, " ON DELETE %s", action_str);
+              }
           }
           if (col->on_update != DB_FK_ACTION_NONE) {
-              fprintf(out, " ON UPDATE %s", fk_action_to_str(col->on_update));
+              const char* action_str = NULL;
+              if (fk_action_to_str(col->on_update, &action_str) == 0 && action_str) {
+                  fprintf(out, " ON UPDATE %s", action_str);
+              }
           }
       }
 
@@ -209,6 +222,12 @@ int db_codegen_crud_c(const struct DatabaseSchema *schema, FILE *out, const char
   return 0;
 }
 
+/**
+ * @brief Skips leading whitespace in a string.
+ * @param str The string to process.
+ * @param out Pointer to a char* to store the string after whitespace.
+ * @return 0 on success, -1 on invalid argument.
+ */
 static int skip_whitespace(char* str, char** out) {
     if (!str || !out) return -1;
     while (*str && isspace((unsigned char)*str)) str++;

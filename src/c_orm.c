@@ -4,6 +4,16 @@
 #include <stdio.h>
 #include <time.h>
 
+static void c_orm_mutex_init(c_orm_mutex_t* mutex);
+static void c_orm_mutex_destroy(c_orm_mutex_t* mutex);
+static void c_orm_mutex_lock(c_orm_mutex_t* mutex);
+static void c_orm_mutex_unlock(c_orm_mutex_t* mutex);
+static int strdup_safe(const char* s, char** out);
+
+/**
+ * @brief Initialize a mutex.
+ * @param mutex Pointer to the mutex to initialize.
+ */
 static void c_orm_mutex_init(c_orm_mutex_t* mutex) {
 #if defined(_WIN32)
     InitializeCriticalSection(mutex);
