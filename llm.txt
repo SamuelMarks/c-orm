@@ -1,0 +1,29 @@
+# Context for LLMs (llm.txt)
+
+If you are an AI assistant analyzing or modifying this repository, strictly adhere to the following rules:
+
+## 1. Strict C89 Compliance
+- Declare all variables at the beginning of the scope block.
+- DO NOT use `//` for comments. Only use `/* ... */`.
+- DO NOT use variable-length arrays (VLAs).
+- Use C89 standard library functions natively unless modifying for MSVC safe boundaries.
+
+## 2. Windows & MSVC Considerations
+- **NEVER** `#include <windows.h>`. It bloats compilation. If Windows API types are required, use `<windef.h>` and `<winbase.h>`, but be sure to guard against missing architecture flags (`_X86_`, `_AMD64_`, etc.) if targeting legacy versions.
+- Guard MSVC safe string functions (e.g., `strcpy_s`, `sprintf_s`) behind `#if defined(_MSC_VER)`. Fallback to standard C functions for other compilers (GCC, Clang, MinGW).
+- Integer formatting must use the `NUM_FORMAT` macro defined in `c_orm.h` (`%I64d` on MSVC, `%lld` elsewhere) when using `printf`/`sprintf`.
+
+## 3. API Signatures
+- All non-void utility functions MUST return an `int` indicating status (0 for success, negative for errors).
+- Data that needs to be returned (like strings or allocated structs) MUST be passed as double-pointers (e.g., `char** out`).
+- Pointers to allocated memory must be properly checked before and after allocation.
+
+## 4. Build & Testing
+- Modifications to `CMakeLists.txt` must preserve the extensive `option()` permutations provided for Link-Time Optimization (LTO), Static/Shared CRTs (`/MT`, `/MD`), and Runtime Checks (`/RTC1`, etc.).
+- 100% Doc coverage is required. Every exported struct and function needs a Doxygen comment block.
+- 100% Test coverage is required. All newly introduced code paths must have an assertion mapped in the `tests/` directory (using the `greatest.h` framework).
+
+## 5. Idiomatic Design
+- Avoid unnecessary external library dependencies.
+- Ensure cross-platform compatibility across Linux, macOS, and Windows.
+- Prioritize memory safety and explicit resource management (always provide matching `free()` or `destroy()` functions for initializers).

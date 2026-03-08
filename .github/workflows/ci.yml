@@ -1,0 +1,157 @@
+name: CI
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build:
+    name: Build & Test (${{ matrix.os }}, ${{ matrix.compiler }}, ${{ matrix.backend }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        compiler: [gcc, clang, msvc]
+        backend: [sqlite, postgres, mysql, all]
+        exclude:
+          - os: ubuntu-latest
+            compiler: msvc
+          - os: macos-latest
+            compiler: msvc
+          - os: macos-latest
+            compiler: gcc
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libsqlite3-dev libpq-dev libmysqlclient-dev
+
+    - name: Install Dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install sqlite postgresql mysql
+
+    - name: Configure CMake
+      shell: bash
+      run: |
+        BACKEND_FLAGS=""
+        if [ "${{ matrix.backend }}" = "sqlite" ]; then
+          BACKEND_FLAGS="-DC_ORM_BACKEND_SQLITE=ON -DC_ORM_BACKEND_POSTGRES=OFF -DC_ORM_BACKEND_MYSQL=OFF"
+        elif [ "${{ matrix.backend }}" = "postgres" ]; then
+          BACKEND_FLAGS="-DC_ORM_BACKEND_SQLITE=OFF -DC_ORM_BACKEND_POSTGRES=ON -DC_ORM_BACKEND_MYSQL=OFF"
+        elif [ "${{ matrix.backend }}" = "mysql" ]; then
+          BACKEND_FLAGS="-DC_ORM_BACKEND_SQLITE=OFF -DC_ORM_BACKEND_POSTGRES=OFF -DC_ORM_BACKEND_MYSQL=ON"
+        elif [ "${{ matrix.backend }}" = "all" ]; then
+          BACKEND_FLAGS="-DC_ORM_BACKEND_SQLITE=ON -DC_ORM_BACKEND_POSTGRES=ON -DC_ORM_BACKEND_MYSQL=ON"
+        fi
+        
+        COMPILER_FLAGS=""
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          if [ "${{ matrix.compiler }}" = "gcc" ]; then
+            COMPILER_FLAGS="-G \"MinGW Makefiles\""
+          elif [ "${{ matrix.compiler }}" = "clang" ]; then
+            COMPILER_FLAGS="-T ClangCL"
+          fi
+        else
+          if [ "${{ matrix.compiler }}" = "gcc" ]; then
+            export CC=gcc
+            export CXX=g++
+          elif [ "${{ matrix.compiler }}" = "clang" ]; then
+            export CC=clang
+            export CXX=clang++
+          fi
+        fi
+        
+        cmake -S . -B build $BACKEND_FLAGS $COMPILER_FLAGS -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: cmake --build build --config Release
+
+    - name: Test
+      run: ctest --test-dir build --build-config Release --output-on-failure
+
+  msvc-abi:
+    name: MSVC ABI (${{ matrix.name }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "Static CRT, Unicode, Debug"
+            flags: "-DC_ORM_STATIC_CRT=ON -DC_ORM_UNICODE=ON"
+            build_type: "Debug"
+          - name: "Shared CRT, ANSI, Release"
+            flags: "-DC_ORM_SHARED_CRT=ON -DC_ORM_ANSI=ON"
+            build_type: "Release"
+          - name: "Shared Lib, LTO, Release"
+            flags: "-DBUILD_SHARED_LIBS=ON -DC_ORM_LTO=ON"
+            build_type: "Release"
+          - name: "RTC1, Single Threaded, Debug"
+            flags: "-DC_ORM_RUNTIME_CHECKS_RTC1=ON -DC_ORM_MULTI_THREADED=OFF"
+            build_type: "Debug"
+          - name: "RTCs, Static CRT, Debug"
+            flags: "-DC_ORM_RUNTIME_CHECKS_RTCS=ON -DC_ORM_STATIC_CRT=ON"
+            build_type: "Debug"
+          - name: "RTCu, Shared Lib, Debug"
+            flags: "-DC_ORM_RUNTIME_CHECKS_RTCU=ON -DBUILD_SHARED_LIBS=ON"
+            build_type: "Debug"
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure CMake
+      shell: bash
+      run: |
+        cmake -S . -B build -DC_ORM_BACKEND_SQLITE=ON ${{ matrix.flags }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }}
+
+    - name: Test
+      run: ctest --test-dir build --build-config ${{ matrix.build_type }} --output-on-failure
+
+  sanitizers:
+    name: Sanitizers (${{ matrix.sanitizer }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sanitizer: "Address"
+            flags: "-fsanitize=address"
+          - sanitizer: "Undefined Behavior"
+            flags: "-fsanitize=undefined"
+          - sanitizer: "Leak"
+            flags: "-fsanitize=leak"
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libsqlite3-dev libpq-dev libmysqlclient-dev
+
+    - name: Configure CMake
+      run: |
+        export CC=gcc
+        export CXX=g++
+        export CFLAGS="${{ matrix.flags }} -g -O1"
+        export LDFLAGS="${{ matrix.flags }}"
+        cmake -S . -B build -DC_ORM_BACKEND_SQLITE=ON -DCMAKE_BUILD_TYPE=Debug
+
+    - name: Build
+      run: cmake --build build
+
+    - name: Test
+      run: |
+        export ASAN_OPTIONS=detect_leaks=1
+        export UBSAN_OPTIONS=print_stacktrace=1
+        ctest --test-dir build --output-on-failure
