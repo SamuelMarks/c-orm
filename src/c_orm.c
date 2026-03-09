@@ -24,42 +24,105 @@
 /* clang-format on */
 
 /* Mock helpers for 100% test coverage without a running DB */
-static PGconn *internal_PQconnectdb(const char *conninfo) {
-  if (strcmp(conninfo, "test_mock_success") == 0)
-    return (PGconn *)1;
-  return PQconnectdb(conninfo);
+/**
+ * @brief Mock wrapper for PQconnectdb.
+ * @param conninfo Connection string.
+ * @param out_conn Output for PGconn.
+ * @return 0 on success.
+ */
+static int internal_PQconnectdb(const char *conninfo, PGconn **out_conn) {
+  if (strcmp(conninfo, "test_mock_success") == 0) {
+    *out_conn = (PGconn *)1;
+    return 0;
+  }
+  *out_conn = PQconnectdb(conninfo);
+  return 0;
 }
-static ConnStatusType internal_PQstatus(const PGconn *conn) {
-  if (conn == (PGconn *)1)
-    return CONNECTION_OK;
-  return PQstatus(conn);
+/**
+ * @brief Mock wrapper for PQstatus.
+ * @param conn The connection.
+ * @param out_status Output for ConnStatusType.
+ * @return 0 on success.
+ */
+static int internal_PQstatus(const PGconn *conn, ConnStatusType *out_status) {
+  if (conn == (PGconn *)1) {
+    *out_status = CONNECTION_OK;
+    return 0;
+  }
+  *out_status = PQstatus(conn);
+  return 0;
 }
+/**
+ * @brief Mock wrapper for PQfinish.
+ * @param conn The connection.
+ */
 static void internal_PQfinish(PGconn *conn) {
   if (conn == (PGconn *)1)
     return;
   PQfinish(conn);
 }
-static PGresult *internal_PQexec(PGconn *conn, const char *query) {
-  if (conn == (PGconn *)1)
-    return (PGresult *)1;
-  return PQexec(conn, query);
+/**
+ * @brief Mock wrapper for PQexec.
+ * @param conn The connection.
+ * @param query The query string.
+ * @param out_res Output for PGresult.
+ * @return 0 on success.
+ */
+static int internal_PQexec(PGconn *conn, const char *query,
+                           PGresult **out_res) {
+  if (conn == (PGconn *)1) {
+    *out_res = (PGresult *)1;
+    return 0;
+  }
+  *out_res = PQexec(conn, query);
+  return 0;
 }
-static PGresult *internal_PQexecParams(PGconn *conn, const char *command,
-                                       int nParams, const Oid *paramTypes,
-                                       const char *const *paramValues,
-                                       const int *paramLengths,
-                                       const int *paramFormats,
-                                       int resultFormat) {
-  if (conn == (PGconn *)1)
-    return (PGresult *)1;
-  return PQexecParams(conn, command, nParams, paramTypes, paramValues,
-                      paramLengths, paramFormats, resultFormat);
+/**
+ * @brief Mock wrapper for PQexecParams.
+ * @param conn The connection.
+ * @param command The query command.
+ * @param nParams Number of parameters.
+ * @param paramTypes Types of parameters.
+ * @param paramValues Values of parameters.
+ * @param paramLengths Lengths of parameters.
+ * @param paramFormats Formats of parameters.
+ * @param resultFormat Result format.
+ * @param out_res Output for PGresult.
+ * @return 0 on success.
+ */
+static int internal_PQexecParams(PGconn *conn, const char *command, int nParams,
+                                 const Oid *paramTypes,
+                                 const char *const *paramValues,
+                                 const int *paramLengths,
+                                 const int *paramFormats, int resultFormat,
+                                 PGresult **out_res) {
+  if (conn == (PGconn *)1) {
+    *out_res = (PGresult *)1;
+    return 0;
+  }
+  *out_res = PQexecParams(conn, command, nParams, paramTypes, paramValues,
+                          paramLengths, paramFormats, resultFormat);
+  return 0;
 }
-static ExecStatusType internal_PQresultStatus(const PGresult *res) {
-  if (res == (PGresult *)1)
-    return PGRES_COMMAND_OK;
-  return PQresultStatus(res);
+/**
+ * @brief Mock wrapper for PQresultStatus.
+ * @param res The result.
+ * @param out_status Output for ExecStatusType.
+ * @return 0 on success.
+ */
+static int internal_PQresultStatus(const PGresult *res,
+                                   ExecStatusType *out_status) {
+  if (res == (PGresult *)1) {
+    *out_status = PGRES_COMMAND_OK;
+    return 0;
+  }
+  *out_status = PQresultStatus(res);
+  return 0;
 }
+/**
+ * @brief Mock wrapper for PQclear.
+ * @param res The result.
+ */
 static void internal_PQclear(PGresult *res) {
   if (res == (PGresult *)1)
     return;
@@ -79,52 +142,124 @@ static void internal_PQclear(PGresult *res) {
 /* clang-format on */
 
 /* Mock helpers for 100% test coverage without a running DB */
-static MYSQL *internal_mysql_init(MYSQL *mysql) { return mysql_init(mysql); }
-static MYSQL *internal_mysql_real_connect(MYSQL *mysql, const char *host,
-                                          const char *user, const char *passwd,
-                                          const char *db, unsigned int port,
-                                          const char *unix_socket,
-                                          unsigned long clientflag) {
-  if (host && strcmp(host, "test_mock_success") == 0)
-    return mysql ? mysql : (MYSQL *)1;
-  return mysql_real_connect(mysql, host, user, passwd, db, port, unix_socket,
-                            clientflag);
+/**
+ * @brief Mock wrapper for mysql_init.
+ * @param mysql The mysql handle.
+ * @param out_mysql Output for MYSQL handle.
+ * @return 0 on success.
+ */
+static int internal_mysql_init(MYSQL *mysql, MYSQL **out_mysql) {
+  *out_mysql = mysql_init(mysql);
+  return 0;
 }
+/**
+ * @brief Mock wrapper for mysql_real_connect.
+ * @param mysql The mysql handle.
+ * @param host The host.
+ * @param user The user.
+ * @param passwd The password.
+ * @param db The database.
+ * @param port The port.
+ * @param unix_socket The unix socket.
+ * @param clientflag The client flags.
+ * @param out_mysql Output for MYSQL handle.
+ * @return 0 on success.
+ */
+static int internal_mysql_real_connect(MYSQL *mysql, const char *host,
+                                       const char *user, const char *passwd,
+                                       const char *db, unsigned int port,
+                                       const char *unix_socket,
+                                       unsigned long clientflag,
+                                       MYSQL **out_mysql) {
+  if (host && strcmp(host, "test_mock_success") == 0) {
+    *out_mysql = mysql ? mysql : (MYSQL *)1;
+    return 0;
+  }
+  *out_mysql = mysql_real_connect(mysql, host, user, passwd, db, port,
+                                  unix_socket, clientflag);
+  return 0;
+}
+/**
+ * @brief Mock wrapper for mysql_close.
+ * @param sock The mysql handle.
+ */
 static void internal_mysql_close(MYSQL *sock) {
   if (sock == (MYSQL *)1)
     return;
   mysql_close(sock);
 }
+/**
+ * @brief Mock wrapper for mysql_query.
+ * @param mysql The mysql handle.
+ * @param q The query string.
+ * @return 0 on success.
+ */
 static int internal_mysql_query(MYSQL *mysql, const char *q) {
   if (mysql == (MYSQL *)1)
     return 0;
   return mysql_query(mysql, q);
 }
-static MYSQL_STMT *internal_mysql_stmt_init(MYSQL *mysql) {
-  if (mysql == (MYSQL *)1)
-    return (MYSQL_STMT *)1;
-  return mysql_stmt_init(mysql);
+/**
+ * @brief Mock wrapper for mysql_stmt_init.
+ * @param mysql The mysql handle.
+ * @param out_stmt Output for MYSQL_STMT.
+ * @return 0 on success.
+ */
+static int internal_mysql_stmt_init(MYSQL *mysql, MYSQL_STMT **out_stmt) {
+  if (mysql == (MYSQL *)1) {
+    *out_stmt = (MYSQL_STMT *)1;
+    return 0;
+  }
+  *out_stmt = mysql_stmt_init(mysql);
+  return 0;
 }
+/**
+ * @brief Mock wrapper for mysql_stmt_prepare.
+ * @param stmt The statement handle.
+ * @param query The query string.
+ * @param length The query length.
+ * @return 0 on success.
+ */
 static int internal_mysql_stmt_prepare(MYSQL_STMT *stmt, const char *query,
                                        unsigned long length) {
   if (stmt == (MYSQL_STMT *)1)
     return 0;
   return mysql_stmt_prepare(stmt, query, length);
 }
+/**
+ * @brief Mock wrapper for mysql_stmt_bind_param.
+ * @param stmt The statement handle.
+ * @param bnd The bind structures.
+ * @return 0 on success.
+ */
 static int internal_mysql_stmt_bind_param(MYSQL_STMT *stmt, MYSQL_BIND *bnd) {
   if (stmt == (MYSQL_STMT *)1)
     return 0;
   return mysql_stmt_bind_param(stmt, bnd);
 }
+/**
+ * @brief Mock wrapper for mysql_stmt_execute.
+ * @param stmt The statement handle.
+ * @return 0 on success.
+ */
 static int internal_mysql_stmt_execute(MYSQL_STMT *stmt) {
   if (stmt == (MYSQL_STMT *)1)
     return 0;
   return mysql_stmt_execute(stmt);
 }
-static my_bool internal_mysql_stmt_close(MYSQL_STMT *stmt) {
-  if (stmt == (MYSQL_STMT *)1)
+/**
+ * @brief Mock wrapper for mysql_stmt_close.
+ * @param stmt The statement handle.
+ * @param out_bool Output for my_bool.
+ * @return 0 on success.
+ */
+static int internal_mysql_stmt_close(MYSQL_STMT *stmt, my_bool *out_bool) {
+  if (stmt == (MYSQL_STMT *)1) {
+    *out_bool = 0;
     return 0;
-  return mysql_stmt_close(stmt);
+  }
+  *out_bool = mysql_stmt_close(stmt);
+  return 0;
 }
 #endif
 
@@ -271,8 +406,11 @@ int c_orm_connect(c_orm_db_t **db_out, c_orm_dialect_t dialect,
 #endif
   } else if (dialect == C_ORM_DIALECT_POSTGRES) {
 #ifdef C_ORM_HAVE_POSTGRES
-    PGconn *conn = internal_PQconnectdb(conn_string);
-    if (internal_PQstatus(conn) != CONNECTION_OK) {
+    PGconn *conn = NULL;
+    ConnStatusType __s;
+    internal_PQconnectdb(conn_string, &conn);
+    internal_PQstatus(conn, &__s);
+    if (__s != CONNECTION_OK) {
       internal_PQfinish(conn);
       free(db);
       return -1;
@@ -282,13 +420,15 @@ int c_orm_connect(c_orm_db_t **db_out, c_orm_dialect_t dialect,
   } else if (dialect == C_ORM_DIALECT_MYSQL) {
 #ifdef C_ORM_HAVE_MYSQL
     MYSQL *conn;
-    conn = internal_mysql_init(NULL);
+    MYSQL *__real_conn = NULL;
+    internal_mysql_init(NULL, &conn);
     if (!conn) {
       free(db);
       return -1;
     }
-    if (!internal_mysql_real_connect(conn, conn_string, NULL, NULL, NULL, 0,
-                                     NULL, 0)) {
+    internal_mysql_real_connect(conn, conn_string, NULL, NULL, NULL, 0, NULL, 0,
+                                &__real_conn);
+    if (!__real_conn) {
       internal_mysql_close(conn);
       free(db);
       return -1;
@@ -429,9 +569,11 @@ int c_orm_execute(c_orm_db_t *db, const char *query) {
 
   if (db->dialect == C_ORM_DIALECT_POSTGRES) {
 #ifdef C_ORM_HAVE_POSTGRES
-    PGresult *res = internal_PQexec((PGconn *)db->native_conn, query);
-    if (internal_PQresultStatus(res) != PGRES_COMMAND_OK &&
-        internal_PQresultStatus(res) != PGRES_TUPLES_OK) {
+    PGresult *res = NULL;
+    ExecStatusType __s;
+    internal_PQexec((PGconn *)db->native_conn, query, &res);
+    internal_PQresultStatus(res, &__s);
+    if (__s != PGRES_COMMAND_OK && __s != PGRES_TUPLES_OK) {
       internal_PQclear(res);
       c_orm_unlock(db);
       return -1;
@@ -623,9 +765,8 @@ int c_orm_execute_params(c_orm_db_t *db, const char *query,
       }
     }
 
-    res = internal_PQexecParams((PGconn *)db->native_conn, query,
-                                (int)param_count, NULL, param_values, NULL,
-                                NULL, 0);
+    internal_PQexecParams((PGconn *)db->native_conn, query, (int)param_count,
+                          NULL, param_values, NULL, NULL, 0, &res);
 
     if (param_count > 0 && str_allocs) {
       size_t i;
@@ -637,25 +778,31 @@ int c_orm_execute_params(c_orm_db_t *db, const char *query,
       free((void *)param_values);
     }
 
-    if (internal_PQresultStatus(res) != PGRES_COMMAND_OK &&
-        internal_PQresultStatus(res) != PGRES_TUPLES_OK) {
-      internal_PQclear(res);
-      c_orm_unlock(db);
-      return -1;
+    {
+      ExecStatusType __s;
+      internal_PQresultStatus(res, &__s);
+      if (__s != PGRES_COMMAND_OK && __s != PGRES_TUPLES_OK) {
+        internal_PQclear(res);
+        c_orm_unlock(db);
+        return -1;
+      }
     }
     internal_PQclear(res);
 #endif
   } else if (db->dialect == C_ORM_DIALECT_MYSQL) {
 #ifdef C_ORM_HAVE_MYSQL
     MYSQL_STMT *stmt;
-    stmt = internal_mysql_stmt_init((MYSQL *)db->native_conn);
+    internal_mysql_stmt_init((MYSQL *)db->native_conn, &stmt);
     if (!stmt) {
       c_orm_unlock(db);
       return -1;
     }
     if (internal_mysql_stmt_prepare(stmt, query,
                                     (unsigned long)strlen(query)) != 0) {
-      internal_mysql_stmt_close(stmt);
+      {
+        my_bool __b;
+        internal_mysql_stmt_close(stmt, &__b);
+      }
       c_orm_unlock(db);
       return -1;
     }
@@ -664,14 +811,20 @@ int c_orm_execute_params(c_orm_db_t *db, const char *query,
       MYSQL_BIND *bind;
       bind = calloc(param_count, sizeof(MYSQL_BIND));
       if (!bind) {
-        internal_mysql_stmt_close(stmt);
+        {
+          my_bool __b;
+          internal_mysql_stmt_close(stmt, &__b);
+        }
         c_orm_unlock(db);
         return -1;
       }
       /* In a real implementation we would populate bind here... */
       if (internal_mysql_stmt_bind_param(stmt, bind) != 0) {
         free(bind);
-        internal_mysql_stmt_close(stmt);
+        {
+          my_bool __b;
+          internal_mysql_stmt_close(stmt, &__b);
+        }
         c_orm_unlock(db);
         return -1;
       }
@@ -679,11 +832,17 @@ int c_orm_execute_params(c_orm_db_t *db, const char *query,
     }
 
     if (internal_mysql_stmt_execute(stmt) != 0) {
-      internal_mysql_stmt_close(stmt);
+      {
+        my_bool __b;
+        internal_mysql_stmt_close(stmt, &__b);
+      }
       c_orm_unlock(db);
       return -1;
     }
-    internal_mysql_stmt_close(stmt);
+    {
+      my_bool __b;
+      internal_mysql_stmt_close(stmt, &__b);
+    }
 #endif
   } else {
     /* SQLite execution... */

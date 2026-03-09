@@ -28,8 +28,8 @@ It provides primitives analogous to Python's SQLAlchemy/Alembic or Rust's Diesel
 | Feature | Status | Description |
 | :--- | :---: | :--- |
 | SQLite Backend | ✅ | Full support for SQLite. |
-| PostgreSQL Backend | 🚧 | Stubs exist; pending native libpq integration. |
-| MySQL Backend | 🚧 | Stubs exist; pending native mysqlclient integration. |
+| PostgreSQL Backend | ✅ | Full support via native libpq integration. |
+| MySQL Backend | ✅ | Full support via native mysqlclient integration. |
 | Connection Pooling | ✅ | Thread-safe connection pool implemented. |
 | Fluent Query Builder | ✅ | SELECT, WHERE, ORDER BY, LIMIT supported. |
 | Parameterized Queries | ✅ | Type-safe binding primitives available. |

@@ -48,10 +48,8 @@ struct Organisation new_org = { .id = 1, .name = "Acme Corp" };
 c_orm_insert_organisation(db, &new_org);
 ```
 
-## 🛤️ Medium to Long-Term Goals
+## 🛠️ Medium to Long-Term Goals
 
-* **Advanced Code Generation:** Expand the `db_codegen` capabilities to automatically parse SQL schema files or metadata and generate the corresponding C structs and CRUD boilerplate.
-* **Query Builder:** A fluent, type-safe (as much as C allows) query builder API to construct complex `WHERE` clauses, `JOIN`s, and aggregations without raw SQL strings.
-* **Schema Migrations:** Tools to track, generate, and apply database schema changes over time.
-* **Multi-Backend Support:** Abstract the underlying database driver to support SQLite, PostgreSQL, and MySQL seamlessly.
+* **Query Builder:** Expand the fluent query builder API to construct complex `JOIN`s, `GROUP BY`, and aggregations without raw SQL strings.
+* **Schema Migrations:** Real implementation to track, generate, and apply database schema changes over time (currently only simulated).
 * **Relationship Management:** Built-in handling for One-to-One, One-to-Many, and Many-to-Many relationships between mapped structs.

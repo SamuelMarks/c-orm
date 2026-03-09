@@ -20,7 +20,7 @@ To prevent connection exhaustion and handle high-throughput, the ORM provides a 
 A fluent interface for constructing safe SQL strings dynamically.
 - Eliminates manual string concatenation errors.
 - Exposes `select`, `where`, `order_by`, and `limit` clauses.
-- Handles dialect-specific integer formatting using the `NUM_FORMAT` macro (`%I64d` vs `%lld`).
+- Handles integer formatting using the `NUM_FORMAT` macro.
 
 ### 4. Code Generator / AST (`db_codegen.c` & `database.c`)
 The library isn't just a runtime ORM; it's also a development tool.

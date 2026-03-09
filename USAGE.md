@@ -111,3 +111,21 @@ FILE* f_hdr = fopen("models.h", "w");
 db_codegen_struct_header(&schema, f_hdr, "MODELS_H");
 fclose(f_hdr);
 ```
+
+## 6. Asynchronous Execution
+
+`c-orm` provides an asynchronous execution mechanism allowing queries to be queued and completed via event-loop polling.
+
+```c
+void my_async_callback(int status, void* user_data) {
+    if (status == 0) {
+        printf("Async query completed successfully.\n");
+    }
+}
+
+/* Queue the query */
+c_orm_execute_async(db, "UPDATE users SET age = age + 1", my_async_callback, NULL);
+
+/* Inside your event loop, poll to process the queue */
+c_orm_poll_async(db);
+```

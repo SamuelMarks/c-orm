@@ -89,6 +89,12 @@ int db_codegen_struct_header(const struct DatabaseSchema *schema, FILE *out,
  * @param out_str Pointer to a const char* to store the resulting string.
  * @return 0 on success, EINVAL if out_str is NULL.
  */
+/**
+ * @brief Convert foreign key action to string.
+ * @param action The action enum.
+ * @param out_str Output string pointer.
+ * @return 0 on success.
+ */
 static int fk_action_to_str(enum DatabaseForeignKeyAction action,
                             const char **out_str) {
   if (!out_str)
@@ -306,6 +312,12 @@ int db_codegen_crud_c(const struct DatabaseSchema *schema, FILE *out,
  * @param str The string to process.
  * @param out Pointer to a char* to store the string after whitespace.
  * @return 0 on success, -1 on invalid argument.
+ */
+/**
+ * @brief Skip whitespace in string.
+ * @param str The string.
+ * @param out Output string pointer.
+ * @return 0 on success.
  */
 static int skip_whitespace(char *str, char **out) {
   if (!str || !out)
