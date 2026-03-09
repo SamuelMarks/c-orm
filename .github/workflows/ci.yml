@@ -56,7 +56,7 @@ jobs:
         elif [ "$RUNNER_OS" == "Windows" ]; then
           choco install dos2unix || true
         fi
-        find . -type f -name "*.[ch]" -exec dos2unix {} + || true
+        find . -type f \( -name "*.[ch]" -o -name "CMakeLists.txt" -o -name "*.yml" \) -exec dos2unix {} + || true
 
     - name: Install Dependencies (Ubuntu)
       if: matrix.os == 'ubuntu-latest'
@@ -150,7 +150,7 @@ jobs:
         elif [ "$RUNNER_OS" == "Windows" ]; then
           choco install dos2unix || true
         fi
-        find . -type f -name "*.[ch]" -exec dos2unix {} + || true
+        find . -type f \( -name "*.[ch]" -o -name "CMakeLists.txt" -o -name "*.yml" \) -exec dos2unix {} + || true
 
     - name: Configure CMake
       shell: bash
@@ -190,7 +190,7 @@ jobs:
         elif [ "$RUNNER_OS" == "Windows" ]; then
           choco install dos2unix || true
         fi
-        find . -type f -name "*.[ch]" -exec dos2unix {} + || true
+        find . -type f \( -name "*.[ch]" -o -name "CMakeLists.txt" -o -name "*.yml" \) -exec dos2unix {} + || true
 
     - name: Install Dependencies
       run: |
@@ -230,7 +230,7 @@ jobs:
         elif [ "$RUNNER_OS" == "Windows" ]; then
           choco install dos2unix || true
         fi
-        find . -type f -name "*.[ch]" -exec dos2unix {} + || true
+        find . -type f \( -name "*.[ch]" -o -name "CMakeLists.txt" -o -name "*.yml" \) -exec dos2unix {} + || true
     - name: Install Dependencies
       run: |
         sudo apt-get update
@@ -258,7 +258,7 @@ jobs:
         elif [ "$RUNNER_OS" == "Windows" ]; then
           choco install dos2unix || true
         fi
-        find . -type f -name "*.[ch]" -exec dos2unix {} + || true
+        find . -type f \( -name "*.[ch]" -o -name "CMakeLists.txt" -o -name "*.yml" \) -exec dos2unix {} + || true
     - name: Install Dependencies
       run: |
         sudo apt-get update
@@ -294,7 +294,7 @@ jobs:
         elif [ "$RUNNER_OS" == "Windows" ]; then
           choco install dos2unix || true
         fi
-        find . -type f -name "*.[ch]" -exec dos2unix {} + || true
+        find . -type f \( -name "*.[ch]" -o -name "CMakeLists.txt" -o -name "*.yml" \) -exec dos2unix {} + || true
     - name: Install Dependencies
       run: |
         sudo apt-get update
