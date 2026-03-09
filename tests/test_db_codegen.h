@@ -425,26 +425,50 @@ TEST test_db_schema_free_full(void) {
   db_schema_init(&schema);
 
   schema.name = malloc(10);
+#if defined(_MSC_VER)
+  strcpy_s(schema.name, 10, "test");
+#else
   strcpy(schema.name, "test");
+#endif
 
   schema.tables = calloc(1, sizeof(struct DatabaseTable));
   schema.n_tables = 1;
   schema.tables[0].name = malloc(10);
+#if defined(_MSC_VER)
+  strcpy_s(schema.tables[0].name, 10, "table");
+#else
   strcpy(schema.tables[0].name, "table");
+#endif
 
   schema.tables[0].columns = calloc(1, sizeof(struct DatabaseColumn));
   schema.tables[0].n_columns = 1;
   schema.tables[0].columns[0].name = malloc(10);
+#if defined(_MSC_VER)
+  strcpy_s(schema.tables[0].columns[0].name, 10, "col");
+#else
   strcpy(schema.tables[0].columns[0].name, "col");
+#endif
 
   schema.tables[0].columns[0].default_value = malloc(10);
+#if defined(_MSC_VER)
+  strcpy_s(schema.tables[0].columns[0].default_value, 10, "def");
+#else
   strcpy(schema.tables[0].columns[0].default_value, "def");
+#endif
 
   schema.tables[0].columns[0].foreign_key_table = malloc(10);
+#if defined(_MSC_VER)
+  strcpy_s(schema.tables[0].columns[0].foreign_key_table, 10, "fk_table");
+#else
   strcpy(schema.tables[0].columns[0].foreign_key_table, "fk_table");
+#endif
 
   schema.tables[0].columns[0].foreign_key_column = malloc(10);
+#if defined(_MSC_VER)
+  strcpy_s(schema.tables[0].columns[0].foreign_key_column, 10, "fk_col");
+#else
   strcpy(schema.tables[0].columns[0].foreign_key_column, "fk_col");
+#endif
 
   db_schema_free(&schema);
 
