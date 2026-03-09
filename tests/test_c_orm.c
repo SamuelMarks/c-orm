@@ -92,9 +92,9 @@ static int get_active_dialect(c_orm_dialect_t *out) {
 TEST test_c_orm_migrate(void) {
   c_orm_db_t *db = NULL;
   c_orm_dialect_t dialect;
-  get_active_dialect(&dialect);
   int version;
   int res;
+  get_active_dialect(&dialect);
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
 
@@ -156,8 +156,8 @@ TEST test_c_orm_migrate(void) {
 TEST test_c_orm_execute(void) {
   c_orm_db_t *db = NULL;
   c_orm_dialect_t dialect;
-  get_active_dialect(&dialect);
   int res;
+  get_active_dialect(&dialect);
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
 
@@ -180,9 +180,9 @@ TEST test_c_orm_execute(void) {
 TEST test_c_orm_execute_params_valid(void) {
   c_orm_db_t *db = NULL;
   c_orm_dialect_t dialect;
-  get_active_dialect(&dialect);
   int res;
   c_orm_param_t params[5];
+  get_active_dialect(&dialect);
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
 
@@ -218,9 +218,9 @@ TEST test_c_orm_execute_params_valid(void) {
 TEST test_c_orm_execute_params_invalid(void) {
   c_orm_db_t *db = NULL;
   c_orm_dialect_t dialect;
-  get_active_dialect(&dialect);
   int res;
   c_orm_param_t param;
+  get_active_dialect(&dialect);
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
 
@@ -271,8 +271,8 @@ TEST test_c_orm_execute_params_invalid(void) {
 TEST test_c_orm_transactions(void) {
   c_orm_db_t *db = NULL;
   c_orm_dialect_t dialect;
-  get_active_dialect(&dialect);
   int res;
+  get_active_dialect(&dialect);
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
 
@@ -318,9 +318,9 @@ static void test_logger_cb(const char *query, double duration_ms,
 TEST test_c_orm_logging(void) {
   c_orm_db_t *db = NULL;
   c_orm_dialect_t dialect;
-  get_active_dialect(&dialect);
   int res;
   int mock_user_data = 42;
+  get_active_dialect(&dialect);
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
 
@@ -569,10 +569,10 @@ static void test_async_cb(int status, void *user_data) {
 TEST test_c_orm_async(void) {
   c_orm_db_t *db = NULL;
   c_orm_dialect_t dialect;
-  get_active_dialect(&dialect);
   int res;
   int job_marker_1 = -99;
   int job_marker_2 = -99;
+  get_active_dialect(&dialect);
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
 

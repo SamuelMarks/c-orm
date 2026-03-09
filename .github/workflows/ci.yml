@@ -46,6 +46,18 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Fix line endings
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          sudo apt-get install -y dos2unix || true
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          brew install dos2unix || true
+        elif [ "$RUNNER_OS" == "Windows" ]; then
+          choco install dos2unix || true
+        fi
+        find . -type f -name "*.[ch]" -exec dos2unix {} + || true
+
     - name: Install Dependencies (Ubuntu)
       if: matrix.os == 'ubuntu-latest'
       run: |
@@ -128,6 +140,18 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Fix line endings
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          sudo apt-get install -y dos2unix || true
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          brew install dos2unix || true
+        elif [ "$RUNNER_OS" == "Windows" ]; then
+          choco install dos2unix || true
+        fi
+        find . -type f -name "*.[ch]" -exec dos2unix {} + || true
+
     - name: Configure CMake
       shell: bash
       run: |
@@ -156,6 +180,18 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Fix line endings
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          sudo apt-get install -y dos2unix || true
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          brew install dos2unix || true
+        elif [ "$RUNNER_OS" == "Windows" ]; then
+          choco install dos2unix || true
+        fi
+        find . -type f -name "*.[ch]" -exec dos2unix {} + || true
+
     - name: Install Dependencies
       run: |
         sudo apt-get update
@@ -183,6 +219,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+
+    - name: Fix line endings
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          sudo apt-get install -y dos2unix || true
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          brew install dos2unix || true
+        elif [ "$RUNNER_OS" == "Windows" ]; then
+          choco install dos2unix || true
+        fi
+        find . -type f -name "*.[ch]" -exec dos2unix {} + || true
     - name: Install Dependencies
       run: |
         sudo apt-get update
@@ -199,6 +247,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+
+    - name: Fix line endings
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          sudo apt-get install -y dos2unix || true
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          brew install dos2unix || true
+        elif [ "$RUNNER_OS" == "Windows" ]; then
+          choco install dos2unix || true
+        fi
+        find . -type f -name "*.[ch]" -exec dos2unix {} + || true
     - name: Install Dependencies
       run: |
         sudo apt-get update
@@ -223,6 +283,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+
+    - name: Fix line endings
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          sudo apt-get install -y dos2unix || true
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          brew install dos2unix || true
+        elif [ "$RUNNER_OS" == "Windows" ]; then
+          choco install dos2unix || true
+        fi
+        find . -type f -name "*.[ch]" -exec dos2unix {} + || true
     - name: Install Dependencies
       run: |
         sudo apt-get update

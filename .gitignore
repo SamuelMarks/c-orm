@@ -50,3 +50,9 @@ restored_*.txt
 *.bak
 *.tmp
 greatest.h
+
+llm.txt
+skills.md
+.gemini/
+include/mysql.h
+include/libpq-fe.h
