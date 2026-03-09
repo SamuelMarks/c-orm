@@ -9,7 +9,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(../include)
 include_directories(../src)
 
-set(TEST_SOURCES main.c test_c_orm.c)
+set(TEST_SOURCES main.c test_c_orm.c fake_db.c)
 
 add_executable(c-orm-test ${TEST_SOURCES})
 target_link_libraries(c-orm-test PRIVATE c-orm)

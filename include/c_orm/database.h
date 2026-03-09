@@ -2,7 +2,8 @@
  * @file database.h
  * @brief Intermediate Representation (IR) mapping for relational databases.
  *
- * Defines the AST structures needed for parsing C structs into Database schemas.
+ * Defines the AST structures needed for parsing C structs into Database
+ * schemas.
  */
 
 #ifndef C_CDD_DATABASE_H
@@ -12,7 +13,9 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/* clang-format off */
 #include <stddef.h>
+/* clang-format on */
 
 /**
  * @brief Represents the data type of a column.
@@ -44,16 +47,18 @@ enum DatabaseForeignKeyAction {
  * @brief Represents a single column in a database table.
  */
 struct DatabaseColumn {
-  char *name;                     /**< Name of the column. */
-  enum DatabaseColumnType type;   /**< Data type of the column. */
-  int is_primary_key;             /**< 1 if primary key, 0 otherwise. */
-  int is_nullable;                /**< 1 if nullable, 0 otherwise. */
-  int is_unique;                  /**< 1 if unique, 0 otherwise. */
-  char *default_value;            /**< Default value as string, or NULL. */
-  char *foreign_key_table;        /**< Table this column references, or NULL. */
-  char *foreign_key_column;       /**< Column this column references, or NULL. */
-  enum DatabaseForeignKeyAction on_delete; /**< Action on deletion of referenced row. */
-  enum DatabaseForeignKeyAction on_update; /**< Action on update of referenced row. */
+  char *name;                   /**< Name of the column. */
+  enum DatabaseColumnType type; /**< Data type of the column. */
+  int is_primary_key;           /**< 1 if primary key, 0 otherwise. */
+  int is_nullable;              /**< 1 if nullable, 0 otherwise. */
+  int is_unique;                /**< 1 if unique, 0 otherwise. */
+  char *default_value;          /**< Default value as string, or NULL. */
+  char *foreign_key_table;      /**< Table this column references, or NULL. */
+  char *foreign_key_column;     /**< Column this column references, or NULL. */
+  enum DatabaseForeignKeyAction
+      on_delete; /**< Action on deletion of referenced row. */
+  enum DatabaseForeignKeyAction
+      on_update; /**< Action on update of referenced row. */
 };
 
 /**
@@ -69,9 +74,9 @@ struct DatabaseTable {
  * @brief Represents a complete database schema.
  */
 struct DatabaseSchema {
-  char *name;                     /**< Name of the schema/database. */
-  struct DatabaseTable *tables;   /**< Array of tables. */
-  size_t n_tables;                /**< Number of tables. */
+  char *name;                   /**< Name of the schema/database. */
+  struct DatabaseTable *tables; /**< Array of tables. */
+  size_t n_tables;              /**< Number of tables. */
 };
 
 /**

@@ -6,13 +6,29 @@
 #ifndef TEST_DB_CODEGEN_H
 #define TEST_DB_CODEGEN_H
 
+/* clang-format off */
 #include <greatest.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+/* clang-format on */
 
+/* clang-format off */
+#include <stdio.h>
+/* clang-format on */
+
+/* clang-format off */
+#include <stdlib.h>
+/* clang-format on */
+
+/* clang-format off */
+#include <string.h>
+/* clang-format on */
+
+/* clang-format off */
 #include <c_orm/database.h>
+/* clang-format on */
+
+/* clang-format off */
 #include <c_orm/db_codegen.h>
+/* clang-format on */
 
 TEST test_db_codegen_sql_sqlite(void) {
   struct DatabaseSchema schema;
@@ -48,10 +64,12 @@ TEST test_db_codegen_sql_sqlite(void) {
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   rc = fopen_s(&f, "test_db_codegen_sqlite.sql", "w+");
-  if (rc != 0) FAILm("Could not open file");
+  if (rc != 0)
+    FAILm("Could not open file");
 #else
   f = fopen("test_db_codegen_sqlite.sql", "w+");
-  if (!f) FAILm("Could not open file");
+  if (!f)
+    FAILm("Could not open file");
 #endif
 
   rc = db_codegen_sql(&schema, f, "sqlite");
@@ -99,10 +117,12 @@ TEST test_db_codegen_sql_postgres(void) {
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   rc = fopen_s(&f, "test_db_codegen_pg.sql", "w+");
-  if (rc != 0) FAILm("Could not open file");
+  if (rc != 0)
+    FAILm("Could not open file");
 #else
   f = fopen("test_db_codegen_pg.sql", "w+");
-  if (!f) FAILm("Could not open file");
+  if (!f)
+    FAILm("Could not open file");
 #endif
 
   rc = db_codegen_sql(&schema, f, "postgres");
@@ -149,10 +169,12 @@ TEST test_db_codegen_sql_mysql(void) {
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   rc = fopen_s(&f, "test_db_codegen_mysql.sql", "w+");
-  if (rc != 0) FAILm("Could not open file");
+  if (rc != 0)
+    FAILm("Could not open file");
 #else
   f = fopen("test_db_codegen_mysql.sql", "w+");
-  if (!f) FAILm("Could not open file");
+  if (!f)
+    FAILm("Could not open file");
 #endif
 
   rc = db_codegen_sql(&schema, f, "mysql");
@@ -211,10 +233,12 @@ TEST test_db_codegen_sql_foreign_keys(void) {
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   rc = fopen_s(&f, "test_db_codegen_fk.sql", "w+");
-  if (rc != 0) FAILm("Could not open file");
+  if (rc != 0)
+    FAILm("Could not open file");
 #else
   f = fopen("test_db_codegen_fk.sql", "w+");
-  if (!f) FAILm("Could not open file");
+  if (!f)
+    FAILm("Could not open file");
 #endif
 
   rc = db_codegen_sql(&schema, f, "postgres");
@@ -226,8 +250,13 @@ TEST test_db_codegen_sql_foreign_keys(void) {
   remove("test_db_codegen_fk.sql");
 
   ASSERT(strstr(buffer, "CREATE TABLE IF NOT EXISTS comments (") != NULL);
-  ASSERT(strstr(buffer, "user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE") != NULL);      
-  ASSERT(strstr(buffer, "post_id INTEGER REFERENCES posts(id) ON DELETE SET NULL ON UPDATE RESTRICT") != NULL);
+  ASSERT(
+      strstr(
+          buffer,
+          "user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE") !=
+      NULL);
+  ASSERT(strstr(buffer, "post_id INTEGER REFERENCES posts(id) ON DELETE SET "
+                        "NULL ON UPDATE RESTRICT") != NULL);
 
   PASS();
 }
@@ -264,10 +293,12 @@ TEST test_db_codegen_c_header(void) {
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   rc = fopen_s(&f, "test_db_codegen_hdr.h", "w+");
-  if (rc != 0) FAILm("Could not open file");
+  if (rc != 0)
+    FAILm("Could not open file");
 #else
   f = fopen("test_db_codegen_hdr.h", "w+");
-  if (!f) FAILm("Could not open file");
+  if (!f)
+    FAILm("Could not open file");
 #endif
 
   rc = db_codegen_struct_header(&schema, f, "TEST_DB_CODEGEN_HDR_H");
@@ -289,39 +320,39 @@ TEST test_db_codegen_c_header(void) {
 }
 
 TEST test_db_codegen_parse_sql_valid(void) {
-    struct DatabaseSchema schema;
-    int rc;
-    const char* sql = "CREATE TABLE users (id INTEGER PRIMARY KEY);";
+  struct DatabaseSchema schema;
+  int rc;
+  const char *sql = "CREATE TABLE users (id INTEGER PRIMARY KEY);";
 
-    rc = db_codegen_parse_sql(sql, &schema);
-    ASSERT_EQ(0, rc);
-    ASSERT_NEQ(NULL, schema.name);
-    ASSERT_EQ(1, schema.n_tables);
-    ASSERT_NEQ(NULL, schema.tables);
-    ASSERT_STR_EQ("parsed_table", schema.tables[0].name);
-    ASSERT_EQ(1, schema.tables[0].n_columns);
+  rc = db_codegen_parse_sql(sql, &schema);
+  ASSERT_EQ(0, rc);
+  ASSERT_NEQ(NULL, schema.name);
+  ASSERT_EQ(1, schema.n_tables);
+  ASSERT_NEQ(NULL, schema.tables);
+  ASSERT_STR_EQ("parsed_table", schema.tables[0].name);
+  ASSERT_EQ(1, schema.tables[0].n_columns);
 
-    db_schema_free(&schema);
-    PASS();
+  db_schema_free(&schema);
+  PASS();
 }
 
 TEST test_db_codegen_parse_sql_invalid(void) {
-    struct DatabaseSchema schema;
-    int rc;
+  struct DatabaseSchema schema;
+  int rc;
 
-    /* Null tests */
-    rc = db_codegen_parse_sql(NULL, &schema);
-    ASSERT_EQ(EINVAL, rc);
+  /* Null tests */
+  rc = db_codegen_parse_sql(NULL, &schema);
+  ASSERT_EQ(EINVAL, rc);
 
-    rc = db_codegen_parse_sql("CREATE TABLE users", NULL);
-    ASSERT_EQ(EINVAL, rc);
+  rc = db_codegen_parse_sql("CREATE TABLE users", NULL);
+  ASSERT_EQ(EINVAL, rc);
 
-    /* Invalid SQL command */
-    rc = db_codegen_parse_sql("DROP TABLE users", &schema);
-    ASSERT_EQ(EINVAL, rc);
-    db_schema_free(&schema);
+  /* Invalid SQL command */
+  rc = db_codegen_parse_sql("DROP TABLE users", &schema);
+  ASSERT_EQ(EINVAL, rc);
+  db_schema_free(&schema);
 
-    PASS();
+  PASS();
 }
 
 TEST test_db_codegen_crud_h_c(void) {
@@ -348,10 +379,12 @@ TEST test_db_codegen_crud_h_c(void) {
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   rc = fopen_s(&f, "test_db_codegen_crud.h", "w+");
-  if (rc != 0) FAILm("Could not open file");
+  if (rc != 0)
+    FAILm("Could not open file");
 #else
   f = fopen("test_db_codegen_crud.h", "w+");
-  if (!f) FAILm("Could not open file");
+  if (!f)
+    FAILm("Could not open file");
 #endif
 
   rc = db_codegen_crud_h(&schema, f, "TEST_CRUD_H", "models.h");
@@ -368,10 +401,12 @@ TEST test_db_codegen_crud_h_c(void) {
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   rc = fopen_s(&f, "test_db_codegen_crud.c", "w+");
-  if (rc != 0) FAILm("Could not open file");
+  if (rc != 0)
+    FAILm("Could not open file");
 #else
   f = fopen("test_db_codegen_crud.c", "w+");
-  if (!f) FAILm("Could not open file");
+  if (!f)
+    FAILm("Could not open file");
 #endif
 
   rc = db_codegen_crud_c(&schema, f, "crud.h", "sqlite");
@@ -391,77 +426,78 @@ TEST test_db_codegen_crud_h_c(void) {
 }
 
 TEST test_db_schema_free_full(void) {
-    struct DatabaseSchema schema;
-    db_schema_init(&schema);
-    
-    schema.name = malloc(10);
-    strcpy(schema.name, "test");
-    
-    schema.tables = calloc(1, sizeof(struct DatabaseTable));
-    schema.n_tables = 1;
-    schema.tables[0].name = malloc(10);
-    strcpy(schema.tables[0].name, "table");
-    
-    schema.tables[0].columns = calloc(1, sizeof(struct DatabaseColumn));
-    schema.tables[0].n_columns = 1;
-    schema.tables[0].columns[0].name = malloc(10);
-    strcpy(schema.tables[0].columns[0].name, "col");
-    
-    schema.tables[0].columns[0].default_value = malloc(10);
-    strcpy(schema.tables[0].columns[0].default_value, "def");
-    
-    schema.tables[0].columns[0].foreign_key_table = malloc(10);
-    strcpy(schema.tables[0].columns[0].foreign_key_table, "fk_table");
-    
-    schema.tables[0].columns[0].foreign_key_column = malloc(10);
-    strcpy(schema.tables[0].columns[0].foreign_key_column, "fk_col");
-    
-    db_schema_free(&schema);
-    
-    /* Cover NULL free */
-    db_schema_free(NULL);
-    db_schema_init(NULL);
-    
-    PASS();
+  struct DatabaseSchema schema;
+  db_schema_init(&schema);
+
+  schema.name = malloc(10);
+  strcpy(schema.name, "test");
+
+  schema.tables = calloc(1, sizeof(struct DatabaseTable));
+  schema.n_tables = 1;
+  schema.tables[0].name = malloc(10);
+  strcpy(schema.tables[0].name, "table");
+
+  schema.tables[0].columns = calloc(1, sizeof(struct DatabaseColumn));
+  schema.tables[0].n_columns = 1;
+  schema.tables[0].columns[0].name = malloc(10);
+  strcpy(schema.tables[0].columns[0].name, "col");
+
+  schema.tables[0].columns[0].default_value = malloc(10);
+  strcpy(schema.tables[0].columns[0].default_value, "def");
+
+  schema.tables[0].columns[0].foreign_key_table = malloc(10);
+  strcpy(schema.tables[0].columns[0].foreign_key_table, "fk_table");
+
+  schema.tables[0].columns[0].foreign_key_column = malloc(10);
+  strcpy(schema.tables[0].columns[0].foreign_key_column, "fk_col");
+
+  db_schema_free(&schema);
+
+  /* Cover NULL free */
+  db_schema_free(NULL);
+  db_schema_init(NULL);
+
+  PASS();
 }
 
 TEST test_db_codegen_invalid_args(void) {
-    struct DatabaseSchema schema;
-    FILE *f;
-    int rc;
+  struct DatabaseSchema schema;
+  FILE *f = NULL;
+  int rc;
 
-    db_schema_init(&schema);
-    
+  (void)rc;
+  db_schema_init(&schema);
+
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    rc = fopen_s(&f, "test_db_codegen_null.tmp", "w+");
+  rc = fopen_s(&f, "test_db_codegen_null.tmp", "w+");
 #else
-    f = fopen("test_db_codegen_null.tmp", "w+");
+  f = fopen("test_db_codegen_null.tmp", "w+");
 #endif
 
-    ASSERT_EQ(EINVAL, db_codegen_struct_header(NULL, f, "HDR"));
-    ASSERT_EQ(EINVAL, db_codegen_struct_header(&schema, NULL, "HDR"));
-    ASSERT_EQ(EINVAL, db_codegen_struct_header(&schema, f, NULL));
-    
-    ASSERT_EQ(EINVAL, db_codegen_sql(NULL, f, "sqlite"));
-    ASSERT_EQ(EINVAL, db_codegen_sql(&schema, NULL, "sqlite"));
-    ASSERT_EQ(EINVAL, db_codegen_sql(&schema, f, NULL));
-    
-    ASSERT_EQ(EINVAL, db_codegen_crud_h(NULL, f, "H", "H"));
-    ASSERT_EQ(EINVAL, db_codegen_crud_h(&schema, NULL, "H", "H"));
-    ASSERT_EQ(EINVAL, db_codegen_crud_h(&schema, f, NULL, "H"));
-    ASSERT_EQ(EINVAL, db_codegen_crud_h(&schema, f, "H", NULL));
-    
-    ASSERT_EQ(EINVAL, db_codegen_crud_c(NULL, f, "H", "S"));
-    ASSERT_EQ(EINVAL, db_codegen_crud_c(&schema, NULL, "H", "S"));
-    ASSERT_EQ(EINVAL, db_codegen_crud_c(&schema, f, NULL, "S"));
-    ASSERT_EQ(EINVAL, db_codegen_crud_c(&schema, f, "H", NULL));
+  ASSERT_EQ(EINVAL, db_codegen_struct_header(NULL, f, "HDR"));
+  ASSERT_EQ(EINVAL, db_codegen_struct_header(&schema, NULL, "HDR"));
+  ASSERT_EQ(EINVAL, db_codegen_struct_header(&schema, f, NULL));
 
-    if (f) {
-        fclose(f);
-        remove("test_db_codegen_null.tmp");
-    }
-    
-    PASS();
+  ASSERT_EQ(EINVAL, db_codegen_sql(NULL, f, "sqlite"));
+  ASSERT_EQ(EINVAL, db_codegen_sql(&schema, NULL, "sqlite"));
+  ASSERT_EQ(EINVAL, db_codegen_sql(&schema, f, NULL));
+
+  ASSERT_EQ(EINVAL, db_codegen_crud_h(NULL, f, "H", "H"));
+  ASSERT_EQ(EINVAL, db_codegen_crud_h(&schema, NULL, "H", "H"));
+  ASSERT_EQ(EINVAL, db_codegen_crud_h(&schema, f, NULL, "H"));
+  ASSERT_EQ(EINVAL, db_codegen_crud_h(&schema, f, "H", NULL));
+
+  ASSERT_EQ(EINVAL, db_codegen_crud_c(NULL, f, "H", "S"));
+  ASSERT_EQ(EINVAL, db_codegen_crud_c(&schema, NULL, "H", "S"));
+  ASSERT_EQ(EINVAL, db_codegen_crud_c(&schema, f, NULL, "S"));
+  ASSERT_EQ(EINVAL, db_codegen_crud_c(&schema, f, "H", NULL));
+
+  if (f) {
+    fclose(f);
+    remove("test_db_codegen_null.tmp");
+  }
+
+  PASS();
 }
 
 TEST test_db_codegen_all_types_and_fks(void) {
@@ -485,10 +521,10 @@ TEST test_db_codegen_all_types_and_fks(void) {
 
   cols[0].name = "col_text";
   cols[0].type = DB_COL_TYPE_TEXT;
-  
+
   cols[1].name = "col_real";
   cols[1].type = DB_COL_TYPE_REAL;
-  
+
   cols[2].name = "col_blob";
   cols[2].type = DB_COL_TYPE_BLOB;
 
@@ -503,13 +539,14 @@ TEST test_db_codegen_all_types_and_fks(void) {
 
   cols[6].name = "col_unknown";
   cols[6].type = DB_COL_TYPE_UNKNOWN;
-  
+
   cols[7].name = "fk_default";
   cols[7].type = DB_COL_TYPE_INTEGER;
   cols[7].foreign_key_table = "users";
   cols[7].foreign_key_column = "id";
   cols[7].on_delete = DB_FK_ACTION_SET_DEFAULT;
-  cols[7].on_update = (enum DatabaseForeignKeyAction)999; /* trigger default switch */
+  cols[7].on_update =
+      (enum DatabaseForeignKeyAction)999; /* trigger default switch */
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   rc = fopen_s(&f, "test_all_types.sql", "w+");

@@ -1,4 +1,51 @@
-*build*
+# CMake and build artifacts
+build/
+build_*/
+build-*/
+out/
+bin/
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+
+# Object files and binaries
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+*.pdb
+*.ilk
+*.suo
+*.user
+
+# Coverage
 *.gcov
-.vscode
-.idea
+*.gcda
+*.gcno
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Python
+__pycache__/
+*.py
+*.py[cod]
+
+# Dependencies
+tmp_vcpkg/
+
+# AI Artifacts & Backups
+*_backup.*
+restored_*.txt
+*.bak
+*.tmp
+greatest.h

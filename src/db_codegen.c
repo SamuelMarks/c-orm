@@ -1,15 +1,33 @@
+/* clang-format off */
 #include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
+/* clang-format on */
 
+/* clang-format off */
+#include <stdio.h>
+/* clang-format on */
+
+/* clang-format off */
+#include <stdlib.h>
+/* clang-format on */
+
+/* clang-format off */
+#include <string.h>
+/* clang-format on */
+
+/* clang-format off */
+#include <ctype.h>
+/* clang-format on */
+
+/* clang-format off */
 #include <c_orm/db_codegen.h>
+/* clang-format on */
 
 /**
- * @brief Generate a C header file containing the structs for the DatabaseSchema.
+ * @brief Generate a C header file containing the structs for the
+ * DatabaseSchema.
  */
-int db_codegen_struct_header(const struct DatabaseSchema *schema, FILE *out, const char *header_guard) {  
+int db_codegen_struct_header(const struct DatabaseSchema *schema, FILE *out,
+                             const char *header_guard) {
   size_t i, j;
   if (!schema || !out || !header_guard)
     return EINVAL;
@@ -19,25 +37,41 @@ int db_codegen_struct_header(const struct DatabaseSchema *schema, FILE *out, con
 
   for (i = 0; i < schema->n_tables; ++i) {
     const struct DatabaseTable *table = &schema->tables[i];
-    fprintf(out, "/**\n * @brief Database model for table %s\n */\n", table->name);
+    fprintf(out, "/**\n * @brief Database model for table %s\n */\n",
+            table->name);
     fprintf(out, "struct %s {\n", table->name);
     for (j = 0; j < table->n_columns; ++j) {
       const struct DatabaseColumn *col = &table->columns[j];
       const char *ctype = "void *";
       switch (col->type) {
-        case DB_COL_TYPE_INTEGER: ctype = "int"; break;
-        case DB_COL_TYPE_VARCHAR:
-        case DB_COL_TYPE_TEXT:    ctype = "char *"; break;
-        case DB_COL_TYPE_REAL:    ctype = "double"; break;
-        case DB_COL_TYPE_BLOB:    ctype = "unsigned char *"; break;
-        case DB_COL_TYPE_BOOLEAN: ctype = "int"; break; /* C89 safe */
-        case DB_COL_TYPE_DATE:
-        case DB_COL_TYPE_DATETIME: ctype = "char *"; break;
-        default: ctype = "int"; break;
+      case DB_COL_TYPE_INTEGER:
+        ctype = "int";
+        break;
+      case DB_COL_TYPE_VARCHAR:
+      case DB_COL_TYPE_TEXT:
+        ctype = "char *";
+        break;
+      case DB_COL_TYPE_REAL:
+        ctype = "double";
+        break;
+      case DB_COL_TYPE_BLOB:
+        ctype = "unsigned char *";
+        break;
+      case DB_COL_TYPE_BOOLEAN:
+        ctype = "int";
+        break; /* C89 safe */
+      case DB_COL_TYPE_DATE:
+      case DB_COL_TYPE_DATETIME:
+        ctype = "char *";
+        break;
+      default:
+        ctype = "int";
+        break;
       }
 
       if (col->foreign_key_table) {
-          fprintf(out, "  /* FK -> %s.%s */\n", col->foreign_key_table, col->foreign_key_column ? col->foreign_key_column : "id");
+        fprintf(out, "  /* FK -> %s.%s */\n", col->foreign_key_table,
+                col->foreign_key_column ? col->foreign_key_column : "id");
       }
       fprintf(out, "  %s %s;\n", ctype, col->name);
     }
@@ -55,21 +89,34 @@ int db_codegen_struct_header(const struct DatabaseSchema *schema, FILE *out, con
  * @param out_str Pointer to a const char* to store the resulting string.
  * @return 0 on success, EINVAL if out_str is NULL.
  */
-static int fk_action_to_str(enum DatabaseForeignKeyAction action, const char** out_str) {
-    if (!out_str) return EINVAL;
-    switch (action) {
-        case DB_FK_ACTION_CASCADE: *out_str = "CASCADE"; return 0;
-        case DB_FK_ACTION_SET_NULL: *out_str = "SET NULL"; return 0;
-        case DB_FK_ACTION_SET_DEFAULT: *out_str = "SET DEFAULT"; return 0;
-        case DB_FK_ACTION_RESTRICT: *out_str = "RESTRICT"; return 0;
-        default: *out_str = NULL; return 0;
-    }
+static int fk_action_to_str(enum DatabaseForeignKeyAction action,
+                            const char **out_str) {
+  if (!out_str)
+    return EINVAL;
+  switch (action) {
+  case DB_FK_ACTION_CASCADE:
+    *out_str = "CASCADE";
+    return 0;
+  case DB_FK_ACTION_SET_NULL:
+    *out_str = "SET NULL";
+    return 0;
+  case DB_FK_ACTION_SET_DEFAULT:
+    *out_str = "SET DEFAULT";
+    return 0;
+  case DB_FK_ACTION_RESTRICT:
+    *out_str = "RESTRICT";
+    return 0;
+  default:
+    *out_str = NULL;
+    return 0;
+  }
 }
 
 /**
  * @brief Generate raw SQL CREATE TABLE scripts.
  */
-int db_codegen_sql(const struct DatabaseSchema *schema, FILE *out, const char *dialect) {
+int db_codegen_sql(const struct DatabaseSchema *schema, FILE *out,
+                   const char *dialect) {
   size_t i, j;
   int is_postgres = 0;
   int is_mysql = 0;
@@ -89,28 +136,44 @@ int db_codegen_sql(const struct DatabaseSchema *schema, FILE *out, const char *d
       const struct DatabaseColumn *col = &table->columns[j];
       const char *sql_type = "TEXT";
       switch (col->type) {
-        case DB_COL_TYPE_INTEGER:
-            sql_type = (is_postgres || is_mysql) ? "INTEGER" : "INTEGER";
-            if (is_mysql && col->is_primary_key) {
-                sql_type = "INT AUTO_INCREMENT";
-            }
-            break;
-        case DB_COL_TYPE_VARCHAR:
-            sql_type = is_postgres ? "VARCHAR" : (is_mysql ? "VARCHAR(255)" : "TEXT");
-            break;
-        case DB_COL_TYPE_TEXT:    sql_type = "TEXT"; break;
-        case DB_COL_TYPE_REAL:    sql_type = is_postgres ? "DOUBLE PRECISION" : (is_mysql ? "DOUBLE" : "REAL"); break;
-        case DB_COL_TYPE_BLOB:    sql_type = is_postgres ? "BYTEA" : "BLOB"; break;
-        case DB_COL_TYPE_BOOLEAN: sql_type = "BOOLEAN"; break;
-        case DB_COL_TYPE_DATE:    sql_type = "DATE"; break;
-        case DB_COL_TYPE_DATETIME:sql_type = is_postgres ? "TIMESTAMP" : "DATETIME"; break;
-        default: sql_type = "INTEGER"; break;
+      case DB_COL_TYPE_INTEGER:
+        sql_type = (is_postgres || is_mysql) ? "INTEGER" : "INTEGER";
+        if (is_mysql && col->is_primary_key) {
+          sql_type = "INT AUTO_INCREMENT";
+        }
+        break;
+      case DB_COL_TYPE_VARCHAR:
+        sql_type =
+            is_postgres ? "VARCHAR" : (is_mysql ? "VARCHAR(255)" : "TEXT");
+        break;
+      case DB_COL_TYPE_TEXT:
+        sql_type = "TEXT";
+        break;
+      case DB_COL_TYPE_REAL:
+        sql_type =
+            is_postgres ? "DOUBLE PRECISION" : (is_mysql ? "DOUBLE" : "REAL");
+        break;
+      case DB_COL_TYPE_BLOB:
+        sql_type = is_postgres ? "BYTEA" : "BLOB";
+        break;
+      case DB_COL_TYPE_BOOLEAN:
+        sql_type = "BOOLEAN";
+        break;
+      case DB_COL_TYPE_DATE:
+        sql_type = "DATE";
+        break;
+      case DB_COL_TYPE_DATETIME:
+        sql_type = is_postgres ? "TIMESTAMP" : "DATETIME";
+        break;
+      default:
+        sql_type = "INTEGER";
+        break;
       }
 
       fprintf(out, "  %s %s", col->name, sql_type);
 
       if (col->is_primary_key) {
-          fprintf(out, " PRIMARY KEY");
+        fprintf(out, " PRIMARY KEY");
       }
       if (!col->is_nullable && !col->is_primary_key) {
         fprintf(out, " NOT NULL");
@@ -119,25 +182,29 @@ int db_codegen_sql(const struct DatabaseSchema *schema, FILE *out, const char *d
         fprintf(out, " UNIQUE");
       }
 
-      /* Foreign Key Definition inline if supported natively in column desc, but standard SQL puts them at end.
-         For simplicity, we will append them after column definition if dialect allows inline constraints,
+      /* Foreign Key Definition inline if supported natively in column desc, but
+         standard SQL puts them at end. For simplicity, we will append them
+         after column definition if dialect allows inline constraints,
 
          or append as REFERENCES here. */
       if (col->foreign_key_table) {
-          fprintf(out, " REFERENCES %s(%s)", col->foreign_key_table, col->foreign_key_column ? col->foreign_key_column : "id");
+        fprintf(out, " REFERENCES %s(%s)", col->foreign_key_table,
+                col->foreign_key_column ? col->foreign_key_column : "id");
 
-          if (col->on_delete != DB_FK_ACTION_NONE) {
-              const char* action_str = NULL;
-              if (fk_action_to_str(col->on_delete, &action_str) == 0 && action_str) {
-                  fprintf(out, " ON DELETE %s", action_str);
-              }
+        if (col->on_delete != DB_FK_ACTION_NONE) {
+          const char *action_str = NULL;
+          if (fk_action_to_str(col->on_delete, &action_str) == 0 &&
+              action_str) {
+            fprintf(out, " ON DELETE %s", action_str);
           }
-          if (col->on_update != DB_FK_ACTION_NONE) {
-              const char* action_str = NULL;
-              if (fk_action_to_str(col->on_update, &action_str) == 0 && action_str) {
-                  fprintf(out, " ON UPDATE %s", action_str);
-              }
+        }
+        if (col->on_update != DB_FK_ACTION_NONE) {
+          const char *action_str = NULL;
+          if (fk_action_to_str(col->on_update, &action_str) == 0 &&
+              action_str) {
+            fprintf(out, " ON UPDATE %s", action_str);
           }
+        }
       }
 
       if (j < table->n_columns - 1) {
@@ -153,7 +220,8 @@ int db_codegen_sql(const struct DatabaseSchema *schema, FILE *out, const char *d
 /**
  * @brief Generate C CRUD boilerplate header.
  */
-int db_codegen_crud_h(const struct DatabaseSchema *schema, FILE *out, const char *header_guard, const char *struct_header) {
+int db_codegen_crud_h(const struct DatabaseSchema *schema, FILE *out,
+                      const char *header_guard, const char *struct_header) {
   size_t i;
   if (!schema || !out || !header_guard || !struct_header)
     return EINVAL;
@@ -165,9 +233,12 @@ int db_codegen_crud_h(const struct DatabaseSchema *schema, FILE *out, const char
   for (i = 0; i < schema->n_tables; ++i) {
     const struct DatabaseTable *table = &schema->tables[i];
     fprintf(out, "/* CRUD for %s */\n", table->name);
-    fprintf(out, "int %s_insert(const struct %s *item);\n", table->name, table->name);
-    fprintf(out, "int %s_get(int id, struct %s **out_item);\n", table->name, table->name);
-    fprintf(out, "int %s_update(const struct %s *item);\n", table->name, table->name);
+    fprintf(out, "int %s_insert(const struct %s *item);\n", table->name,
+            table->name);
+    fprintf(out, "int %s_get(int id, struct %s **out_item);\n", table->name,
+            table->name);
+    fprintf(out, "int %s_update(const struct %s *item);\n", table->name,
+            table->name);
     fprintf(out, "int %s_delete(int id);\n\n", table->name);
   }
 
@@ -179,7 +250,8 @@ int db_codegen_crud_h(const struct DatabaseSchema *schema, FILE *out, const char
 /**
  * @brief Generate C CRUD boilerplate source file.
  */
-int db_codegen_crud_c(const struct DatabaseSchema *schema, FILE *out, const char *header_name, const char *dialect) {
+int db_codegen_crud_c(const struct DatabaseSchema *schema, FILE *out,
+                      const char *header_name, const char *dialect) {
   size_t i;
   if (!schema || !out || !header_name || !dialect)
     return EINVAL;
@@ -192,28 +264,35 @@ int db_codegen_crud_c(const struct DatabaseSchema *schema, FILE *out, const char
     const struct DatabaseTable *table = &schema->tables[i];
     fprintf(out, "/* CRUD implementation for %s */\n\n", table->name);
 
-    fprintf(out, "int %s_insert(const struct %s *item) {\n", table->name, table->name);
-    fprintf(out, "  /* TODO: Implement %s insert using %s */\n", table->name, dialect);
+    fprintf(out, "int %s_insert(const struct %s *item) {\n", table->name,
+            table->name);
+    fprintf(out, "  /* TODO: Implement %s insert using %s */\n", table->name,
+            dialect);
     fprintf(out, "  if (!item) return 1;\n");
     fprintf(out, "  return 0;\n");
     fprintf(out, "}\n\n");
 
-    fprintf(out, "int %s_get(int id, struct %s **out_item) {\n", table->name, table->name);
-    fprintf(out, "  /* TODO: Implement %s get using %s */\n", table->name, dialect);
+    fprintf(out, "int %s_get(int id, struct %s **out_item) {\n", table->name,
+            table->name);
+    fprintf(out, "  /* TODO: Implement %s get using %s */\n", table->name,
+            dialect);
     fprintf(out, "  if (!out_item) return 1;\n");
     fprintf(out, "  *out_item = NULL;\n");
     fprintf(out, "  (void)id;\n");
     fprintf(out, "  return 0;\n");
     fprintf(out, "}\n\n");
 
-    fprintf(out, "int %s_update(const struct %s *item) {\n", table->name, table->name);
-    fprintf(out, "  /* TODO: Implement %s update using %s */\n", table->name, dialect);
+    fprintf(out, "int %s_update(const struct %s *item) {\n", table->name,
+            table->name);
+    fprintf(out, "  /* TODO: Implement %s update using %s */\n", table->name,
+            dialect);
     fprintf(out, "  if (!item) return 1;\n");
     fprintf(out, "  return 0;\n");
     fprintf(out, "}\n\n");
 
     fprintf(out, "int %s_delete(int id) {\n", table->name);
-    fprintf(out, "  /* TODO: Implement %s delete using %s */\n", table->name, dialect);
+    fprintf(out, "  /* TODO: Implement %s delete using %s */\n", table->name,
+            dialect);
     fprintf(out, "  (void)id;\n");
     fprintf(out, "  return 0;\n");
     fprintf(out, "}\n\n");
@@ -228,99 +307,108 @@ int db_codegen_crud_c(const struct DatabaseSchema *schema, FILE *out, const char
  * @param out Pointer to a char* to store the string after whitespace.
  * @return 0 on success, -1 on invalid argument.
  */
-static int skip_whitespace(char* str, char** out) {
-    if (!str || !out) return -1;
-    while (*str && isspace((unsigned char)*str)) str++;
-    *out = str;
-    return 0;
+static int skip_whitespace(char *str, char **out) {
+  if (!str || !out)
+    return -1;
+  while (*str && isspace((unsigned char)*str))
+    str++;
+  *out = str;
+  return 0;
 }
 
 /**
  * @brief Parse a SQL CREATE TABLE script and populate a DatabaseSchema struct.
- * Note: This is a very basic string parsing implementation tailored for straightforward CREATE TABLE blocks.
- *       Integration with cdd-c parsing should eventually replace this for robust support.
+ * Note: This is a very basic string parsing implementation tailored for
+ * straightforward CREATE TABLE blocks. Integration with cdd-c parsing should
+ * eventually replace this for robust support.
  */
 int db_codegen_parse_sql(const char *sql, struct DatabaseSchema *out_schema) {
-    char* sql_copy;
-    char* ptr;
+  char *sql_copy;
+  char *ptr;
 
-    if (!sql || !out_schema) return EINVAL;
+  if (!sql || !out_schema)
+    return EINVAL;
 
-    db_schema_init(out_schema);
+  db_schema_init(out_schema);
 
-    /* Allocate initial structures (stubbed simplistic parsing for test coverage) */
-    out_schema->name = malloc(16);
-    if (!out_schema->name) return ENOMEM;
+  /* Allocate initial structures (stubbed simplistic parsing for test coverage)
+   */
+  out_schema->name = malloc(16);
+  if (!out_schema->name)
+    return ENOMEM;
 #if defined(_MSC_VER)
-    strcpy_s(out_schema->name, 16, "ParsedSchema");
+  strcpy_s(out_schema->name, 16, "ParsedSchema");
 #else
-    strcpy(out_schema->name, "ParsedSchema");
+  strcpy(out_schema->name, "ParsedSchema");
 #endif
 
-    out_schema->tables = calloc(1, sizeof(struct DatabaseTable));
-    if (!out_schema->tables) {
-        free(out_schema->name);
-        return ENOMEM;
-    }
-    out_schema->n_tables = 1;
+  out_schema->tables = calloc(1, sizeof(struct DatabaseTable));
+  if (!out_schema->tables) {
+    free(out_schema->name);
+    return ENOMEM;
+  }
+  out_schema->n_tables = 1;
 
-    out_schema->tables[0].name = malloc(32);
-    if (!out_schema->tables[0].name) {
-        free(out_schema->tables);
-        free(out_schema->name);
-        return ENOMEM;
-    }
+  out_schema->tables[0].name = malloc(32);
+  if (!out_schema->tables[0].name) {
+    free(out_schema->tables);
+    free(out_schema->name);
+    return ENOMEM;
+  }
 #if defined(_MSC_VER)
-    strcpy_s(out_schema->tables[0].name, 32, "parsed_table");
+  strcpy_s(out_schema->tables[0].name, 32, "parsed_table");
 #else
-    strcpy(out_schema->tables[0].name, "parsed_table");
+  strcpy(out_schema->tables[0].name, "parsed_table");
 #endif
 
-    /* Allocate a dummy column to signify success and satisfy memory free routines */
-    out_schema->tables[0].columns = calloc(1, sizeof(struct DatabaseColumn));
-    if (!out_schema->tables[0].columns) {
-        free(out_schema->tables[0].name);
-        free(out_schema->tables);
-        free(out_schema->name);
-        return ENOMEM;
-    }
-    out_schema->tables[0].n_columns = 1;
-    out_schema->tables[0].columns[0].name = malloc(32);
-    if (!out_schema->tables[0].columns[0].name) {
-        free(out_schema->tables[0].columns);
-        free(out_schema->tables[0].name);
-        free(out_schema->tables);
-        free(out_schema->name);
-        return ENOMEM;
-    }
+  /* Allocate a dummy column to signify success and satisfy memory free routines
+   */
+  out_schema->tables[0].columns = calloc(1, sizeof(struct DatabaseColumn));
+  if (!out_schema->tables[0].columns) {
+    free(out_schema->tables[0].name);
+    free(out_schema->tables);
+    free(out_schema->name);
+    return ENOMEM;
+  }
+  out_schema->tables[0].n_columns = 1;
+  out_schema->tables[0].columns[0].name = malloc(32);
+  if (!out_schema->tables[0].columns[0].name) {
+    free(out_schema->tables[0].columns);
+    free(out_schema->tables[0].name);
+    free(out_schema->tables);
+    free(out_schema->name);
+    return ENOMEM;
+  }
 #if defined(_MSC_VER)
-    strcpy_s(out_schema->tables[0].columns[0].name, 32, "parsed_column");
+  strcpy_s(out_schema->tables[0].columns[0].name, 32, "parsed_column");
 #else
-    strcpy(out_schema->tables[0].columns[0].name, "parsed_column");
+  strcpy(out_schema->tables[0].columns[0].name, "parsed_column");
 #endif
-    out_schema->tables[0].columns[0].type = DB_COL_TYPE_INTEGER;
-    out_schema->tables[0].columns[0].is_primary_key = 1;
-    out_schema->tables[0].columns[0].on_delete = DB_FK_ACTION_NONE;
-    out_schema->tables[0].columns[0].on_update = DB_FK_ACTION_NONE;
+  out_schema->tables[0].columns[0].type = DB_COL_TYPE_INTEGER;
+  out_schema->tables[0].columns[0].is_primary_key = 1;
+  out_schema->tables[0].columns[0].on_delete = DB_FK_ACTION_NONE;
+  out_schema->tables[0].columns[0].on_update = DB_FK_ACTION_NONE;
 
-    /* A proper parser would walk `sql` and dynamically populate `out_schema` here.
-     * We stub the parsing token path checking to fulfill test paths for now.
-     * Integration with cdd-c features should handle AST generation properly later.
-     */
-    sql_copy = malloc(strlen(sql) + 1);
-    if (!sql_copy) return ENOMEM;
+  /* A proper parser would walk `sql` and dynamically populate `out_schema`
+   * here. We stub the parsing token path checking to fulfill test paths for
+   * now. Integration with cdd-c features should handle AST generation properly
+   * later.
+   */
+  sql_copy = malloc(strlen(sql) + 1);
+  if (!sql_copy)
+    return ENOMEM;
 #if defined(_MSC_VER)
-    strcpy_s(sql_copy, strlen(sql) + 1, sql);
+  strcpy_s(sql_copy, strlen(sql) + 1, sql);
 #else
-    strcpy(sql_copy, sql);
+  strcpy(sql_copy, sql);
 #endif
 
-    skip_whitespace(sql_copy, &ptr);
-    if (strncmp(ptr, "CREATE", 6) != 0) {
-        free(sql_copy);
-        return EINVAL; /* Basic validation */
-    }
-
+  skip_whitespace(sql_copy, &ptr);
+  if (strncmp(ptr, "CREATE", 6) != 0) {
     free(sql_copy);
-    return 0;
+    return EINVAL; /* Basic validation */
+  }
+
+  free(sql_copy);
+  return 0;
 }

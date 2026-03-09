@@ -23,6 +23,25 @@ jobs:
             compiler: msvc
           - os: macos-latest
             compiler: gcc
+          # Exclude gcc/clang on Windows for DBs without native Windows system packages
+          - os: windows-latest
+            compiler: gcc
+            backend: postgres
+          - os: windows-latest
+            compiler: gcc
+            backend: mysql
+          - os: windows-latest
+            compiler: gcc
+            backend: all
+          - os: windows-latest
+            compiler: clang
+            backend: postgres
+          - os: windows-latest
+            compiler: clang
+            backend: mysql
+          - os: windows-latest
+            compiler: clang
+            backend: all
 
     steps:
     - uses: actions/checkout@v4
@@ -53,11 +72,14 @@ jobs:
         fi
         
         COMPILER_FLAGS=""
+        VCPKG_FLAG=""
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
           if [ "${{ matrix.compiler }}" = "gcc" ]; then
             COMPILER_FLAGS="-G \"MinGW Makefiles\""
           elif [ "${{ matrix.compiler }}" = "clang" ]; then
             COMPILER_FLAGS="-T ClangCL"
+          elif [ "${{ matrix.compiler }}" = "msvc" ]; then
+            VCPKG_FLAG="-DCMAKE_TOOLCHAIN_FILE=${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake"
           fi
         else
           if [ "${{ matrix.compiler }}" = "gcc" ]; then
@@ -69,7 +91,7 @@ jobs:
           fi
         fi
         
-        cmake -S . -B build $BACKEND_FLAGS $COMPILER_FLAGS -DCMAKE_BUILD_TYPE=Release
+        cmake -S . -B build $BACKEND_FLAGS $COMPILER_FLAGS $VCPKG_FLAG -DCMAKE_BUILD_TYPE=Release
 
     - name: Build
       run: cmake --build build --config Release
@@ -109,7 +131,7 @@ jobs:
     - name: Configure CMake
       shell: bash
       run: |
-        cmake -S . -B build -DC_ORM_BACKEND_SQLITE=ON ${{ matrix.flags }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        cmake -S . -B build -DC_ORM_BACKEND_SQLITE=ON ${{ matrix.flags }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_TOOLCHAIN_FILE=${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake
 
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }}
@@ -155,3 +177,59 @@ jobs:
         export ASAN_OPTIONS=detect_leaks=1
         export UBSAN_OPTIONS=print_stacktrace=1
         ctest --test-dir build --output-on-failure
+
+  valgrind:
+    name: Valgrind Memcheck
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y valgrind libsqlite3-dev libpq-dev libmysqlclient-dev
+    - name: Configure CMake
+      run: cmake -S . -B build -DC_ORM_BACKEND_SQLITE=ON -DC_ORM_BACKEND_POSTGRES=ON -DC_ORM_BACKEND_MYSQL=ON -DCMAKE_BUILD_TYPE=Debug
+    - name: Build
+      run: cmake --build build
+    - name: Test
+      run: valgrind --leak-check=full --error-exitcode=1 ./build/tests/c-orm-test
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y lcov libsqlite3-dev libpq-dev libmysqlclient-dev
+    - name: Configure CMake
+      run: |
+        export CFLAGS="--coverage -g -O0"
+        export LDFLAGS="--coverage"
+        cmake -S . -B build -DC_ORM_BACKEND_SQLITE=ON -DC_ORM_BACKEND_POSTGRES=ON -DC_ORM_BACKEND_MYSQL=ON -DCMAKE_BUILD_TYPE=Debug
+    - name: Build
+      run: cmake --build build
+    - name: Test
+      run: ctest --test-dir build --output-on-failure
+    - name: Generate Coverage
+      run: |
+        lcov --capture --directory build --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' '*/tests/*' '*/cdd-c/*' --output-file coverage.info
+        lcov --list coverage.info
+
+  clang-tidy:
+    name: Clang-Tidy Analysis
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-tidy libsqlite3-dev libpq-dev libmysqlclient-dev
+    - name: Configure CMake
+      run: |
+        cmake -S . -B build -DC_ORM_BACKEND_SQLITE=ON -DC_ORM_BACKEND_POSTGRES=ON -DC_ORM_BACKEND_MYSQL=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    - name: Run Clang-Tidy
+      run: |
+        find src -name "*.c" | xargs clang-tidy -p build

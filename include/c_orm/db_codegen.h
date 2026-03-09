@@ -10,18 +10,24 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/* clang-format off */
 #include <stdio.h>
-#include <c_orm/database.h>
+/* clang-format on */
 
+/* clang-format off */
+#include <c_orm/database.h>
+/* clang-format on */
 
 /**
- * @brief Generate a C header file containing the structs for the DatabaseSchema.
+ * @brief Generate a C header file containing the structs for the
+ * DatabaseSchema.
  * @param schema The database schema.
  * @param out The output file stream.
  * @param header_guard The include guard name.
  * @return 0 on success, non-zero error code otherwise.
  */
-int db_codegen_struct_header(const struct DatabaseSchema *schema, FILE *out, const char *header_guard);
+int db_codegen_struct_header(const struct DatabaseSchema *schema, FILE *out,
+                             const char *header_guard);
 
 /**
  * @brief Generate raw SQL CREATE TABLE scripts.
@@ -30,7 +36,8 @@ int db_codegen_struct_header(const struct DatabaseSchema *schema, FILE *out, con
  * @param dialect The database dialect ("sqlite", "postgres", or "mysql").
  * @return 0 on success, non-zero error code otherwise.
  */
-int db_codegen_sql(const struct DatabaseSchema *schema, FILE *out, const char *dialect);
+int db_codegen_sql(const struct DatabaseSchema *schema, FILE *out,
+                   const char *dialect);
 
 /**
  * @brief Generate C CRUD boilerplate header.
@@ -40,7 +47,8 @@ int db_codegen_sql(const struct DatabaseSchema *schema, FILE *out, const char *d
  * @param struct_header The header file name containing the structs to include.
  * @return 0 on success, non-zero error code otherwise.
  */
-int db_codegen_crud_h(const struct DatabaseSchema *schema, FILE *out, const char *header_guard, const char *struct_header);
+int db_codegen_crud_h(const struct DatabaseSchema *schema, FILE *out,
+                      const char *header_guard, const char *struct_header);
 
 /**
  * @brief Generate C CRUD boilerplate source file.
@@ -50,7 +58,8 @@ int db_codegen_crud_h(const struct DatabaseSchema *schema, FILE *out, const char
  * @param dialect The database dialect ("sqlite", "postgres", or "mysql").
  * @return 0 on success, non-zero error code otherwise.
  */
-int db_codegen_crud_c(const struct DatabaseSchema *schema, FILE *out, const char *header_name, const char *dialect);
+int db_codegen_crud_c(const struct DatabaseSchema *schema, FILE *out,
+                      const char *header_name, const char *dialect);
 
 /**
  * @brief Parse a SQL CREATE TABLE script and populate a DatabaseSchema struct.
