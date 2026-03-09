@@ -8,12 +8,20 @@
 #include <stdio.h>
 
 #include <time.h>
+
+#ifdef C_ORM_HAVE_POSTGRES
+#include <libpq-fe.h>
+#endif
+
+#ifdef C_ORM_HAVE_MYSQL
+#ifdef _WIN32
+#include <winsock2.h>
+#endif
+#include <mysql.h>
+#endif
 /* clang-format on */
 
 #ifdef C_ORM_HAVE_POSTGRES
-/* clang-format off */
-#include <libpq-fe.h>
-/* clang-format on */
 
 /* Mock helpers for 100% test coverage without a running DB */
 /**
@@ -123,13 +131,6 @@ static void internal_PQclear(PGresult *res) {
 #endif
 
 #ifdef C_ORM_HAVE_MYSQL
-/* clang-format off */
-#ifdef _WIN32
-#include <winsock2.h>
-
-#endif
-#include <mysql.h>
-/* clang-format on */
 
 /* Mock helpers for 100% test coverage without a running DB */
 /**

@@ -13,8 +13,6 @@ extern "C" {
 
 /* clang-format off */
 #include <stddef.h>
-/* clang-format on */
-
 #if defined(_WIN32)
 #if !defined(_X86_) && !defined(_AMD64_) && !defined(_ARM_) && !defined(_ARM64_)
 #if defined(_M_IX86)
@@ -27,23 +25,32 @@ extern "C" {
 #define _ARM64_
 #endif
 #endif
-/* clang-format off */
 #include <windef.h>
-
 #include <winbase.h>
+#else
+#ifndef _MSC_VER
+#include <pthread.h>
+#endif
+#endif
 /* clang-format on */
 
+#if defined(_WIN32)
+/**
+ * @brief OS-independent mutex type.
+ */
 typedef CRITICAL_SECTION c_orm_mutex_t;
 #else
 #ifndef _MSC_VER
-/* clang-format off */
-#include <pthread.h>
-/* clang-format on */
-
+/**
+ * @brief OS-independent mutex type.
+ */
 typedef pthread_mutex_t c_orm_mutex_t;
 #endif
 #endif
 
+/**
+ * @brief Platform-specific format specifier for numbers.
+ */
 #if defined(_MSC_VER)
 #define NUM_FORMAT "%ld"
 #else
@@ -52,13 +59,12 @@ typedef pthread_mutex_t c_orm_mutex_t;
 
 /**
  * @brief Supported database dialects.
- * @brief Supported database dialects.
  */
 typedef enum {
-  C_ORM_DIALECT_UNKNOWN = 0,
-  C_ORM_DIALECT_SQLITE,
-  C_ORM_DIALECT_POSTGRES,
-  C_ORM_DIALECT_MYSQL
+  C_ORM_DIALECT_UNKNOWN = 0, /**< Unknown or uninitialized dialect. */
+  C_ORM_DIALECT_SQLITE,      /**< SQLite backend. */
+  C_ORM_DIALECT_POSTGRES,    /**< PostgreSQL backend. */
+  C_ORM_DIALECT_MYSQL        /**< MySQL / MariaDB backend. */
 } c_orm_dialect_t;
 
 /**
@@ -80,11 +86,11 @@ typedef struct c_orm_query c_orm_query_t;
  * @brief Represents the data type of a parameter to bind.
  */
 typedef enum {
-  C_ORM_PARAM_INTEGER,
-  C_ORM_PARAM_REAL,
-  C_ORM_PARAM_TEXT,
-  C_ORM_PARAM_BLOB,
-  C_ORM_PARAM_NULL
+  C_ORM_PARAM_INTEGER, /**< Integer type. */
+  C_ORM_PARAM_REAL,    /**< Floating point type. */
+  C_ORM_PARAM_TEXT,    /**< Text / string type. */
+  C_ORM_PARAM_BLOB,    /**< Binary large object type. */
+  C_ORM_PARAM_NULL     /**< NULL value. */
 } c_orm_param_type_t;
 
 /**
@@ -99,8 +105,8 @@ typedef struct {
     struct {
       const void *data; /**< Blob data pointer */
       size_t size;      /**< Blob size in bytes */
-    } blob_val;
-  } value; /**< The parameter value */
+    } blob_val;         /**< Blob data wrapper */
+  } value;              /**< The parameter value */
 } c_orm_param_t;
 
 /**

@@ -21,26 +21,26 @@ extern "C" {
  * @brief Represents the data type of a column.
  */
 enum DatabaseColumnType {
-  DB_COL_TYPE_UNKNOWN,
-  DB_COL_TYPE_INTEGER,
-  DB_COL_TYPE_VARCHAR,
-  DB_COL_TYPE_TEXT,
-  DB_COL_TYPE_REAL,
-  DB_COL_TYPE_BLOB,
-  DB_COL_TYPE_BOOLEAN,
-  DB_COL_TYPE_DATE,
-  DB_COL_TYPE_DATETIME
+  DB_COL_TYPE_UNKNOWN, /**< Unknown type. */
+  DB_COL_TYPE_INTEGER, /**< Integer type. */
+  DB_COL_TYPE_VARCHAR, /**< Variable length character string. */
+  DB_COL_TYPE_TEXT,    /**< Text type. */
+  DB_COL_TYPE_REAL,    /**< Floating point type. */
+  DB_COL_TYPE_BLOB,    /**< Binary large object. */
+  DB_COL_TYPE_BOOLEAN, /**< Boolean type. */
+  DB_COL_TYPE_DATE,    /**< Date type. */
+  DB_COL_TYPE_DATETIME /**< Date and time type. */
 };
 
 /**
  * @brief Represents the type of a foreign key constraint action.
  */
 enum DatabaseForeignKeyAction {
-  DB_FK_ACTION_NONE = 0,
-  DB_FK_ACTION_CASCADE,
-  DB_FK_ACTION_SET_NULL,
-  DB_FK_ACTION_SET_DEFAULT,
-  DB_FK_ACTION_RESTRICT
+  DB_FK_ACTION_NONE = 0,    /**< No action. */
+  DB_FK_ACTION_CASCADE,     /**< Cascade the action. */
+  DB_FK_ACTION_SET_NULL,    /**< Set the column to NULL. */
+  DB_FK_ACTION_SET_DEFAULT, /**< Set the column to its default value. */
+  DB_FK_ACTION_RESTRICT     /**< Restrict the action. */
 };
 
 /**

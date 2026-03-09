@@ -73,21 +73,26 @@ TEST test_c_orm_unsupported_dialect(void) {
 }
 
 /* Helpers for tests to use a valid dialect regardless of build flags */
-static c_orm_dialect_t get_active_dialect(void) {
+static int get_active_dialect(c_orm_dialect_t *out) {
 #ifdef C_ORM_HAVE_SQLITE
-  return C_ORM_DIALECT_SQLITE;
+  *out = C_ORM_DIALECT_SQLITE;
+  return 0;
 #elif defined(C_ORM_HAVE_POSTGRES)
-  return C_ORM_DIALECT_POSTGRES;
+  *out = C_ORM_DIALECT_POSTGRES;
+  return 0;
 #elif defined(C_ORM_HAVE_MYSQL)
-  return C_ORM_DIALECT_MYSQL;
+  *out = C_ORM_DIALECT_MYSQL;
+  return 0;
 #else
-  return C_ORM_DIALECT_UNKNOWN;
+  *out = C_ORM_DIALECT_UNKNOWN;
+  return 0;
 #endif
 }
 
 TEST test_c_orm_migrate(void) {
   c_orm_db_t *db = NULL;
-  c_orm_dialect_t dialect = get_active_dialect();
+  c_orm_dialect_t dialect;
+  get_active_dialect(&dialect);
   int version;
   int res;
   if (dialect == C_ORM_DIALECT_UNKNOWN)
@@ -150,7 +155,8 @@ TEST test_c_orm_migrate(void) {
 
 TEST test_c_orm_execute(void) {
   c_orm_db_t *db = NULL;
-  c_orm_dialect_t dialect = get_active_dialect();
+  c_orm_dialect_t dialect;
+  get_active_dialect(&dialect);
   int res;
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
@@ -173,7 +179,8 @@ TEST test_c_orm_execute(void) {
 
 TEST test_c_orm_execute_params_valid(void) {
   c_orm_db_t *db = NULL;
-  c_orm_dialect_t dialect = get_active_dialect();
+  c_orm_dialect_t dialect;
+  get_active_dialect(&dialect);
   int res;
   c_orm_param_t params[5];
   if (dialect == C_ORM_DIALECT_UNKNOWN)
@@ -210,7 +217,8 @@ TEST test_c_orm_execute_params_valid(void) {
 
 TEST test_c_orm_execute_params_invalid(void) {
   c_orm_db_t *db = NULL;
-  c_orm_dialect_t dialect = get_active_dialect();
+  c_orm_dialect_t dialect;
+  get_active_dialect(&dialect);
   int res;
   c_orm_param_t param;
   if (dialect == C_ORM_DIALECT_UNKNOWN)
@@ -262,7 +270,8 @@ TEST test_c_orm_execute_params_invalid(void) {
 
 TEST test_c_orm_transactions(void) {
   c_orm_db_t *db = NULL;
-  c_orm_dialect_t dialect = get_active_dialect();
+  c_orm_dialect_t dialect;
+  get_active_dialect(&dialect);
   int res;
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
@@ -308,7 +317,8 @@ static void test_logger_cb(const char *query, double duration_ms,
 
 TEST test_c_orm_logging(void) {
   c_orm_db_t *db = NULL;
-  c_orm_dialect_t dialect = get_active_dialect();
+  c_orm_dialect_t dialect;
+  get_active_dialect(&dialect);
   int res;
   int mock_user_data = 42;
   if (dialect == C_ORM_DIALECT_UNKNOWN)
@@ -350,6 +360,29 @@ TEST test_c_orm_logging(void) {
   PASS();
 }
 
+TEST test_c_orm_lock(void) {
+  c_orm_db_t *db = NULL;
+  c_orm_dialect_t dialect;
+  int res;
+  get_active_dialect(&dialect);
+  if (dialect == C_ORM_DIALECT_UNKNOWN)
+    SKIP();
+
+  res = c_orm_connect(&db, dialect, "file.db");
+  ASSERT_EQ(0, res);
+
+  res = c_orm_lock(db);
+  ASSERT_EQ(0, res);
+  res = c_orm_unlock(db);
+  ASSERT_EQ(0, res);
+
+  ASSERT_EQ(-1, c_orm_lock(NULL));
+  ASSERT_EQ(-1, c_orm_unlock(NULL));
+
+  c_orm_disconnect(db);
+  PASS();
+}
+
 TEST test_c_orm_pool(void) {
   c_orm_pool_t *pool = NULL;
   c_orm_db_t *db1 = NULL;
@@ -358,7 +391,8 @@ TEST test_c_orm_pool(void) {
   c_orm_db_t *fake_db = NULL;
   int res;
 
-  c_orm_dialect_t dialect = get_active_dialect();
+  c_orm_dialect_t dialect;
+  get_active_dialect(&dialect);
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
 
@@ -433,7 +467,8 @@ TEST test_c_orm_fluent_query(void) {
   int res;
   char *sql = NULL;
 
-  c_orm_dialect_t dialect = get_active_dialect();
+  c_orm_dialect_t dialect;
+  get_active_dialect(&dialect);
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
 
@@ -533,7 +568,8 @@ static void test_async_cb(int status, void *user_data) {
 
 TEST test_c_orm_async(void) {
   c_orm_db_t *db = NULL;
-  c_orm_dialect_t dialect = get_active_dialect();
+  c_orm_dialect_t dialect;
+  get_active_dialect(&dialect);
   int res;
   int job_marker_1 = -99;
   int job_marker_2 = -99;
@@ -600,6 +636,7 @@ SUITE(c_orm_suite) {
   RUN_TEST(test_c_orm_execute_params_invalid);
   RUN_TEST(test_c_orm_transactions);
   RUN_TEST(test_c_orm_logging);
+  RUN_TEST(test_c_orm_lock);
   RUN_TEST(test_c_orm_pool);
   RUN_TEST(test_c_orm_fluent_query);
   RUN_TEST(test_c_orm_async);
