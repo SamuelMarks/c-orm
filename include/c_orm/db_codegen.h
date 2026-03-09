@@ -12,9 +12,7 @@ extern "C" {
 
 /* clang-format off */
 #include <stdio.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <c_orm/database.h>
 /* clang-format on */
 

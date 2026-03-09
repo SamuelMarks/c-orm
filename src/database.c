@@ -1,12 +1,8 @@
 /* clang-format off */
 #include <stdlib.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <string.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <c_orm/database.h>
 /* clang-format on */
 

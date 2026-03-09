@@ -29,9 +29,7 @@ extern "C" {
 #endif
 /* clang-format off */
 #include <windef.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <winbase.h>
 /* clang-format on */
 

@@ -1,16 +1,10 @@
 /* clang-format off */
 #include <stdio.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <stdlib.h>
-/* clang-format on */
 
-/* clang-format off */
 #include "greatest.h"
-/* clang-format on */
 
-/* clang-format off */
 #include "test_db_codegen.h"
 /* clang-format on */
 

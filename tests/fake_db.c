@@ -1,12 +1,8 @@
 /* clang-format off */
 #include <libpq-fe.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <mysql.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <stddef.h>
 /* clang-format on */
 

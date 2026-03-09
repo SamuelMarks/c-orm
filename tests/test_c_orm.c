@@ -1,16 +1,10 @@
 /* clang-format off */
 #include "greatest.h"
-/* clang-format on */
 
-/* clang-format off */
 #include <c_orm/c_orm.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <stdlib.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <string.h>
 /* clang-format on */
 

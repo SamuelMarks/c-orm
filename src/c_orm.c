@@ -1,20 +1,12 @@
 /* clang-format off */
 #include "c_orm/c_orm.h"
-/* clang-format on */
 
-/* clang-format off */
 #include <stdlib.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <string.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <stdio.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <time.h>
 /* clang-format on */
 
@@ -131,13 +123,11 @@ static void internal_PQclear(PGresult *res) {
 #endif
 
 #ifdef C_ORM_HAVE_MYSQL
-#ifdef _WIN32
 /* clang-format off */
+#ifdef _WIN32
 #include <winsock2.h>
-/* clang-format on */
 
 #endif
-/* clang-format off */
 #include <mysql.h>
 /* clang-format on */
 

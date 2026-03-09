@@ -8,25 +8,20 @@
 
 /* clang-format off */
 #include <greatest.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <stdio.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <stdlib.h>
-/* clang-format on */
 
-/* clang-format off */
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#else
+#include <errno.h>
+#endif
+
 #include <string.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <c_orm/database.h>
-/* clang-format on */
 
-/* clang-format off */
 #include <c_orm/db_codegen.h>
 /* clang-format on */
 
