@@ -596,7 +596,7 @@ TEST test_c_orm_async(void) {
 
   /* Poll first job */
   res = c_orm_poll_async(db, &jobs_processed);
-  ASSERT_EQ(0, res); 
+  ASSERT_EQ(0, res);
   ASSERT_EQ(1, jobs_processed); /* 1 job processed */
   ASSERT_EQ(1, g_async_cb_count);
   ASSERT_EQ(0, job_marker_1); /* Success status from c_orm_execute */
