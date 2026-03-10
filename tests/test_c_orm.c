@@ -572,6 +572,7 @@ TEST test_c_orm_async(void) {
   int res;
   int job_marker_1 = -99;
   int job_marker_2 = -99;
+  int jobs_processed = 0;
   get_active_dialect(&dialect);
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
@@ -594,28 +595,32 @@ TEST test_c_orm_async(void) {
   ASSERT_EQ(-99, job_marker_2);
 
   /* Poll first job */
-  res = c_orm_poll_async(db);
-  ASSERT_EQ(1, res); /* 1 job processed */
+  res = c_orm_poll_async(db, &jobs_processed);
+  ASSERT_EQ(0, res); 
+  ASSERT_EQ(1, jobs_processed); /* 1 job processed */
   ASSERT_EQ(1, g_async_cb_count);
   ASSERT_EQ(0, job_marker_1); /* Success status from c_orm_execute */
   ASSERT_EQ(-99, job_marker_2);
 
   /* Poll second job */
-  res = c_orm_poll_async(db);
-  ASSERT_EQ(1, res); /* 1 job processed */
+  res = c_orm_poll_async(db, &jobs_processed);
+  ASSERT_EQ(0, res);
+  ASSERT_EQ(1, jobs_processed); /* 1 job processed */
   ASSERT_EQ(2, g_async_cb_count);
   ASSERT_EQ(0, job_marker_2); /* Success status from c_orm_execute */
 
   /* Poll empty queue */
-  res = c_orm_poll_async(db);
-  ASSERT_EQ(0, res); /* 0 jobs processed */
+  res = c_orm_poll_async(db, &jobs_processed);
+  ASSERT_EQ(0, res);
+  ASSERT_EQ(0, jobs_processed); /* 0 jobs processed */
   ASSERT_EQ(2, g_async_cb_count);
 
   /* Null arg tests */
   ASSERT_EQ(-1, c_orm_execute_async(NULL, "SELECT 1", test_async_cb, NULL));
   ASSERT_EQ(-1, c_orm_execute_async(db, NULL, test_async_cb, NULL));
   ASSERT_EQ(-1, c_orm_execute_async(db, "SELECT 1", NULL, NULL));
-  ASSERT_EQ(-1, c_orm_poll_async(NULL));
+  ASSERT_EQ(-1, c_orm_poll_async(NULL, &jobs_processed));
+  ASSERT_EQ(-1, c_orm_poll_async(db, NULL));
 
   /* Test disconnect cleans up pending jobs cleanly */
   res = c_orm_execute_async(db, "SELECT 3", test_async_cb, NULL);

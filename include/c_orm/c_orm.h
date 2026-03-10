@@ -13,40 +13,7 @@ extern "C" {
 
 /* clang-format off */
 #include <stddef.h>
-#if defined(_WIN32)
-#if !defined(_X86_) && !defined(_AMD64_) && !defined(_ARM_) && !defined(_ARM64_)
-#if defined(_M_IX86)
-#define _X86_
-#elif defined(_M_AMD64)
-#define _AMD64_
-#elif defined(_M_ARM)
-#define _ARM_
-#elif defined(_M_ARM64)
-#define _ARM64_
-#endif
-#endif
-#include <windef.h>
-#include <winbase.h>
-#else
-#ifndef _MSC_VER
-#include <pthread.h>
-#endif
-#endif
 /* clang-format on */
-
-#if defined(_WIN32)
-/**
- * @brief OS-independent mutex type.
- */
-typedef CRITICAL_SECTION c_orm_mutex_t;
-#else
-#ifndef _MSC_VER
-/**
- * @brief OS-independent mutex type.
- */
-typedef pthread_mutex_t c_orm_mutex_t;
-#endif
-#endif
 
 /**
  * @brief Platform-specific format specifier for numbers.
@@ -217,9 +184,10 @@ int c_orm_execute_async(c_orm_db_t *db, const char *query, c_orm_async_cb_t cb,
  * @brief Process pending asynchronous queries.
  * Must be called in an event loop if the underlying driver requires polling.
  * @param db Database connection handle.
+ * @param jobs_processed Pointer to receive the number of jobs processed.
  * @return 0 on success, non-zero on error.
  */
-int c_orm_poll_async(c_orm_db_t *db);
+int c_orm_poll_async(c_orm_db_t *db, int *jobs_processed);
 
 /**
  * @brief Execute a raw query with parameterized values.

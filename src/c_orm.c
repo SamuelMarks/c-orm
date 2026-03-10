@@ -1,6 +1,34 @@
 /* clang-format off */
 #include "c_orm/c_orm.h"
 
+#if defined(_WIN32)
+#if !defined(_X86_) && !defined(_AMD64_) && !defined(_ARM_) && !defined(_ARM64_)
+#if defined(_M_IX86)
+#define _X86_
+#elif defined(_M_AMD64)
+#define _AMD64_
+#elif defined(_M_ARM)
+#define _ARM_
+#elif defined(_M_ARM64)
+#define _ARM64_
+#endif
+#endif
+#include <windef.h>
+#include <winbase.h>
+#else
+#ifndef _MSC_VER
+#include <pthread.h>
+#endif
+#endif
+
+#if defined(_WIN32)
+typedef CRITICAL_SECTION c_orm_mutex_t;
+#else
+#ifndef _MSC_VER
+typedef pthread_mutex_t c_orm_mutex_t;
+#endif
+#endif
+
 #include <stdlib.h>
 
 #include <string.h>
@@ -625,12 +653,14 @@ int c_orm_execute_async(c_orm_db_t *db, const char *query, c_orm_async_cb_t cb,
   return 0;
 }
 
-int c_orm_poll_async(c_orm_db_t *db) {
+int c_orm_poll_async(c_orm_db_t *db, int *jobs_processed) {
   struct c_orm_async_job *job;
   int exec_res;
 
-  if (!db)
+  if (!db || !jobs_processed)
     return -1;
+
+  *jobs_processed = 0;
 
   c_orm_lock(db);
   job = db->async_queue_head;
@@ -649,10 +679,10 @@ int c_orm_poll_async(c_orm_db_t *db) {
 
     free(job->query);
     free(job);
-    return 1; /* Returned 1 job */
+    *jobs_processed = 1;
   }
 
-  return 0; /* Queue empty */
+  return 0; /* Success */
 }
 
 int c_orm_execute_params(c_orm_db_t *db, const char *query,
