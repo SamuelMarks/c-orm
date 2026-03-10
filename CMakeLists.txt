@@ -14,6 +14,15 @@ option(C_ORM_BACKEND_MYSQL "Enable MySQL backend" OFF)
 set(CDD_CHARSET "UTF8" CACHE STRING "Charset to use (UNICODE, ANSI, UTF8)")
 set(CDD_THREADING "ON" CACHE STRING "Multi-threaded (ON/OFF)")
 set(CDD_MSVC_RTC "OFF" CACHE STRING "MSVC Runtime Checks (RTC1, RTCs, RTCu, OFF)")
+set(CDD_CRT_LINKAGE "Shared" CACHE STRING "CRT Linkage (Static, Shared)")
+if(MSVC)
+    if(CDD_CRT_LINKAGE STREQUAL "Static")
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    else()
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+    endif()
+endif()
+
 
 if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION AND C_ORM_LTO)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
@@ -63,6 +72,7 @@ add_library(c-orm
 )
 
 target_include_directories(c-orm PUBLIC include)
+set_target_properties(c-orm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 if(MSVC)
     if(CDD_MSVC_RTC STREQUAL "RTC1")
