@@ -403,8 +403,11 @@ TEST test_c_orm_pool(void) {
   ASSERT_EQ(-1, res);
 
   /* Test massive allocation failure for coverage */
+#if !defined(_MSC_VER) || (_MSC_VER > 1400)
+  /* MSVC 2005 (1400) crashes with STATUS_INVALID_PARAMETER on huge calloc */
   res = c_orm_pool_create(&pool, dialect, "file.db", (size_t)-1);
   ASSERT_EQ(-1, res);
+#endif
 
   res = c_orm_pool_create(&pool, dialect, "file.db", 2);
   ASSERT_EQ(0, res);

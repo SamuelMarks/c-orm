@@ -13,10 +13,7 @@
 
 #include <stdlib.h>
 
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-#else
 #include <errno.h>
-#endif
 
 #include <string.h>
 
