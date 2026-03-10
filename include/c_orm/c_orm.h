@@ -55,12 +55,8 @@ typedef pthread_mutex_t c_orm_mutex_t;
 #define NUM_FORMAT "%I64d"
 typedef __int64 c_orm_int_t;
 #else
-#define NUM_FORMAT "%lld"
-#if defined(__GNUC__) || defined(__clang__)
-__extension__ typedef long long c_orm_int_t;
-#else
-typedef long long c_orm_int_t;
-#endif
+#define NUM_FORMAT "%ld"
+typedef long c_orm_int_t;
 #endif
 
 /**
