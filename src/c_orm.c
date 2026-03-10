@@ -731,9 +731,11 @@ int c_orm_execute_params(c_orm_db_t *db, const char *query,
           str_allocs[i] = malloc(32);
           if (str_allocs[i]) {
 #if defined(_MSC_VER)
-            sprintf_s(str_allocs[i], 32, NUM_FORMAT, params[i].value.int_val);
+            sprintf_s(str_allocs[i], 32, NUM_FORMAT,
+                      (c_orm_int_t)params[i].value.int_val);
 #else
-            sprintf(str_allocs[i], NUM_FORMAT, params[i].value.int_val);
+            sprintf(str_allocs[i], NUM_FORMAT,
+                    (c_orm_int_t)params[i].value.int_val);
 #endif
             param_values[i] = str_allocs[i];
           }
@@ -1116,10 +1118,10 @@ int c_orm_query_build(c_orm_query_t *query, char **sql_out) {
     char limit_str[32];
 #if defined(_MSC_VER)
     sprintf_s(limit_str, sizeof(limit_str), " LIMIT " NUM_FORMAT,
-              (long)query->limit);
+              (c_orm_int_t)query->limit);
     strcat_s(sql, size, limit_str);
 #else
-    sprintf(limit_str, " LIMIT " NUM_FORMAT, (long)query->limit);
+    sprintf(limit_str, " LIMIT " NUM_FORMAT, (c_orm_int_t)query->limit);
     strcat(sql, limit_str);
 #endif
   }

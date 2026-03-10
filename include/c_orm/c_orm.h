@@ -52,9 +52,15 @@ typedef pthread_mutex_t c_orm_mutex_t;
  * @brief Platform-specific format specifier for numbers.
  */
 #if defined(_MSC_VER)
-#define NUM_FORMAT "%ld"
+#define NUM_FORMAT "%I64d"
+typedef __int64 c_orm_int_t;
 #else
-#define NUM_FORMAT "%ld"
+#define NUM_FORMAT "%lld"
+#if defined(__GNUC__) || defined(__clang__)
+__extension__ typedef long long c_orm_int_t;
+#else
+typedef long long c_orm_int_t;
+#endif
 #endif
 
 /**
@@ -99,7 +105,7 @@ typedef enum {
 typedef struct {
   c_orm_param_type_t type; /**< Type of the parameter */
   union {
-    long int_val;         /**< Integer value */
+    c_orm_int_t int_val;  /**< Integer value */
     double real_val;      /**< Real/Float value */
     const char *text_val; /**< Null-terminated text value */
     struct {

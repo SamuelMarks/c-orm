@@ -1,11 +1,19 @@
 /* clang-format off */
+#ifdef C_ORM_HAVE_POSTGRES
 #include <libpq-fe.h>
+#endif
 
+#ifdef C_ORM_HAVE_MYSQL
+#ifdef _WIN32
+#include <winsock2.h>
+#endif
 #include <mysql.h>
+#endif
 
 #include <stddef.h>
 /* clang-format on */
 
+#ifdef C_ORM_HAVE_POSTGRES
 PGconn *PQconnectdb(const char *conninfo) {
   (void)conninfo;
   return NULL;
@@ -39,7 +47,9 @@ ExecStatusType PQresultStatus(const PGresult *res) {
   return PGRES_BAD_RESPONSE;
 }
 void PQclear(PGresult *res) { (void)res; }
+#endif
 
+#ifdef C_ORM_HAVE_MYSQL
 MYSQL *mysql_init(MYSQL *mysql) { return mysql ? mysql : (MYSQL *)1; }
 MYSQL *mysql_real_connect(MYSQL *mysql, const char *host, const char *user,
                           const char *passwd, const char *db, unsigned int port,
@@ -85,3 +95,4 @@ my_bool mysql_stmt_close(MYSQL_STMT *stmt) {
   (void)stmt;
   return 0;
 }
+#endif
