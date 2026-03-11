@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.15)
 project(c-orm C)
 
+if(CYGWIN)
+    execute_process(COMMAND cygpath -m ${CMAKE_MAKE_PROGRAM}
+                    OUTPUT_VARIABLE WIN_MAKE_PROGRAM
+                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    set(CMAKE_MAKE_PROGRAM ${WIN_MAKE_PROGRAM} CACHE FILEPATH "Make program" FORCE)
+endif()
+
 # Set C standards
 set(CMAKE_C_STANDARD 90)
 set(CMAKE_C_STANDARD_REQUIRED ON)
