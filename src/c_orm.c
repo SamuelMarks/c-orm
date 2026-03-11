@@ -1,4 +1,9 @@
 /* clang-format off */
+#if defined(_WIN32)
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#endif
+#endif
 #include "c_orm/c_orm.h"
 
 #if defined(_WIN32)
@@ -23,9 +28,17 @@
 
 #if defined(_WIN32)
 typedef CRITICAL_SECTION c_orm_mutex_t;
+#if defined(_MSC_VER) && _MSC_VER <= 1400
+typedef HANDLE c_orm_cond_t;
+#else
+typedef CONDITION_VARIABLE c_orm_cond_t;
+#endif
+typedef DWORD c_orm_tls_t;
 #else
 #ifndef _MSC_VER
 typedef pthread_mutex_t c_orm_mutex_t;
+typedef pthread_cond_t c_orm_cond_t;
+typedef pthread_key_t c_orm_tls_t;
 #endif
 #endif
 
@@ -105,6 +118,37 @@ static int internal_PQexec(PGconn *conn, const char *query,
   *out_res = PQexec(conn, query);
   return 0;
 }
+
+static int internal_PQsendQuery(PGconn *conn, const char *query) {
+  if (conn == (PGconn *)1)
+    return 1;
+  return PQsendQuery(conn, query);
+}
+
+static PGresult *internal_PQgetResult(PGconn *conn) {
+  if (conn == (PGconn *)1)
+    return NULL;
+  return PQgetResult(conn);
+}
+
+static int internal_PQsocket(const PGconn *conn) {
+  if (conn == (PGconn *)1)
+    return -1;
+  return PQsocket(conn);
+}
+
+static int internal_PQconsumeInput(PGconn *conn) {
+  if (conn == (PGconn *)1)
+    return 1;
+  return PQconsumeInput(conn);
+}
+
+static int internal_PQisBusy(PGconn *conn) {
+  if (conn == (PGconn *)1)
+    return 0;
+  return PQisBusy(conn);
+}
+
 /**
  * @brief Mock wrapper for PQexecParams.
  * @param conn The connection.
@@ -218,6 +262,31 @@ static int internal_mysql_query(MYSQL *mysql, const char *q) {
     return 0;
   return mysql_query(mysql, q);
 }
+
+static int internal_mysql_real_query_nonblocking(MYSQL *mysql, const char *q,
+                                                 unsigned long length,
+                                                 int *status) {
+  if (mysql == (MYSQL *)1) {
+    *status = 0;
+    return 0;
+  }
+#if defined(MARIADB_BASE_VERSION) || defined(MARIADB_VERSION_ID)
+  /* MariaDB style non-blocking */
+  *status = mysql_real_query_nonblocking(mysql, q, length);
+  return 0;
+#else
+  /* MySQL 8 style or fallback */
+  return mysql_real_query(
+      mysql, q,
+      length); /* synchronous fallback if no non-blocking API available */
+#endif
+}
+
+static int internal_mysql_get_socket(const MYSQL *mysql) {
+  if (mysql == (MYSQL *)1)
+    return -1;
+  return -1; /* Stub for now to prevent opaque struct compile errors */
+}
 /**
  * @brief Mock wrapper for mysql_stmt_init.
  * @param mysql The mysql handle.
@@ -286,6 +355,45 @@ static void c_orm_mutex_init(c_orm_mutex_t *mutex);
 static void c_orm_mutex_destroy(c_orm_mutex_t *mutex);
 static void c_orm_mutex_lock(c_orm_mutex_t *mutex);
 static void c_orm_mutex_unlock(c_orm_mutex_t *mutex);
+
+static void c_orm_cond_init(c_orm_cond_t *cond);
+static void c_orm_cond_destroy(c_orm_cond_t *cond);
+static void c_orm_cond_wait(c_orm_cond_t *cond, c_orm_mutex_t *mutex);
+static void c_orm_cond_signal(c_orm_cond_t *cond);
+
+static int c_orm_tls_create(c_orm_tls_t *tls) {
+#if defined(_WIN32)
+  *tls = TlsAlloc();
+  return (*tls == TLS_OUT_OF_INDEXES) ? -1 : 0;
+#else
+  return pthread_key_create(tls, NULL);
+#endif
+}
+
+static void c_orm_tls_destroy(c_orm_tls_t tls) {
+#if defined(_WIN32)
+  TlsFree(tls);
+#else
+  pthread_key_delete(tls);
+#endif
+}
+
+static void c_orm_tls_set(c_orm_tls_t tls, void *val) {
+#if defined(_WIN32)
+  TlsSetValue(tls, val);
+#else
+  pthread_setspecific(tls, val);
+#endif
+}
+
+static void *c_orm_tls_get(c_orm_tls_t tls) {
+#if defined(_WIN32)
+  return TlsGetValue(tls);
+#else
+  return pthread_getspecific(tls);
+#endif
+}
+
 static int strdup_safe(const char *s, char **out);
 
 /**
@@ -324,16 +432,235 @@ static void c_orm_mutex_unlock(c_orm_mutex_t *mutex) {
 #endif
 }
 
+static void c_orm_cond_init(c_orm_cond_t *cond) {
+#if defined(_WIN32)
+#if defined(_MSC_VER) && _MSC_VER <= 1400
+  *cond = CreateEventA(NULL, FALSE, FALSE, NULL);
+#else
+  InitializeConditionVariable(cond);
+#endif
+#else
+  pthread_cond_init(cond, NULL);
+#endif
+}
+
+static void c_orm_cond_destroy(c_orm_cond_t *cond) {
+#if defined(_WIN32)
+#if defined(_MSC_VER) && _MSC_VER <= 1400
+  if (*cond)
+    CloseHandle(*cond);
+#else
+  /* CONDITION_VARIABLE doesn't need explicit destruction in Win32 */
+#endif
+#else
+  pthread_cond_destroy(cond);
+#endif
+}
+
+static void c_orm_cond_wait(c_orm_cond_t *cond, c_orm_mutex_t *mutex) {
+#if defined(_WIN32)
+#if defined(_MSC_VER) && _MSC_VER <= 1400
+  LeaveCriticalSection(mutex);
+  WaitForSingleObject(*cond, INFINITE);
+  EnterCriticalSection(mutex);
+#else
+  SleepConditionVariableCS(cond, mutex, INFINITE);
+#endif
+#else
+  pthread_cond_wait(cond, mutex);
+#endif
+}
+
+static int c_orm_cond_wait_timeout(c_orm_cond_t *cond, c_orm_mutex_t *mutex,
+                                   int ms) {
+#if defined(_WIN32)
+#if defined(_MSC_VER) && _MSC_VER <= 1400
+  DWORD res;
+  LeaveCriticalSection(mutex);
+  res = WaitForSingleObject(*cond, (DWORD)ms);
+  EnterCriticalSection(mutex);
+  if (res == WAIT_OBJECT_0) {
+    return 0;
+  }
+  return -1;
+#else
+  if (SleepConditionVariableCS(cond, mutex, ms)) {
+    return 0;
+  }
+  return -1; /* Timeout or error */
+#endif
+#else
+  struct timespec ts;
+  time_t now = time(NULL);
+  ts.tv_sec = now + (ms / 1000);
+  ts.tv_nsec = (ms % 1000) * 1000000L;
+  if (pthread_cond_timedwait(cond, mutex, &ts) == 0) {
+    return 0;
+  }
+  return -1;
+#endif
+}
+
+static void c_orm_cond_signal(c_orm_cond_t *cond) {
+#if defined(_WIN32)
+#if defined(_MSC_VER) && _MSC_VER <= 1400
+  SetEvent(*cond);
+#else
+  WakeConditionVariable(cond);
+#endif
+#else
+  pthread_cond_signal(cond);
+#endif
+}
+
 /* Simulation structures for Async I/O */
 struct c_orm_async_job {
   char *query;
+  c_orm_param_t *params;
+  size_t param_count;
   c_orm_async_cb_t cb;
   void *user_data;
+  double timeout_ms;   /* Timeout duration in milliseconds (0 for infinite) */
+  clock_t enqueued_at; /* Time when the job was added to the queue */
   struct c_orm_async_job *next;
+};
+
+/* OS Agnostic Event Wakeup Mechanism (eventfd / pipe) */
+#if defined(_WIN32) || defined(__APPLE__) || defined(__FreeBSD__) ||           \
+    defined(__MINGW32__)
+/* Fallback to pipe pair for Windows/macOS/BSD since eventfd is Linux only */
+#if !defined(_WIN32)
+#include <unistd.h>
+#endif
+typedef struct {
+  int fds[2];
+} c_orm_event_t;
+
+static int c_orm_event_init(c_orm_event_t *ev) {
+#if defined(_WIN32) || defined(__MINGW32__)
+  /* Note: Windows doesn't have standard pipe() that returns fds compatible with
+     select/poll easily without _pipe() and winsock overhead. We'll stub this
+     for the architecture plan and refine in later phases if actual windows
+     async polling is required via IOCP. */
+  ev->fds[0] = -1;
+  ev->fds[1] = -1;
+  return 0;
+#else
+  return pipe(ev->fds);
+#endif
+}
+
+static int c_orm_event_signal(c_orm_event_t *ev) {
+#if defined(_WIN32) || defined(__MINGW32__)
+  return 0;
+#else
+  char b = 1;
+  return (write(ev->fds[1], &b, 1) == 1) ? 0 : -1;
+#endif
+}
+
+static void c_orm_event_close(c_orm_event_t *ev) {
+#if !defined(_WIN32) && !defined(__MINGW32__)
+  close(ev->fds[0]);
+  close(ev->fds[1]);
+#endif
+}
+
+#else
+/* Linux eventfd */
+#include <stdint.h>
+#include <sys/eventfd.h>
+#include <unistd.h>
+typedef struct {
+  int fd;
+} c_orm_event_t;
+
+static int c_orm_event_init(c_orm_event_t *ev) {
+  ev->fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+  return ev->fd == -1 ? -1 : 0;
+}
+
+static int c_orm_event_signal(c_orm_event_t *ev) {
+  uint64_t val = 1;
+  return (write(ev->fd, &val, sizeof(val)) == sizeof(val)) ? 0 : -1;
+}
+
+static void c_orm_event_close(c_orm_event_t *ev) { close(ev->fd); }
+#endif
+
+/* Cross-modality Memory Allocator Interface */
+typedef struct {
+  void *(*malloc_fn)(size_t size);
+  void *(*calloc_fn)(size_t nmemb, size_t size);
+  void *(*realloc_fn)(void *ptr, size_t size);
+  void (*free_fn)(void *ptr);
+} c_orm_allocator_t;
+
+/* Default allocators */
+static void *default_malloc(size_t size) { return malloc(size); }
+static void *default_calloc(size_t nmemb, size_t size) {
+  return calloc(nmemb, size);
+}
+static void *default_realloc(void *ptr, size_t size) {
+  return realloc(ptr, size);
+}
+static void default_free(void *ptr) { free(ptr); }
+
+static const c_orm_allocator_t g_default_allocator = {
+    default_malloc, default_calloc, default_realloc, default_free};
+
+/* Stub Event Loop Reactor Interface */
+typedef struct {
+  int (*add_fd)(int fd, int flags, void *user_data);
+  int (*remove_fd)(int fd);
+  int (*on_readable)(int fd, void *user_data);
+  int (*on_writable)(int fd, void *user_data);
+} c_orm_event_loop_adapter_t;
+
+/* Internal VTable for dynamic query routing across modalities */
+typedef struct {
+  int (*execute)(c_orm_db_t *db, const char *query, c_orm_result_t **res);
+  int (*execute_params)(c_orm_db_t *db, const char *query,
+                        const c_orm_param_t *params, size_t param_count,
+                        c_orm_result_t **res);
+  int (*execute_async)(c_orm_db_t *db, const char *query, c_orm_async_cb_t cb,
+                       void *user_data);
+} c_orm_vtable_t;
+
+/* Forward declare internal synchronous execute functions for vtables */
+static int sync_execute(c_orm_db_t *db, const char *query,
+                        c_orm_result_t **res);
+static int sync_execute_params(c_orm_db_t *db, const char *query,
+                               const c_orm_param_t *params, size_t param_count,
+                               c_orm_result_t **res);
+
+static int sync_multi_execute(c_orm_db_t *db, const char *query,
+                              c_orm_result_t **res);
+static int sync_multi_execute_params(c_orm_db_t *db, const char *query,
+                                     const c_orm_param_t *params,
+                                     size_t param_count, c_orm_result_t **res);
+
+static const c_orm_vtable_t g_vtable_sync_single = {
+    sync_execute, sync_execute_params,
+    NULL /* Async not natively supported in sync modes, handled by queue */
+};
+
+static const c_orm_vtable_t g_vtable_sync_multi = {
+    sync_multi_execute, sync_multi_execute_params,
+    NULL /* Async not natively supported in sync modes, handled by queue */
+};
+
+struct c_orm_context {
+  c_orm_modality_t modality;
+  const c_orm_vtable_t *vtable;
+  const c_orm_allocator_t *allocator;
+  const c_orm_event_loop_adapter_t *event_loop;
+  void *modality_state;
 };
 
 struct c_orm_db {
   c_orm_dialect_t dialect;
+  c_orm_context_t *ctx;
   void *native_conn;
   c_orm_log_cb_t logger;
   void *logger_user_data;
@@ -343,6 +670,34 @@ struct c_orm_db {
   /* Async simulation queue */
   struct c_orm_async_job *async_queue_head;
   struct c_orm_async_job *async_queue_tail;
+
+  /* Background pool for SQLite ASYNC_EVENT_LOOP */
+  struct c_orm_sqlite_worker_pool *bg_pool;
+};
+
+/* Pluggable Synchronization Interface for the Connection Pool */
+typedef struct {
+  void (*lock)(void *state);
+  void (*unlock)(void *state);
+  void (*wait)(void *state);
+  void (*signal)(void *state);
+  int (*wait_timeout)(void *state, int ms);
+} c_orm_sync_ops_t;
+
+/* SQLite Background Thread Pool Subsystem for Async Modality */
+struct c_orm_sqlite_worker_pool {
+  c_orm_mutex_t queue_mutex;
+  c_orm_event_t wakeup_event;
+  struct c_orm_async_job *queue_head;
+  struct c_orm_async_job *queue_tail;
+  int terminate_flag;
+  int initialized;
+#if !defined(_WIN32) && !defined(__MINGW32__)
+  pthread_t *threads;
+#else
+  void **threads; /* HANDLE* */
+#endif
+  size_t thread_count;
 };
 
 struct c_orm_pool {
@@ -350,8 +705,15 @@ struct c_orm_pool {
   int *in_use;
   size_t pool_size;
   c_orm_dialect_t dialect;
+  c_orm_modality_t modality;
   char *conn_string;
-  c_orm_mutex_t mutex;
+
+  /* Synchronization */
+  const c_orm_sync_ops_t *sync_ops;
+  void *sync_state;
+  c_orm_mutex_t default_mutex; /* Fallback/default implementation */
+  c_orm_cond_t default_cond;
+  c_orm_tls_t tls_slot;
 };
 
 struct c_orm_query {
@@ -362,12 +724,14 @@ struct c_orm_query {
   char *order_by;
   int has_limit;
   size_t limit;
+  const c_orm_allocator_t *allocator;
 };
 
-static int strdup_safe(const char *s, char **out) {
-  if (!s || !out)
+static int strdup_safe_ext(const c_orm_allocator_t *alloc, const char *s,
+                           char **out) {
+  if (!s || !out || !alloc)
     return -1;
-  *out = malloc(strlen(s) + 1);
+  *out = (char *)alloc->malloc_fn(strlen(s) + 1);
   if (!*out)
     return -1;
 #if defined(_MSC_VER)
@@ -378,12 +742,118 @@ static int strdup_safe(const char *s, char **out) {
   return 0;
 }
 
+static int strdup_safe(const char *s, char **out) {
+  return strdup_safe_ext(&g_default_allocator, s, out);
+}
+
+static int c_orm_params_copy(const c_orm_allocator_t *alloc,
+                             const c_orm_param_t *src, size_t count,
+                             c_orm_param_t **dest) {
+  size_t i;
+  c_orm_param_t *copied;
+
+  if (count == 0) {
+    *dest = NULL;
+    return 0;
+  }
+  if (!src || !dest || !alloc)
+    return -1;
+
+  copied = (c_orm_param_t *)alloc->calloc_fn(count, sizeof(c_orm_param_t));
+  if (!copied)
+    return -1;
+
+  for (i = 0; i < count; ++i) {
+    copied[i].type = src[i].type;
+    switch (src[i].type) {
+    case C_ORM_PARAM_INTEGER:
+      copied[i].value.int_val = src[i].value.int_val;
+      break;
+    case C_ORM_PARAM_REAL:
+      copied[i].value.real_val = src[i].value.real_val;
+      break;
+    case C_ORM_PARAM_TEXT:
+      if (src[i].value.text_val) {
+        if (strdup_safe_ext(alloc, src[i].value.text_val,
+                            (char **)&copied[i].value.text_val) != 0) {
+          /* Free previously allocated strings on failure */
+          size_t j;
+          for (j = 0; j < i; ++j) {
+            if (copied[j].type == C_ORM_PARAM_TEXT &&
+                copied[j].value.text_val) {
+              alloc->free_fn((void *)copied[j].value.text_val);
+            } else if (copied[j].type == C_ORM_PARAM_BLOB &&
+                       copied[j].value.blob_val.data) {
+              alloc->free_fn((void *)copied[j].value.blob_val.data);
+            }
+          }
+          alloc->free_fn(copied);
+          return -1;
+        }
+      } else {
+        copied[i].value.text_val = NULL;
+      }
+      break;
+    case C_ORM_PARAM_BLOB:
+      if (src[i].value.blob_val.data && src[i].value.blob_val.size > 0) {
+        void *blob_copy = alloc->malloc_fn(src[i].value.blob_val.size);
+        if (!blob_copy) {
+          size_t j;
+          for (j = 0; j < i; ++j) {
+            if (copied[j].type == C_ORM_PARAM_TEXT &&
+                copied[j].value.text_val) {
+              alloc->free_fn((void *)copied[j].value.text_val);
+            } else if (copied[j].type == C_ORM_PARAM_BLOB &&
+                       copied[j].value.blob_val.data) {
+              alloc->free_fn((void *)copied[j].value.blob_val.data);
+            }
+          }
+          alloc->free_fn(copied);
+          return -1;
+        }
+        memcpy(blob_copy, src[i].value.blob_val.data,
+               src[i].value.blob_val.size);
+        copied[i].value.blob_val.data = blob_copy;
+        copied[i].value.blob_val.size = src[i].value.blob_val.size;
+      } else {
+        copied[i].value.blob_val.data = NULL;
+        copied[i].value.blob_val.size = 0;
+      }
+      break;
+    case C_ORM_PARAM_NULL:
+      /* Nothing to deep copy */
+      break;
+    }
+  }
+
+  *dest = copied;
+  return 0;
+}
+
+static void c_orm_params_free(const c_orm_allocator_t *alloc,
+                              c_orm_param_t *params, size_t count) {
+  size_t i;
+  if (!params || !alloc)
+    return;
+
+  for (i = 0; i < count; ++i) {
+    if (params[i].type == C_ORM_PARAM_TEXT && params[i].value.text_val) {
+      alloc->free_fn((void *)params[i].value.text_val);
+    } else if (params[i].type == C_ORM_PARAM_BLOB &&
+               params[i].value.blob_val.data) {
+      alloc->free_fn((void *)params[i].value.blob_val.data);
+    }
+  }
+  alloc->free_fn(params);
+}
+
 /* Stub connections for now to satisfy link dependencies.
    Full implementation will require libpq, sqlite3, and mysql headers/libs.
 */
-int c_orm_connect(c_orm_db_t **db_out, c_orm_dialect_t dialect,
-                  const char *conn_string) {
+int c_orm_connect_ext(c_orm_db_t **db_out, c_orm_dialect_t dialect,
+                      c_orm_modality_t modality, const char *conn_string) {
   c_orm_db_t *db;
+  c_orm_context_t *ctx;
 
   if (!db_out || !conn_string) {
     return -1;
@@ -406,17 +876,38 @@ int c_orm_connect(c_orm_db_t **db_out, c_orm_dialect_t dialect,
     return -1; /* Unknown dialect */
   }
 
-  db = calloc(1, sizeof(c_orm_db_t));
+  db = (c_orm_db_t *)calloc(1, sizeof(c_orm_db_t));
   if (!db) {
     return -1;
   }
 
+  ctx = (c_orm_context_t *)calloc(1, sizeof(c_orm_context_t));
+  if (!ctx) {
+    free(db);
+    return -1;
+  }
+  ctx->modality = modality;
+  if (modality == C_ORM_MODALITY_SYNC_SINGLE) {
+    ctx->vtable = &g_vtable_sync_single;
+  } else if (modality == C_ORM_MODALITY_SYNC_MULTI) {
+    ctx->vtable = &g_vtable_sync_multi;
+  } else {
+    /* For ASYNC, GREENTHREAD, MULTIPROCESS we will leave NULL or stub until
+     * phase 4-6 */
+    ctx->vtable = NULL;
+  }
+  ctx->allocator = &g_default_allocator;
+  ctx->event_loop = NULL;
+  ctx->modality_state = NULL;
+
   db->dialect = dialect;
+  db->ctx = ctx;
   db->logger = NULL;
   db->logger_user_data = NULL;
   db->simulated_migration_version = 0; /* Starts at 0 initially */
   db->async_queue_head = NULL;
   db->async_queue_tail = NULL;
+  db->bg_pool = NULL;
   c_orm_mutex_init(&db->mutex);
 
   if (dialect == C_ORM_DIALECT_SQLITE) {
@@ -431,6 +922,7 @@ int c_orm_connect(c_orm_db_t **db_out, c_orm_dialect_t dialect,
     internal_PQstatus(conn, &__s);
     if (__s != CONNECTION_OK) {
       internal_PQfinish(conn);
+      free(ctx);
       free(db);
       return -1;
     }
@@ -442,6 +934,7 @@ int c_orm_connect(c_orm_db_t **db_out, c_orm_dialect_t dialect,
     MYSQL *__real_conn = NULL;
     internal_mysql_init(NULL, &conn);
     if (!conn) {
+      free(ctx);
       free(db);
       return -1;
     }
@@ -449,6 +942,7 @@ int c_orm_connect(c_orm_db_t **db_out, c_orm_dialect_t dialect,
                                 &__real_conn);
     if (!__real_conn) {
       internal_mysql_close(conn);
+      free(ctx);
       free(db);
       return -1;
     }
@@ -458,6 +952,12 @@ int c_orm_connect(c_orm_db_t **db_out, c_orm_dialect_t dialect,
 
   *db_out = db;
   return 0;
+}
+
+int c_orm_connect(c_orm_db_t **db_out, c_orm_dialect_t dialect,
+                  const char *conn_string) {
+  return c_orm_connect_ext(db_out, dialect, C_ORM_MODALITY_SYNC_MULTI,
+                           conn_string);
 }
 
 void c_orm_disconnect(c_orm_db_t *db) {
@@ -473,6 +973,10 @@ void c_orm_disconnect(c_orm_db_t *db) {
   while (job) {
     next = job->next;
     free(job->query);
+    if (job->params) {
+      c_orm_params_free(db->ctx ? db->ctx->allocator : &g_default_allocator,
+                        job->params, job->param_count);
+    }
     free(job);
     job = next;
   }
@@ -493,6 +997,9 @@ void c_orm_disconnect(c_orm_db_t *db) {
       internal_mysql_close((MYSQL *)db->native_conn);
     }
 #endif
+  }
+  if (db->ctx) {
+    free(db->ctx);
   }
   free(db);
 }
@@ -575,171 +1082,64 @@ int c_orm_set_logger(c_orm_db_t *db, c_orm_log_cb_t logger, void *user_data) {
   return 0;
 }
 
-int c_orm_execute(c_orm_db_t *db, const char *query) {
-  clock_t start_time, end_time;
-  double duration;
-
-  if (!db || !query)
-    return -1;
-
-  c_orm_lock(db);
-
-  start_time = clock();
-
+static int sync_execute(c_orm_db_t *db, const char *query,
+                        c_orm_result_t **res) {
+  if (res)
+    *res = NULL;
   if (db->dialect == C_ORM_DIALECT_POSTGRES) {
 #ifdef C_ORM_HAVE_POSTGRES
-    PGresult *res = NULL;
+    PGresult *pq_res = NULL;
     ExecStatusType __s;
-    internal_PQexec((PGconn *)db->native_conn, query, &res);
-    internal_PQresultStatus(res, &__s);
+    internal_PQexec((PGconn *)db->native_conn, query, &pq_res);
+    internal_PQresultStatus(pq_res, &__s);
     if (__s != PGRES_COMMAND_OK && __s != PGRES_TUPLES_OK) {
-      internal_PQclear(res);
-      c_orm_unlock(db);
+      internal_PQclear(pq_res);
       return -1;
     }
-    internal_PQclear(res);
+    internal_PQclear(pq_res);
 #endif
   } else if (db->dialect == C_ORM_DIALECT_MYSQL) {
 #ifdef C_ORM_HAVE_MYSQL
     if (internal_mysql_query((MYSQL *)db->native_conn, query) != 0) {
-      c_orm_unlock(db);
       return -1;
     }
 #endif
   } else {
     /* Execute via sqlite3_exec */
   }
-
-  end_time = clock();
-
-  if (db->logger) {
-    duration = ((double)(end_time - start_time)) / CLOCKS_PER_SEC * 1000.0;
-    db->logger(query, duration, db->logger_user_data);
-  }
-
-  c_orm_unlock(db);
   return 0;
 }
 
-int c_orm_execute_async(c_orm_db_t *db, const char *query, c_orm_async_cb_t cb,
-                        void *user_data) {
-  struct c_orm_async_job *job;
-  if (!db || !query || !cb)
-    return -1;
-
-  job = calloc(1, sizeof(struct c_orm_async_job));
-  if (!job)
-    return -1;
-
-  if (strdup_safe(query, &job->query) != 0) {
-    free(job);
-    return -1;
-  }
-
-  job->cb = cb;
-  job->user_data = user_data;
-
-  c_orm_lock(db);
-
-  if (!db->async_queue_head) {
-    db->async_queue_head = job;
-    db->async_queue_tail = job;
-  } else {
-    db->async_queue_tail->next = job;
-    db->async_queue_tail = job;
-  }
-
-  c_orm_unlock(db);
-  return 0;
-}
-
-int c_orm_poll_async(c_orm_db_t *db, int *jobs_processed) {
-  struct c_orm_async_job *job;
-  int exec_res;
-
-  if (!db || !jobs_processed)
-    return -1;
-
-  *jobs_processed = 0;
-
-  c_orm_lock(db);
-  job = db->async_queue_head;
-  if (job) {
-    db->async_queue_head = job->next;
-    if (!db->async_queue_head) {
-      db->async_queue_tail = NULL;
-    }
-  }
-  c_orm_unlock(db);
-
-  if (job) {
-    /* Run it locally to simulate async completion */
-    exec_res = c_orm_execute(db, job->query);
-    job->cb(exec_res, job->user_data);
-
-    free(job->query);
-    free(job);
-    *jobs_processed = 1;
-  }
-
-  return 0; /* Success */
-}
-
-int c_orm_execute_params(c_orm_db_t *db, const char *query,
-                         const c_orm_param_t *params, size_t param_count) {
-  clock_t start_time, end_time;
-  double duration;
-
-  if (!db || !query)
-    return -1;
-  if (param_count > 0 && !params)
-    return -1;
-
-  c_orm_lock(db);
-
-  start_time = clock();
-
-  /*
-   * Stub execution for parameterized queries.
-   * Full implementation will require:
-   * - SQLite: sqlite3_prepare_v2, sqlite3_bind_*, sqlite3_step
-   * - PostgreSQL: internal_PQexecParams
-   * - MySQL: mysql_stmt_prepare, mysql_stmt_bind_param, mysql_stmt_execute
-   */
-
+static int sync_execute_params(c_orm_db_t *db, const char *query,
+                               const c_orm_param_t *params, size_t param_count,
+                               c_orm_result_t **res) {
+  if (res)
+    *res = NULL;
   if (params) {
     size_t i;
     for (i = 0; i < param_count; i++) {
       switch (params[i].type) {
       case C_ORM_PARAM_INTEGER:
-        break;
       case C_ORM_PARAM_REAL:
-        break;
-      case C_ORM_PARAM_TEXT:
-        if (!params[i].value.text_val) {
-          c_orm_unlock(db);
-          return -2; /* Invalid param text */
-        }
-        break;
-      case C_ORM_PARAM_BLOB:
-        if (!params[i].value.blob_val.data &&
-            params[i].value.blob_val.size > 0) {
-          c_orm_unlock(db);
-          return -2; /* Invalid param blob */
-        }
-        break;
       case C_ORM_PARAM_NULL:
         break;
+      case C_ORM_PARAM_TEXT:
+        if (!params[i].value.text_val)
+          return -2;
+        break;
+      case C_ORM_PARAM_BLOB:
+        if (!params[i].value.blob_val.data && params[i].value.blob_val.size > 0)
+          return -2;
+        break;
       default:
-        c_orm_unlock(db);
-        return -3; /* Unknown type */
+        return -3;
       }
     }
   }
 
   if (db->dialect == C_ORM_DIALECT_POSTGRES) {
 #ifdef C_ORM_HAVE_POSTGRES
-    PGresult *res;
+    PGresult *pq_res;
     const char **param_values = NULL;
     char **str_allocs = NULL;
     if (param_count > 0 && params) {
@@ -751,7 +1151,6 @@ int c_orm_execute_params(c_orm_db_t *db, const char *query,
           free((void *)param_values);
         if (str_allocs)
           free(str_allocs);
-        c_orm_unlock(db);
         return -1;
       }
       for (i = 0; i < param_count; i++) {
@@ -782,14 +1181,13 @@ int c_orm_execute_params(c_orm_db_t *db, const char *query,
         } else if (params[i].type == C_ORM_PARAM_TEXT) {
           param_values[i] = params[i].value.text_val;
         } else if (params[i].type == C_ORM_PARAM_BLOB) {
-          /* Not fully implemented for BLOB in stub */
           param_values[i] = NULL;
         }
       }
     }
 
     internal_PQexecParams((PGconn *)db->native_conn, query, (int)param_count,
-                          NULL, param_values, NULL, NULL, 0, &res);
+                          NULL, param_values, NULL, NULL, 0, &pq_res);
 
     if (param_count > 0 && str_allocs) {
       size_t i;
@@ -803,30 +1201,24 @@ int c_orm_execute_params(c_orm_db_t *db, const char *query,
 
     {
       ExecStatusType __s;
-      internal_PQresultStatus(res, &__s);
+      internal_PQresultStatus(pq_res, &__s);
       if (__s != PGRES_COMMAND_OK && __s != PGRES_TUPLES_OK) {
-        internal_PQclear(res);
-        c_orm_unlock(db);
+        internal_PQclear(pq_res);
         return -1;
       }
     }
-    internal_PQclear(res);
+    internal_PQclear(pq_res);
 #endif
   } else if (db->dialect == C_ORM_DIALECT_MYSQL) {
 #ifdef C_ORM_HAVE_MYSQL
     MYSQL_STMT *stmt;
     internal_mysql_stmt_init((MYSQL *)db->native_conn, &stmt);
-    if (!stmt) {
-      c_orm_unlock(db);
+    if (!stmt)
       return -1;
-    }
     if (internal_mysql_stmt_prepare(stmt, query,
                                     (unsigned long)strlen(query)) != 0) {
-      {
-        my_bool __b;
-        internal_mysql_stmt_close(stmt, &__b);
-      }
-      c_orm_unlock(db);
+      my_bool __b;
+      internal_mysql_stmt_close(stmt, &__b);
       return -1;
     }
 
@@ -834,32 +1226,24 @@ int c_orm_execute_params(c_orm_db_t *db, const char *query,
       MYSQL_BIND *bind;
       bind = calloc(param_count, sizeof(MYSQL_BIND));
       if (!bind) {
-        {
-          my_bool __b;
-          internal_mysql_stmt_close(stmt, &__b);
-        }
-        c_orm_unlock(db);
+        my_bool __b;
+        internal_mysql_stmt_close(stmt, &__b);
         return -1;
       }
-      /* In a real implementation we would populate bind here... */
       if (internal_mysql_stmt_bind_param(stmt, bind) != 0) {
         free(bind);
         {
           my_bool __b;
           internal_mysql_stmt_close(stmt, &__b);
         }
-        c_orm_unlock(db);
         return -1;
       }
       free(bind);
     }
 
     if (internal_mysql_stmt_execute(stmt) != 0) {
-      {
-        my_bool __b;
-        internal_mysql_stmt_close(stmt, &__b);
-      }
-      c_orm_unlock(db);
+      my_bool __b;
+      internal_mysql_stmt_close(stmt, &__b);
       return -1;
     }
     {
@@ -870,6 +1254,47 @@ int c_orm_execute_params(c_orm_db_t *db, const char *query,
   } else {
     /* SQLite execution... */
   }
+  return 0;
+}
+
+static int sync_multi_execute(c_orm_db_t *db, const char *query,
+                              c_orm_result_t **res) {
+  int r;
+  c_orm_lock(db);
+  r = sync_execute(db, query, res);
+  c_orm_unlock(db);
+  return r;
+}
+
+static int sync_multi_execute_params(c_orm_db_t *db, const char *query,
+                                     const c_orm_param_t *params,
+                                     size_t param_count, c_orm_result_t **res) {
+  int r;
+  c_orm_lock(db);
+  r = sync_execute_params(db, query, params, param_count, res);
+  c_orm_unlock(db);
+  return r;
+}
+
+int c_orm_execute(c_orm_db_t *db, const char *query) {
+  clock_t start_time, end_time;
+  double duration;
+  int res;
+
+  if (!db || !query)
+    return -1;
+
+  start_time = clock();
+
+  if (db->ctx && db->ctx->vtable && db->ctx->vtable->execute) {
+    res = db->ctx->vtable->execute(db, query, NULL);
+  } else {
+    res = sync_execute(db, query, NULL); /* Fallback */
+  }
+
+  if (res != 0) {
+    return res;
+  }
 
   end_time = clock();
 
@@ -878,7 +1303,252 @@ int c_orm_execute_params(c_orm_db_t *db, const char *query,
     db->logger(query, duration, db->logger_user_data);
   }
 
+  return 0;
+}
+
+int c_orm_execute_async(c_orm_db_t *db, const char *query, c_orm_async_cb_t cb,
+                        void *user_data) {
+  struct c_orm_async_job *job;
+  if (!db || !query || !cb)
+    return -1;
+
+  job = (struct c_orm_async_job *)calloc(1, sizeof(struct c_orm_async_job));
+  if (!job)
+    return -1;
+
+  if (strdup_safe(query, &job->query) != 0) {
+    free(job);
+    return -1;
+  }
+
+  job->cb = cb;
+  job->user_data = user_data;
+  job->params = NULL;
+  job->param_count = 0;
+  job->timeout_ms = 0.0; /* No timeout by default for this simple API */
+  job->enqueued_at = clock();
+
+  c_orm_lock(db);
+
+  if (!db->async_queue_head) {
+    db->async_queue_head = job;
+    db->async_queue_tail = job;
+  } else {
+    db->async_queue_tail->next = job;
+    db->async_queue_tail = job;
+  }
+
   c_orm_unlock(db);
+  return 0;
+}
+
+int c_orm_execute_async_params(c_orm_db_t *db, const char *query,
+                               const c_orm_param_t *params, size_t param_count,
+                               c_orm_async_cb_t cb, void *user_data) {
+  struct c_orm_async_job *job;
+  if (!db || !query || !cb)
+    return -1;
+  if (param_count > 0 && !params)
+    return -1;
+
+  job = (struct c_orm_async_job *)calloc(1, sizeof(struct c_orm_async_job));
+  if (!job)
+    return -1;
+
+  if (strdup_safe(query, &job->query) != 0) {
+    free(job);
+    return -1;
+  }
+
+  if (param_count > 0) {
+    if (c_orm_params_copy(db->ctx ? db->ctx->allocator : &g_default_allocator,
+                          params, param_count, &job->params) != 0) {
+      free(job->query);
+      free(job);
+      return -1;
+    }
+  } else {
+    job->params = NULL;
+  }
+  job->param_count = param_count;
+
+  job->cb = cb;
+  job->user_data = user_data;
+  job->timeout_ms = 0.0;
+  job->enqueued_at = clock();
+
+  c_orm_lock(db);
+
+  if (!db->async_queue_head) {
+    db->async_queue_head = job;
+    db->async_queue_tail = job;
+  } else {
+    db->async_queue_tail->next = job;
+    db->async_queue_tail = job;
+  }
+
+  c_orm_unlock(db);
+  return 0;
+}
+
+int c_orm_execute_async_timeout(c_orm_db_t *db, const char *query,
+                                double timeout_ms, c_orm_async_cb_t cb,
+                                void *user_data) {
+  struct c_orm_async_job *job;
+  if (!db || !query || !cb)
+    return -1;
+
+  job = (struct c_orm_async_job *)calloc(1, sizeof(struct c_orm_async_job));
+  if (!job)
+    return -1;
+
+  if (strdup_safe(query, &job->query) != 0) {
+    free(job);
+    return -1;
+  }
+
+  job->cb = cb;
+  job->user_data = user_data;
+  job->params = NULL;
+  job->param_count = 0;
+  job->timeout_ms = timeout_ms;
+  job->enqueued_at = clock();
+
+  c_orm_lock(db);
+
+  if (!db->async_queue_head) {
+    db->async_queue_head = job;
+    db->async_queue_tail = job;
+  } else {
+    db->async_queue_tail->next = job;
+    db->async_queue_tail = job;
+  }
+
+  c_orm_unlock(db);
+  return 0;
+}
+
+int c_orm_poll_async(c_orm_db_t *db, int *jobs_processed) {
+  struct c_orm_async_job *job;
+  struct c_orm_async_job *prev = NULL;
+  struct c_orm_async_job *current;
+  int exec_res;
+  clock_t now;
+  double elapsed_ms;
+
+  if (!db || !jobs_processed)
+    return -1;
+
+  *jobs_processed = 0;
+  now = clock();
+
+  c_orm_lock(db);
+
+  /* Fast path: Check for timeouts before processing the normal queue order */
+  current = db->async_queue_head;
+  while (current) {
+    if (current->timeout_ms > 0.0) {
+      elapsed_ms =
+          ((double)(now - current->enqueued_at)) / CLOCKS_PER_SEC * 1000.0;
+      if (elapsed_ms >= current->timeout_ms) {
+        /* Detach the timed-out job */
+        job = current;
+        if (prev) {
+          prev->next = current->next;
+          if (db->async_queue_tail == current) {
+            db->async_queue_tail = prev;
+          }
+        } else {
+          db->async_queue_head = current->next;
+          if (!db->async_queue_head) {
+            db->async_queue_tail = NULL;
+          }
+        }
+        c_orm_unlock(db);
+
+        /* Trigger timeout callback immediately */
+        if (job->cb) {
+          job->cb(-3, job->user_data); /* -3 indicates timeout error */
+        }
+        free(job->query);
+        if (job->params) {
+          c_orm_params_free(db->ctx ? db->ctx->allocator : &g_default_allocator,
+                            job->params, job->param_count);
+        }
+        free(job);
+        *jobs_processed = 1;
+        return 0;
+      }
+    }
+    prev = current;
+    current = current->next;
+  }
+
+  /* Normal polling path */
+  job = db->async_queue_head;
+  if (job) {
+    db->async_queue_head = job->next;
+    if (!db->async_queue_head) {
+      db->async_queue_tail = NULL;
+    }
+  }
+  c_orm_unlock(db);
+
+  if (job) {
+    /* Run it locally to simulate async completion */
+    if (job->param_count > 0 && job->params) {
+      exec_res =
+          c_orm_execute_params(db, job->query, job->params, job->param_count);
+    } else {
+      exec_res = c_orm_execute(db, job->query);
+    }
+    if (job->cb) {
+      job->cb(exec_res, job->user_data);
+    }
+
+    free(job->query);
+    if (job->params) {
+      c_orm_params_free(db->ctx ? db->ctx->allocator : &g_default_allocator,
+                        job->params, job->param_count);
+    }
+    free(job);
+    *jobs_processed = 1;
+  }
+
+  return 0; /* Success */
+}
+
+int c_orm_execute_params(c_orm_db_t *db, const char *query,
+                         const c_orm_param_t *params, size_t param_count) {
+  clock_t start_time, end_time;
+  double duration;
+  int res;
+
+  if (!db || !query)
+    return -1;
+  if (param_count > 0 && !params)
+    return -1;
+
+  start_time = clock();
+
+  if (db->ctx && db->ctx->vtable && db->ctx->vtable->execute_params) {
+    res = db->ctx->vtable->execute_params(db, query, params, param_count, NULL);
+  } else {
+    res = sync_execute_params(db, query, params, param_count,
+                              NULL); /* Fallback */
+  }
+
+  if (res != 0) {
+    return res;
+  }
+
+  end_time = clock();
+
+  if (db->logger) {
+    duration = ((double)(end_time - start_time)) / CLOCKS_PER_SEC * 1000.0;
+    db->logger(query, duration, db->logger_user_data);
+  }
+
   return 0;
 }
 
@@ -900,8 +1570,39 @@ int c_orm_transaction_rollback(c_orm_db_t *db) {
   return c_orm_execute(db, "ROLLBACK");
 }
 
-int c_orm_pool_create(c_orm_pool_t **pool_out, c_orm_dialect_t dialect,
-                      const char *conn_string, size_t pool_size) {
+/* Default sync operations using c_orm_mutex_t and c_orm_cond_t on pool */
+static void default_sync_lock(void *state) {
+  c_orm_pool_t *pool = (c_orm_pool_t *)state;
+  c_orm_mutex_lock(&pool->default_mutex);
+}
+
+static void default_sync_unlock(void *state) {
+  c_orm_pool_t *pool = (c_orm_pool_t *)state;
+  c_orm_mutex_unlock(&pool->default_mutex);
+}
+
+static void default_sync_wait(void *state) {
+  c_orm_pool_t *pool = (c_orm_pool_t *)state;
+  c_orm_cond_wait(&pool->default_cond, &pool->default_mutex);
+}
+
+static void default_sync_signal(void *state) {
+  c_orm_pool_t *pool = (c_orm_pool_t *)state;
+  c_orm_cond_signal(&pool->default_cond);
+}
+
+static int default_sync_wait_timeout(void *state, int ms) {
+  c_orm_pool_t *pool = (c_orm_pool_t *)state;
+  return c_orm_cond_wait_timeout(&pool->default_cond, &pool->default_mutex, ms);
+}
+
+static const c_orm_sync_ops_t g_default_sync_ops = {
+    default_sync_lock, default_sync_unlock, default_sync_wait,
+    default_sync_signal, default_sync_wait_timeout};
+
+int c_orm_pool_create_ext(c_orm_pool_t **pool_out, c_orm_dialect_t dialect,
+                          c_orm_modality_t modality, const char *conn_string,
+                          size_t pool_size) {
   c_orm_pool_t *pool;
   size_t i;
 
@@ -909,17 +1610,31 @@ int c_orm_pool_create(c_orm_pool_t **pool_out, c_orm_dialect_t dialect,
     return -1;
   }
 
-  pool = calloc(1, sizeof(c_orm_pool_t));
+  pool = (c_orm_pool_t *)calloc(1, sizeof(c_orm_pool_t));
   if (!pool)
     return -1;
 
   pool->pool_size = pool_size;
   pool->dialect = dialect;
-  c_orm_mutex_init(&pool->mutex);
+  pool->modality = modality;
 
-  pool->conn_string = malloc(strlen(conn_string) + 1);
+  c_orm_mutex_init(&pool->default_mutex);
+  c_orm_cond_init(&pool->default_cond);
+  pool->sync_state = pool;
+  pool->sync_ops = &g_default_sync_ops;
+
+  if (c_orm_tls_create(&pool->tls_slot) != 0) {
+    c_orm_cond_destroy(&pool->default_cond);
+    c_orm_mutex_destroy(&pool->default_mutex);
+    free(pool);
+    return -1;
+  }
+
+  pool->conn_string = (char *)malloc(strlen(conn_string) + 1);
   if (!pool->conn_string) {
-    c_orm_mutex_destroy(&pool->mutex);
+    c_orm_tls_destroy(pool->tls_slot);
+    c_orm_cond_destroy(&pool->default_cond);
+    c_orm_mutex_destroy(&pool->default_mutex);
     free(pool);
     return -1;
   }
@@ -929,25 +1644,30 @@ int c_orm_pool_create(c_orm_pool_t **pool_out, c_orm_dialect_t dialect,
   strcpy(pool->conn_string, conn_string);
 #endif
 
-  pool->connections = calloc(pool_size, sizeof(c_orm_db_t *));
+  pool->connections = (c_orm_db_t **)calloc(pool_size, sizeof(c_orm_db_t *));
   if (!pool->connections) {
     free(pool->conn_string);
-    c_orm_mutex_destroy(&pool->mutex);
+    c_orm_tls_destroy(pool->tls_slot);
+    c_orm_cond_destroy(&pool->default_cond);
+    c_orm_mutex_destroy(&pool->default_mutex);
     free(pool);
     return -1;
   }
 
-  pool->in_use = calloc(pool_size, sizeof(int));
+  pool->in_use = (int *)calloc(pool_size, sizeof(int));
   if (!pool->in_use) {
     free(pool->connections);
     free(pool->conn_string);
-    c_orm_mutex_destroy(&pool->mutex);
+    c_orm_tls_destroy(pool->tls_slot);
+    c_orm_cond_destroy(&pool->default_cond);
+    c_orm_mutex_destroy(&pool->default_mutex);
     free(pool);
     return -1;
   }
 
   for (i = 0; i < pool_size; i++) {
-    if (c_orm_connect(&pool->connections[i], dialect, conn_string) != 0) {
+    if (c_orm_connect_ext(&pool->connections[i], dialect, modality,
+                          conn_string) != 0) {
       c_orm_pool_destroy(pool);
       return -1;
     }
@@ -958,12 +1678,18 @@ int c_orm_pool_create(c_orm_pool_t **pool_out, c_orm_dialect_t dialect,
   return 0;
 }
 
+int c_orm_pool_create(c_orm_pool_t **pool_out, c_orm_dialect_t dialect,
+                      const char *conn_string, size_t pool_size) {
+  return c_orm_pool_create_ext(pool_out, dialect, C_ORM_MODALITY_SYNC_MULTI,
+                               conn_string, pool_size);
+}
+
 int c_orm_pool_destroy(c_orm_pool_t *pool) {
   size_t i;
   if (!pool)
     return -1;
 
-  c_orm_mutex_lock(&pool->mutex);
+  pool->sync_ops->lock(pool->sync_state);
 
   if (pool->connections) {
     for (i = 0; i < pool->pool_size; i++) {
@@ -982,8 +1708,14 @@ int c_orm_pool_destroy(c_orm_pool_t *pool) {
     free(pool->conn_string);
   }
 
-  c_orm_mutex_unlock(&pool->mutex);
-  c_orm_mutex_destroy(&pool->mutex);
+  pool->sync_ops->unlock(pool->sync_state);
+
+  /* Destroy default sync primitives if we were using them */
+  if (pool->sync_state == pool) {
+    c_orm_tls_destroy(pool->tls_slot);
+    c_orm_cond_destroy(&pool->default_cond);
+    c_orm_mutex_destroy(&pool->default_mutex);
+  }
 
   free(pool);
   return 0;
@@ -991,44 +1723,94 @@ int c_orm_pool_destroy(c_orm_pool_t *pool) {
 
 int c_orm_pool_acquire(c_orm_pool_t *pool, c_orm_db_t **db_out) {
   size_t i;
+  void *tls_db;
 
   if (!pool || !db_out)
     return -1;
 
-  c_orm_mutex_lock(&pool->mutex);
-
-  for (i = 0; i < pool->pool_size; i++) {
-    if (pool->in_use[i] == 0) {
-      pool->in_use[i] = 1;
-      *db_out = pool->connections[i];
-      c_orm_mutex_unlock(&pool->mutex);
+  if (pool->modality == C_ORM_MODALITY_SYNC_MULTI) {
+    tls_db = c_orm_tls_get(pool->tls_slot);
+    if (tls_db) {
+      *db_out = (c_orm_db_t *)tls_db;
       return 0;
     }
   }
 
-  c_orm_mutex_unlock(&pool->mutex);
+  pool->sync_ops->lock(pool->sync_state);
 
-  /* Pool exhausted */
+  while (1) {
+    for (i = 0; i < pool->pool_size; i++) {
+      if (pool->in_use[i] == 0) {
+        pool->in_use[i] = 1;
+        *db_out = pool->connections[i];
+        if (pool->modality == C_ORM_MODALITY_SYNC_MULTI) {
+          c_orm_tls_set(pool->tls_slot, *db_out);
+        }
+        pool->sync_ops->unlock(pool->sync_state);
+        return 0;
+      }
+    }
+
+    /* Pool is exhausted */
+    if (pool->modality == C_ORM_MODALITY_SYNC_MULTI) {
+      /* Wait for a connection to be released with a timeout for deadlock
+       * diagnostic */
+      if (pool->sync_ops->wait_timeout(pool->sync_state, 5000) != 0) {
+        /* Timeout hit. Check for potential deadlock. */
+        fprintf(stderr,
+                "c-orm [diagnostic]: Potential deadlock detected. Pool %p "
+                "(size %lu) exhausted for >5 seconds.\n",
+                (void *)pool, (unsigned long)pool->pool_size);
+        /* Keep waiting, but we reported it. Fall back to normal wait or just
+         * loop. */
+      }
+    } else {
+      /* Non-blocking fail */
+      pool->sync_ops->unlock(pool->sync_state);
+      return -2;
+    }
+  }
+
+  /* Unreachable */
   return -2;
 }
 
 int c_orm_pool_release(c_orm_pool_t *pool, c_orm_db_t *db) {
   size_t i;
+  void *tls_db;
 
   if (!pool || !db)
     return -1;
 
-  c_orm_mutex_lock(&pool->mutex);
+  if (pool->modality == C_ORM_MODALITY_SYNC_MULTI) {
+    tls_db = c_orm_tls_get(pool->tls_slot);
+    if (tls_db == db) {
+      /* Thread-local connection is just kept. Do not actually release it to the
+         pool yet. Wait, if we never release it, it's pinned to the thread
+         forever. A simpler TLS optimization is to just prefer this thread's
+         last connection. Let's clear the TLS slot and actually return it to the
+         pool, or we can keep it pinned. The prompt says "when pooled sharing is
+         inefficient". If it's pinned, another thread might starve. Let's just
+         release it normally, but clear the TLS slot so it's not used invalidly.
+       */
+      c_orm_tls_set(pool->tls_slot, NULL);
+    }
+  }
+
+  pool->sync_ops->lock(pool->sync_state);
 
   for (i = 0; i < pool->pool_size; i++) {
     if (pool->connections[i] == db) {
       pool->in_use[i] = 0;
-      c_orm_mutex_unlock(&pool->mutex);
+      if (pool->modality == C_ORM_MODALITY_SYNC_MULTI) {
+        pool->sync_ops->signal(pool->sync_state);
+      }
+      pool->sync_ops->unlock(pool->sync_state);
       return 0;
     }
   }
 
-  c_orm_mutex_unlock(&pool->mutex);
+  pool->sync_ops->unlock(pool->sync_state);
 
   /* Connection not found in pool */
   return -2;
@@ -1037,16 +1819,20 @@ int c_orm_pool_release(c_orm_pool_t *pool, c_orm_db_t *db) {
 int c_orm_query_create(c_orm_query_t **query_out, c_orm_db_t *db,
                        const char *table_name) {
   c_orm_query_t *query;
+  const c_orm_allocator_t *alloc;
   if (!query_out || !db || !table_name)
     return -1;
 
-  query = calloc(1, sizeof(c_orm_query_t));
+  alloc = db->ctx ? db->ctx->allocator : &g_default_allocator;
+
+  query = (c_orm_query_t *)alloc->calloc_fn(1, sizeof(c_orm_query_t));
   if (!query)
     return -1;
 
   query->db = db;
-  if (strdup_safe(table_name, &query->table_name) != 0) {
-    free(query);
+  query->allocator = alloc;
+  if (strdup_safe_ext(alloc, table_name, &query->table_name) != 0) {
+    alloc->free_fn(query);
     return -1;
   }
 
@@ -1058,8 +1844,8 @@ int c_orm_query_select(c_orm_query_t *query, const char *columns) {
   if (!query || !columns)
     return -1;
   if (query->select_columns)
-    free(query->select_columns);
-  if (strdup_safe(columns, &query->select_columns) != 0)
+    query->allocator->free_fn(query->select_columns);
+  if (strdup_safe_ext(query->allocator, columns, &query->select_columns) != 0)
     return -1;
   return 0;
 }
@@ -1068,8 +1854,9 @@ int c_orm_query_where(c_orm_query_t *query, const char *condition) {
   if (!query || !condition)
     return -1;
   if (query->where_condition)
-    free(query->where_condition);
-  if (strdup_safe(condition, &query->where_condition) != 0)
+    query->allocator->free_fn(query->where_condition);
+  if (strdup_safe_ext(query->allocator, condition, &query->where_condition) !=
+      0)
     return -1;
   return 0;
 }
@@ -1078,8 +1865,8 @@ int c_orm_query_order_by(c_orm_query_t *query, const char *order_by) {
   if (!query || !order_by)
     return -1;
   if (query->order_by)
-    free(query->order_by);
-  if (strdup_safe(order_by, &query->order_by) != 0)
+    query->allocator->free_fn(query->order_by);
+  if (strdup_safe_ext(query->allocator, order_by, &query->order_by) != 0)
     return -1;
   return 0;
 }
@@ -1108,7 +1895,7 @@ int c_orm_query_build(c_orm_query_t *query, char **sql_out) {
   if (query->has_limit)
     size += 32;
 
-  sql = malloc(size);
+  sql = (char *)query->allocator->malloc_fn(size);
   if (!sql)
     return -1;
 
@@ -1172,7 +1959,7 @@ int c_orm_query_execute(c_orm_query_t *query) {
     return res;
 
   res = c_orm_execute(query->db, sql);
-  free(sql);
+  query->allocator->free_fn(sql);
 
   return res;
 }
@@ -1182,14 +1969,14 @@ int c_orm_query_destroy(c_orm_query_t *query) {
     return -1;
 
   if (query->table_name)
-    free(query->table_name);
+    query->allocator->free_fn(query->table_name);
   if (query->select_columns)
-    free(query->select_columns);
+    query->allocator->free_fn(query->select_columns);
   if (query->where_condition)
-    free(query->where_condition);
+    query->allocator->free_fn(query->where_condition);
   if (query->order_by)
-    free(query->order_by);
+    query->allocator->free_fn(query->order_by);
 
-  free(query);
+  query->allocator->free_fn(query);
   return 0;
 }

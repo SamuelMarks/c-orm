@@ -37,6 +37,23 @@ typedef enum {
 } c_orm_dialect_t;
 
 /**
+ * @brief Computational modality configuration for the ORM.
+ */
+typedef enum {
+  C_ORM_MODALITY_SYNC_SINGLE = 0, /**< Synchronous single-threaded execution. */
+  C_ORM_MODALITY_SYNC_MULTI,      /**< Synchronous multi-threaded execution. */
+  C_ORM_MODALITY_ASYNC_EVENT_LOOP, /**< Asynchronous event-loop execution. */
+  C_ORM_MODALITY_GREENTHREAD,      /**< Greenthread / Coroutine execution. */
+  C_ORM_MODALITY_MULTIPROCESS,     /**< Multi-process execution. */
+  C_ORM_MODALITY_MESSAGE_PASSING /**< Message passing actor-model execution. */
+} c_orm_modality_t;
+
+/**
+ * @brief Opaque execution context for handling various modalities.
+ */
+typedef struct c_orm_context c_orm_context_t;
+
+/**
  * @brief Opaque database connection handle.
  */
 typedef struct c_orm_db c_orm_db_t;
@@ -50,6 +67,16 @@ typedef struct c_orm_pool c_orm_pool_t;
  * @brief Opaque fluent query builder handle.
  */
 typedef struct c_orm_query c_orm_query_t;
+
+/**
+ * @brief Opaque result structure encapsulating query results.
+ */
+typedef struct c_orm_result c_orm_result_t;
+
+/**
+ * @brief Opaque future for handling deferred asynchronous query results.
+ */
+typedef struct c_orm_future c_orm_future_t;
 
 /**
  * @brief Represents the data type of a parameter to bind.
@@ -105,6 +132,18 @@ typedef void (*c_orm_async_cb_t)(int status, void *user_data);
  */
 int c_orm_connect(c_orm_db_t **db_out, c_orm_dialect_t dialect,
                   const char *conn_string);
+
+/**
+ * @brief Initialize the ORM connection with a specific computational modality.
+ * @param db_out Pointer to receive the database connection handle.
+ * @param dialect The database dialect.
+ * @param modality The computational modality configuration.
+ * @param conn_string Connection string (e.g., "user=postgres dbname=postgres"
+ * or "file.db").
+ * @return 0 on success, non-zero on failure.
+ */
+int c_orm_connect_ext(c_orm_db_t **db_out, c_orm_dialect_t dialect,
+                      c_orm_modality_t modality, const char *conn_string);
 
 /**
  * @brief Disconnect and free resources.
@@ -181,6 +220,33 @@ int c_orm_execute_async(c_orm_db_t *db, const char *query, c_orm_async_cb_t cb,
                         void *user_data);
 
 /**
+ * @brief Execute a parameterized query asynchronously.
+ * @param db Database connection handle.
+ * @param query SQL query string with ? placeholders.
+ * @param params Array of parameters to bind.
+ * @param param_count Number of parameters in the array.
+ * @param cb Callback invoked upon completion.
+ * @param user_data Opaque user data for callback.
+ * @return 0 on successful queuing, non-zero on error.
+ */
+int c_orm_execute_async_params(c_orm_db_t *db, const char *query,
+                               const c_orm_param_t *params, size_t param_count,
+                               c_orm_async_cb_t cb, void *user_data);
+
+/**
+ * @brief Execute a raw query asynchronously with a timeout.
+ * @param db Database connection handle.
+ * @param query SQL query string.
+ * @param timeout_ms Maximum execution time in milliseconds.
+ * @param cb Callback invoked upon completion or timeout.
+ * @param user_data Opaque pointer passed to the callback.
+ * @return 0 on success, non-zero on error.
+ */
+int c_orm_execute_async_timeout(c_orm_db_t *db, const char *query,
+                                double timeout_ms, c_orm_async_cb_t cb,
+                                void *user_data);
+
+/**
  * @brief Process pending asynchronous queries.
  * Must be called in an event loop if the underlying driver requires polling.
  * @param db Database connection handle.
@@ -231,6 +297,19 @@ int c_orm_transaction_rollback(c_orm_db_t *db);
  */
 int c_orm_pool_create(c_orm_pool_t **pool_out, c_orm_dialect_t dialect,
                       const char *conn_string, size_t pool_size);
+
+/**
+ * @brief Create a connection pool with a specific computational modality.
+ * @param pool_out Pointer to receive the connection pool handle.
+ * @param dialect The database dialect.
+ * @param modality The computational modality configuration.
+ * @param conn_string Connection string.
+ * @param pool_size Maximum number of connections in the pool.
+ * @return 0 on success, non-zero on error.
+ */
+int c_orm_pool_create_ext(c_orm_pool_t **pool_out, c_orm_dialect_t dialect,
+                          c_orm_modality_t modality, const char *conn_string,
+                          size_t pool_size);
 
 /**
  * @brief Destroy a connection pool, freeing all connections.

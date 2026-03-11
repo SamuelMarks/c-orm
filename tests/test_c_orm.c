@@ -1,11 +1,14 @@
 /* clang-format off */
 #include "greatest.h"
-
 #include <c_orm/c_orm.h>
-
 #include <stdlib.h>
-
 #include <string.h>
+
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <pthread.h>
+#endif
 /* clang-format on */
 
 TEST test_c_orm_connect_and_disconnect(void) {
@@ -397,22 +400,23 @@ TEST test_c_orm_pool(void) {
     SKIP();
 
   /* Bad args */
-  res = c_orm_pool_create(NULL, dialect, "file.db", 2);
+  res = c_orm_pool_create_ext(NULL, dialect, C_ORM_MODALITY_SYNC_SINGLE,
+                              "file.db", 2);
   ASSERT_EQ(-1, res);
-  res = c_orm_pool_create(&pool, dialect, "file.db", 0);
+  res = c_orm_pool_create_ext(&pool, dialect, C_ORM_MODALITY_SYNC_SINGLE,
+                              "file.db", 0);
   ASSERT_EQ(-1, res);
 
   /* Test massive allocation failure for coverage */
 #if !defined(_MSC_VER) || (_MSC_VER > 1400)
   /* MSVC 2005 (1400) crashes with STATUS_INVALID_PARAMETER on huge calloc */
-  res = c_orm_pool_create(&pool, dialect, "file.db", (size_t)-1);
+  res = c_orm_pool_create_ext(&pool, dialect, C_ORM_MODALITY_SYNC_SINGLE,
+                              "file.db", (size_t)-1);
   ASSERT_EQ(-1, res);
 #endif
 
-  res = c_orm_pool_create(&pool, dialect, "file.db", 2);
-  ASSERT_EQ(0, res);
-  /* Create valid pool of size 2 */
-  res = c_orm_pool_create(&pool, dialect, "file.db", 2);
+  res = c_orm_pool_create_ext(&pool, dialect, C_ORM_MODALITY_SYNC_SINGLE,
+                              "file.db", 2);
   ASSERT_EQ(0, res);
   ASSERT_NEQ(NULL, pool);
 
@@ -575,7 +579,9 @@ TEST test_c_orm_async(void) {
   int res;
   int job_marker_1 = -99;
   int job_marker_2 = -99;
+  int job_marker_3 = -99;
   int jobs_processed = 0;
+  c_orm_param_t p;
   get_active_dialect(&dialect);
   if (dialect == C_ORM_DIALECT_UNKNOWN)
     SKIP();
@@ -592,10 +598,17 @@ TEST test_c_orm_async(void) {
   res = c_orm_execute_async(db, "SELECT 2", test_async_cb, &job_marker_2);
   ASSERT_EQ(0, res);
 
+  p.type = C_ORM_PARAM_INTEGER;
+  p.value.int_val = 100;
+  res = c_orm_execute_async_params(db, "SELECT ?", &p, 1, test_async_cb,
+                                   &job_marker_3);
+  ASSERT_EQ(0, res);
+
   /* Ensure callbacks not fired yet */
   ASSERT_EQ(0, g_async_cb_count);
   ASSERT_EQ(-99, job_marker_1);
   ASSERT_EQ(-99, job_marker_2);
+  ASSERT_EQ(-99, job_marker_3);
 
   /* Poll first job */
   res = c_orm_poll_async(db, &jobs_processed);
@@ -604,6 +617,7 @@ TEST test_c_orm_async(void) {
   ASSERT_EQ(1, g_async_cb_count);
   ASSERT_EQ(0, job_marker_1); /* Success status from c_orm_execute */
   ASSERT_EQ(-99, job_marker_2);
+  ASSERT_EQ(-99, job_marker_3);
 
   /* Poll second job */
   res = c_orm_poll_async(db, &jobs_processed);
@@ -612,11 +626,39 @@ TEST test_c_orm_async(void) {
   ASSERT_EQ(2, g_async_cb_count);
   ASSERT_EQ(0, job_marker_2); /* Success status from c_orm_execute */
 
+  /* Poll parameterized job */
+  res = c_orm_poll_async(db, &jobs_processed);
+  ASSERT_EQ(0, res);
+  ASSERT_EQ(1, jobs_processed);
+  ASSERT_EQ(3, g_async_cb_count);
+  ASSERT_EQ(0, job_marker_3);
+
   /* Poll empty queue */
   res = c_orm_poll_async(db, &jobs_processed);
   ASSERT_EQ(0, res);
   ASSERT_EQ(0, jobs_processed); /* 0 jobs processed */
-  ASSERT_EQ(2, g_async_cb_count);
+  ASSERT_EQ(3, g_async_cb_count);
+
+  /* Test timeout mechanism */
+  g_async_cb_count = 0;
+  job_marker_1 = -99;
+  res = c_orm_execute_async_timeout(db, "SELECT SLEEP(5)", 1.0, test_async_cb,
+                                    &job_marker_1);
+  ASSERT_EQ(0, res);
+
+  /* Force a short sleep to ensure clock() ticks past 1.0ms */
+  {
+    clock_t start = clock();
+    while (((double)(clock() - start)) / CLOCKS_PER_SEC * 1000.0 < 2.0) {
+      /* Spin wait */
+    }
+  }
+
+  res = c_orm_poll_async(db, &jobs_processed);
+  ASSERT_EQ(0, res);
+  ASSERT_EQ(1, jobs_processed);
+  ASSERT_EQ(1, g_async_cb_count);
+  ASSERT_EQ(-3, job_marker_1); /* -3 is our mapped timeout code */
 
   /* Null arg tests */
   ASSERT_EQ(-1, c_orm_execute_async(NULL, "SELECT 1", test_async_cb, NULL));
@@ -628,13 +670,150 @@ TEST test_c_orm_async(void) {
   /* Test disconnect cleans up pending jobs cleanly */
   res = c_orm_execute_async(db, "SELECT 3", test_async_cb, NULL);
   ASSERT_EQ(0, res);
+  res = c_orm_execute_async_params(db, "SELECT ?", &p, 1, test_async_cb, NULL);
+  ASSERT_EQ(0, res);
   c_orm_disconnect(db); /* Will leak if queue isn't cleaned in disconnect */
+
+  PASS();
+}
+
+TEST test_c_orm_connect_ext(void) {
+  c_orm_db_t *db = NULL;
+  c_orm_dialect_t dialect;
+  int res;
+  get_active_dialect(&dialect);
+  if (dialect == C_ORM_DIALECT_UNKNOWN)
+    SKIP();
+
+  res = c_orm_connect_ext(&db, dialect, C_ORM_MODALITY_ASYNC_EVENT_LOOP,
+                          "file.db");
+  ASSERT_EQ(0, res);
+  ASSERT_NEQ(NULL, db);
+  c_orm_disconnect(db);
+
+  db = NULL;
+  res = c_orm_connect_ext(NULL, dialect, C_ORM_MODALITY_SYNC_SINGLE, "file.db");
+  ASSERT_EQ(-1, res);
+
+  res = c_orm_connect_ext(&db, dialect, C_ORM_MODALITY_MULTIPROCESS, NULL);
+  ASSERT_EQ(-1, res);
+
+  PASS();
+}
+
+TEST test_c_orm_pool_ext(void) {
+  c_orm_pool_t *pool = NULL;
+  c_orm_db_t *db = NULL;
+  int res;
+  c_orm_dialect_t dialect;
+
+  get_active_dialect(&dialect);
+  if (dialect == C_ORM_DIALECT_UNKNOWN)
+    SKIP();
+
+  res = c_orm_pool_create_ext(&pool, dialect, C_ORM_MODALITY_ASYNC_EVENT_LOOP,
+                              "file.db", 2);
+  ASSERT_EQ(0, res);
+  ASSERT_NEQ(NULL, pool);
+
+  res = c_orm_pool_acquire(pool, &db);
+  ASSERT_EQ(0, res);
+  ASSERT_NEQ(NULL, db);
+
+  res = c_orm_pool_release(pool, db);
+  ASSERT_EQ(0, res);
+
+  res = c_orm_pool_destroy(pool);
+  ASSERT_EQ(0, res);
+
+  PASS();
+}
+
+/* Concurrency test payload */
+struct c_orm_test_thread_args {
+  c_orm_pool_t *pool;
+  int iterations;
+  int success_count;
+};
+
+#if defined(_WIN32)
+static DWORD WINAPI c_orm_test_worker(LPVOID arg) {
+#else
+static void *c_orm_test_worker(void *arg) {
+#endif
+  struct c_orm_test_thread_args *args = (struct c_orm_test_thread_args *)arg;
+  int i;
+  for (i = 0; i < args->iterations; i++) {
+    c_orm_db_t *db = NULL;
+    if (c_orm_pool_acquire(args->pool, &db) == 0 && db != NULL) {
+      /* Simulate small work */
+      c_orm_execute(db, "SELECT 1");
+      c_orm_pool_release(args->pool, db);
+      args->success_count++;
+    }
+  }
+#if defined(_WIN32)
+  return 0;
+#else
+  return NULL;
+#endif
+}
+
+TEST test_c_orm_sync_multi_concurrency(void) {
+  c_orm_pool_t *pool = NULL;
+  int res;
+  c_orm_dialect_t dialect;
+  int num_threads = 10;
+  int iterations = 100;
+  int i;
+  struct c_orm_test_thread_args args[10];
+
+#if defined(_WIN32)
+  HANDLE threads[10];
+#else
+  pthread_t threads[10];
+#endif
+
+  get_active_dialect(&dialect);
+  if (dialect == C_ORM_DIALECT_UNKNOWN)
+    SKIP();
+
+  /* Create pool size 2 to force high contention among 10 threads */
+  res = c_orm_pool_create_ext(&pool, dialect, C_ORM_MODALITY_SYNC_MULTI,
+                              "file.db", 2);
+  ASSERT_EQ(0, res);
+  ASSERT_NEQ(NULL, pool);
+
+  for (i = 0; i < num_threads; i++) {
+    args[i].pool = pool;
+    args[i].iterations = iterations;
+    args[i].success_count = 0;
+#if defined(_WIN32)
+    threads[i] = CreateThread(NULL, 0, c_orm_test_worker, &args[i], 0, NULL);
+#else
+    pthread_create(&threads[i], NULL, c_orm_test_worker, &args[i]);
+#endif
+  }
+
+  for (i = 0; i < num_threads; i++) {
+#if defined(_WIN32)
+    WaitForSingleObject(threads[i], INFINITE);
+    CloseHandle(threads[i]);
+#else
+    pthread_join(threads[i], NULL);
+#endif
+    ASSERT_EQ(iterations, args[i].success_count);
+  }
+
+  res = c_orm_pool_destroy(pool);
+  ASSERT_EQ(0, res);
 
   PASS();
 }
 
 SUITE(c_orm_suite) {
   RUN_TEST(test_c_orm_connect_and_disconnect);
+  RUN_TEST(test_c_orm_connect_ext);
   RUN_TEST(test_c_orm_postgres_connect);
   RUN_TEST(test_c_orm_mysql_connect);
   RUN_TEST(test_c_orm_unsupported_dialect);
@@ -646,6 +825,8 @@ SUITE(c_orm_suite) {
   RUN_TEST(test_c_orm_logging);
   RUN_TEST(test_c_orm_lock);
   RUN_TEST(test_c_orm_pool);
+  RUN_TEST(test_c_orm_pool_ext);
   RUN_TEST(test_c_orm_fluent_query);
   RUN_TEST(test_c_orm_async);
+  RUN_TEST(test_c_orm_sync_multi_concurrency);
 }

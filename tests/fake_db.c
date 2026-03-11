@@ -47,6 +47,27 @@ ExecStatusType PQresultStatus(const PGresult *res) {
   return PGRES_BAD_RESPONSE;
 }
 void PQclear(PGresult *res) { (void)res; }
+int PQsendQuery(PGconn *conn, const char *query) {
+  (void)conn;
+  (void)query;
+  return 0;
+}
+PGresult *PQgetResult(PGconn *conn) {
+  (void)conn;
+  return NULL;
+}
+int PQsocket(const PGconn *conn) {
+  (void)conn;
+  return -1;
+}
+int PQconsumeInput(PGconn *conn) {
+  (void)conn;
+  return 0;
+}
+int PQisBusy(PGconn *conn) {
+  (void)conn;
+  return 0;
+}
 #endif
 
 #ifdef C_ORM_HAVE_MYSQL
@@ -68,6 +89,26 @@ void mysql_close(MYSQL *sock) { (void)sock; }
 int mysql_query(MYSQL *mysql, const char *q) {
   (void)mysql;
   (void)q;
+  return -1;
+}
+
+int mysql_real_query(MYSQL *mysql, const char *q, unsigned long length) {
+  (void)mysql;
+  (void)q;
+  (void)length;
+  return -1;
+}
+
+int mysql_real_query_nonblocking(MYSQL *mysql, const char *q,
+                                 unsigned long length) {
+  (void)mysql;
+  (void)q;
+  (void)length;
+  return -1;
+}
+
+int mysql_get_socket(const MYSQL *mysql) {
+  (void)mysql;
   return -1;
 }
 
