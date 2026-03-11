@@ -1,3 +1,4 @@
+vcpkg
 Testing/
 # CMake and build artifacts
 build/
