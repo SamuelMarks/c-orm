@@ -50,7 +50,20 @@ endif()
 
 # Find Backend Dependencies
 if(C_ORM_BACKEND_SQLITE)
-    find_package(SQLite3)
+    find_package(SQLite3 QUIET)
+    if(NOT SQLite3_FOUND AND CDD_DEPS STREQUAL "FETCHCONTENT")
+        include(FetchContent)
+        FetchContent_Declare(
+            sqlite3
+            GIT_REPOSITORY https://github.com/azadkuh/sqlite-amalgamation.git
+            GIT_TAG        master
+        )
+        FetchContent_MakeAvailable(sqlite3)
+        if(TARGET SQLite3)
+            add_library(SQLite::SQLite3 ALIAS SQLite3)
+            set(SQLite3_FOUND TRUE)
+        endif()
+    endif()
     if(NOT SQLite3_FOUND)
         message(WARNING "SQLite3 not found, but C_ORM_BACKEND_SQLITE is ON.")
     endif()
