@@ -67,8 +67,13 @@ FetchContent_Declare(
   cdd_c
   GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git
   GIT_TAG        master
+  GIT_CONFIG     "core.autocrlf=false"
+  UPDATE_COMMAND ""
 )
 if(NOT cdd_c_POPULATED)
+    if(POLICY CMP0169)
+        cmake_policy(SET CMP0169 OLD)
+    endif()
     FetchContent_Populate(cdd_c)
 endif()
 
