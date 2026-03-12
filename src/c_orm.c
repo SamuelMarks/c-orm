@@ -60,6 +60,16 @@ typedef pthread_key_t c_orm_tls_t;
 #endif
 #include <mysql.h>
 #endif
+
+#if !defined(_MSC_VER) || (_MSC_VER >= 1600)
+#include <stdint.h>
+#endif
+#if !defined(_WIN32)
+#include <unistd.h>
+#if !defined(__APPLE__) && !defined(__FreeBSD__) && !defined(__MINGW32__)
+#include <sys/eventfd.h>
+#endif
+#endif
 /* clang-format on */
 
 #ifdef C_ORM_HAVE_POSTGRES
@@ -530,7 +540,6 @@ struct c_orm_async_job {
     defined(__MINGW32__)
 /* Fallback to pipe pair for Windows/macOS/BSD since eventfd is Linux only */
 #if !defined(_WIN32)
-#include <unistd.h>
 #endif
 typedef struct {
   int fds[2];
@@ -568,9 +577,6 @@ static void c_orm_event_close(c_orm_event_t *ev) {
 
 #else
 /* Linux eventfd */
-#include <stdint.h>
-#include <sys/eventfd.h>
-#include <unistd.h>
 typedef struct {
   int fd;
 } c_orm_event_t;
