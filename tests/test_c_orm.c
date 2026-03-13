@@ -1,4 +1,7 @@
 /* clang-format off */
+#ifndef __STDC_WANT_LIB_EXT1__
+#define __STDC_WANT_LIB_EXT1__ 1
+#endif
 #include "greatest.h"
 #include <c_orm/c_orm.h>
 #include <stdlib.h>
@@ -19,6 +22,8 @@
 #endif
 #include <windef.h>
 #include <winbase.h>
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+/* DOS/Watcom doesn't have POSIX threads */
 #else
 #include <pthread.h>
 #endif
@@ -749,6 +754,8 @@ struct c_orm_test_thread_args {
   int success_count;
 };
 
+#if !defined(__MSDOS__) && !defined(__WATCOMC__)
+
 #if defined(_WIN32)
 static DWORD WINAPI c_orm_test_worker(LPVOID arg) {
 #else
@@ -772,7 +779,12 @@ static void *c_orm_test_worker(void *arg) {
 #endif
 }
 
+#endif /* !__MSDOS__ && !__WATCOMC__ */
+
 TEST test_c_orm_sync_multi_concurrency(void) {
+#if defined(__MSDOS__) || defined(__WATCOMC__)
+  SKIP();
+#else
   c_orm_pool_t *pool = NULL;
   int res;
   c_orm_dialect_t dialect;
@@ -822,6 +834,7 @@ TEST test_c_orm_sync_multi_concurrency(void) {
   ASSERT_EQ(0, res);
 
   PASS();
+#endif
 }
 
 SUITE(c_orm_suite) {

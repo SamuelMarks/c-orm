@@ -479,7 +479,7 @@ TEST test_db_schema_free_full(void) {
 TEST test_db_codegen_invalid_args(void) {
   struct DatabaseSchema schema;
   FILE *f = NULL;
-  int rc;
+  int rc = 0;
 
   (void)rc;
   db_schema_init(&schema);

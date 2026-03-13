@@ -1,7 +1,12 @@
 /* clang-format off */
+#ifndef __STDC_WANT_LIB_EXT1__
+#define __STDC_WANT_LIB_EXT1__ 1
+#endif
 #include <stdio.h>
 
 #include <stdlib.h>
+
+#include <string.h>
 
 #include "greatest.h"
 

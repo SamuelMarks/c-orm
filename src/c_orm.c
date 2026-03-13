@@ -20,6 +20,8 @@
 #endif
 #include <windef.h>
 #include <winbase.h>
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+/* DOS/Watcom doesn't have POSIX threads */
 #else
 #ifndef _MSC_VER
 #include <pthread.h>
@@ -34,6 +36,10 @@ typedef HANDLE c_orm_cond_t;
 typedef CONDITION_VARIABLE c_orm_cond_t;
 #endif
 typedef DWORD c_orm_tls_t;
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+typedef int c_orm_mutex_t;
+typedef int c_orm_cond_t;
+typedef int c_orm_tls_t;
 #else
 #ifndef _MSC_VER
 typedef pthread_mutex_t c_orm_mutex_t;
@@ -64,7 +70,7 @@ typedef pthread_key_t c_orm_tls_t;
 #if !defined(_MSC_VER) || (_MSC_VER >= 1600)
 #include <stdint.h>
 #endif
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__MSDOS__) && !defined(__WATCOMC__)
 #include <unistd.h>
 #if !defined(__APPLE__) && !defined(__FreeBSD__) && !defined(__MINGW32__)
 #include <sys/eventfd.h>
@@ -375,6 +381,9 @@ static int c_orm_tls_create(c_orm_tls_t *tls) {
 #if defined(_WIN32)
   *tls = TlsAlloc();
   return (*tls == TLS_OUT_OF_INDEXES) ? -1 : 0;
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  *tls = 0;
+  return 0;
 #else
   return pthread_key_create(tls, NULL);
 #endif
@@ -383,6 +392,8 @@ static int c_orm_tls_create(c_orm_tls_t *tls) {
 static void c_orm_tls_destroy(c_orm_tls_t tls) {
 #if defined(_WIN32)
   TlsFree(tls);
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  (void)tls;
 #else
   pthread_key_delete(tls);
 #endif
@@ -391,17 +402,24 @@ static void c_orm_tls_destroy(c_orm_tls_t tls) {
 static void c_orm_tls_set(c_orm_tls_t tls, void *val) {
 #if defined(_WIN32)
   TlsSetValue(tls, val);
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  (void)tls;
+  (void)val;
 #else
   pthread_setspecific(tls, val);
 #endif
 }
 
-static void *c_orm_tls_get(c_orm_tls_t tls) {
+static int c_orm_tls_get(c_orm_tls_t tls, void **out) {
 #if defined(_WIN32)
-  return TlsGetValue(tls);
+  *out = TlsGetValue(tls);
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  (void)tls;
+  *out = NULL;
 #else
-  return pthread_getspecific(tls);
+  *out = pthread_getspecific(tls);
 #endif
+  return 0;
 }
 
 static int strdup_safe(const char *s, char **out);
@@ -413,6 +431,8 @@ static int strdup_safe(const char *s, char **out);
 static void c_orm_mutex_init(c_orm_mutex_t *mutex) {
 #if defined(_WIN32)
   InitializeCriticalSection(mutex);
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  *mutex = 0;
 #else
   pthread_mutex_init(mutex, NULL);
 #endif
@@ -421,6 +441,8 @@ static void c_orm_mutex_init(c_orm_mutex_t *mutex) {
 static void c_orm_mutex_destroy(c_orm_mutex_t *mutex) {
 #if defined(_WIN32)
   DeleteCriticalSection(mutex);
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  (void)mutex;
 #else
   pthread_mutex_destroy(mutex);
 #endif
@@ -429,6 +451,8 @@ static void c_orm_mutex_destroy(c_orm_mutex_t *mutex) {
 static void c_orm_mutex_lock(c_orm_mutex_t *mutex) {
 #if defined(_WIN32)
   EnterCriticalSection(mutex);
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  (void)mutex;
 #else
   pthread_mutex_lock(mutex);
 #endif
@@ -437,6 +461,8 @@ static void c_orm_mutex_lock(c_orm_mutex_t *mutex) {
 static void c_orm_mutex_unlock(c_orm_mutex_t *mutex) {
 #if defined(_WIN32)
   LeaveCriticalSection(mutex);
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  (void)mutex;
 #else
   pthread_mutex_unlock(mutex);
 #endif
@@ -449,6 +475,8 @@ static void c_orm_cond_init(c_orm_cond_t *cond) {
 #else
   InitializeConditionVariable(cond);
 #endif
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  *cond = 0;
 #else
   pthread_cond_init(cond, NULL);
 #endif
@@ -462,6 +490,8 @@ static void c_orm_cond_destroy(c_orm_cond_t *cond) {
 #else
   /* CONDITION_VARIABLE doesn't need explicit destruction in Win32 */
 #endif
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  (void)cond;
 #else
   pthread_cond_destroy(cond);
 #endif
@@ -476,6 +506,9 @@ static void c_orm_cond_wait(c_orm_cond_t *cond, c_orm_mutex_t *mutex) {
 #else
   SleepConditionVariableCS(cond, mutex, INFINITE);
 #endif
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  (void)cond;
+  (void)mutex;
 #else
   pthread_cond_wait(cond, mutex);
 #endif
@@ -499,6 +532,11 @@ static int c_orm_cond_wait_timeout(c_orm_cond_t *cond, c_orm_mutex_t *mutex,
   }
   return -1; /* Timeout or error */
 #endif
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  (void)cond;
+  (void)mutex;
+  (void)ms;
+  return -1;
 #else
   struct timespec ts;
   time_t now = time(NULL);
@@ -518,6 +556,8 @@ static void c_orm_cond_signal(c_orm_cond_t *cond) {
 #else
   WakeConditionVariable(cond);
 #endif
+#elif defined(__MSDOS__) || defined(__WATCOMC__)
+  (void)cond;
 #else
   pthread_cond_signal(cond);
 #endif
@@ -537,7 +577,7 @@ struct c_orm_async_job {
 
 /* OS Agnostic Event Wakeup Mechanism (eventfd / pipe) */
 #if defined(_WIN32) || defined(__APPLE__) || defined(__FreeBSD__) ||           \
-    defined(__MINGW32__)
+    defined(__MINGW32__) || defined(__MSDOS__) || defined(__WATCOMC__)
 /* Fallback to pipe pair for Windows/macOS/BSD since eventfd is Linux only */
 #if !defined(_WIN32)
 #endif
@@ -545,8 +585,10 @@ typedef struct {
   int fds[2];
 } c_orm_event_t;
 
+#if !defined(__MSDOS__) && !defined(__WATCOMC__)
 static int c_orm_event_init(c_orm_event_t *ev) {
-#if defined(_WIN32) || defined(__MINGW32__)
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__MSDOS__) ||           \
+    defined(__WATCOMC__)
   /* Note: Windows doesn't have standard pipe() that returns fds compatible with
      select/poll easily without _pipe() and winsock overhead. We'll stub this
      for the architecture plan and refine in later phases if actual windows
@@ -560,7 +602,9 @@ static int c_orm_event_init(c_orm_event_t *ev) {
 }
 
 static int c_orm_event_signal(c_orm_event_t *ev) {
-#if defined(_WIN32) || defined(__MINGW32__)
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__MSDOS__) ||           \
+    defined(__WATCOMC__)
+  (void)ev;
   return 0;
 #else
   char b = 1;
@@ -569,11 +613,15 @@ static int c_orm_event_signal(c_orm_event_t *ev) {
 }
 
 static void c_orm_event_close(c_orm_event_t *ev) {
-#if !defined(_WIN32) && !defined(__MINGW32__)
+#if !defined(_WIN32) && !defined(__MINGW32__) && !defined(__MSDOS__) &&        \
+    !defined(__WATCOMC__)
   close(ev->fds[0]);
   close(ev->fds[1]);
+#else
+  (void)ev;
 #endif
 }
+#endif
 
 #else
 /* Linux eventfd */
@@ -698,10 +746,11 @@ struct c_orm_sqlite_worker_pool {
   struct c_orm_async_job *queue_tail;
   int terminate_flag;
   int initialized;
-#if !defined(_WIN32) && !defined(__MINGW32__)
+#if !defined(_WIN32) && !defined(__MINGW32__) && !defined(__MSDOS__) &&        \
+    !defined(__WATCOMC__)
   pthread_t *threads;
 #else
-  void **threads; /* HANDLE* */
+  void **threads; /* HANDLE* or stub */
 #endif
   size_t thread_count;
 };
@@ -1735,8 +1784,7 @@ int c_orm_pool_acquire(c_orm_pool_t *pool, c_orm_db_t **db_out) {
     return -1;
 
   if (pool->modality == C_ORM_MODALITY_SYNC_MULTI) {
-    tls_db = c_orm_tls_get(pool->tls_slot);
-    if (tls_db) {
+    if (c_orm_tls_get(pool->tls_slot, &tls_db) == 0 && tls_db) {
       *db_out = (c_orm_db_t *)tls_db;
       return 0;
     }
@@ -1789,8 +1837,7 @@ int c_orm_pool_release(c_orm_pool_t *pool, c_orm_db_t *db) {
     return -1;
 
   if (pool->modality == C_ORM_MODALITY_SYNC_MULTI) {
-    tls_db = c_orm_tls_get(pool->tls_slot);
-    if (tls_db == db) {
+    if (c_orm_tls_get(pool->tls_slot, &tls_db) == 0 && tls_db == db) {
       /* Thread-local connection is just kept. Do not actually release it to the
          pool yet. Wait, if we never release it, it's pinned to the thread
          forever. A simpler TLS optimization is to just prefer this thread's
