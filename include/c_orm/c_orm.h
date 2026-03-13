@@ -7,13 +7,13 @@
 #ifndef C_ORM_H
 #define C_ORM_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* clang-format off */
 #include <stddef.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief Platform-specific format specifier for numbers.

@@ -24,4 +24,5 @@ int main(int argc, char **argv) {
   RUN_SUITE(c_orm_suite);
 
   GREATEST_MAIN_END();
+  return 0;
 }

@@ -794,7 +794,7 @@ static int strdup_safe_ext(const c_orm_allocator_t *alloc, const char *s,
                            char **out) {
   if (!s || !out || !alloc)
     return -1;
-  alloc->malloc_fn(strlen(s) + 1, (void**)out);
+  alloc->malloc_fn(strlen(s) + 1, (void **)out);
   if (!*out)
     return -1;
 #if defined(_MSC_VER)
@@ -822,7 +822,7 @@ static int c_orm_params_copy(const c_orm_allocator_t *alloc,
   if (!src || !dest || !alloc)
     return -1;
 
-  alloc->calloc_fn(count, sizeof(c_orm_param_t), (void**)&copied);
+  alloc->calloc_fn(count, sizeof(c_orm_param_t), (void **)&copied);
   if (!copied)
     return -1;
 
@@ -1887,7 +1887,7 @@ int c_orm_query_create(c_orm_query_t **query_out, c_orm_db_t *db,
 
   alloc = db->ctx ? db->ctx->allocator : &g_default_allocator;
 
-  alloc->calloc_fn(1, sizeof(c_orm_query_t), (void**)&query);
+  alloc->calloc_fn(1, sizeof(c_orm_query_t), (void **)&query);
   if (!query)
     return -1;
 
@@ -1957,7 +1957,7 @@ int c_orm_query_build(c_orm_query_t *query, char **sql_out) {
   if (query->has_limit)
     size += 32;
 
-  query->allocator->malloc_fn(size, (void**)&sql);
+  query->allocator->malloc_fn(size, (void **)&sql);
   if (!sql)
     return -1;
 

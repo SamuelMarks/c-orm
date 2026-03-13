@@ -9,13 +9,13 @@
 #ifndef C_CDD_DATABASE_H
 #define C_CDD_DATABASE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* clang-format off */
 #include <stddef.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief Represents the data type of a column.

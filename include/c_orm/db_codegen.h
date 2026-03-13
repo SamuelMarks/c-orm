@@ -6,15 +6,15 @@
 #ifndef C_CDD_DB_CODEGEN_H
 #define C_CDD_DB_CODEGEN_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* clang-format off */
 #include <stdio.h>
 
 #include <c_orm/database.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief Generate a C header file containing the structs for the
