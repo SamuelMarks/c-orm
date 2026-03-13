@@ -9,7 +9,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
+#endif
 
 /* clang-format off */
 #include <stddef.h>
@@ -399,7 +399,7 @@ int c_orm_query_execute(c_orm_query_t *query);
  */
 int c_orm_query_destroy(c_orm_query_t *query);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 

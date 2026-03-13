@@ -141,10 +141,13 @@ static int internal_PQsendQuery(PGconn *conn, const char *query) {
   return PQsendQuery(conn, query);
 }
 
-static PGresult *internal_PQgetResult(PGconn *conn) {
-  if (conn == (PGconn *)1)
-    return NULL;
-  return PQgetResult(conn);
+static int internal_PQgetResult(PGconn *conn, PGresult **out_res) {
+  if (conn == (PGconn *)1) {
+    *out_res = NULL;
+    return 0;
+  }
+  *out_res = PQgetResult(conn);
+  return 0;
 }
 
 static int internal_PQsocket(const PGconn *conn) {
@@ -644,19 +647,24 @@ static void c_orm_event_close(c_orm_event_t *ev) { close(ev->fd); }
 
 /* Cross-modality Memory Allocator Interface */
 typedef struct {
-  void *(*malloc_fn)(size_t size);
-  void *(*calloc_fn)(size_t nmemb, size_t size);
-  void *(*realloc_fn)(void *ptr, size_t size);
+  int (*malloc_fn)(size_t size, void **out);
+  int (*calloc_fn)(size_t nmemb, size_t size, void **out);
+  int (*realloc_fn)(void *ptr, size_t size, void **out);
   void (*free_fn)(void *ptr);
 } c_orm_allocator_t;
 
 /* Default allocators */
-static void *default_malloc(size_t size) { return malloc(size); }
-static void *default_calloc(size_t nmemb, size_t size) {
-  return calloc(nmemb, size);
+static int default_malloc(size_t size, void **out) {
+  *out = malloc(size);
+  return 0;
 }
-static void *default_realloc(void *ptr, size_t size) {
-  return realloc(ptr, size);
+static int default_calloc(size_t nmemb, size_t size, void **out) {
+  *out = calloc(nmemb, size);
+  return 0;
+}
+static int default_realloc(void *ptr, size_t size, void **out) {
+  *out = realloc(ptr, size);
+  return 0;
 }
 static void default_free(void *ptr) { free(ptr); }
 
@@ -786,7 +794,7 @@ static int strdup_safe_ext(const c_orm_allocator_t *alloc, const char *s,
                            char **out) {
   if (!s || !out || !alloc)
     return -1;
-  *out = (char *)alloc->malloc_fn(strlen(s) + 1);
+  alloc->malloc_fn(strlen(s) + 1, (void**)out);
   if (!*out)
     return -1;
 #if defined(_MSC_VER)
@@ -814,7 +822,7 @@ static int c_orm_params_copy(const c_orm_allocator_t *alloc,
   if (!src || !dest || !alloc)
     return -1;
 
-  copied = (c_orm_param_t *)alloc->calloc_fn(count, sizeof(c_orm_param_t));
+  alloc->calloc_fn(count, sizeof(c_orm_param_t), (void**)&copied);
   if (!copied)
     return -1;
 
@@ -851,7 +859,8 @@ static int c_orm_params_copy(const c_orm_allocator_t *alloc,
       break;
     case C_ORM_PARAM_BLOB:
       if (src[i].value.blob_val.data && src[i].value.blob_val.size > 0) {
-        void *blob_copy = alloc->malloc_fn(src[i].value.blob_val.size);
+        void *blob_copy = NULL;
+        alloc->malloc_fn(src[i].value.blob_val.size, &blob_copy);
         if (!blob_copy) {
           size_t j;
           for (j = 0; j < i; ++j) {
@@ -1878,7 +1887,7 @@ int c_orm_query_create(c_orm_query_t **query_out, c_orm_db_t *db,
 
   alloc = db->ctx ? db->ctx->allocator : &g_default_allocator;
 
-  query = (c_orm_query_t *)alloc->calloc_fn(1, sizeof(c_orm_query_t));
+  alloc->calloc_fn(1, sizeof(c_orm_query_t), (void**)&query);
   if (!query)
     return -1;
 
@@ -1948,7 +1957,7 @@ int c_orm_query_build(c_orm_query_t *query, char **sql_out) {
   if (query->has_limit)
     size += 32;
 
-  sql = (char *)query->allocator->malloc_fn(size);
+  query->allocator->malloc_fn(size, (void**)&sql);
   if (!sql)
     return -1;
 

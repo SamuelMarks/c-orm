@@ -68,7 +68,7 @@ int db_codegen_struct_header(const struct DatabaseSchema *schema, FILE *out,
     fprintf(out, "};\n\n");
   }
 
-  fprintf(out, "#ifdef __cplusplus\n}\n#endif\n\n");
+  fprintf(out, "#if defined(__cplusplus)\n}\n#endif /* __cplusplus */\n\n");
   fprintf(out, "#endif /* %s */\n", header_guard);
   return 0;
 }
@@ -232,7 +232,7 @@ int db_codegen_crud_h(const struct DatabaseSchema *schema, FILE *out,
     fprintf(out, "int %s_delete(int id);\n\n", table->name);
   }
 
-  fprintf(out, "#ifdef __cplusplus\n}\n#endif\n\n");
+  fprintf(out, "#if defined(__cplusplus)\n}\n#endif /* __cplusplus */\n\n");
   fprintf(out, "#endif /* %s */\n", header_guard);
   return 0;
 }

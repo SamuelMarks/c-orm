@@ -11,7 +11,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
+#endif
 
 /* clang-format off */
 #include <stddef.h>
@@ -91,7 +91,7 @@ void db_schema_init(struct DatabaseSchema *schema);
  */
 void db_schema_free(struct DatabaseSchema *schema);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 

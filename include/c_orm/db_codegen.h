@@ -8,7 +8,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
+#endif
 
 /* clang-format off */
 #include <stdio.h>
@@ -67,7 +67,7 @@ int db_codegen_crud_c(const struct DatabaseSchema *schema, FILE *out,
  */
 int db_codegen_parse_sql(const char *sql, struct DatabaseSchema *out_schema);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 
