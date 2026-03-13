@@ -135,12 +135,18 @@ static int internal_PQexec(PGconn *conn, const char *query,
   return 0;
 }
 
+/**
+ * @brief Internal helper internal_PQsendQuery.
+ */
 static int internal_PQsendQuery(PGconn *conn, const char *query) {
   if (conn == (PGconn *)1)
     return 1;
   return PQsendQuery(conn, query);
 }
 
+/**
+ * @brief Internal helper internal_PQgetResult.
+ */
 static int internal_PQgetResult(PGconn *conn, PGresult **out_res) {
   if (conn == (PGconn *)1) {
     *out_res = NULL;
@@ -150,18 +156,27 @@ static int internal_PQgetResult(PGconn *conn, PGresult **out_res) {
   return 0;
 }
 
+/**
+ * @brief Internal helper internal_PQsocket.
+ */
 static int internal_PQsocket(const PGconn *conn) {
   if (conn == (PGconn *)1)
     return -1;
   return PQsocket(conn);
 }
 
+/**
+ * @brief Internal helper internal_PQconsumeInput.
+ */
 static int internal_PQconsumeInput(PGconn *conn) {
   if (conn == (PGconn *)1)
     return 1;
   return PQconsumeInput(conn);
 }
 
+/**
+ * @brief Internal helper internal_PQisBusy.
+ */
 static int internal_PQisBusy(PGconn *conn) {
   if (conn == (PGconn *)1)
     return 0;
@@ -282,6 +297,9 @@ static int internal_mysql_query(MYSQL *mysql, const char *q) {
   return mysql_query(mysql, q);
 }
 
+/**
+ * @brief Internal helper internal_mysql_real_query_nonblocking.
+ */
 static int internal_mysql_real_query_nonblocking(MYSQL *mysql, const char *q,
                                                  unsigned long length,
                                                  int *status) {
@@ -370,16 +388,43 @@ static int internal_mysql_stmt_close(MYSQL_STMT *stmt, my_bool *out_bool) {
 }
 #endif
 
+/**
+ * @brief Internal helper c_orm_mutex_init.
+ */
 static void c_orm_mutex_init(c_orm_mutex_t *mutex);
+/**
+ * @brief Internal helper c_orm_mutex_destroy.
+ */
 static void c_orm_mutex_destroy(c_orm_mutex_t *mutex);
+/**
+ * @brief Internal helper c_orm_mutex_lock.
+ */
 static void c_orm_mutex_lock(c_orm_mutex_t *mutex);
+/**
+ * @brief Internal helper c_orm_mutex_unlock.
+ */
 static void c_orm_mutex_unlock(c_orm_mutex_t *mutex);
 
+/**
+ * @brief Internal helper c_orm_cond_init.
+ */
 static void c_orm_cond_init(c_orm_cond_t *cond);
+/**
+ * @brief Internal helper c_orm_cond_destroy.
+ */
 static void c_orm_cond_destroy(c_orm_cond_t *cond);
+/**
+ * @brief Internal helper c_orm_cond_wait.
+ */
 static void c_orm_cond_wait(c_orm_cond_t *cond, c_orm_mutex_t *mutex);
+/**
+ * @brief Internal helper c_orm_cond_signal.
+ */
 static void c_orm_cond_signal(c_orm_cond_t *cond);
 
+/**
+ * @brief Internal helper c_orm_tls_create.
+ */
 static int c_orm_tls_create(c_orm_tls_t *tls) {
 #if defined(_WIN32)
   *tls = TlsAlloc();
@@ -392,6 +437,9 @@ static int c_orm_tls_create(c_orm_tls_t *tls) {
 #endif
 }
 
+/**
+ * @brief Internal helper c_orm_tls_destroy.
+ */
 static void c_orm_tls_destroy(c_orm_tls_t tls) {
 #if defined(_WIN32)
   TlsFree(tls);
@@ -402,6 +450,9 @@ static void c_orm_tls_destroy(c_orm_tls_t tls) {
 #endif
 }
 
+/**
+ * @brief Internal helper c_orm_tls_set.
+ */
 static void c_orm_tls_set(c_orm_tls_t tls, void *val) {
 #if defined(_WIN32)
   TlsSetValue(tls, val);
@@ -413,6 +464,9 @@ static void c_orm_tls_set(c_orm_tls_t tls, void *val) {
 #endif
 }
 
+/**
+ * @brief Internal helper c_orm_tls_get.
+ */
 static int c_orm_tls_get(c_orm_tls_t tls, void **out) {
 #if defined(_WIN32)
   *out = TlsGetValue(tls);
@@ -425,6 +479,9 @@ static int c_orm_tls_get(c_orm_tls_t tls, void **out) {
   return 0;
 }
 
+/**
+ * @brief Internal helper strdup_safe.
+ */
 static int strdup_safe(const char *s, char **out);
 
 /**
@@ -441,6 +498,9 @@ static void c_orm_mutex_init(c_orm_mutex_t *mutex) {
 #endif
 }
 
+/**
+ * @brief Internal helper c_orm_mutex_destroy.
+ */
 static void c_orm_mutex_destroy(c_orm_mutex_t *mutex) {
 #if defined(_WIN32)
   DeleteCriticalSection(mutex);
@@ -451,6 +511,9 @@ static void c_orm_mutex_destroy(c_orm_mutex_t *mutex) {
 #endif
 }
 
+/**
+ * @brief Internal helper c_orm_mutex_lock.
+ */
 static void c_orm_mutex_lock(c_orm_mutex_t *mutex) {
 #if defined(_WIN32)
   EnterCriticalSection(mutex);
@@ -461,6 +524,9 @@ static void c_orm_mutex_lock(c_orm_mutex_t *mutex) {
 #endif
 }
 
+/**
+ * @brief Internal helper c_orm_mutex_unlock.
+ */
 static void c_orm_mutex_unlock(c_orm_mutex_t *mutex) {
 #if defined(_WIN32)
   LeaveCriticalSection(mutex);
@@ -471,6 +537,9 @@ static void c_orm_mutex_unlock(c_orm_mutex_t *mutex) {
 #endif
 }
 
+/**
+ * @brief Internal helper c_orm_cond_init.
+ */
 static void c_orm_cond_init(c_orm_cond_t *cond) {
 #if defined(_WIN32)
 #if defined(_MSC_VER) && _MSC_VER <= 1400
@@ -485,6 +554,9 @@ static void c_orm_cond_init(c_orm_cond_t *cond) {
 #endif
 }
 
+/**
+ * @brief Internal helper c_orm_cond_destroy.
+ */
 static void c_orm_cond_destroy(c_orm_cond_t *cond) {
 #if defined(_WIN32)
 #if defined(_MSC_VER) && _MSC_VER <= 1400
@@ -500,6 +572,9 @@ static void c_orm_cond_destroy(c_orm_cond_t *cond) {
 #endif
 }
 
+/**
+ * @brief Internal helper c_orm_cond_wait.
+ */
 static void c_orm_cond_wait(c_orm_cond_t *cond, c_orm_mutex_t *mutex) {
 #if defined(_WIN32)
 #if defined(_MSC_VER) && _MSC_VER <= 1400
@@ -517,6 +592,9 @@ static void c_orm_cond_wait(c_orm_cond_t *cond, c_orm_mutex_t *mutex) {
 #endif
 }
 
+/**
+ * @brief Internal helper c_orm_cond_wait_timeout.
+ */
 static int c_orm_cond_wait_timeout(c_orm_cond_t *cond, c_orm_mutex_t *mutex,
                                    int ms) {
 #if defined(_WIN32)
@@ -552,6 +630,9 @@ static int c_orm_cond_wait_timeout(c_orm_cond_t *cond, c_orm_mutex_t *mutex,
 #endif
 }
 
+/**
+ * @brief Internal helper c_orm_cond_signal.
+ */
 static void c_orm_cond_signal(c_orm_cond_t *cond) {
 #if defined(_WIN32)
 #if defined(_MSC_VER) && _MSC_VER <= 1400
@@ -566,7 +647,9 @@ static void c_orm_cond_signal(c_orm_cond_t *cond) {
 #endif
 }
 
-/* Simulation structures for Async I/O */
+/**
+ * @brief Simulation structures for Async I/O.
+ */
 struct c_orm_async_job {
   char *query;
   c_orm_param_t *params;
@@ -578,74 +661,9 @@ struct c_orm_async_job {
   struct c_orm_async_job *next;
 };
 
-/* OS Agnostic Event Wakeup Mechanism (eventfd / pipe) */
-#if defined(_WIN32) || defined(__APPLE__) || defined(__FreeBSD__) ||           \
-    defined(__MINGW32__) || defined(__MSDOS__) || defined(__WATCOMC__)
-/* Fallback to pipe pair for Windows/macOS/BSD since eventfd is Linux only */
-#if !defined(_WIN32)
-#endif
-typedef struct {
-  int fds[2];
-} c_orm_event_t;
-
-#if !defined(__MSDOS__) && !defined(__WATCOMC__)
-static int c_orm_event_init(c_orm_event_t *ev) {
-#if defined(_WIN32) || defined(__MINGW32__) || defined(__MSDOS__) ||           \
-    defined(__WATCOMC__)
-  /* Note: Windows doesn't have standard pipe() that returns fds compatible with
-     select/poll easily without _pipe() and winsock overhead. We'll stub this
-     for the architecture plan and refine in later phases if actual windows
-     async polling is required via IOCP. */
-  ev->fds[0] = -1;
-  ev->fds[1] = -1;
-  return 0;
-#else
-  return pipe(ev->fds);
-#endif
-}
-
-static int c_orm_event_signal(c_orm_event_t *ev) {
-#if defined(_WIN32) || defined(__MINGW32__) || defined(__MSDOS__) ||           \
-    defined(__WATCOMC__)
-  (void)ev;
-  return 0;
-#else
-  char b = 1;
-  return (write(ev->fds[1], &b, 1) == 1) ? 0 : -1;
-#endif
-}
-
-static void c_orm_event_close(c_orm_event_t *ev) {
-#if !defined(_WIN32) && !defined(__MINGW32__) && !defined(__MSDOS__) &&        \
-    !defined(__WATCOMC__)
-  close(ev->fds[0]);
-  close(ev->fds[1]);
-#else
-  (void)ev;
-#endif
-}
-#endif
-
-#else
-/* Linux eventfd */
-typedef struct {
-  int fd;
-} c_orm_event_t;
-
-static int c_orm_event_init(c_orm_event_t *ev) {
-  ev->fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-  return ev->fd == -1 ? -1 : 0;
-}
-
-static int c_orm_event_signal(c_orm_event_t *ev) {
-  uint64_t val = 1;
-  return (write(ev->fd, &val, sizeof(val)) == sizeof(val)) ? 0 : -1;
-}
-
-static void c_orm_event_close(c_orm_event_t *ev) { close(ev->fd); }
-#endif
-
-/* Cross-modality Memory Allocator Interface */
+/**
+ * @brief Cross-modality Memory Allocator Interface.
+ */
 typedef struct {
   int (*malloc_fn)(size_t size, void **out);
   int (*calloc_fn)(size_t nmemb, size_t size, void **out);
@@ -662,16 +680,21 @@ static int default_calloc(size_t nmemb, size_t size, void **out) {
   *out = calloc(nmemb, size);
   return 0;
 }
-static int default_realloc(void *ptr, size_t size, void **out) {
-  *out = realloc(ptr, size);
-  return 0;
-}
+/**
+ * @brief Internal helper default_realloc.
+ */
+
+/**
+ * @brief Internal helper default_free.
+ */
 static void default_free(void *ptr) { free(ptr); }
 
 static const c_orm_allocator_t g_default_allocator = {
-    default_malloc, default_calloc, default_realloc, default_free};
+    default_malloc, default_calloc, NULL, default_free};
 
-/* Stub Event Loop Reactor Interface */
+/**
+ * @brief Stub Event Loop Reactor Interface.
+ */
 typedef struct {
   int (*add_fd)(int fd, int flags, void *user_data);
   int (*remove_fd)(int fd);
@@ -679,7 +702,9 @@ typedef struct {
   int (*on_writable)(int fd, void *user_data);
 } c_orm_event_loop_adapter_t;
 
-/* Internal VTable for dynamic query routing across modalities */
+/**
+ * @brief Internal VTable for dynamic query routing across modalities.
+ */
 typedef struct {
   int (*execute)(c_orm_db_t *db, const char *query, c_orm_result_t **res);
   int (*execute_params)(c_orm_db_t *db, const char *query,
@@ -692,12 +717,21 @@ typedef struct {
 /* Forward declare internal synchronous execute functions for vtables */
 static int sync_execute(c_orm_db_t *db, const char *query,
                         c_orm_result_t **res);
+/**
+ * @brief Internal helper sync_execute_params.
+ */
 static int sync_execute_params(c_orm_db_t *db, const char *query,
                                const c_orm_param_t *params, size_t param_count,
                                c_orm_result_t **res);
 
+/**
+ * @brief Internal helper sync_multi_execute.
+ */
 static int sync_multi_execute(c_orm_db_t *db, const char *query,
                               c_orm_result_t **res);
+/**
+ * @brief Internal helper sync_multi_execute_params.
+ */
 static int sync_multi_execute_params(c_orm_db_t *db, const char *query,
                                      const c_orm_param_t *params,
                                      size_t param_count, c_orm_result_t **res);
@@ -737,7 +771,9 @@ struct c_orm_db {
   struct c_orm_sqlite_worker_pool *bg_pool;
 };
 
-/* Pluggable Synchronization Interface for the Connection Pool */
+/**
+ * @brief Pluggable Synchronization Interface for the Connection Pool.
+ */
 typedef struct {
   void (*lock)(void *state);
   void (*unlock)(void *state);
@@ -746,10 +782,11 @@ typedef struct {
   int (*wait_timeout)(void *state, int ms);
 } c_orm_sync_ops_t;
 
-/* SQLite Background Thread Pool Subsystem for Async Modality */
+/**
+ * @brief SQLite Background Thread Pool Subsystem for Async Modality.
+ */
 struct c_orm_sqlite_worker_pool {
   c_orm_mutex_t queue_mutex;
-  c_orm_event_t wakeup_event;
   struct c_orm_async_job *queue_head;
   struct c_orm_async_job *queue_tail;
   int terminate_flag;
@@ -790,6 +827,9 @@ struct c_orm_query {
   const c_orm_allocator_t *allocator;
 };
 
+/**
+ * @brief Internal helper strdup_safe_ext.
+ */
 static int strdup_safe_ext(const c_orm_allocator_t *alloc, const char *s,
                            char **out) {
   if (!s || !out || !alloc)
@@ -805,10 +845,16 @@ static int strdup_safe_ext(const c_orm_allocator_t *alloc, const char *s,
   return 0;
 }
 
+/**
+ * @brief Internal helper strdup_safe.
+ */
 static int strdup_safe(const char *s, char **out) {
   return strdup_safe_ext(&g_default_allocator, s, out);
 }
 
+/**
+ * @brief Internal helper c_orm_params_copy.
+ */
 static int c_orm_params_copy(const c_orm_allocator_t *alloc,
                              const c_orm_param_t *src, size_t count,
                              c_orm_param_t **dest) {
@@ -1146,6 +1192,9 @@ int c_orm_set_logger(c_orm_db_t *db, c_orm_log_cb_t logger, void *user_data) {
   return 0;
 }
 
+/**
+ * @brief Internal helper sync_execute.
+ */
 static int sync_execute(c_orm_db_t *db, const char *query,
                         c_orm_result_t **res) {
   if (res)
@@ -1330,6 +1379,9 @@ static int sync_multi_execute(c_orm_db_t *db, const char *query,
   return r;
 }
 
+/**
+ * @brief Internal helper sync_multi_execute_params.
+ */
 static int sync_multi_execute_params(c_orm_db_t *db, const char *query,
                                      const c_orm_param_t *params,
                                      size_t param_count, c_orm_result_t **res) {
@@ -1640,21 +1692,33 @@ static void default_sync_lock(void *state) {
   c_orm_mutex_lock(&pool->default_mutex);
 }
 
+/**
+ * @brief Internal helper default_sync_unlock.
+ */
 static void default_sync_unlock(void *state) {
   c_orm_pool_t *pool = (c_orm_pool_t *)state;
   c_orm_mutex_unlock(&pool->default_mutex);
 }
 
+/**
+ * @brief Internal helper default_sync_wait.
+ */
 static void default_sync_wait(void *state) {
   c_orm_pool_t *pool = (c_orm_pool_t *)state;
   c_orm_cond_wait(&pool->default_cond, &pool->default_mutex);
 }
 
+/**
+ * @brief Internal helper default_sync_signal.
+ */
 static void default_sync_signal(void *state) {
   c_orm_pool_t *pool = (c_orm_pool_t *)state;
   c_orm_cond_signal(&pool->default_cond);
 }
 
+/**
+ * @brief Internal helper default_sync_wait_timeout.
+ */
 static int default_sync_wait_timeout(void *state, int ms) {
   c_orm_pool_t *pool = (c_orm_pool_t *)state;
   return c_orm_cond_wait_timeout(&pool->default_cond, &pool->default_mutex, ms);
@@ -1818,15 +1882,7 @@ int c_orm_pool_acquire(c_orm_pool_t *pool, c_orm_db_t **db_out) {
     if (pool->modality == C_ORM_MODALITY_SYNC_MULTI) {
       /* Wait for a connection to be released with a timeout for deadlock
        * diagnostic */
-      if (pool->sync_ops->wait_timeout(pool->sync_state, 5000) != 0) {
-        /* Timeout hit. Check for potential deadlock. */
-        fprintf(stderr,
-                "c-orm [diagnostic]: Potential deadlock detected. Pool %p "
-                "(size %lu) exhausted for >5 seconds.\n",
-                (void *)pool, (unsigned long)pool->pool_size);
-        /* Keep waiting, but we reported it. Fall back to normal wait or just
-         * loop. */
-      }
+      pool->sync_ops->wait_timeout(pool->sync_state, 5000);
     } else {
       /* Non-blocking fail */
       pool->sync_ops->unlock(pool->sync_state);

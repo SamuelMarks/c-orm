@@ -424,6 +424,9 @@ TEST test_c_orm_pool(void) {
   res = c_orm_pool_create_ext(&pool, dialect, C_ORM_MODALITY_SYNC_SINGLE,
                               "file.db", 0);
   ASSERT_EQ(-1, res);
+  res = c_orm_pool_create_ext(&pool, dialect, C_ORM_MODALITY_SYNC_SINGLE, NULL,
+                              2);
+  ASSERT_EQ(-1, res);
 
   /* Test massive allocation failure for coverage */
 #if !defined(_MSC_VER) || (_MSC_VER > 1400)
