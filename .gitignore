@@ -57,3 +57,8 @@ skills.md
 .gemini/
 include/mysql.h
 include/libpq-fe.h
+# Added by cdd-c sync
+build*/
+out/
+*.log
+Testing/
