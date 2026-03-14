@@ -198,7 +198,7 @@ c_orm_error_t c_orm_find_all(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   if (err != C_ORM_OK)
     return err;
 
-  while (1) {
+  for (;;) {
     err = db->vtable->step(query, &has_row);
     if (err != C_ORM_OK) {
       db->vtable->finalize(query);

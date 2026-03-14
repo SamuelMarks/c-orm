@@ -7,7 +7,10 @@
 #include "c_orm_sqlite.h"
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef C_ORM_ENABLE_SQLITE
 #include <sqlite3.h>
+#endif
 /* clang-format on */
 
 #ifdef C_ORM_ENABLE_SQLITE
@@ -291,12 +294,17 @@ static c_orm_error_t sqlite_reset(c_orm_query_t *query) {
   return C_ORM_OK;
 }
 
-static const char *sqlite_get_last_error(c_orm_db_t *db) {
+static int sqlite_get_last_error(c_orm_db_t *db, const char **out_message) {
   struct sqlite_db_data *data;
-  if (!db || !db->driver_data)
-    return "Invalid DB object";
+  if (!out_message)
+    return 1;
+  if (!db || !db->driver_data) {
+    *out_message = "Invalid DB object";
+    return 1;
+  }
   data = (struct sqlite_db_data *)db->driver_data;
-  return data->last_error;
+  *out_message = data->last_error;
+  return 0;
 }
 
 static const c_orm_driver_vtable_t sqlite_vtable = {
