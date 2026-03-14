@@ -5,7 +5,6 @@
 
 /* clang-format off */
 #include "c_orm_string_builder.h"
-
 #include <stdlib.h>
 #include <string.h>
 /* clang-format on */
@@ -86,14 +85,18 @@ int c_orm_string_builder_append(c_orm_string_builder_t *builder,
   return 0;
 }
 
-const char *c_orm_string_builder_get(const c_orm_string_builder_t *builder) {
-  if (!builder || !builder->buffer)
-    return "";
-  return builder->buffer;
+int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
+                             const char **out_str) {
+  if (!builder || !out_str)
+    return 1;
+  *out_str = builder->buffer ? builder->buffer : "";
+  return 0;
 }
 
-size_t c_orm_string_builder_len(const c_orm_string_builder_t *builder) {
-  if (!builder)
-    return 0;
-  return builder->length;
+int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
+                             size_t *out_len) {
+  if (!builder || !out_len)
+    return 1;
+  *out_len = builder->length;
+  return 0;
 }

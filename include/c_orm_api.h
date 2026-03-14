@@ -5,13 +5,14 @@
 
 #ifndef C_ORM_API_H
 #define C_ORM_API_H
+/* clang-format off */
+#include "c_orm_db.h"
+#include "c_orm_meta.h"
+/* clang-format on */
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-
-#include "c_orm_db.h"
-#include "c_orm_meta.h"
 
 /**
  * @brief Find a single record by its primary key.
@@ -84,8 +85,8 @@ c_orm_error_t c_orm_begin(c_orm_db_t *db);
 c_orm_error_t c_orm_commit(c_orm_db_t *db);
 c_orm_error_t c_orm_rollback(c_orm_db_t *db);
 
+#endif /* C_ORM_API_H */
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#endif /* C_ORM_API_H */

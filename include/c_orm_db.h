@@ -5,13 +5,25 @@
 
 #ifndef C_ORM_DB_H
 #define C_ORM_DB_H
+/* clang-format off */
+#include "c_orm_meta.h"
+#if !defined(_MSC_VER) || _MSC_VER >= 1600
+#include <stdint.h>
+#else
+typedef signed __int8 int8_t;
+typedef unsigned __int8 uint8_t;
+typedef signed __int16 int16_t;
+typedef unsigned __int16 uint16_t;
+typedef signed __int32 int32_t;
+typedef unsigned __int32 uint32_t;
+typedef signed __int64 int64_t;
+typedef unsigned __int64 uint64_t;
+#endif
+/* clang-format on */
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-
-#include "c_orm_meta.h"
-#include <stdint.h>
 
 /**
  * @brief Opaque database connection handle.
@@ -45,7 +57,7 @@ typedef enum {
  * @param db The database connection.
  * @return A string detailing the last error, or NULL.
  */
-const char *c_orm_get_last_error_message(c_orm_db_t *db);
+int c_orm_get_last_error_message(c_orm_db_t *db, const char **out_message);
 
 /**
  * @brief Query logging callback signature.
@@ -75,7 +87,7 @@ typedef struct c_orm_driver_vtable {
   c_orm_error_t (*is_null)(c_orm_query_t *query, int index, int *out_is_null);
   c_orm_error_t (*finalize)(c_orm_query_t *query);
   c_orm_error_t (*reset)(c_orm_query_t *query);
-  const char *(*get_last_error)(c_orm_db_t *db);
+  int (*get_last_error)(c_orm_db_t *db, const char **out_message);
 } c_orm_driver_vtable_t;
 
 /**
@@ -97,8 +109,8 @@ struct c_orm_db {
  */
 void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb, void *user_data);
 
+#endif /* C_ORM_DB_H */
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#endif /* C_ORM_DB_H */

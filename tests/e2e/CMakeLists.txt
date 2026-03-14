@@ -1,14 +1,33 @@
 cmake_minimum_required(VERSION 3.10)
 
-# Generate using our own SQL to C codegen inside cdd-c (which we'll do manually for now as testing strategy)
-# Wait, cdd-c isn't linked as a command here yet if c-orm is separate. Let's just assume we pre-generate it for this E2E test.
-# Actually, the user asked for: 101. Integrate cdd-c as a custom CMake command to generate models dynamically before c-orm compilation.
+include(FetchContent)
 
-# But wait, cdd-c is not built here. We can reference it from the parent project.
+# Disable tests for dependencies
+set(C_CDD_BUILD_TESTING OFF CACHE BOOL "Disable cdd-c tests" FORCE)
+
+# Fetch cdd-c
+FetchContent_Declare(
+  cdd_c
+  URL https://github.com/SamuelMarks/cdd-c/archive/refs/heads/master.zip
+)
+FetchContent_MakeAvailable(cdd_c)
+
+# Fetch greatest.h
+set(GREATEST_H_URL "https://raw.githubusercontent.com/silentbicycle/greatest/master/greatest.h")
+set(GREATEST_H_DIR "${CMAKE_CURRENT_BINARY_DIR}/test_downloads")
+file(MAKE_DIRECTORY ${GREATEST_H_DIR})
+if(NOT EXISTS "${GREATEST_H_DIR}/greatest.h")
+    file(DOWNLOAD "${GREATEST_H_URL}" "${GREATEST_H_DIR}/greatest.h" STATUS GREATEST_STATUS)
+    list(GET GREATEST_STATUS 0 GREATEST_STATUS_CODE)
+    if(NOT GREATEST_STATUS_CODE EQUAL 0)
+        message(FATAL_ERROR "Failed to download greatest.h: ${GREATEST_STATUS}")
+    endif()
+endif()
+
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-    COMMAND "${CMAKE_SOURCE_DIR}/../build_msvc2026_static_vcpkg/Debug/cdd-c.exe" sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
+    COMMAND cdd-c sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+    DEPENDS cdd-c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
     COMMENT "Generating C Models from schema.sql using cdd-c..."
 )
 
@@ -19,8 +38,12 @@ add_executable(c_orm_e2e_tests
 
 target_include_directories(c_orm_e2e_tests PRIVATE 
     ${CMAKE_CURRENT_BINARY_DIR}
-    ${CMAKE_SOURCE_DIR}/../build_msvc2026_static_vcpkg/test_downloads # For greatest.h
+    ${GREATEST_H_DIR}
 )
+
+if(MSVC)
+    target_compile_definitions(c_orm_e2e_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
 
 target_link_libraries(c_orm_e2e_tests PRIVATE c-orm)
 

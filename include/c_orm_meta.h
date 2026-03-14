@@ -5,13 +5,24 @@
 
 #ifndef C_ORM_META_H
 #define C_ORM_META_H
+/* clang-format off */
+#if !defined(_MSC_VER) || _MSC_VER >= 1800
+#include <stdbool.h>
+#else
+#ifndef __cplusplus
+#ifndef bool
+typedef unsigned char bool;
+#define true 1
+#define false 0
+#endif
+#endif
+#endif
+#include <stddef.h>
+/* clang-format on */
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-
-#include <stdbool.h>
-#include <stddef.h>
 
 /**
  * @brief Data types supported by c-orm.
@@ -57,8 +68,8 @@ typedef struct {
   const char *query_delete_by_pk;
 } c_orm_table_meta_t;
 
+#endif /* C_ORM_META_H */
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#endif /* C_ORM_META_H */

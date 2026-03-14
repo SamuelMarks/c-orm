@@ -5,14 +5,13 @@
 
 /* clang-format off */
 #include "c_orm_sqlite.h"
-
 #include <stdlib.h>
 #include <string.h>
+#include <sqlite3.h>
+/* clang-format on */
 
 #ifdef C_ORM_ENABLE_SQLITE
-#include <sqlite3.h>
 #endif
-/* clang-format on */
 
 #ifdef C_ORM_ENABLE_SQLITE
 
@@ -75,7 +74,12 @@ static c_orm_error_t sqlite_connect(const char *url, c_orm_db_t **out_db) {
     return C_ORM_ERROR_CONNECTION;
   }
 
-  db->vtable = c_orm_sqlite_get_vtable();
+  if (c_orm_sqlite_get_vtable(&db->vtable) != 0) {
+    sqlite3_close(data->db);
+    free(data);
+    free(db);
+    return C_ORM_ERROR_UNKNOWN;
+  }
   db->driver_data = data;
   *out_db = db;
 
@@ -303,8 +307,11 @@ static const c_orm_driver_vtable_t sqlite_vtable = {
     sqlite_get_string,  sqlite_is_null,       sqlite_finalize,
     sqlite_reset,       sqlite_get_last_error};
 
-const c_orm_driver_vtable_t *c_orm_sqlite_get_vtable(void) {
-  return &sqlite_vtable;
+int c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
+  if (!out_vtable)
+    return 1;
+  *out_vtable = &sqlite_vtable;
+  return 0;
 }
 
 c_orm_error_t c_orm_sqlite_connect(const char *url, c_orm_db_t **out_db) {
@@ -314,7 +321,11 @@ c_orm_error_t c_orm_sqlite_connect(const char *url, c_orm_db_t **out_db) {
 #else
 
 /* Stub out if SQLite is not enabled */
-const c_orm_driver_vtable_t *c_orm_sqlite_get_vtable(void) { return NULL; }
+int c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
+  if (out_vtable)
+    *out_vtable = NULL;
+  return 1;
+}
 c_orm_error_t c_orm_sqlite_connect(const char *url, c_orm_db_t **out_db) {
   (void)url;
   (void)out_db;

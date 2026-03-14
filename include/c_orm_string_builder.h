@@ -5,12 +5,13 @@
 
 #ifndef C_ORM_STRING_BUILDER_H
 #define C_ORM_STRING_BUILDER_H
+/* clang-format off */
+#include <stddef.h>
+/* clang-format on */
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-
-#include <stddef.h>
 
 /**
  * @brief Dynamic string builder opaque struct.
@@ -48,7 +49,8 @@ int c_orm_string_builder_append(c_orm_string_builder_t *builder,
  * @param builder The builder.
  * @return Null-terminated string buffer. Do not free directly.
  */
-const char *c_orm_string_builder_get(const c_orm_string_builder_t *builder);
+int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
+                             const char **out_str);
 
 /**
  * @brief Get the current length of the generated string.
@@ -56,10 +58,11 @@ const char *c_orm_string_builder_get(const c_orm_string_builder_t *builder);
  * @param builder The builder.
  * @return Length of the string.
  */
-size_t c_orm_string_builder_len(const c_orm_string_builder_t *builder);
+int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
+                             size_t *out_len);
+
+#endif /* C_ORM_STRING_BUILDER_H */
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#endif /* C_ORM_STRING_BUILDER_H */

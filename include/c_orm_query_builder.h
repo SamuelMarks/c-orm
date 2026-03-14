@@ -5,13 +5,14 @@
 
 #ifndef C_ORM_QUERY_BUILDER_H
 #define C_ORM_QUERY_BUILDER_H
+/* clang-format off */
+#include "c_orm_db.h"
+#include "c_orm_string_builder.h"
+/* clang-format on */
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-
-#include "c_orm_db.h"
-#include "c_orm_string_builder.h"
 
 /**
  * @brief Opaque select builder handle.
@@ -127,8 +128,8 @@ int c_orm_update_where_eq(c_orm_update_builder_t *builder, const char *column);
 int c_orm_update_builder_compile(c_orm_update_builder_t *builder,
                                  char **out_sql);
 
+#endif /* C_ORM_QUERY_BUILDER_H */
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#endif /* C_ORM_QUERY_BUILDER_H */

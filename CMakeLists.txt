@@ -3,17 +3,21 @@ project(c-orm VERSION 0.1.0 LANGUAGES C)
 
 # Strict warnings
 if(MSVC)
-    add_compile_options(/W4 /WX /sdl)
+    set(C_ORM_STRICT_OPTIONS /W4 /WX /sdl)
 else()
-    add_compile_options(-Wall -Wextra -Werror -Wpedantic -std=c90)
+    set(C_ORM_STRICT_OPTIONS -Wall -Wextra -Werror -Wpedantic -std=c90)
 endif()
 
-add_library(c-orm STATIC
+add_library(c-orm
     src/c_orm_db.c
     src/c_orm_string_builder.c
     src/c_orm_query_builder.c
     src/c_orm_api.c
+    src/c_orm_sqlite.c
 )
+set_target_properties(c-orm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+target_compile_options(c-orm PRIVATE ${C_ORM_STRICT_OPTIONS})
 
 target_include_directories(c-orm PUBLIC include)
 
@@ -24,20 +28,17 @@ set(C_ORM_MYSQL "OFF" CACHE STRING "Enable MySQL driver (LINKED, DYNAMIC, OFF)")
 if(C_ORM_SQLITE STREQUAL "LINKED")
     find_package(unofficial-sqlite3 CONFIG QUIET)
     if(TARGET unofficial::sqlite3::sqlite3)
-        target_compile_definitions(c-orm PUBLIC C_ORM_SQLITE_LINKED)
-        target_sources(c-orm PRIVATE src/c_orm_sqlite.c)
+        target_compile_definitions(c-orm PUBLIC C_ORM_SQLITE_LINKED C_ORM_ENABLE_SQLITE)
         target_link_libraries(c-orm PRIVATE unofficial::sqlite3::sqlite3)
     else()
         find_package(SQLite3 QUIET)
         if(SQLite3_FOUND)
-            target_compile_definitions(c-orm PUBLIC C_ORM_SQLITE_LINKED)
-            target_sources(c-orm PRIVATE src/c_orm_sqlite.c)
+            target_compile_definitions(c-orm PUBLIC C_ORM_SQLITE_LINKED C_ORM_ENABLE_SQLITE)
             target_link_libraries(c-orm PRIVATE SQLite::SQLite3)
         endif()
     endif()
 elseif(C_ORM_SQLITE STREQUAL "DYNAMIC")
-    target_compile_definitions(c-orm PUBLIC C_ORM_SQLITE_DYNAMIC)
-    target_sources(c-orm PRIVATE src/c_orm_sqlite.c)
+    target_compile_definitions(c-orm PUBLIC C_ORM_SQLITE_DYNAMIC C_ORM_ENABLE_SQLITE)
     if(NOT WIN32)
         target_link_libraries(c-orm PRIVATE ${CMAKE_DL_LIBS})
     endif()

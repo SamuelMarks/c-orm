@@ -5,7 +5,6 @@
 
 /* clang-format off */
 #include "c_orm_query_builder.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -53,13 +52,15 @@ void c_orm_select_builder_free(c_orm_select_builder_t *builder) {
 
 int c_orm_select_builder_compile(c_orm_select_builder_t *builder,
                                  char **out_sql) {
-  if (!builder || !out_sql)
+  const char *sql_str;
+  if (!builder || !out_sql ||
+      c_orm_string_builder_get(builder->sb, &sql_str) != 0)
     return 1;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-  *out_sql = _strdup(c_orm_string_builder_get(builder->sb));
+  *out_sql = _strdup(sql_str);
 #else
-  *out_sql = strdup(c_orm_string_builder_get(builder->sb));
+  *out_sql = strdup(sql_str);
 #endif
   return *out_sql ? 0 : 1;
 }
@@ -160,7 +161,7 @@ int c_orm_select_limit(c_orm_select_builder_t *builder, size_t limit) {
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
   sprintf_s(buf, sizeof(buf), " LIMIT %I64u", (unsigned long long)limit);
 #else
-  sprintf(buf, " LIMIT %zu", limit);
+  sprintf(buf, " LIMIT %lu", (unsigned long)limit);
 #endif
   c_orm_string_builder_append(builder->sb, buf);
   return 0;
@@ -174,7 +175,7 @@ int c_orm_select_offset(c_orm_select_builder_t *builder, size_t offset) {
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
   sprintf_s(buf, sizeof(buf), " OFFSET %I64u", (unsigned long long)offset);
 #else
-  sprintf(buf, " OFFSET %zu", offset);
+  sprintf(buf, " OFFSET %lu", (unsigned long)offset);
 #endif
   c_orm_string_builder_append(builder->sb, buf);
   return 0;
@@ -278,13 +279,15 @@ int c_orm_update_where_eq(c_orm_update_builder_t *builder, const char *column) {
 
 int c_orm_update_builder_compile(c_orm_update_builder_t *builder,
                                  char **out_sql) {
-  if (!builder || !out_sql)
+  const char *sql_str;
+  if (!builder || !out_sql ||
+      c_orm_string_builder_get(builder->sb, &sql_str) != 0)
     return 1;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-  *out_sql = _strdup(c_orm_string_builder_get(builder->sb));
+  *out_sql = _strdup(sql_str);
 #else
-  *out_sql = strdup(c_orm_string_builder_get(builder->sb));
+  *out_sql = strdup(sql_str);
 #endif
   return *out_sql ? 0 : 1;
 }

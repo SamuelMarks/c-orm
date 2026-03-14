@@ -6,7 +6,6 @@
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_query_builder.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

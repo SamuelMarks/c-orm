@@ -5,12 +5,13 @@
 
 #ifndef C_ORM_SQLITE_H
 #define C_ORM_SQLITE_H
+/* clang-format off */
+#include "c_orm_db.h"
+/* clang-format on */
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-
-#include "c_orm_db.h"
 
 /**
  * @brief Create a new SQLite database connection.
@@ -24,10 +25,10 @@ c_orm_error_t c_orm_sqlite_connect(const char *url, c_orm_db_t **out_db);
 /**
  * @brief Initialize SQLite backend implicitly. Gets vtable.
  */
-const c_orm_driver_vtable_t *c_orm_sqlite_get_vtable(void);
+int c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable);
+
+#endif /* C_ORM_SQLITE_H */
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#endif /* C_ORM_SQLITE_H */
