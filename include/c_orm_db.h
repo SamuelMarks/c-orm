@@ -109,8 +109,8 @@ struct c_orm_db {
  */
 void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb, void *user_data);
 
-#endif /* C_ORM_DB_H */
-
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* C_ORM_DB_H */

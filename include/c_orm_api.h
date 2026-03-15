@@ -85,8 +85,8 @@ c_orm_error_t c_orm_begin(c_orm_db_t *db);
 c_orm_error_t c_orm_commit(c_orm_db_t *db);
 c_orm_error_t c_orm_rollback(c_orm_db_t *db);
 
-#endif /* C_ORM_API_H */
-
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* C_ORM_API_H */

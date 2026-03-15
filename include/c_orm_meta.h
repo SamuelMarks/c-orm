@@ -68,8 +68,8 @@ typedef struct {
   const char *query_delete_by_pk;
 } c_orm_table_meta_t;
 
-#endif /* C_ORM_META_H */
-
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* C_ORM_META_H */

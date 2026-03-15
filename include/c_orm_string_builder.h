@@ -61,8 +61,8 @@ int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
 int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
                              size_t *out_len);
 
-#endif /* C_ORM_STRING_BUILDER_H */
-
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* C_ORM_STRING_BUILDER_H */

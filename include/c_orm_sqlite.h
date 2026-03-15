@@ -27,8 +27,8 @@ c_orm_error_t c_orm_sqlite_connect(const char *url, c_orm_db_t **out_db);
  */
 int c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable);
 
-#endif /* C_ORM_SQLITE_H */
-
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* C_ORM_SQLITE_H */

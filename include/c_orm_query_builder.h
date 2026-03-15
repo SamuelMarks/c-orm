@@ -128,8 +128,8 @@ int c_orm_update_where_eq(c_orm_update_builder_t *builder, const char *column);
 int c_orm_update_builder_compile(c_orm_update_builder_t *builder,
                                  char **out_sql);
 
-#endif /* C_ORM_QUERY_BUILDER_H */
-
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* C_ORM_QUERY_BUILDER_H */
