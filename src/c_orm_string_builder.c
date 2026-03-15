@@ -73,8 +73,7 @@ int c_orm_string_builder_append(c_orm_string_builder_t *builder,
     builder->capacity = new_capacity;
   }
 
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
-    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
+#if defined(_MSC_VER)
   strcpy_s(builder->buffer + builder->length,
            builder->capacity - builder->length, str);
 #else

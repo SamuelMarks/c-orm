@@ -111,14 +111,21 @@ static c_orm_error_t hydrate_row(c_orm_db_t *db, c_orm_query_t *query,
       err = db->vtable->get_string(query, (int)i, &val);
       if (err != C_ORM_OK)
         return err;
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
-    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-      *(char **)field_ptr = _strdup(val);
+      if (val) {
+        size_t len = strlen(val);
+        *(char **)field_ptr = (char *)malloc(len + 1);
+        if (*(char **)field_ptr) {
+#if defined(_MSC_VER)
+          strcpy_s(*(char **)field_ptr, len + 1, val);
 #else
-      *(char **)field_ptr = strdup(val);
+          strcpy(*(char **)field_ptr, val);
 #endif
-      if (!*(char **)field_ptr)
-        return C_ORM_ERROR_MEMORY;
+        }
+        if (!*(char **)field_ptr)
+          return C_ORM_ERROR_MEMORY;
+      } else {
+        *(char **)field_ptr = NULL;
+      }
       break;
     }
     default:

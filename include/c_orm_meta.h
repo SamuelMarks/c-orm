@@ -22,8 +22,7 @@ typedef unsigned char bool;
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
-
+#endif
 /**
  * @brief Data types supported by c-orm.
  */
@@ -71,5 +70,4 @@ typedef struct {
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_ORM_META_H */

@@ -56,12 +56,19 @@ int c_orm_select_builder_compile(c_orm_select_builder_t *builder,
   if (!builder || !out_sql ||
       c_orm_string_builder_get(builder->sb, &sql_str) != 0)
     return 1;
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
-    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-  *out_sql = _strdup(sql_str);
+  if (sql_str) {
+    size_t len = strlen(sql_str);
+    *out_sql = (char *)malloc(len + 1);
+    if (*out_sql) {
+#if defined(_MSC_VER)
+      strcpy_s(*out_sql, len + 1, sql_str);
 #else
-  *out_sql = strdup(sql_str);
+      strcpy(*out_sql, sql_str);
 #endif
+    }
+  } else {
+    *out_sql = NULL;
+  }
   return *out_sql ? 0 : 1;
 }
 
@@ -157,8 +164,7 @@ int c_orm_select_limit(c_orm_select_builder_t *builder, size_t limit) {
   char buf[32];
   if (!builder)
     return 1;
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
-    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
+#if defined(_MSC_VER)
   sprintf_s(buf, sizeof(buf), " LIMIT %I64u", (unsigned long long)limit);
 #else
   sprintf(buf, " LIMIT %lu", (unsigned long)limit);
@@ -171,8 +177,7 @@ int c_orm_select_offset(c_orm_select_builder_t *builder, size_t offset) {
   char buf[32];
   if (!builder)
     return 1;
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
-    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
+#if defined(_MSC_VER)
   sprintf_s(buf, sizeof(buf), " OFFSET %I64u", (unsigned long long)offset);
 #else
   sprintf(buf, " OFFSET %lu", (unsigned long)offset);
@@ -283,11 +288,18 @@ int c_orm_update_builder_compile(c_orm_update_builder_t *builder,
   if (!builder || !out_sql ||
       c_orm_string_builder_get(builder->sb, &sql_str) != 0)
     return 1;
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
-    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-  *out_sql = _strdup(sql_str);
+  if (sql_str) {
+    size_t len = strlen(sql_str);
+    *out_sql = (char *)malloc(len + 1);
+    if (*out_sql) {
+#if defined(_MSC_VER)
+      strcpy_s(*out_sql, len + 1, sql_str);
 #else
-  *out_sql = strdup(sql_str);
+      strcpy(*out_sql, sql_str);
 #endif
+    }
+  } else {
+    *out_sql = NULL;
+  }
   return *out_sql ? 0 : 1;
 }

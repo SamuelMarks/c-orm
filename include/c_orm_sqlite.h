@@ -11,8 +11,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
-
+#endif
 /**
  * @brief Create a new SQLite database connection.
  *
@@ -30,5 +29,4 @@ int c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_ORM_SQLITE_H */

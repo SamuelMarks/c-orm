@@ -23,8 +23,7 @@ typedef unsigned __int64 uint64_t;
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
-
+#endif
 /**
  * @brief Opaque database connection handle.
  */
@@ -112,5 +111,4 @@ void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb, void *user_data);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_ORM_DB_H */

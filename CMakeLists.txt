@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION 3.10)
+
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
+
 project(c-orm VERSION 0.1.0 LANGUAGES C)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # Strict warnings
 if(MSVC)
@@ -43,7 +52,14 @@ if(C_ORM_SQLITE STREQUAL "LINKED")
             )
             FetchContent_GetProperties(sqlite3)
             if(NOT sqlite3_POPULATED)
+                if(POLICY CMP0169)
+                    cmake_policy(PUSH)
+                    cmake_policy(SET CMP0169 OLD)
+                endif()
                 FetchContent_Populate(sqlite3)
+                if(POLICY CMP0169)
+                    cmake_policy(POP)
+                endif()
                 add_library(sqlite3 STATIC ${sqlite3_SOURCE_DIR}/sqlite3.c)
                 target_include_directories(sqlite3 PUBLIC ${sqlite3_SOURCE_DIR})
             endif()

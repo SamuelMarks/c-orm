@@ -12,8 +12,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
-
+#endif
 /**
  * @brief Find a single record by its primary key.
  *
@@ -88,5 +87,4 @@ c_orm_error_t c_orm_rollback(c_orm_db_t *db);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_ORM_API_H */

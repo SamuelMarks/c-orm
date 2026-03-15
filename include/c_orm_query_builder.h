@@ -12,8 +12,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
-
+#endif
 /**
  * @brief Opaque select builder handle.
  */
@@ -131,5 +130,4 @@ int c_orm_update_builder_compile(c_orm_update_builder_t *builder,
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_ORM_QUERY_BUILDER_H */

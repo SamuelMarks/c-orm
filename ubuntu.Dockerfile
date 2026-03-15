@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
     valgrind \
     gdb \
     ninja-build \
+    zip \
+    unzip \
+    tar \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
