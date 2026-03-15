@@ -165,9 +165,10 @@ int c_orm_select_limit(c_orm_select_builder_t *builder, size_t limit) {
   if (!builder)
     return 1;
 #if defined(_MSC_VER)
-  sprintf_s(buf, sizeof(buf), " LIMIT %I64u", (unsigned long long)limit);
+  sprintf_s(buf, sizeof(buf), " LIMIT " C_ORM_FMT_SIZE_T,
+            C_ORM_CAST_SIZE_T(limit));
 #else
-  sprintf(buf, " LIMIT %lu", (unsigned long)limit);
+  sprintf(buf, " LIMIT " C_ORM_FMT_SIZE_T, C_ORM_CAST_SIZE_T(limit));
 #endif
   c_orm_string_builder_append(builder->sb, buf);
   return 0;
@@ -178,9 +179,10 @@ int c_orm_select_offset(c_orm_select_builder_t *builder, size_t offset) {
   if (!builder)
     return 1;
 #if defined(_MSC_VER)
-  sprintf_s(buf, sizeof(buf), " OFFSET %I64u", (unsigned long long)offset);
+  sprintf_s(buf, sizeof(buf), " OFFSET " C_ORM_FMT_SIZE_T,
+            C_ORM_CAST_SIZE_T(offset));
 #else
-  sprintf(buf, " OFFSET %lu", (unsigned long)offset);
+  sprintf(buf, " OFFSET " C_ORM_FMT_SIZE_T, C_ORM_CAST_SIZE_T(offset));
 #endif
   c_orm_string_builder_append(builder->sb, buf);
   return 0;

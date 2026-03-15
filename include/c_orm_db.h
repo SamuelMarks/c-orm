@@ -19,6 +19,14 @@ typedef unsigned __int32 uint32_t;
 typedef signed __int64 int64_t;
 typedef unsigned __int64 uint64_t;
 #endif
+
+#if defined(_MSC_VER)
+#define C_ORM_FMT_SIZE_T "%I64u"
+#define C_ORM_CAST_SIZE_T(x) ((unsigned __int64)(x))
+#else
+#define C_ORM_FMT_SIZE_T "%lu"
+#define C_ORM_CAST_SIZE_T(x) ((unsigned long)(x))
+#endif
 /* clang-format on */
 
 #ifdef __cplusplus
