@@ -84,6 +84,18 @@ int c_orm_select_where_lte(c_orm_select_builder_t *builder, const char *column);
 int c_orm_select_where_gte(c_orm_select_builder_t *builder, const char *column);
 
 /**
+ * @brief Add WHERE column > CURRENT_TIMESTAMP
+ */
+int c_orm_select_where_gt_current_timestamp(c_orm_select_builder_t *builder,
+                                            const char *column);
+
+/**
+ * @brief Add WHERE column < CURRENT_TIMESTAMP
+ */
+int c_orm_select_where_lt_current_timestamp(c_orm_select_builder_t *builder,
+                                            const char *column);
+
+/**
  * @brief Add WHERE column LIKE ?
  */
 int c_orm_select_where_like(c_orm_select_builder_t *builder,

@@ -13,6 +13,7 @@ set(C_CDD_BUILD_TESTING OFF CACHE BOOL "Disable cdd-c tests" FORCE)
 FetchContent_Declare(
   cdd_c
   URL https://github.com/SamuelMarks/cdd-c/archive/refs/heads/master.zip
+  PATCH_COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/patch_cdd_c.cmake
 )
 FetchContent_MakeAvailable(cdd_c)
 

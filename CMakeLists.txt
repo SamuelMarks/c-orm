@@ -23,6 +23,8 @@ add_library(c-orm
     src/c_orm_query_builder.c
     src/c_orm_api.c
     src/c_orm_sqlite.c
+    src/c_orm_postgres.c
+    src/c_orm_mysql.c
 )
 set_target_properties(c-orm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
@@ -75,7 +77,10 @@ elseif(C_ORM_SQLITE STREQUAL "DYNAMIC")
 endif()
 
 if(C_ORM_POSTGRESQL STREQUAL "LINKED")
-    target_compile_definitions(c-orm PUBLIC C_ORM_POSTGRESQL_LINKED)
+    find_package(PostgreSQL REQUIRED)
+    target_compile_definitions(c-orm PUBLIC C_ORM_POSTGRESQL_LINKED C_ORM_ENABLE_POSTGRESQL)
+    target_include_directories(c-orm PRIVATE ${PostgreSQL_INCLUDE_DIRS})
+    target_link_libraries(c-orm PRIVATE PostgreSQL::PostgreSQL)
 elseif(C_ORM_POSTGRESQL STREQUAL "DYNAMIC")
     target_compile_definitions(c-orm PUBLIC C_ORM_POSTGRESQL_DYNAMIC)
     if(NOT WIN32)
@@ -84,7 +89,9 @@ elseif(C_ORM_POSTGRESQL STREQUAL "DYNAMIC")
 endif()
 
 if(C_ORM_MYSQL STREQUAL "LINKED")
-    target_compile_definitions(c-orm PUBLIC C_ORM_MYSQL_LINKED)
+    find_package(unofficial-libmariadb CONFIG REQUIRED)
+    target_compile_definitions(c-orm PUBLIC C_ORM_MYSQL_LINKED C_ORM_ENABLE_MYSQL)
+    target_link_libraries(c-orm PRIVATE unofficial::libmariadb)
 elseif(C_ORM_MYSQL STREQUAL "DYNAMIC")
     target_compile_definitions(c-orm PUBLIC C_ORM_MYSQL_DYNAMIC)
     if(NOT WIN32)

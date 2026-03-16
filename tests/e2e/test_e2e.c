@@ -5,6 +5,8 @@
 
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
+#include "c_orm_postgres.h"
+#include "c_orm_mysql.h"
 #include "greatest.h"
 
 /* The generated models */
@@ -114,12 +116,115 @@ TEST test_e2e_fetch_all(void) {
   PASS();
 }
 
+TEST test_e2e_transactions(void) {
+  c_orm_error_t err;
+  err = c_orm_begin(db);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  err = c_orm_commit(db);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  err = c_orm_begin(db);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  err = c_orm_rollback(db);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  PASS();
+}
+
+#include "c_orm_query_builder.h"
+
+TEST test_query_builder_extensions(void) {
+  c_orm_select_builder_t *b;
+  char *sql = NULL;
+
+  ASSERT_EQ(0, c_orm_select_builder_init(&Users_meta, &b));
+
+  ASSERT_EQ(0, c_orm_select_where_gt_current_timestamp(b, "expires_at"));
+  ASSERT_EQ(0, c_orm_select_where_lt_current_timestamp(b, "created_at"));
+  ASSERT_EQ(0, c_orm_select_limit(b, 10));
+  ASSERT_EQ(0, c_orm_select_offset(b, 5));
+
+  ASSERT_EQ(0, c_orm_select_builder_compile(b, &sql));
+
+  ASSERT_STR_EQ("SELECT * FROM users WHERE expires_at > CURRENT_TIMESTAMP AND "
+                "created_at < CURRENT_TIMESTAMP LIMIT 10 OFFSET 5",
+                sql);
+
+  free(sql);
+  c_orm_select_builder_free(b);
+  PASS();
+}
+
+TEST test_postgres_stub(void) {
+  const c_orm_driver_vtable_t *vtable;
+  c_orm_db_t *pdb;
+  int res = c_orm_postgres_get_vtable(&vtable);
+#ifdef C_ORM_ENABLE_POSTGRESQL
+  ASSERT_EQ(0, res);
+  ASSERT_NEQ(NULL, vtable);
+
+  /* Coverage for null arg check if there is one */
+  res = c_orm_postgres_get_vtable(NULL);
+  ASSERT_EQ(1, res);
+
+  /* It should fail to connect with an invalid URL */
+  ASSERT_EQ(C_ORM_ERROR_CONNECTION,
+            c_orm_postgres_connect("invalid_url", &pdb));
+#else
+  ASSERT_EQ(1, res);
+  ASSERT_EQ(NULL, vtable);
+
+  /* Coverage for null arg check if there is one */
+  res = c_orm_postgres_get_vtable(NULL);
+  ASSERT_EQ(1, res);
+
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, c_orm_postgres_connect("...", &pdb));
+#endif
+  PASS();
+}
+
+TEST test_mysql_stub(void) {
+  const c_orm_driver_vtable_t *vtable;
+  c_orm_db_t *mdb;
+  int res = c_orm_mysql_get_vtable(&vtable);
+#ifdef C_ORM_ENABLE_MYSQL
+  ASSERT_EQ(0, res);
+  ASSERT_NEQ(NULL, vtable);
+
+  /* Coverage for null arg check if there is one */
+  res = c_orm_mysql_get_vtable(NULL);
+  ASSERT_EQ(1, res);
+
+  /* Depending on system, connecting to 127.0.0.1 might succeed or fail. It
+   * might return an error. */
+  c_orm_mysql_connect(
+      "invalid_url",
+      &mdb); /* Call it for coverage, don't strictly assert connection state */
+#else
+  ASSERT_EQ(1, res);
+  ASSERT_EQ(NULL, vtable);
+
+  /* Coverage for null arg check if there is one */
+  res = c_orm_mysql_get_vtable(NULL);
+  ASSERT_EQ(1, res);
+
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, c_orm_mysql_connect("...", &mdb));
+#endif
+  PASS();
+}
+
 SUITE(e2e_suite) {
   RUN_TEST(test_e2e_connect);
   RUN_TEST(test_e2e_generate_schema);
   RUN_TEST(test_e2e_insert_user);
   RUN_TEST(test_e2e_fetch_user);
   RUN_TEST(test_e2e_fetch_all);
+  RUN_TEST(test_e2e_transactions);
+  RUN_TEST(test_query_builder_extensions);
+  RUN_TEST(test_postgres_stub);
+  RUN_TEST(test_mysql_stub);
 }
 
 GREATEST_MAIN_DEFS();
