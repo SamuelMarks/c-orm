@@ -116,6 +116,27 @@ TEST test_e2e_fetch_all(void) {
   PASS();
 }
 
+TEST test_e2e_hydrate_all_direct(void) {
+  struct Users_Array arr;
+  c_orm_query_t *query;
+  c_orm_error_t err;
+
+  err = db->vtable->prepare(db, "SELECT * FROM users", &query);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  memset(&arr, 0, sizeof(arr));
+  err = c_orm_hydrate_all(db, query, &Users_meta, &arr);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  ASSERT_EQ(1, arr.length);
+  ASSERT_STR_EQ("smarks", arr.data[0].username);
+
+  Users_Array_free(&arr);
+  db->vtable->finalize(query);
+
+  PASS();
+}
+
 TEST test_e2e_transactions(void) {
   c_orm_error_t err;
   err = c_orm_begin(db);
@@ -133,6 +154,7 @@ TEST test_e2e_transactions(void) {
   PASS();
 }
 
+#include "c_orm_oauth2.h"
 #include "c_orm_query_builder.h"
 
 TEST test_query_builder_extensions(void) {
@@ -215,16 +237,114 @@ TEST test_mysql_stub(void) {
   PASS();
 }
 
+TEST test_e2e_string_pk_and_oauth2(void) {
+  struct Oauth2_tokens token;
+  struct Oauth2_tokens fetched;
+  c_orm_error_t err;
+  int32_t expires_in = 3600;
+  int64_t created_at = 1600000000;
+
+  err = c_orm_execute_raw(db, "CREATE TABLE oauth2_tokens ("
+                              "access_token VARCHAR(255) PRIMARY KEY,"
+                              "refresh_token VARCHAR(255),"
+                              "token_type VARCHAR(50),"
+                              "expires_in INT,"
+                              "created_at BIGINT"
+                              ");");
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  memset(&token, 0, sizeof(token));
+  token.access_token = "atk_12345";
+  token.refresh_token = "rtk_09876";
+  token.token_type = "Bearer";
+  token.expires_in = &expires_in;
+  token.created_at = &created_at;
+
+  err = c_orm_insert(db, &Oauth2_tokens_meta, &token);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  memset(&fetched, 0, sizeof(fetched));
+  err = c_orm_find_by_id_string(db, &Oauth2_tokens_meta, "atk_12345", &fetched);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_STR_EQ("atk_12345", fetched.access_token);
+  ASSERT_STR_EQ("rtk_09876", fetched.refresh_token);
+  ASSERT(fetched.expires_in != NULL);
+  ASSERT_EQ(3600, *fetched.expires_in);
+
+  Oauth2_tokens_free(&fetched);
+
+  err = c_orm_delete_by_id_string(db, &Oauth2_tokens_meta, "atk_12345");
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  memset(&fetched, 0, sizeof(fetched));
+  err = c_orm_find_by_id_string(db, &Oauth2_tokens_meta, "atk_12345", &fetched);
+  ASSERT_EQ_FMT(C_ORM_ERROR_NOT_FOUND, err, "%d");
+
+  PASS();
+}
+
+TEST test_e2e_find_one_by_string(void) {
+  struct Users u;
+  c_orm_error_t err;
+
+  memset(&u, 0, sizeof(u));
+  err = c_orm_find_one_by_string(db, &Users_meta, "username", "smarks", &u);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  ASSERT_STR_EQ("smarks", u.username);
+  Users_free(&u);
+
+  memset(&u, 0, sizeof(u));
+  err = c_orm_find_one_by_string(db, &Users_meta, "email",
+                                 "notfound@example.com", &u);
+  ASSERT_EQ_FMT(C_ORM_ERROR_NOT_FOUND, err, "%d");
+
+  PASS();
+}
+
+TEST test_e2e_oauth2_helpers(void) {
+  c_orm_oauth2_token_t tok;
+  int is_valid;
+  c_orm_error_t err;
+  char *encrypted = NULL;
+  char *decrypted = NULL;
+
+  memset(&tok, 0, sizeof(tok));
+  tok.access_token = "abc";
+  tok.expires_in = 3600;
+  tok.created_at = 1000000000;
+
+  err = c_orm_oauth2_is_token_valid(&tok, 1000001000, &is_valid);
+  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT_EQ(1, is_valid);
+
+  err = c_orm_oauth2_is_token_valid(&tok, 1000004000, &is_valid);
+  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT_EQ(0, is_valid);
+
+  err = c_orm_oauth2_encrypt_token("plain", &encrypted);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+
+  err = c_orm_oauth2_decrypt_token("enc", &decrypted);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+
+  PASS();
+}
+
 SUITE(e2e_suite) {
   RUN_TEST(test_e2e_connect);
   RUN_TEST(test_e2e_generate_schema);
   RUN_TEST(test_e2e_insert_user);
   RUN_TEST(test_e2e_fetch_user);
   RUN_TEST(test_e2e_fetch_all);
+  RUN_TEST(test_e2e_hydrate_all_direct);
   RUN_TEST(test_e2e_transactions);
   RUN_TEST(test_query_builder_extensions);
   RUN_TEST(test_postgres_stub);
   RUN_TEST(test_mysql_stub);
+  RUN_TEST(test_e2e_string_pk_and_oauth2);
+  RUN_TEST(test_e2e_find_one_by_string);
+  RUN_TEST(test_e2e_oauth2_helpers);
 }
 
 GREATEST_MAIN_DEFS();

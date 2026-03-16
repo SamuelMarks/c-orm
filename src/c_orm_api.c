@@ -188,9 +188,9 @@ struct Generic_Array {
   size_t capacity;
 };
 
-c_orm_error_t c_orm_find_all(c_orm_db_t *db, const c_orm_table_meta_t *meta,
-                             void *out_array) {
-  c_orm_query_t *query;
+c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db, c_orm_query_t *query,
+                                const c_orm_table_meta_t *meta,
+                                void *out_array) {
   c_orm_error_t err;
   int has_row;
   struct Generic_Array *arr = (struct Generic_Array *)out_array;
@@ -198,17 +198,12 @@ c_orm_error_t c_orm_find_all(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   size_t cap = arr->capacity;
   void *data = arr->data;
 
-  if (!db || !meta || !out_array)
+  if (!db || !query || !meta || !out_array)
     return C_ORM_ERROR_MEMORY;
-
-  err = db->vtable->prepare(db, meta->query_select_all, &query);
-  if (err != C_ORM_OK)
-    return err;
 
   for (;;) {
     err = db->vtable->step(query, &has_row);
     if (err != C_ORM_OK) {
-      db->vtable->finalize(query);
       return err;
     }
     if (!has_row)
@@ -218,7 +213,6 @@ c_orm_error_t c_orm_find_all(c_orm_db_t *db, const c_orm_table_meta_t *meta,
       size_t new_cap = cap == 0 ? 16 : cap * 2;
       void *new_data = realloc(data, new_cap * meta->struct_size);
       if (!new_data) {
-        db->vtable->finalize(query);
         return C_ORM_ERROR_MEMORY;
       }
       data = new_data;
@@ -229,7 +223,6 @@ c_orm_error_t c_orm_find_all(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     err = hydrate_row(db, query, meta,
                       (char *)data + (count * meta->struct_size));
     if (err != C_ORM_OK) {
-      db->vtable->finalize(query);
       return err;
     }
     count++;
@@ -239,8 +232,25 @@ c_orm_error_t c_orm_find_all(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   arr->capacity = cap;
   arr->length = count;
 
-  db->vtable->finalize(query);
   return C_ORM_OK;
+}
+
+c_orm_error_t c_orm_find_all(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                             void *out_array) {
+  c_orm_query_t *query;
+  c_orm_error_t err;
+
+  if (!db || !meta || !out_array)
+    return C_ORM_ERROR_MEMORY;
+
+  err = db->vtable->prepare(db, meta->query_select_all, &query);
+  if (err != C_ORM_OK)
+    return err;
+
+  err = c_orm_hydrate_all(db, query, meta, out_array);
+
+  db->vtable->finalize(query);
+  return err;
 }
 
 static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
@@ -442,4 +452,131 @@ c_orm_error_t c_orm_commit(c_orm_db_t *db) {
 
 c_orm_error_t c_orm_rollback(c_orm_db_t *db) {
   return c_orm_execute_raw(db, "ROLLBACK");
+}
+
+c_orm_error_t c_orm_find_by_id_string(c_orm_db_t *db,
+                                      const c_orm_table_meta_t *meta,
+                                      const char *id_val, void *out_struct) {
+  c_orm_query_t *query;
+  c_orm_error_t err;
+  int has_row;
+
+  if (!db || !meta || !id_val || !out_struct)
+    return C_ORM_ERROR_MEMORY;
+
+  if (!meta->query_select_by_pk) {
+    return C_ORM_ERROR_NOT_IMPLEMENTED;
+  }
+
+  err = db->vtable->prepare(db, meta->query_select_by_pk, &query);
+  if (err != C_ORM_OK)
+    return err;
+
+  err = db->vtable->bind_string(query, 1, id_val);
+  if (err != C_ORM_OK) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  err = db->vtable->step(query, &has_row);
+  if (err != C_ORM_OK) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  if (!has_row) {
+    db->vtable->finalize(query);
+    return C_ORM_ERROR_NOT_FOUND;
+  }
+
+  err = hydrate_row(db, query, meta, out_struct);
+  db->vtable->finalize(query);
+  return err;
+}
+
+c_orm_error_t c_orm_delete_by_id_string(c_orm_db_t *db,
+                                        const c_orm_table_meta_t *meta,
+                                        const char *id_val) {
+  c_orm_query_t *query;
+  c_orm_error_t err;
+  int has_row;
+
+  if (!db || !meta || !id_val)
+    return C_ORM_ERROR_MEMORY;
+  if (!meta->query_delete_by_pk)
+    return C_ORM_ERROR_NOT_IMPLEMENTED;
+
+  err = db->vtable->prepare(db, meta->query_delete_by_pk, &query);
+  if (err != C_ORM_OK)
+    return err;
+
+  err = db->vtable->bind_string(query, 1, id_val);
+  if (err != C_ORM_OK) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  err = db->vtable->step(query, &has_row);
+  db->vtable->finalize(query);
+  return err;
+}
+
+c_orm_error_t c_orm_find_one_by_string(c_orm_db_t *db,
+                                       const c_orm_table_meta_t *meta,
+                                       const char *column_name,
+                                       const char *value, void *out_struct) {
+  c_orm_select_builder_t *builder;
+  char *sql;
+  c_orm_query_t *query;
+  c_orm_error_t err;
+  int has_row;
+
+  if (!db || !meta || !column_name || !value || !out_struct)
+    return C_ORM_ERROR_MEMORY;
+
+  if (c_orm_select_builder_init(meta, &builder) != 0) {
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  if (c_orm_select_where_eq(builder, column_name) != 0) {
+    c_orm_select_builder_free(builder);
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  if (c_orm_select_limit(builder, 1) != 0) {
+    c_orm_select_builder_free(builder);
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  if (c_orm_select_builder_compile(builder, &sql) != 0) {
+    c_orm_select_builder_free(builder);
+    return C_ORM_ERROR_MEMORY;
+  }
+  c_orm_select_builder_free(builder);
+
+  err = db->vtable->prepare(db, sql, &query);
+  free(sql);
+  if (err != C_ORM_OK)
+    return err;
+
+  err = db->vtable->bind_string(query, 1, value);
+  if (err != C_ORM_OK) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  err = db->vtable->step(query, &has_row);
+  if (err != C_ORM_OK) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  if (!has_row) {
+    db->vtable->finalize(query);
+    return C_ORM_ERROR_NOT_FOUND;
+  }
+
+  err = hydrate_row(db, query, meta, out_struct);
+  db->vtable->finalize(query);
+  return err;
 }

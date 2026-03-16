@@ -18,3 +18,11 @@ CREATE TABLE posts (
     published_date DATE,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+CREATE TABLE oauth2_tokens (
+    access_token VARCHAR(255) PRIMARY KEY,
+    refresh_token VARCHAR(255),
+    token_type VARCHAR(50),
+    expires_in INT,
+    created_at BIGINT
+);

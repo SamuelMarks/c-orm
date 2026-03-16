@@ -25,6 +25,7 @@ add_library(c-orm
     src/c_orm_sqlite.c
     src/c_orm_postgres.c
     src/c_orm_mysql.c
+    src/c_orm_oauth2.c
 )
 set_target_properties(c-orm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
