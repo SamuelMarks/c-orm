@@ -103,6 +103,34 @@ c_orm_error_t c_orm_oauth2_decrypt_token(const char *encrypted_token,
  */
 c_orm_error_t c_orm_store_token_secure(const c_orm_oauth2_token_t *token);
 
+/**
+ * @brief Get the current UNIX timestamp in seconds.
+ *
+ * @param out_timestamp Pointer to receive the 64-bit timestamp.
+ * @return C_ORM_OK on success.
+ */
+c_orm_error_t c_orm_oauth2_get_current_timestamp(int64_t *out_timestamp);
+
+/**
+ * @brief Calculate the expiration timestamp given current time and lifetime.
+ *
+ * @param current_timestamp The start time.
+ * @param expires_in The number of seconds until expiration.
+ * @param out_expiration Pointer to receive the calculated timestamp.
+ * @return C_ORM_OK on success.
+ */
+c_orm_error_t c_orm_oauth2_calculate_expiration(int64_t current_timestamp,
+                                                int32_t expires_in,
+                                                int64_t *out_expiration);
+
+/**
+ * @brief Generate dialect-specific CREATE TABLE statements for OAuth2 models.
+ *
+ * @param db Database connection.
+ * @return C_ORM_OK on success.
+ */
+c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

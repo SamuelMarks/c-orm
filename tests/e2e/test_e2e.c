@@ -139,16 +139,16 @@ TEST test_e2e_hydrate_all_direct(void) {
 
 TEST test_e2e_transactions(void) {
   c_orm_error_t err;
-  err = c_orm_begin(db);
+  err = c_orm_transaction_begin(db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  err = c_orm_commit(db);
+  err = c_orm_transaction_commit(db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  err = c_orm_begin(db);
+  err = c_orm_transaction_begin(db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  err = c_orm_rollback(db);
+  err = c_orm_transaction_rollback(db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   PASS();
@@ -308,6 +308,7 @@ TEST test_e2e_oauth2_helpers(void) {
   c_orm_error_t err;
   char *encrypted = NULL;
   char *decrypted = NULL;
+  int64_t t1, t2;
 
   memset(&tok, 0, sizeof(tok));
   tok.access_token = "abc";
@@ -323,10 +324,27 @@ TEST test_e2e_oauth2_helpers(void) {
   ASSERT_EQ(0, is_valid);
 
   err = c_orm_oauth2_encrypt_token("plain", &encrypted);
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT(encrypted != NULL);
 
-  err = c_orm_oauth2_decrypt_token("enc", &decrypted);
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  err = c_orm_oauth2_decrypt_token(encrypted, &decrypted);
+  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT(decrypted != NULL);
+  ASSERT_STR_EQ("plain", decrypted);
+
+  free(encrypted);
+  free(decrypted);
+
+  err = c_orm_oauth2_get_current_timestamp(&t1);
+  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT(t1 > 0);
+
+  err = c_orm_oauth2_calculate_expiration(t1, 3600, &t2);
+  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT_EQ(t1 + 3600, t2);
+
+  err = c_orm_store_token_secure(&tok);
+  ASSERT_EQ(C_ORM_OK, err);
 
   PASS();
 }

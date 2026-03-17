@@ -480,15 +480,15 @@ c_orm_error_t c_orm_execute_raw(c_orm_db_t *db, const char *sql) {
   return err;
 }
 
-c_orm_error_t c_orm_begin(c_orm_db_t *db) {
-  return c_orm_execute_raw(db, "BEGIN TRANSACTION");
+c_orm_error_t c_orm_transaction_begin(c_orm_db_t *db) {
+  return c_orm_execute_raw(db, "BEGIN");
 }
 
-c_orm_error_t c_orm_commit(c_orm_db_t *db) {
+c_orm_error_t c_orm_transaction_commit(c_orm_db_t *db) {
   return c_orm_execute_raw(db, "COMMIT");
 }
 
-c_orm_error_t c_orm_rollback(c_orm_db_t *db) {
+c_orm_error_t c_orm_transaction_rollback(c_orm_db_t *db) {
   return c_orm_execute_raw(db, "ROLLBACK");
 }
 
