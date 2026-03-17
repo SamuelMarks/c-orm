@@ -513,27 +513,31 @@ static const c_orm_driver_vtable_t mysql_vtable = {
     mysql_drv_is_null,       mysql_drv_finalize,   mysql_drv_reset,
     mysql_drv_get_last_error};
 
-int c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
+C_ORM_EXPORT int
+c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   if (!out_vtable)
     return 1;
   *out_vtable = &mysql_vtable;
   return 0;
 }
 
-c_orm_error_t c_orm_mysql_connect(const char *url, c_orm_db_t **out_db) {
+C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
+                                               c_orm_db_t **out_db) {
   return mysql_drv_connect(url, out_db);
 }
 
 #else
 
 /* Stub out if MySQL is not enabled */
-int c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
+C_ORM_EXPORT int
+c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   if (out_vtable)
     *out_vtable = NULL;
   return 1;
 }
 
-c_orm_error_t c_orm_mysql_connect(const char *url, c_orm_db_t **out_db) {
+C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
+                                               c_orm_db_t **out_db) {
   (void)url;
   (void)out_db;
   return C_ORM_ERROR_NOT_IMPLEMENTED;

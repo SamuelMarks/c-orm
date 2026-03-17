@@ -17,8 +17,9 @@ struct c_orm_select_builder {
   int has_order;
 };
 
-int c_orm_select_builder_init(const c_orm_table_meta_t *meta,
-                              c_orm_select_builder_t **out_builder) {
+C_ORM_EXPORT int
+c_orm_select_builder_init(const c_orm_table_meta_t *meta,
+                          c_orm_select_builder_t **out_builder) {
   c_orm_select_builder_t *b;
   if (!meta || !out_builder)
     return 1;
@@ -43,15 +44,15 @@ int c_orm_select_builder_init(const c_orm_table_meta_t *meta,
   return 0;
 }
 
-void c_orm_select_builder_free(c_orm_select_builder_t *builder) {
+C_ORM_EXPORT void c_orm_select_builder_free(c_orm_select_builder_t *builder) {
   if (builder) {
     c_orm_string_builder_free(builder->sb);
     free(builder);
   }
 }
 
-int c_orm_select_builder_compile(c_orm_select_builder_t *builder,
-                                 char **out_sql) {
+C_ORM_EXPORT int c_orm_select_builder_compile(c_orm_select_builder_t *builder,
+                                              char **out_sql) {
   const char *sql_str;
   if (!builder || !out_sql ||
       c_orm_string_builder_get(builder->sb, &sql_str) != 0)
@@ -87,50 +88,55 @@ static int append_where(c_orm_select_builder_t *builder, const char *column,
   return 0;
 }
 
-int c_orm_select_where_eq(c_orm_select_builder_t *builder, const char *column) {
+C_ORM_EXPORT int c_orm_select_where_eq(c_orm_select_builder_t *builder,
+                                       const char *column) {
   return append_where(builder, column, " = ?");
 }
 
-int c_orm_select_where_neq(c_orm_select_builder_t *builder,
-                           const char *column) {
+C_ORM_EXPORT int c_orm_select_where_neq(c_orm_select_builder_t *builder,
+                                        const char *column) {
   return append_where(builder, column, " != ?");
 }
 
-int c_orm_select_where_lt(c_orm_select_builder_t *builder, const char *column) {
+C_ORM_EXPORT int c_orm_select_where_lt(c_orm_select_builder_t *builder,
+                                       const char *column) {
   return append_where(builder, column, " < ?");
 }
 
-int c_orm_select_where_gt(c_orm_select_builder_t *builder, const char *column) {
+C_ORM_EXPORT int c_orm_select_where_gt(c_orm_select_builder_t *builder,
+                                       const char *column) {
   return append_where(builder, column, " > ?");
 }
 
-int c_orm_select_where_lte(c_orm_select_builder_t *builder,
-                           const char *column) {
+C_ORM_EXPORT int c_orm_select_where_lte(c_orm_select_builder_t *builder,
+                                        const char *column) {
   return append_where(builder, column, " <= ?");
 }
 
-int c_orm_select_where_gte(c_orm_select_builder_t *builder,
-                           const char *column) {
+C_ORM_EXPORT int c_orm_select_where_gte(c_orm_select_builder_t *builder,
+                                        const char *column) {
   return append_where(builder, column, " >= ?");
 }
 
-int c_orm_select_where_gt_current_timestamp(c_orm_select_builder_t *builder,
-                                            const char *column) {
+C_ORM_EXPORT int
+c_orm_select_where_gt_current_timestamp(c_orm_select_builder_t *builder,
+                                        const char *column) {
   return append_where(builder, column, " > CURRENT_TIMESTAMP");
 }
 
-int c_orm_select_where_lt_current_timestamp(c_orm_select_builder_t *builder,
-                                            const char *column) {
+C_ORM_EXPORT int
+c_orm_select_where_lt_current_timestamp(c_orm_select_builder_t *builder,
+                                        const char *column) {
   return append_where(builder, column, " < CURRENT_TIMESTAMP");
 }
 
-int c_orm_select_where_like(c_orm_select_builder_t *builder,
-                            const char *column) {
+C_ORM_EXPORT int c_orm_select_where_like(c_orm_select_builder_t *builder,
+                                         const char *column) {
   return append_where(builder, column, " LIKE ?");
 }
 
-int c_orm_select_where_in(c_orm_select_builder_t *builder, const char *column,
-                          size_t count) {
+C_ORM_EXPORT int c_orm_select_where_in(c_orm_select_builder_t *builder,
+                                       const char *column, size_t count) {
   size_t i;
   if (!builder || !column || count == 0)
     return 1;
@@ -151,8 +157,8 @@ int c_orm_select_where_in(c_orm_select_builder_t *builder, const char *column,
   return 0;
 }
 
-int c_orm_select_order_by(c_orm_select_builder_t *builder, const char *column,
-                          int is_desc) {
+C_ORM_EXPORT int c_orm_select_order_by(c_orm_select_builder_t *builder,
+                                       const char *column, int is_desc) {
   if (!builder || !column)
     return 1;
   if (!builder->has_order) {
@@ -170,7 +176,8 @@ int c_orm_select_order_by(c_orm_select_builder_t *builder, const char *column,
   return 0;
 }
 
-int c_orm_select_limit(c_orm_select_builder_t *builder, size_t limit) {
+C_ORM_EXPORT int c_orm_select_limit(c_orm_select_builder_t *builder,
+                                    size_t limit) {
   char buf[32];
   if (!builder)
     return 1;
@@ -184,7 +191,8 @@ int c_orm_select_limit(c_orm_select_builder_t *builder, size_t limit) {
   return 0;
 }
 
-int c_orm_select_offset(c_orm_select_builder_t *builder, size_t offset) {
+C_ORM_EXPORT int c_orm_select_offset(c_orm_select_builder_t *builder,
+                                     size_t offset) {
   char buf[32];
   if (!builder)
     return 1;
@@ -204,20 +212,21 @@ struct c_orm_insert_builder {
   c_orm_string_builder_t *sb;
 };
 
-int c_orm_insert_builder_init(const c_orm_table_meta_t *meta,
-                              c_orm_insert_builder_t **out_builder) {
+C_ORM_EXPORT int
+c_orm_insert_builder_init(const c_orm_table_meta_t *meta,
+                          c_orm_insert_builder_t **out_builder) {
   /* Using standard pre-compiled insert for now */
   (void)meta;
   (void)out_builder;
   return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
-void c_orm_insert_builder_free(c_orm_insert_builder_t *builder) {
+C_ORM_EXPORT void c_orm_insert_builder_free(c_orm_insert_builder_t *builder) {
   (void)builder;
 }
 
-int c_orm_insert_builder_compile(c_orm_insert_builder_t *builder,
-                                 char **out_sql) {
+C_ORM_EXPORT int c_orm_insert_builder_compile(c_orm_insert_builder_t *builder,
+                                              char **out_sql) {
   (void)builder;
   (void)out_sql;
   return C_ORM_ERROR_NOT_IMPLEMENTED;
@@ -231,8 +240,9 @@ struct c_orm_update_builder {
   int has_where;
 };
 
-int c_orm_update_builder_init(const c_orm_table_meta_t *meta,
-                              c_orm_update_builder_t **out_builder) {
+C_ORM_EXPORT int
+c_orm_update_builder_init(const c_orm_table_meta_t *meta,
+                          c_orm_update_builder_t **out_builder) {
   c_orm_update_builder_t *b;
   if (!meta || !out_builder)
     return 1;
@@ -258,14 +268,15 @@ int c_orm_update_builder_init(const c_orm_table_meta_t *meta,
   return 0;
 }
 
-void c_orm_update_builder_free(c_orm_update_builder_t *builder) {
+C_ORM_EXPORT void c_orm_update_builder_free(c_orm_update_builder_t *builder) {
   if (builder) {
     c_orm_string_builder_free(builder->sb);
     free(builder);
   }
 }
 
-int c_orm_update_set(c_orm_update_builder_t *builder, const char *column) {
+C_ORM_EXPORT int c_orm_update_set(c_orm_update_builder_t *builder,
+                                  const char *column) {
   if (!builder || !column)
     return 1;
   if (builder->has_where)
@@ -280,7 +291,8 @@ int c_orm_update_set(c_orm_update_builder_t *builder, const char *column) {
   return 0;
 }
 
-int c_orm_update_where_eq(c_orm_update_builder_t *builder, const char *column) {
+C_ORM_EXPORT int c_orm_update_where_eq(c_orm_update_builder_t *builder,
+                                       const char *column) {
   if (!builder || !column)
     return 1;
   if (!builder->has_where) {
@@ -294,8 +306,8 @@ int c_orm_update_where_eq(c_orm_update_builder_t *builder, const char *column) {
   return 0;
 }
 
-int c_orm_update_builder_compile(c_orm_update_builder_t *builder,
-                                 char **out_sql) {
+C_ORM_EXPORT int c_orm_update_builder_compile(c_orm_update_builder_t *builder,
+                                              char **out_sql) {
   const char *sql_str;
   if (!builder || !out_sql ||
       c_orm_string_builder_get(builder->sb, &sql_str) != 0)

@@ -171,9 +171,9 @@ static void parse_flat_json(const char *json, json_field_t *fields,
   }
 }
 
-c_orm_error_t c_orm_oauth2_is_token_valid(const c_orm_oauth2_token_t *token,
-                                          int64_t current_time,
-                                          int *out_is_valid) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_oauth2_is_token_valid(const c_orm_oauth2_token_t *token,
+                            int64_t current_time, int *out_is_valid) {
   if (!token || !out_is_valid) {
     return C_ORM_ERROR_MEMORY;
   }
@@ -187,8 +187,8 @@ c_orm_error_t c_orm_oauth2_is_token_valid(const c_orm_oauth2_token_t *token,
   return C_ORM_OK;
 }
 
-c_orm_error_t c_orm_oauth2_token_parse_json(const char *json,
-                                            c_orm_oauth2_token_t *out_token) {
+C_ORM_EXPORT c_orm_error_t c_orm_oauth2_token_parse_json(
+    const char *json, c_orm_oauth2_token_t *out_token) {
   json_field_t fields[4];
   if (!json || !out_token) {
     return C_ORM_ERROR_MEMORY;
@@ -221,8 +221,8 @@ c_orm_error_t c_orm_oauth2_token_parse_json(const char *json,
   return C_ORM_OK;
 }
 
-c_orm_error_t c_orm_oauth2_encrypt_token(const char *plain_token,
-                                         char **out_encrypted_token) {
+C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
+    const char *plain_token, char **out_encrypted_token) {
   if (!plain_token || !out_encrypted_token)
     return C_ORM_ERROR_MEMORY;
 
@@ -285,8 +285,8 @@ static unsigned char hex_to_byte(char c) {
   return 0;
 }
 
-c_orm_error_t c_orm_oauth2_decrypt_token(const char *encrypted_token,
-                                         char **out_plain_token) {
+C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
+    const char *encrypted_token, char **out_plain_token) {
   if (!encrypted_token || !out_plain_token)
     return C_ORM_ERROR_MEMORY;
 
@@ -350,7 +350,8 @@ c_orm_error_t c_orm_oauth2_decrypt_token(const char *encrypted_token,
 #endif
 }
 
-c_orm_error_t c_orm_store_token_secure(const c_orm_oauth2_token_t *token) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_store_token_secure(const c_orm_oauth2_token_t *token) {
   char *encrypted_access = NULL;
   char *encrypted_refresh = NULL;
   c_orm_error_t err;
@@ -393,23 +394,23 @@ c_orm_error_t c_orm_store_token_secure(const c_orm_oauth2_token_t *token) {
   return C_ORM_OK;
 }
 
-c_orm_error_t c_orm_oauth2_get_current_timestamp(int64_t *out_timestamp) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_oauth2_get_current_timestamp(int64_t *out_timestamp) {
   if (!out_timestamp)
     return C_ORM_ERROR_MEMORY;
   *out_timestamp = (int64_t)time(NULL);
   return C_ORM_OK;
 }
 
-c_orm_error_t c_orm_oauth2_calculate_expiration(int64_t current_timestamp,
-                                                int32_t expires_in,
-                                                int64_t *out_expiration) {
+C_ORM_EXPORT c_orm_error_t c_orm_oauth2_calculate_expiration(
+    int64_t current_timestamp, int32_t expires_in, int64_t *out_expiration) {
   if (!out_expiration)
     return C_ORM_ERROR_MEMORY;
   *out_expiration = current_timestamp + (int64_t)expires_in;
   return C_ORM_OK;
 }
 
-c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
+C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
   const c_orm_driver_vtable_t *sqlite_vt = NULL;
   const c_orm_driver_vtable_t *pg_vt = NULL;
   const c_orm_driver_vtable_t *my_vt = NULL;
@@ -438,6 +439,13 @@ c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
                                 "created_at INTEGER, "
                                 "user_id TEXT, "
                                 "FOREIGN KEY(user_id) REFERENCES users(id));");
+    if (err != C_ORM_OK)
+      return err;
+    err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS clients ("
+                                "id TEXT PRIMARY KEY, "
+                                "client_secret TEXT, "
+                                "redirect_uris TEXT, "
+                                "grant_types TEXT);");
     return err;
   } else if (db->vtable == pg_vt) {
     err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS users ("
@@ -455,6 +463,13 @@ c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
                                 "created_at BIGINT, "
                                 "user_id VARCHAR(255), "
                                 "FOREIGN KEY(user_id) REFERENCES users(id));");
+    if (err != C_ORM_OK)
+      return err;
+    err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS clients ("
+                                "id VARCHAR(255) PRIMARY KEY, "
+                                "client_secret VARCHAR(255), "
+                                "redirect_uris VARCHAR(255), "
+                                "grant_types VARCHAR(255));");
     return err;
   } else if (db->vtable == my_vt) {
     err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS users ("
@@ -472,8 +487,123 @@ c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
                                 "created_at BIGINT, "
                                 "user_id VARCHAR(255), "
                                 "FOREIGN KEY(user_id) REFERENCES users(id));");
+    if (err != C_ORM_OK)
+      return err;
+    err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS clients ("
+                                "id VARCHAR(255) PRIMARY KEY, "
+                                "client_secret VARCHAR(255), "
+                                "redirect_uris VARCHAR(255), "
+                                "grant_types VARCHAR(255));");
     return err;
   }
 
   return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+
+static const c_orm_column_meta_t user_cols[] = {
+    {"id", C_ORM_TYPE_STRING, offsetof(c_orm_user_t, id), true, false, NULL,
+     false},
+    {"username", C_ORM_TYPE_STRING, offsetof(c_orm_user_t, username), false,
+     false, NULL, false},
+    {"password_hash", C_ORM_TYPE_STRING, offsetof(c_orm_user_t, password_hash),
+     false, true, NULL, false},
+    {"salt", C_ORM_TYPE_STRING, offsetof(c_orm_user_t, salt), false, true, NULL,
+     false}};
+C_ORM_EXPORT const c_orm_table_meta_t c_orm_user_meta = {
+    "users",
+    user_cols,
+    4,
+    sizeof(c_orm_user_t),
+    "SELECT * FROM users",
+    "SELECT * FROM users WHERE id = ?",
+    "INSERT INTO users (id, username, password_hash, salt) VALUES (?, ?, ?, ?)",
+    "UPDATE users SET username = ?, password_hash = ?, salt = ? WHERE id = ?",
+    "DELETE FROM users WHERE id = ?"};
+
+static const c_orm_column_meta_t token_cols[] = {
+    {"access_token", C_ORM_TYPE_STRING,
+     offsetof(c_orm_oauth2_token_t, access_token), true, false, NULL, false},
+    {"refresh_token", C_ORM_TYPE_STRING,
+     offsetof(c_orm_oauth2_token_t, refresh_token), false, true, NULL, false},
+    {"token_type", C_ORM_TYPE_STRING,
+     offsetof(c_orm_oauth2_token_t, token_type), false, true, NULL, false},
+    {"expires_in", C_ORM_TYPE_INT32, offsetof(c_orm_oauth2_token_t, expires_in),
+     false, false, NULL, false},
+    {"created_at", C_ORM_TYPE_INT64, offsetof(c_orm_oauth2_token_t, created_at),
+     false, false, NULL, false},
+    {"user_id", C_ORM_TYPE_STRING, offsetof(c_orm_oauth2_token_t, user_id),
+     false, true, "users", false}};
+C_ORM_EXPORT const c_orm_table_meta_t c_orm_token_meta = {
+    "tokens",
+    token_cols,
+    6,
+    sizeof(c_orm_oauth2_token_t),
+    "SELECT * FROM tokens",
+    "SELECT * FROM tokens WHERE access_token = ?",
+    "INSERT INTO tokens (access_token, refresh_token, token_type, expires_in, "
+    "created_at, user_id) VALUES (?, ?, ?, ?, ?, ?)",
+    "UPDATE tokens SET refresh_token = ?, token_type = ?, expires_in = ?, "
+    "created_at = ?, user_id = ? WHERE access_token = ?",
+    "DELETE FROM tokens WHERE access_token = ?"};
+
+static const c_orm_column_meta_t client_cols[] = {
+    {"id", C_ORM_TYPE_STRING, offsetof(c_orm_oauth2_client_t, id), true, false,
+     NULL, false},
+    {"client_secret", C_ORM_TYPE_STRING,
+     offsetof(c_orm_oauth2_client_t, client_secret), false, false, NULL, false},
+    {"redirect_uris", C_ORM_TYPE_STRING,
+     offsetof(c_orm_oauth2_client_t, redirect_uris), false, true, NULL, false},
+    {"grant_types", C_ORM_TYPE_STRING,
+     offsetof(c_orm_oauth2_client_t, grant_types), false, true, NULL, false}};
+C_ORM_EXPORT const c_orm_table_meta_t c_orm_oauth2_client_meta = {
+    "clients",
+    client_cols,
+    4,
+    sizeof(c_orm_oauth2_client_t),
+    "SELECT * FROM clients",
+    "SELECT * FROM clients WHERE id = ?",
+    "INSERT INTO clients (id, client_secret, redirect_uris, grant_types) "
+    "VALUES (?, ?, ?, ?)",
+    "UPDATE clients SET client_secret = ?, redirect_uris = ?, grant_types = ? "
+    "WHERE id = ?",
+    "DELETE FROM clients WHERE id = ?"};
+
+C_ORM_EXPORT c_orm_error_t c_orm_user_verify_credentials(c_orm_db_t *db,
+                                                         const char *username,
+                                                         const char *password,
+                                                         int *out_is_valid) {
+  c_orm_error_t err;
+  c_orm_user_t user;
+
+  if (!db || !username || !password || !out_is_valid)
+    return C_ORM_ERROR_MEMORY;
+
+  *out_is_valid = 0;
+  memset(&user, 0, sizeof(user));
+
+  err = c_orm_find_one_by_string(db, &c_orm_user_meta, "username", username,
+                                 &user);
+  if (err != C_ORM_OK) {
+    if (err == C_ORM_ERROR_NOT_FOUND) {
+      return C_ORM_OK; /* No user found, but query succeeded */
+    }
+    return err;
+  }
+
+  if (user.password_hash) {
+    if (strcmp(user.password_hash, password) == 0) {
+      *out_is_valid = 1;
+    }
+  }
+
+  if (user.id)
+    free(user.id);
+  if (user.username)
+    free(user.username);
+  if (user.password_hash)
+    free(user.password_hash);
+  if (user.salt)
+    free(user.salt);
+
+  return C_ORM_OK;
 }

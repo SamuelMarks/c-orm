@@ -349,6 +349,68 @@ TEST test_e2e_oauth2_helpers(void) {
   PASS();
 }
 
+TEST test_e2e_verify_credentials(void) {
+  c_orm_db_t *auth_db = NULL;
+  c_orm_error_t err;
+  c_orm_user_t user;
+  int is_valid = 0;
+
+  err = c_orm_sqlite_connect(":memory:", &auth_db);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  err = c_orm_oauth2_create_tables(auth_db);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  memset(&user, 0, sizeof(user));
+  user.id = "user123";
+  user.username = "testuser";
+  user.password_hash = "mysecrethash";
+  user.salt = "somesalt";
+
+  err = c_orm_insert(auth_db, &c_orm_user_meta, &user);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  err = c_orm_user_verify_credentials(auth_db, "testuser", "mysecrethash",
+                                      &is_valid);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_EQ(1, is_valid);
+
+  err = c_orm_user_verify_credentials(auth_db, "testuser", "wrong", &is_valid);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_EQ(0, is_valid);
+
+  err = c_orm_user_verify_credentials(auth_db, "missing", "hash", &is_valid);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_EQ(0, is_valid);
+
+  {
+    c_orm_oauth2_client_t client;
+    c_orm_oauth2_token_t token;
+
+    memset(&client, 0, sizeof(client));
+    client.id = "client_id";
+    client.client_secret = "client_secret";
+    client.redirect_uris = "http://localhost";
+    client.grant_types = "password";
+
+    err = c_orm_insert(auth_db, &c_orm_oauth2_client_meta, &client);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+    memset(&token, 0, sizeof(token));
+    token.access_token = "access123";
+    token.refresh_token = "refresh123";
+    token.token_type = "Bearer";
+    token.expires_in = 3600;
+    token.created_at = 123456789;
+    token.user_id = "user123";
+
+    err = c_orm_insert(auth_db, &c_orm_token_meta, &token);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  }
+
+  PASS();
+}
+
 SUITE(e2e_suite) {
   RUN_TEST(test_e2e_connect);
   RUN_TEST(test_e2e_generate_schema);
@@ -363,6 +425,7 @@ SUITE(e2e_suite) {
   RUN_TEST(test_e2e_string_pk_and_oauth2);
   RUN_TEST(test_e2e_find_one_by_string);
   RUN_TEST(test_e2e_oauth2_helpers);
+  RUN_TEST(test_e2e_verify_credentials);
 }
 
 GREATEST_MAIN_DEFS();

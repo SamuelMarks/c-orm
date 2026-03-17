@@ -24,9 +24,9 @@ extern "C" {
  * @param out_struct Pointer to an already allocated struct to hydrate.
  * @return C_ORM_OK on success, C_ORM_ERROR_NOT_FOUND if no row.
  */
-c_orm_error_t c_orm_find_by_id_int32(c_orm_db_t *db,
-                                     const c_orm_table_meta_t *meta,
-                                     int32_t id_val, void *out_struct);
+C_ORM_EXPORT c_orm_error_t
+c_orm_find_by_id_int32(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                       int32_t id_val, void *out_struct);
 
 /**
  * @brief Find all records.
@@ -37,8 +37,9 @@ c_orm_error_t c_orm_find_by_id_int32(c_orm_db_t *db,
  * dynamically.
  * @return C_ORM_OK on success.
  */
-c_orm_error_t c_orm_find_all(c_orm_db_t *db, const c_orm_table_meta_t *meta,
-                             void *out_array);
+C_ORM_EXPORT c_orm_error_t c_orm_find_all(c_orm_db_t *db,
+                                          const c_orm_table_meta_t *meta,
+                                          void *out_array);
 
 /**
  * @brief Insert a new record into the database.
@@ -48,8 +49,9 @@ c_orm_error_t c_orm_find_all(c_orm_db_t *db, const c_orm_table_meta_t *meta,
  * @param in_struct Pointer to the struct containing data to insert.
  * @return C_ORM_OK on success.
  */
-c_orm_error_t c_orm_insert(c_orm_db_t *db, const c_orm_table_meta_t *meta,
-                           const void *in_struct);
+C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
+                                        const c_orm_table_meta_t *meta,
+                                        const void *in_struct);
 
 /**
  * @brief Update an existing record in the database by its primary key.
@@ -59,8 +61,9 @@ c_orm_error_t c_orm_insert(c_orm_db_t *db, const c_orm_table_meta_t *meta,
  * @param in_struct Pointer to the struct containing the updated data (and PK).
  * @return C_ORM_OK on success.
  */
-c_orm_error_t c_orm_update(c_orm_db_t *db, const c_orm_table_meta_t *meta,
-                           const void *in_struct);
+C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
+                                        const c_orm_table_meta_t *meta,
+                                        const void *in_struct);
 
 /**
  * @brief Delete a record from the database by its primary key.
@@ -70,9 +73,8 @@ c_orm_error_t c_orm_update(c_orm_db_t *db, const c_orm_table_meta_t *meta,
  * @param id_val Primary key value to delete.
  * @return C_ORM_OK on success.
  */
-c_orm_error_t c_orm_delete_by_id_int32(c_orm_db_t *db,
-                                       const c_orm_table_meta_t *meta,
-                                       int32_t id_val);
+C_ORM_EXPORT c_orm_error_t c_orm_delete_by_id_int32(
+    c_orm_db_t *db, const c_orm_table_meta_t *meta, int32_t id_val);
 
 /**
  * @brief Delete a record from the database by its string primary key.
@@ -82,9 +84,8 @@ c_orm_error_t c_orm_delete_by_id_int32(c_orm_db_t *db,
  * @param id_val Primary key string to delete.
  * @return C_ORM_OK on success.
  */
-c_orm_error_t c_orm_delete_by_id_string(c_orm_db_t *db,
-                                        const c_orm_table_meta_t *meta,
-                                        const char *id_val);
+C_ORM_EXPORT c_orm_error_t c_orm_delete_by_id_string(
+    c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *id_val);
 
 /**
  * @brief Find a single record by its string primary key.
@@ -95,9 +96,9 @@ c_orm_error_t c_orm_delete_by_id_string(c_orm_db_t *db,
  * @param out_struct Pointer to an already allocated struct to hydrate.
  * @return C_ORM_OK on success, C_ORM_ERROR_NOT_FOUND if no row.
  */
-c_orm_error_t c_orm_find_by_id_string(c_orm_db_t *db,
-                                      const c_orm_table_meta_t *meta,
-                                      const char *id_val, void *out_struct);
+C_ORM_EXPORT c_orm_error_t
+c_orm_find_by_id_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                        const char *id_val, void *out_struct);
 
 /**
  * @brief Find a single record by a specific string column.
@@ -109,10 +110,9 @@ c_orm_error_t c_orm_find_by_id_string(c_orm_db_t *db,
  * @param out_struct Pointer to an already allocated struct to hydrate.
  * @return C_ORM_OK on success.
  */
-c_orm_error_t c_orm_find_one_by_string(c_orm_db_t *db,
-                                       const c_orm_table_meta_t *meta,
-                                       const char *column_name,
-                                       const char *value, void *out_struct);
+C_ORM_EXPORT c_orm_error_t c_orm_find_one_by_string(
+    c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *column_name,
+    const char *value, void *out_struct);
 
 /**
  * @brief Hydrate an array from an already prepared and optionally bound query.
@@ -123,19 +123,20 @@ c_orm_error_t c_orm_find_one_by_string(c_orm_db_t *db,
  * @param out_array Pointer to the generic Array struct.
  * @return C_ORM_OK on success.
  */
-c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db, c_orm_query_t *query,
-                                const c_orm_table_meta_t *meta,
-                                void *out_array);
+C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
+                                             c_orm_query_t *query,
+                                             const c_orm_table_meta_t *meta,
+                                             void *out_array);
 
 /**
  * @brief Execute a raw query string that returns no results.
  */
-c_orm_error_t c_orm_execute_raw(c_orm_db_t *db, const char *sql);
+C_ORM_EXPORT c_orm_error_t c_orm_execute_raw(c_orm_db_t *db, const char *sql);
 
 /* Transaction APIs */
-c_orm_error_t c_orm_transaction_begin(c_orm_db_t *db);
-c_orm_error_t c_orm_transaction_commit(c_orm_db_t *db);
-c_orm_error_t c_orm_transaction_rollback(c_orm_db_t *db);
+C_ORM_EXPORT c_orm_error_t c_orm_transaction_begin(c_orm_db_t *db);
+C_ORM_EXPORT c_orm_error_t c_orm_transaction_commit(c_orm_db_t *db);
+C_ORM_EXPORT c_orm_error_t c_orm_transaction_rollback(c_orm_db_t *db);
 
 #ifdef __cplusplus
 }

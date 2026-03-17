@@ -158,9 +158,9 @@ static c_orm_error_t hydrate_row(c_orm_db_t *db, c_orm_query_t *query,
   return C_ORM_OK;
 }
 
-c_orm_error_t c_orm_find_by_id_int32(c_orm_db_t *db,
-                                     const c_orm_table_meta_t *meta,
-                                     int32_t id_val, void *out_struct) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_find_by_id_int32(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                       int32_t id_val, void *out_struct) {
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
@@ -211,9 +211,10 @@ struct Generic_Array {
   size_t capacity;
 };
 
-c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db, c_orm_query_t *query,
-                                const c_orm_table_meta_t *meta,
-                                void *out_array) {
+C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
+                                             c_orm_query_t *query,
+                                             const c_orm_table_meta_t *meta,
+                                             void *out_array) {
   c_orm_error_t err;
   int has_row;
   struct Generic_Array *arr = (struct Generic_Array *)out_array;
@@ -258,8 +259,9 @@ c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db, c_orm_query_t *query,
   return C_ORM_OK;
 }
 
-c_orm_error_t c_orm_find_all(c_orm_db_t *db, const c_orm_table_meta_t *meta,
-                             void *out_array) {
+C_ORM_EXPORT c_orm_error_t c_orm_find_all(c_orm_db_t *db,
+                                          const c_orm_table_meta_t *meta,
+                                          void *out_array) {
   c_orm_query_t *query;
   c_orm_error_t err;
 
@@ -364,8 +366,9 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
   return C_ORM_OK;
 }
 
-c_orm_error_t c_orm_insert(c_orm_db_t *db, const c_orm_table_meta_t *meta,
-                           const void *in_struct) {
+C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
+                                        const c_orm_table_meta_t *meta,
+                                        const void *in_struct) {
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
@@ -388,8 +391,9 @@ c_orm_error_t c_orm_insert(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   return err;
 }
 
-c_orm_error_t c_orm_update(c_orm_db_t *db, const c_orm_table_meta_t *meta,
-                           const void *in_struct) {
+C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
+                                        const c_orm_table_meta_t *meta,
+                                        const void *in_struct) {
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
@@ -436,9 +440,8 @@ c_orm_error_t c_orm_update(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   return err;
 }
 
-c_orm_error_t c_orm_delete_by_id_int32(c_orm_db_t *db,
-                                       const c_orm_table_meta_t *meta,
-                                       int32_t id_val) {
+C_ORM_EXPORT c_orm_error_t c_orm_delete_by_id_int32(
+    c_orm_db_t *db, const c_orm_table_meta_t *meta, int32_t id_val) {
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
@@ -463,7 +466,7 @@ c_orm_error_t c_orm_delete_by_id_int32(c_orm_db_t *db,
   return err;
 }
 
-c_orm_error_t c_orm_execute_raw(c_orm_db_t *db, const char *sql) {
+C_ORM_EXPORT c_orm_error_t c_orm_execute_raw(c_orm_db_t *db, const char *sql) {
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
@@ -480,21 +483,21 @@ c_orm_error_t c_orm_execute_raw(c_orm_db_t *db, const char *sql) {
   return err;
 }
 
-c_orm_error_t c_orm_transaction_begin(c_orm_db_t *db) {
+C_ORM_EXPORT c_orm_error_t c_orm_transaction_begin(c_orm_db_t *db) {
   return c_orm_execute_raw(db, "BEGIN");
 }
 
-c_orm_error_t c_orm_transaction_commit(c_orm_db_t *db) {
+C_ORM_EXPORT c_orm_error_t c_orm_transaction_commit(c_orm_db_t *db) {
   return c_orm_execute_raw(db, "COMMIT");
 }
 
-c_orm_error_t c_orm_transaction_rollback(c_orm_db_t *db) {
+C_ORM_EXPORT c_orm_error_t c_orm_transaction_rollback(c_orm_db_t *db) {
   return c_orm_execute_raw(db, "ROLLBACK");
 }
 
-c_orm_error_t c_orm_find_by_id_string(c_orm_db_t *db,
-                                      const c_orm_table_meta_t *meta,
-                                      const char *id_val, void *out_struct) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_find_by_id_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                        const char *id_val, void *out_struct) {
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
@@ -532,9 +535,8 @@ c_orm_error_t c_orm_find_by_id_string(c_orm_db_t *db,
   return err;
 }
 
-c_orm_error_t c_orm_delete_by_id_string(c_orm_db_t *db,
-                                        const c_orm_table_meta_t *meta,
-                                        const char *id_val) {
+C_ORM_EXPORT c_orm_error_t c_orm_delete_by_id_string(
+    c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *id_val) {
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
@@ -559,10 +561,9 @@ c_orm_error_t c_orm_delete_by_id_string(c_orm_db_t *db,
   return err;
 }
 
-c_orm_error_t c_orm_find_one_by_string(c_orm_db_t *db,
-                                       const c_orm_table_meta_t *meta,
-                                       const char *column_name,
-                                       const char *value, void *out_struct) {
+C_ORM_EXPORT c_orm_error_t c_orm_find_one_by_string(
+    c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *column_name,
+    const char *value, void *out_struct) {
   c_orm_select_builder_t *builder;
   char *sql;
   c_orm_query_t *query;

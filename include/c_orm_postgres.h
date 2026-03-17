@@ -20,7 +20,8 @@ extern "C" {
  * @param out_vtable Output parameter to store the vtable pointer.
  * @return 0 on success, non-zero on failure.
  */
-int c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable);
+C_ORM_EXPORT int
+c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable);
 
 /**
  * @brief Connect to a PostgreSQL database.
@@ -29,7 +30,8 @@ int c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable);
  * @param out_db Output parameter to store the database handle.
  * @return C_ORM_OK on success, or an error code.
  */
-c_orm_error_t c_orm_postgres_connect(const char *url, c_orm_db_t **out_db);
+C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
+                                                  c_orm_db_t **out_db);
 
 #ifdef __cplusplus
 }

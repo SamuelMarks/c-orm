@@ -15,7 +15,8 @@ struct c_orm_string_builder {
   size_t capacity;
 };
 
-int c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
+C_ORM_EXPORT int
+c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
   c_orm_string_builder_t *sb;
 
   if (!out_builder)
@@ -38,7 +39,7 @@ int c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
   return 0;
 }
 
-void c_orm_string_builder_free(c_orm_string_builder_t *builder) {
+C_ORM_EXPORT void c_orm_string_builder_free(c_orm_string_builder_t *builder) {
   if (builder) {
     if (builder->buffer) {
       free(builder->buffer);
@@ -47,8 +48,8 @@ void c_orm_string_builder_free(c_orm_string_builder_t *builder) {
   }
 }
 
-int c_orm_string_builder_append(c_orm_string_builder_t *builder,
-                                const char *str) {
+C_ORM_EXPORT int c_orm_string_builder_append(c_orm_string_builder_t *builder,
+                                             const char *str) {
   size_t len;
   size_t required_capacity;
 
@@ -84,16 +85,16 @@ int c_orm_string_builder_append(c_orm_string_builder_t *builder,
   return 0;
 }
 
-int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
-                             const char **out_str) {
+C_ORM_EXPORT int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
+                                          const char **out_str) {
   if (!builder || !out_str)
     return 1;
   *out_str = builder->buffer ? builder->buffer : "";
   return 0;
 }
 
-int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
-                             size_t *out_len) {
+C_ORM_EXPORT int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
+                                          size_t *out_len) {
   if (!builder || !out_len)
     return 1;
   *out_len = builder->length;

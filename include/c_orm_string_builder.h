@@ -6,6 +6,7 @@
 #ifndef C_ORM_STRING_BUILDER_H
 #define C_ORM_STRING_BUILDER_H
 /* clang-format off */
+#include "c_orm_meta.h"
 #include <stddef.h>
 /* clang-format on */
 
@@ -23,14 +24,15 @@ typedef struct c_orm_string_builder c_orm_string_builder_t;
  * @param out_builder Pointer to receive the new builder instance.
  * @return 0 on success, non-zero on allocation failure.
  */
-int c_orm_string_builder_init(c_orm_string_builder_t **out_builder);
+C_ORM_EXPORT int
+c_orm_string_builder_init(c_orm_string_builder_t **out_builder);
 
 /**
  * @brief Free resources associated with a string builder.
  *
  * @param builder The builder to free.
  */
-void c_orm_string_builder_free(c_orm_string_builder_t *builder);
+C_ORM_EXPORT void c_orm_string_builder_free(c_orm_string_builder_t *builder);
 
 /**
  * @brief Append a string to the builder.
@@ -39,8 +41,8 @@ void c_orm_string_builder_free(c_orm_string_builder_t *builder);
  * @param str The string to append.
  * @return 0 on success, non-zero on failure.
  */
-int c_orm_string_builder_append(c_orm_string_builder_t *builder,
-                                const char *str);
+C_ORM_EXPORT int c_orm_string_builder_append(c_orm_string_builder_t *builder,
+                                             const char *str);
 
 /**
  * @brief Get the generated string.
@@ -48,8 +50,8 @@ int c_orm_string_builder_append(c_orm_string_builder_t *builder,
  * @param builder The builder.
  * @return Null-terminated string buffer. Do not free directly.
  */
-int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
-                             const char **out_str);
+C_ORM_EXPORT int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
+                                          const char **out_str);
 
 /**
  * @brief Get the current length of the generated string.
@@ -57,8 +59,8 @@ int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
  * @param builder The builder.
  * @return Length of the string.
  */
-int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
-                             size_t *out_len);
+C_ORM_EXPORT int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
+                                          size_t *out_len);
 
 #ifdef __cplusplus
 }

@@ -7,6 +7,7 @@
 #define C_ORM_META_H
 /* clang-format off */
 #if !defined(_MSC_VER) || _MSC_VER >= 1800
+
 #include <stdbool.h>
 #else
 #ifndef __cplusplus
@@ -17,12 +18,34 @@ typedef unsigned char bool;
 #endif
 #endif
 #endif
+
 #include <stddef.h>
 /* clang-format on */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#ifndef C_ORM_EXPORT
+#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(C_ORM_SHARED)
+#if defined(c_orm_EXPORTS)
+#define C_ORM_EXPORT __declspec(dllexport)
+#else
+#define C_ORM_EXPORT __declspec(dllimport)
+#endif
+#else
+#define C_ORM_EXPORT
+#endif
+#else
+#if defined(__GNUC__) && __GNUC__ >= 4
+#define C_ORM_EXPORT __attribute__((visibility("default")))
+#else
+#define C_ORM_EXPORT
+#endif
+#endif
+#endif
+
 /**
  * @brief Data types supported by c-orm.
  */

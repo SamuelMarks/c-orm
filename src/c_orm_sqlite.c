@@ -343,26 +343,30 @@ static const c_orm_driver_vtable_t sqlite_vtable = {
     sqlite_is_null,       sqlite_finalize,   sqlite_reset,
     sqlite_get_last_error};
 
-int c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
+C_ORM_EXPORT int
+c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   if (!out_vtable)
     return 1;
   *out_vtable = &sqlite_vtable;
   return 0;
 }
 
-c_orm_error_t c_orm_sqlite_connect(const char *url, c_orm_db_t **out_db) {
+C_ORM_EXPORT c_orm_error_t c_orm_sqlite_connect(const char *url,
+                                                c_orm_db_t **out_db) {
   return sqlite_connect(url, out_db);
 }
 
 #else
 
 /* Stub out if SQLite is not enabled */
-int c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
+C_ORM_EXPORT int
+c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   if (out_vtable)
     *out_vtable = NULL;
   return 1;
 }
-c_orm_error_t c_orm_sqlite_connect(const char *url, c_orm_db_t **out_db) {
+C_ORM_EXPORT c_orm_error_t c_orm_sqlite_connect(const char *url,
+                                                c_orm_db_t **out_db) {
   (void)url;
   (void)out_db;
   return C_ORM_ERROR_NOT_IMPLEMENTED;

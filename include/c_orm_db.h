@@ -8,6 +8,7 @@
 /* clang-format off */
 #include "c_orm_meta.h"
 #if !defined(_MSC_VER) || _MSC_VER >= 1600
+#include "c_orm_meta.h"
 #include <stdint.h>
 #else
 typedef signed __int8 int8_t;
@@ -64,7 +65,8 @@ typedef enum {
  * @param db The database connection.
  * @return A string detailing the last error, or NULL.
  */
-int c_orm_get_last_error_message(c_orm_db_t *db, const char **out_message);
+C_ORM_EXPORT int c_orm_get_last_error_message(c_orm_db_t *db,
+                                              const char **out_message);
 
 /**
  * @brief Query logging callback signature.
@@ -118,7 +120,8 @@ struct c_orm_db {
  * @param cb The callback function.
  * @param user_data Opaque pointer passed to the callback.
  */
-void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb, void *user_data);
+C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
+                                         void *user_data);
 
 #ifdef __cplusplus
 }
