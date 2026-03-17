@@ -206,6 +206,20 @@ static c_orm_error_t sqlite_bind_string(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
+static c_orm_error_t sqlite_bind_blob(c_orm_query_t *query, int index,
+                                      const void *val, size_t size) {
+  int rc;
+  if (!query || !query->data || !query->data->stmt)
+    return C_ORM_ERROR_BIND;
+  rc = sqlite3_bind_blob(query->data->stmt, index, val, (int)size,
+                         SQLITE_TRANSIENT);
+  if (rc != SQLITE_OK) {
+    set_error(query->data->db, NULL);
+    return C_ORM_ERROR_BIND;
+  }
+  return C_ORM_OK;
+}
+
 static c_orm_error_t sqlite_bind_null(c_orm_query_t *query, int index) {
   int rc;
   if (!query || !query->data || !query->data->stmt)
@@ -268,6 +282,15 @@ static c_orm_error_t sqlite_get_string(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
+static c_orm_error_t sqlite_get_blob(c_orm_query_t *query, int index,
+                                     const void **out_val, size_t *out_size) {
+  if (!query || !query->data || !query->data->stmt || !out_val || !out_size)
+    return C_ORM_ERROR_MEMORY;
+  *out_val = sqlite3_column_blob(query->data->stmt, index);
+  *out_size = (size_t)sqlite3_column_bytes(query->data->stmt, index);
+  return C_ORM_OK;
+}
+
 static c_orm_error_t sqlite_is_null(c_orm_query_t *query, int index,
                                     int *out_is_null) {
   if (!query || !query->data || !query->data->stmt || !out_is_null)
@@ -312,12 +335,13 @@ static int sqlite_get_last_error(c_orm_db_t *db, const char **out_message) {
 }
 
 static const c_orm_driver_vtable_t sqlite_vtable = {
-    sqlite_connect,     sqlite_disconnect,    sqlite_prepare,
-    sqlite_bind_int32,  sqlite_bind_int64,    sqlite_bind_double,
-    sqlite_bind_string, sqlite_bind_null,     sqlite_step,
-    sqlite_get_int32,   sqlite_get_int64,     sqlite_get_double,
-    sqlite_get_string,  sqlite_is_null,       sqlite_finalize,
-    sqlite_reset,       sqlite_get_last_error};
+    sqlite_connect,       sqlite_disconnect, sqlite_prepare,
+    sqlite_bind_int32,    sqlite_bind_int64, sqlite_bind_double,
+    sqlite_bind_string,   sqlite_bind_blob,  sqlite_bind_null,
+    sqlite_step,          sqlite_get_int32,  sqlite_get_int64,
+    sqlite_get_double,    sqlite_get_string, sqlite_get_blob,
+    sqlite_is_null,       sqlite_finalize,   sqlite_reset,
+    sqlite_get_last_error};
 
 int c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   if (!out_vtable)

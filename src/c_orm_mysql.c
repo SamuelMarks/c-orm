@@ -264,6 +264,27 @@ static c_orm_error_t mysql_drv_bind_string(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
+static c_orm_error_t mysql_drv_bind_blob(c_orm_query_t *query, int index,
+                                         const void *val, size_t size) {
+  int i;
+  MYSQL_BIND *b;
+  if (!query || !query->data || index < 1 || index > query->data->param_count)
+    return C_ORM_ERROR_BIND;
+  i = index - 1;
+  b = &query->data->bind_params[i];
+
+  b->buffer_type = MYSQL_TYPE_BLOB;
+  if (b->buffer)
+    free(b->buffer);
+  b->buffer = malloc(size);
+  if (b->buffer)
+    memcpy(b->buffer, val, size);
+  b->buffer_length = (unsigned long)size;
+  b->is_null = &query->data->param_is_null[i];
+  *b->is_null = 0;
+  return C_ORM_OK;
+}
+
 static c_orm_error_t mysql_drv_bind_null(c_orm_query_t *query, int index) {
   int i;
   MYSQL_BIND *b;
@@ -408,6 +429,17 @@ static c_orm_error_t mysql_drv_get_string(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
+static c_orm_error_t mysql_drv_get_blob(c_orm_query_t *query, int index,
+                                        const void **out_val,
+                                        size_t *out_size) {
+  if (!query || !query->data || !query->data->has_result || !out_val ||
+      !out_size)
+    return C_ORM_ERROR_MEMORY;
+  *out_val = query->data->result_buffers[index];
+  *out_size = (size_t)query->data->result_length[index];
+  return C_ORM_OK;
+}
+
 static c_orm_error_t mysql_drv_is_null(c_orm_query_t *query, int index,
                                        int *out_is_null) {
   if (!query || !query->data || !query->data->has_result || !out_is_null)
@@ -473,12 +505,13 @@ static int mysql_drv_get_last_error(c_orm_db_t *db, const char **out_message) {
 }
 
 static const c_orm_driver_vtable_t mysql_vtable = {
-    mysql_drv_connect,     mysql_drv_disconnect,    mysql_drv_prepare,
-    mysql_drv_bind_int32,  mysql_drv_bind_int64,    mysql_drv_bind_double,
-    mysql_drv_bind_string, mysql_drv_bind_null,     mysql_drv_step,
-    mysql_drv_get_int32,   mysql_drv_get_int64,     mysql_drv_get_double,
-    mysql_drv_get_string,  mysql_drv_is_null,       mysql_drv_finalize,
-    mysql_drv_reset,       mysql_drv_get_last_error};
+    mysql_drv_connect,       mysql_drv_disconnect, mysql_drv_prepare,
+    mysql_drv_bind_int32,    mysql_drv_bind_int64, mysql_drv_bind_double,
+    mysql_drv_bind_string,   mysql_drv_bind_blob,  mysql_drv_bind_null,
+    mysql_drv_step,          mysql_drv_get_int32,  mysql_drv_get_int64,
+    mysql_drv_get_double,    mysql_drv_get_string, mysql_drv_get_blob,
+    mysql_drv_is_null,       mysql_drv_finalize,   mysql_drv_reset,
+    mysql_drv_get_last_error};
 
 int c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   if (!out_vtable)

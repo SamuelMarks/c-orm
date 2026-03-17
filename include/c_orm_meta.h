@@ -33,21 +33,32 @@ typedef enum {
   C_ORM_TYPE_DOUBLE,
   C_ORM_TYPE_BOOL,
   C_ORM_TYPE_STRING,
+  C_ORM_TYPE_BLOB,
   C_ORM_TYPE_DATE,
   C_ORM_TYPE_TIMESTAMP,
   C_ORM_TYPE_UNKNOWN
 } c_orm_type_t;
 
 /**
+ * @brief Represents binary large object (BLOB) data.
+ */
+typedef struct {
+  void *data;
+  size_t size;
+} c_orm_blob_t;
+
+/**
  * @brief Column metadata definition.
  */
 typedef struct {
-  const char *name;      /**< Column name. */
-  c_orm_type_t type;     /**< Data type. */
-  size_t offset;         /**< Offset in the target C struct. */
-  bool is_pk;            /**< True if column is a Primary Key. */
-  bool is_nullable;      /**< True if column can be NULL. */
-  const char *fk_target; /**< Target table name if Foreign Key, else NULL. */
+  const char *name;       /**< Column name. */
+  c_orm_type_t type;      /**< Data type. */
+  size_t offset;          /**< Offset in the target C struct. */
+  bool is_pk;             /**< True if column is a Primary Key. */
+  bool is_nullable;       /**< True if column can be NULL. */
+  const char *fk_target;  /**< Target table name if Foreign Key, else NULL. */
+  bool on_delete_cascade; /**< True if deleting the fk_target cascades to this
+                             row. */
 } c_orm_column_meta_t;
 
 /**

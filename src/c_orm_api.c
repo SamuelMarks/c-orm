@@ -128,6 +128,29 @@ static c_orm_error_t hydrate_row(c_orm_db_t *db, c_orm_query_t *query,
       }
       break;
     }
+    case C_ORM_TYPE_BLOB: {
+      const void *val;
+      size_t size;
+      err = db->vtable->get_blob(query, (int)i, &val, &size);
+      if (err != C_ORM_OK)
+        return err;
+      if (val && size > 0) {
+        c_orm_blob_t *blob_ptr = (c_orm_blob_t *)field_ptr;
+        blob_ptr->data = malloc(size);
+        if (blob_ptr->data) {
+          memcpy(blob_ptr->data, val, size);
+          blob_ptr->size = size;
+        } else {
+          blob_ptr->size = 0;
+          return C_ORM_ERROR_MEMORY;
+        }
+      } else {
+        c_orm_blob_t *blob_ptr = (c_orm_blob_t *)field_ptr;
+        blob_ptr->data = NULL;
+        blob_ptr->size = 0;
+      }
+      break;
+    }
     default:
       return C_ORM_ERROR_TYPE_MISMATCH;
     }
@@ -278,6 +301,21 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
         continue;
       }
       err = db->vtable->bind_string(query, bind_idx++, str_val);
+      if (err != C_ORM_OK)
+        return err;
+      continue;
+    }
+
+    if (col->type == C_ORM_TYPE_BLOB) {
+      const c_orm_blob_t *blob_val = (const c_orm_blob_t *)field_ptr;
+      if (!blob_val->data || blob_val->size == 0) {
+        err = db->vtable->bind_null(query, bind_idx++);
+        if (err != C_ORM_OK)
+          return err;
+        continue;
+      }
+      err = db->vtable->bind_blob(query, bind_idx++, blob_val->data,
+                                  blob_val->size);
       if (err != C_ORM_OK)
         return err;
       continue;

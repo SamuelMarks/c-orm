@@ -326,6 +326,20 @@ static c_orm_error_t postgres_bind_string(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
+static c_orm_error_t postgres_bind_blob(c_orm_query_t *query, int index,
+                                        const void *val, size_t size) {
+  if (!query || !query->data || index < 1 || index > query->data->param_count)
+    return C_ORM_ERROR_BIND;
+  free_param(query->data, index);
+  query->data->param_values[index - 1] = malloc(size);
+  if (query->data->param_values[index - 1]) {
+    memcpy(query->data->param_values[index - 1], val, size);
+  }
+  query->data->param_lengths[index - 1] = (int)size;
+  query->data->param_formats[index - 1] = 1; /* binary format */
+  return C_ORM_OK;
+}
+
 static c_orm_error_t postgres_bind_null(c_orm_query_t *query, int index) {
   if (!query || !query->data || index < 1 || index > query->data->param_count)
     return C_ORM_ERROR_BIND;
@@ -413,6 +427,15 @@ static c_orm_error_t postgres_get_string(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
+static c_orm_error_t postgres_get_blob(c_orm_query_t *query, int index,
+                                       const void **out_val, size_t *out_size) {
+  if (!query || !query->data || !query->data->res || !out_val || !out_size)
+    return C_ORM_ERROR_MEMORY;
+  *out_val = PQgetvalue(query->data->res, query->data->current_row, index);
+  *out_size = PQgetlength(query->data->res, query->data->current_row, index);
+  return C_ORM_OK;
+}
+
 static c_orm_error_t postgres_is_null(c_orm_query_t *query, int index,
                                       int *out_is_null) {
   if (!query || !query->data || !query->data->res || !out_is_null)
@@ -476,12 +499,13 @@ static int postgres_get_last_error(c_orm_db_t *db, const char **out_message) {
 }
 
 static const c_orm_driver_vtable_t postgres_vtable = {
-    postgres_connect,     postgres_disconnect,    postgres_prepare,
-    postgres_bind_int32,  postgres_bind_int64,    postgres_bind_double,
-    postgres_bind_string, postgres_bind_null,     postgres_step,
-    postgres_get_int32,   postgres_get_int64,     postgres_get_double,
-    postgres_get_string,  postgres_is_null,       postgres_finalize,
-    postgres_reset,       postgres_get_last_error};
+    postgres_connect,       postgres_disconnect, postgres_prepare,
+    postgres_bind_int32,    postgres_bind_int64, postgres_bind_double,
+    postgres_bind_string,   postgres_bind_blob,  postgres_bind_null,
+    postgres_step,          postgres_get_int32,  postgres_get_int64,
+    postgres_get_double,    postgres_get_string, postgres_get_blob,
+    postgres_is_null,       postgres_finalize,   postgres_reset,
+    postgres_get_last_error};
 
 int c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   if (!out_vtable)

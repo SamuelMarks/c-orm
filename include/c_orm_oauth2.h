@@ -43,6 +43,15 @@ typedef struct {
 } c_orm_client_user_t;
 
 /**
+ * @brief Represents an active user session linking a user and a token.
+ */
+typedef struct {
+  char *session_id;
+  c_orm_user_t *user;
+  c_orm_oauth2_token_t *token;
+} c_orm_session_t;
+
+/**
  * @brief Checks if a token is valid, possibly triggering logic if it is
  * expired.
  *
@@ -54,6 +63,16 @@ typedef struct {
 c_orm_error_t c_orm_oauth2_is_token_valid(const c_orm_oauth2_token_t *token,
                                           int64_t current_time,
                                           int *out_is_valid);
+
+/**
+ * @brief Parses an OAuth 2.0 JSON response into a token structure.
+ *
+ * @param json The JSON payload string.
+ * @param out_token The token structure to populate.
+ * @return C_ORM_OK on success.
+ */
+c_orm_error_t c_orm_oauth2_token_parse_json(const char *json,
+                                            c_orm_oauth2_token_t *out_token);
 
 /**
  * @brief Encrypts a plain token string for secure storage.
@@ -74,6 +93,15 @@ c_orm_error_t c_orm_oauth2_encrypt_token(const char *plain_token,
  */
 c_orm_error_t c_orm_oauth2_decrypt_token(const char *encrypted_token,
                                          char **out_plain_token);
+
+/**
+ * @brief Securely stores a token using a platform-specific mechanism (e.g.
+ * Web).
+ *
+ * @param token The token structure to store.
+ * @return C_ORM_OK on success.
+ */
+c_orm_error_t c_orm_store_token_secure(const c_orm_oauth2_token_t *token);
 
 #ifdef __cplusplus
 }

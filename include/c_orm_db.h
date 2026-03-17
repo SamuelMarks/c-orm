@@ -84,6 +84,8 @@ typedef struct c_orm_driver_vtable {
   c_orm_error_t (*bind_double)(c_orm_query_t *query, int index, double val);
   c_orm_error_t (*bind_string)(c_orm_query_t *query, int index,
                                const char *val);
+  c_orm_error_t (*bind_blob)(c_orm_query_t *query, int index, const void *val,
+                             size_t size);
   c_orm_error_t (*bind_null)(c_orm_query_t *query, int index);
   c_orm_error_t (*step)(c_orm_query_t *query, int *out_has_row);
   c_orm_error_t (*get_int32)(c_orm_query_t *query, int index, int32_t *out_val);
@@ -91,6 +93,8 @@ typedef struct c_orm_driver_vtable {
   c_orm_error_t (*get_double)(c_orm_query_t *query, int index, double *out_val);
   c_orm_error_t (*get_string)(c_orm_query_t *query, int index,
                               const char **out_val);
+  c_orm_error_t (*get_blob)(c_orm_query_t *query, int index,
+                            const void **out_val, size_t *out_size);
   c_orm_error_t (*is_null)(c_orm_query_t *query, int index, int *out_is_null);
   c_orm_error_t (*finalize)(c_orm_query_t *query);
   c_orm_error_t (*reset)(c_orm_query_t *query);
