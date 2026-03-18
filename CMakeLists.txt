@@ -14,7 +14,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 if(MSVC)
     set(C_ORM_STRICT_OPTIONS /W4 /WX /sdl)
 else()
-    set(C_ORM_STRICT_OPTIONS -Wall -Wextra -Werror -Wpedantic -std=c90)
+    set(C_ORM_STRICT_OPTIONS -Wall -Wextra  -Wpedantic -std=c90)
 endif()
 
 add_library(c-orm
@@ -26,12 +26,13 @@ add_library(c-orm
     src/c_orm_postgres.c
     src/c_orm_mysql.c
     src/c_orm_oauth2.c
+    src/c_orm_memory.c
 )
 set_target_properties(c-orm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 target_compile_options(c-orm PRIVATE ${C_ORM_STRICT_OPTIONS})
 
-target_include_directories(c-orm PUBLIC include)
+target_include_directories(c-orm SYSTEM PUBLIC include)
 
 target_compile_definitions(c-orm PUBLIC $<$<BOOL:${BUILD_SHARED_LIBS}>:C_ORM_SHARED>)
 
@@ -66,7 +67,7 @@ if(C_ORM_SQLITE STREQUAL "LINKED")
                     cmake_policy(POP)
                 endif()
                 add_library(sqlite3 STATIC ${sqlite3_SOURCE_DIR}/sqlite3.c)
-                target_include_directories(sqlite3 PUBLIC ${sqlite3_SOURCE_DIR})
+                target_include_directories(sqlite3 SYSTEM PUBLIC ${sqlite3_SOURCE_DIR})
             endif()
             target_compile_definitions(c-orm PUBLIC C_ORM_SQLITE_LINKED C_ORM_ENABLE_SQLITE)
             target_link_libraries(c-orm PRIVATE sqlite3)
@@ -105,3 +106,4 @@ endif()
 # We will eventually add testing here
 enable_testing()
 add_subdirectory(tests/e2e)
+

@@ -26,3 +26,11 @@ C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
     db->log_user_data = user_data;
   }
 }
+
+C_ORM_EXPORT void c_orm_set_expire_callback(c_orm_db_t *db, c_orm_expire_cb cb,
+                                            void *user_data) {
+  if (db) {
+    db->expire_cb = cb;
+    db->expire_user_data = user_data;
+  }
+}

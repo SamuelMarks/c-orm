@@ -101,6 +101,19 @@ c_orm_find_by_id_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                         const char *id_val, void *out_struct);
 
 /**
+ * @brief Find a single row by string primary key and apply row-level locking.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param id_val Primary key value.
+ * @param out_struct Output struct.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_find_for_update_by_id_string(
+    c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *id_val,
+    void *out_struct);
+
+/**
  * @brief Find a single record by a specific string column.
  *
  * @param db Database connection.

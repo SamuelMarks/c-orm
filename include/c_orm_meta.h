@@ -46,6 +46,8 @@ extern "C" {
 #endif
 #endif
 
+#define CMP_SECURE_FIELD true
+
 /**
  * @brief Data types supported by c-orm.
  */
@@ -82,6 +84,8 @@ typedef struct {
   const char *fk_target;  /**< Target table name if Foreign Key, else NULL. */
   bool on_delete_cascade; /**< True if deleting the fk_target cascades to this
                              row. */
+  bool is_secure; /**< True if the field data must be encrypted at rest (e.g.
+                     DPAPI, Keychain). */
 } c_orm_column_meta_t;
 
 /**
@@ -99,6 +103,14 @@ typedef struct {
   const char *query_insert;
   const char *query_update;
   const char *query_delete_by_pk;
+  const char *query_select_by_pk_for_update;
+
+  /* TTL & Expiration Tracking */
+  bool has_ttl; /**< True if rows in this table can expire automatically */
+  size_t created_at_offset; /**< Offset for the created_at UNIX timestamp
+                               (int64) */
+  size_t expires_in_offset; /**< Offset for the expires_in duration in seconds
+                               (int32) */
 } c_orm_table_meta_t;
 
 #ifdef __cplusplus

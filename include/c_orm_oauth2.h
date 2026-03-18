@@ -23,6 +23,7 @@ typedef struct {
   int32_t expires_in; /* seconds */
   int64_t created_at; /* UNIX timestamp */
   char *user_id;
+  char *scopes;
 } c_orm_oauth2_token_t;
 
 /**
@@ -33,7 +34,20 @@ typedef struct {
   char *client_secret;
   char *redirect_uris;
   char *grant_types;
+  char *scopes;
 } c_orm_oauth2_client_t;
+
+/**
+ * @brief Represents an Authorization Code in the Authorization Code Flow.
+ */
+typedef struct {
+  char *code;
+  char *client_id;
+  char *redirect_uri;
+  char *user_id;
+  int64_t expires_at;
+  char *scopes;
+} c_orm_oauth2_auth_code_t;
 
 /**
  * @brief Represents a server-side User.
@@ -76,6 +90,103 @@ C_ORM_EXPORT extern const c_orm_table_meta_t c_orm_token_meta;
  * @brief Table metadata for the clients table.
  */
 C_ORM_EXPORT extern const c_orm_table_meta_t c_orm_oauth2_client_meta;
+
+/**
+ * @brief Table metadata for the authorization codes table.
+ */
+C_ORM_EXPORT extern const c_orm_table_meta_t c_orm_auth_code_meta;
+
+/**
+ * @brief Verifies a client's credentials.
+ *
+ * @param db Database connection.
+ * @param client_id The client's ID.
+ * @param client_secret The client's secret.
+ * @param out_is_valid Pointer to an integer that will be 1 if valid, 0
+ * otherwise.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_oauth2_verify_client(c_orm_db_t *db,
+                                                      const char *client_id,
+                                                      const char *client_secret,
+                                                      int *out_is_valid);
+
+/**
+ * @brief Saves a newly minted token to the database.
+ *
+ * @param db Database connection.
+ * @param token The token structure.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token);
+
+/**
+ * @brief Retrieves a token from the database by access token string.
+ *
+ * @param db Database connection.
+ * @param access_token The access token string.
+ * @param out_token Pointer to an uninitialized token structure to populate.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_oauth2_get_token(
+    c_orm_db_t *db, const char *access_token, c_orm_oauth2_token_t *out_token);
+
+/**
+ * @brief Revokes a token by deleting it or marking it revoked.
+ *
+ * @param db Database connection.
+ * @param token_str The access token string.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_oauth2_revoke_token(c_orm_db_t *db,
+                                                     const char *token_str);
+
+/**
+ * @brief Validates if requested scopes are a subset of granted scopes.
+ *
+ * @param granted_scopes A space-separated list of granted scopes.
+ * @param requested_scopes A space-separated list of requested scopes.
+ * @param out_is_valid Pointer to an integer that will be 1 if valid, 0
+ * otherwise.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_oauth2_validate_scope(const char *granted_scopes,
+                            const char *requested_scopes, int *out_is_valid);
+
+/**
+ * @brief Saves an authorization code to the database.
+ *
+ * @param db Database connection.
+ * @param auth_code The authorization code structure.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
+    c_orm_db_t *db, const c_orm_oauth2_auth_code_t *auth_code);
+
+/**
+ * @brief Consumes an authorization code, removing it from the database and
+ * populating the output.
+ *
+ * @param db Database connection.
+ * @param code The authorization code string.
+ * @param out_auth_code Pointer to an uninitialized auth code structure to
+ * populate.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
+    c_orm_db_t *db, const char *code, c_orm_oauth2_auth_code_t *out_auth_code);
+
+/**
+ * @brief Deletes expired tokens from the database.
+ *
+ * @param db Database connection.
+ * @param current_time The current UNIX timestamp.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time);
 
 /**
  * @brief Verifies a user's credentials against the database.

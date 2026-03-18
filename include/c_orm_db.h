@@ -56,7 +56,8 @@ typedef enum {
   C_ORM_ERROR_TYPE_MISMATCH,
   C_ORM_ERROR_NOT_FOUND,
   C_ORM_ERROR_NOT_IMPLEMENTED,
-  C_ORM_ERROR_UNKNOWN
+  C_ORM_ERROR_UNKNOWN,
+  C_ORM_ERROR_EXPIRED
 } c_orm_error_t;
 
 /**
@@ -72,6 +73,12 @@ C_ORM_EXPORT int c_orm_get_last_error_message(c_orm_db_t *db,
  * @brief Query logging callback signature.
  */
 typedef void (*c_orm_log_cb)(const char *sql, void *user_data);
+
+/**
+ * @brief Record expiration callback signature.
+ */
+typedef void (*c_orm_expire_cb)(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                                void *record, void *user_data);
 
 /**
  * @brief Virtual table for database driver implementations.
@@ -111,6 +118,8 @@ struct c_orm_db {
   void *driver_data;
   c_orm_log_cb log_cb;
   void *log_user_data;
+  c_orm_expire_cb expire_cb;
+  void *expire_user_data;
 };
 
 /**
@@ -122,6 +131,16 @@ struct c_orm_db {
  */
 C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
                                          void *user_data);
+
+/**
+ * @brief Set the expiration callback for a database connection.
+ *
+ * @param db Database handle.
+ * @param cb The callback function.
+ * @param user_data Opaque pointer passed to the callback.
+ */
+C_ORM_EXPORT void c_orm_set_expire_callback(c_orm_db_t *db, c_orm_expire_cb cb,
+                                            void *user_data);
 
 #ifdef __cplusplus
 }

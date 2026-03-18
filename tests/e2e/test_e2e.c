@@ -394,6 +394,12 @@ TEST test_e2e_verify_credentials(void) {
     client.grant_types = "password";
 
     err = c_orm_insert(auth_db, &c_orm_oauth2_client_meta, &client);
+    if (err != C_ORM_OK) {
+      const char *msg = NULL;
+      c_orm_get_last_error_message(auth_db, &msg);
+      fprintf(stderr, "\n=== Insert Client Error: %s ===\n", msg ? msg : "NULL");
+      fflush(stderr);
+    }
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
     memset(&token, 0, sizeof(token));
@@ -405,6 +411,12 @@ TEST test_e2e_verify_credentials(void) {
     token.user_id = "user123";
 
     err = c_orm_insert(auth_db, &c_orm_token_meta, &token);
+    if (err != C_ORM_OK) {
+      const char *msg = NULL;
+      c_orm_get_last_error_message(auth_db, &msg);
+      fprintf(stderr, "\n=== Insert Token Error: %s ===\n", msg ? msg : "NULL");
+      fflush(stderr);
+    }
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   }
 

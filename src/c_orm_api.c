@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 /* clang-format on */
 
 static c_orm_error_t hydrate_row(c_orm_db_t *db, c_orm_query_t *query,
@@ -155,6 +156,21 @@ static c_orm_error_t hydrate_row(c_orm_db_t *db, c_orm_query_t *query,
       return C_ORM_ERROR_TYPE_MISMATCH;
     }
   }
+
+  if (meta->has_ttl) {
+    int64_t created_at =
+        *(int64_t *)((char *)out_struct + meta->created_at_offset);
+    int32_t expires_in =
+        *(int32_t *)((char *)out_struct + meta->expires_in_offset);
+    int64_t current_time = (int64_t)time(NULL);
+    if (created_at + (int64_t)expires_in < current_time) {
+      if (db->expire_cb) {
+        db->expire_cb(db, meta, out_struct, db->expire_user_data);
+      }
+      return C_ORM_ERROR_EXPIRED;
+    }
+  }
+
   return C_ORM_OK;
 }
 
@@ -246,7 +262,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
     /* Hydrate into data[count] */
     err = hydrate_row(db, query, meta,
                       (char *)data + (count * meta->struct_size));
-    if (err != C_ORM_OK) {
+    if (err == C_ORM_ERROR_EXPIRED) {
+      /* Skip adding this record to the output array */
+      continue;
+    } else if (err != C_ORM_OK) {
       return err;
     }
     count++;
@@ -510,6 +529,47 @@ c_orm_find_by_id_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   }
 
   err = db->vtable->prepare(db, meta->query_select_by_pk, &query);
+  if (err != C_ORM_OK)
+    return err;
+
+  err = db->vtable->bind_string(query, 1, id_val);
+  if (err != C_ORM_OK) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  err = db->vtable->step(query, &has_row);
+  if (err != C_ORM_OK) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  if (!has_row) {
+    db->vtable->finalize(query);
+    return C_ORM_ERROR_NOT_FOUND;
+  }
+
+  err = hydrate_row(db, query, meta, out_struct);
+  db->vtable->finalize(query);
+  return err;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_find_for_update_by_id_string(
+    c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *id_val,
+    void *out_struct) {
+  c_orm_query_t *query;
+  c_orm_error_t err;
+  int has_row;
+
+  if (!db || !meta || !id_val || !out_struct)
+    return C_ORM_ERROR_MEMORY;
+
+  if (!meta->query_select_by_pk_for_update) {
+    /* Fallback to standard select if for_update query is not provided. */
+    return c_orm_find_by_id_string(db, meta, id_val, out_struct);
+  }
+
+  err = db->vtable->prepare(db, meta->query_select_by_pk_for_update, &query);
   if (err != C_ORM_OK)
     return err;
 
