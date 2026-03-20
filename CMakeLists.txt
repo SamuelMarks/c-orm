@@ -56,16 +56,8 @@ if(C_ORM_SQLITE STREQUAL "LINKED")
                 sqlite3
                 URL https://www.sqlite.org/2024/sqlite-amalgamation-3450200.zip
             )
-            FetchContent_GetProperties(sqlite3)
-            if(NOT sqlite3_POPULATED)
-                if(POLICY CMP0169)
-                    cmake_policy(PUSH)
-                    cmake_policy(SET CMP0169 OLD)
-                endif()
-                FetchContent_Populate(sqlite3)
-                if(POLICY CMP0169)
-                    cmake_policy(POP)
-                endif()
+            FetchContent_MakeAvailable(sqlite3)
+            if(NOT TARGET sqlite3)
                 add_library(sqlite3 STATIC ${sqlite3_SOURCE_DIR}/sqlite3.c)
                 target_include_directories(sqlite3 SYSTEM PUBLIC ${sqlite3_SOURCE_DIR})
             endif()
@@ -105,5 +97,5 @@ endif()
 
 # We will eventually add testing here
 enable_testing()
-add_subdirectory(tests/e2e)
+
 

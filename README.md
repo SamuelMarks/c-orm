@@ -36,7 +36,7 @@ It provides primitives analogous to Python's SQLAlchemy/Alembic or Rust's Diesel
 | Schema Migrations | 🚧 | Version tracking and up/down stubbed. |
 | Code Generation | ✅ | SQL to C struct and CRUD generation functional. |
 | Async Execution | ✅ | Queue-based simulation for event loops. |
-| ORM Object Mapping | 🚧 | Full automated struct-to-row mapping pending. |
+| ORM Object Mapping | ✅ | Full automated struct-to-row mapping implemented. |
 
 ## Installation
 

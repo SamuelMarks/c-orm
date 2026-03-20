@@ -10,11 +10,18 @@ include(FetchContent)
 set(C_CDD_BUILD_TESTING OFF CACHE BOOL "Disable cdd-c tests" FORCE)
 
 # Fetch cdd-c
-FetchContent_Declare(
-  cdd_c
-  URL https://github.com/SamuelMarks/cdd-c/archive/refs/heads/master.zip
-
-)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../cdd-c")
+  FetchContent_Declare(
+    cdd_c
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../cdd-c"
+  )
+else()
+  FetchContent_Declare(
+    cdd_c
+    GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git
+    GIT_TAG        master
+  )
+endif()
 FetchContent_MakeAvailable(cdd_c)
 
 # Fetch greatest.h
