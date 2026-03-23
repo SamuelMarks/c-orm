@@ -9,19 +9,11 @@ include(FetchContent)
 # Disable tests for dependencies
 set(C_CDD_BUILD_TESTING OFF CACHE BOOL "Disable cdd-c tests" FORCE)
 
-# Fetch cdd-c
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../cdd-c")
-  FetchContent_Declare(
+FetchContent_Declare(
     cdd_c
-    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../cdd-c"
-  )
-else()
-  FetchContent_Declare(
-    cdd_c
-    GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git
-    GIT_TAG        master
-  )
-endif()
+    URL https://github.com/SamuelMarks/cdd-c/archive/refs/heads/master.zip
+    PATCH_COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../patch_cdd.py
+)
 FetchContent_MakeAvailable(cdd_c)
 
 # Fetch greatest.h
@@ -36,19 +28,35 @@ if(NOT EXISTS "${GREATEST_H_DIR}/greatest.h")
     endif()
 endif()
 
-add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-    COMMAND cdd-c sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDS cdd-c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
-    COMMENT "Generating C Models from schema.sql using cdd-c..."
+if(WIN32 AND BUILD_SHARED_LIBS AND TARGET c89stringutils AND TARGET cfs)
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
+        COMMAND ${CMAKE_COMMAND} -E env "PATH=$<TARGET_FILE_DIR:c89stringutils>;$<TARGET_FILE_DIR:cfs>;$ENV{PATH}" $<TARGET_FILE:cdd-c> sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+        DEPENDS cdd-c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
+        COMMENT "Generating C Models from schema.sql using cdd-c..."
+    )
+else()
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
+        COMMAND $<TARGET_FILE:cdd-c> sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+        DEPENDS cdd-c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
+        COMMENT "Generating C Models from schema.sql using cdd-c..."
+    )
+endif()
+
+add_custom_target(generate_e2e_models
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Models.c ${CMAKE_CURRENT_BINARY_DIR}/Models.h
 )
 
-add_executable(c_orm_e2e_tests 
+add_executable(c_orm_e2e_tests
     test_e2e.c
+    test_inline_macros.c
     ${CMAKE_CURRENT_BINARY_DIR}/Models.c
 )
 
-target_include_directories(c_orm_e2e_tests PRIVATE 
+add_dependencies(c_orm_e2e_tests generate_e2e_models)
+
+target_include_directories(c_orm_e2e_tests PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
     ${GREATEST_H_DIR}
 )

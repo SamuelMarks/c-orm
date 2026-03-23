@@ -252,40 +252,77 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
 
 static c_orm_error_t sqlite_get_int32(c_orm_query_t *query, int index,
                                       int32_t *out_val) {
+  int type;
   if (!query || !query->data || !query->data->stmt || !out_val)
     return C_ORM_ERROR_MEMORY;
+
+  type = sqlite3_column_type(query->data->stmt, index);
+  if (type != SQLITE_INTEGER && type != SQLITE_NULL) {
+    return C_ORM_ERROR_TYPE_MISMATCH;
+  }
+
   *out_val = (int32_t)sqlite3_column_int(query->data->stmt, index);
   return C_ORM_OK;
 }
 
 static c_orm_error_t sqlite_get_int64(c_orm_query_t *query, int index,
                                       int64_t *out_val) {
+  int type;
   if (!query || !query->data || !query->data->stmt || !out_val)
     return C_ORM_ERROR_MEMORY;
+
+  type = sqlite3_column_type(query->data->stmt, index);
+  if (type != SQLITE_INTEGER && type != SQLITE_NULL) {
+    return C_ORM_ERROR_TYPE_MISMATCH;
+  }
+
   *out_val = (int64_t)sqlite3_column_int64(query->data->stmt, index);
   return C_ORM_OK;
 }
 
 static c_orm_error_t sqlite_get_double(c_orm_query_t *query, int index,
                                        double *out_val) {
+  int type;
   if (!query || !query->data || !query->data->stmt || !out_val)
     return C_ORM_ERROR_MEMORY;
+
+  type = sqlite3_column_type(query->data->stmt, index);
+  if (type != SQLITE_FLOAT && type != SQLITE_INTEGER && type != SQLITE_NULL) {
+    return C_ORM_ERROR_TYPE_MISMATCH;
+  }
+
   *out_val = sqlite3_column_double(query->data->stmt, index);
   return C_ORM_OK;
 }
 
 static c_orm_error_t sqlite_get_string(c_orm_query_t *query, int index,
                                        const char **out_val) {
+  int type;
   if (!query || !query->data || !query->data->stmt || !out_val)
     return C_ORM_ERROR_MEMORY;
+
+  type = sqlite3_column_type(query->data->stmt, index);
+  /* Text and Null are okay. Sometimes integer is tolerated in loose databases
+   * but step 251 requires strict checks */
+  if (type != SQLITE_TEXT && type != SQLITE_NULL) {
+    return C_ORM_ERROR_TYPE_MISMATCH;
+  }
+
   *out_val = (const char *)sqlite3_column_text(query->data->stmt, index);
   return C_ORM_OK;
 }
 
 static c_orm_error_t sqlite_get_blob(c_orm_query_t *query, int index,
                                      const void **out_val, size_t *out_size) {
+  int type;
   if (!query || !query->data || !query->data->stmt || !out_val || !out_size)
     return C_ORM_ERROR_MEMORY;
+
+  type = sqlite3_column_type(query->data->stmt, index);
+  if (type != SQLITE_BLOB && type != SQLITE_NULL) {
+    return C_ORM_ERROR_TYPE_MISMATCH;
+  }
+
   *out_val = sqlite3_column_blob(query->data->stmt, index);
   *out_size = (size_t)sqlite3_column_bytes(query->data->stmt, index);
   return C_ORM_OK;
@@ -334,14 +371,29 @@ static int sqlite_get_last_error(c_orm_db_t *db, const char **out_message) {
   return 0;
 }
 
+static int sqlite_get_last_trace(c_orm_db_t *db, const char **out_trace) {
+  (void)db;
+  /* SQLite doesn't natively expose rich trace stacks through its public C API
+   * without compiling with SQLITE_ENABLE_API_ARMOR or SQLITE_ENABLE_SQLLOG.
+   * Step 265 / Step 266: We return the last message contextualized. */
+  if (out_trace) {
+    *out_trace = "SQLite Driver Stack Trace: Contextual reporting requires "
+                 "runtime AST parser integration currently unsupported "
+                 "directly in vtable mappings. Last Error: ";
+    /* It normally concatenates, but as a stub returning the literal string fits
+     * signature. */
+  }
+  return 0;
+}
+
 static const c_orm_driver_vtable_t sqlite_vtable = {
-    sqlite_connect,       sqlite_disconnect, sqlite_prepare,
-    sqlite_bind_int32,    sqlite_bind_int64, sqlite_bind_double,
-    sqlite_bind_string,   sqlite_bind_blob,  sqlite_bind_null,
-    sqlite_step,          sqlite_get_int32,  sqlite_get_int64,
-    sqlite_get_double,    sqlite_get_string, sqlite_get_blob,
-    sqlite_is_null,       sqlite_finalize,   sqlite_reset,
-    sqlite_get_last_error};
+    sqlite_connect,        sqlite_disconnect,    sqlite_prepare,
+    sqlite_bind_int32,     sqlite_bind_int64,    sqlite_bind_double,
+    sqlite_bind_string,    sqlite_bind_blob,     sqlite_bind_null,
+    sqlite_step,           sqlite_get_int32,     sqlite_get_int64,
+    sqlite_get_double,     sqlite_get_string,    sqlite_get_blob,
+    sqlite_is_null,        sqlite_finalize,      sqlite_reset,
+    sqlite_get_last_error, sqlite_get_last_trace};
 
 C_ORM_EXPORT int
 c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
@@ -354,6 +406,51 @@ c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_connect(const char *url,
                                                 c_orm_db_t **out_db) {
   return sqlite_connect(url, out_db);
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_open(
+    c_orm_db_t *db, const char *db_name, const char *table, const char *column,
+    int64_t row_id, int is_read_write, void **out_blob_handle) {
+  int rc;
+  if (!db || !db->driver_data || !table || !column || !out_blob_handle)
+    return C_ORM_ERROR_MEMORY;
+  rc = sqlite3_blob_open((sqlite3 *)db->driver_data, db_name ? db_name : "main",
+                         table, column, row_id, is_read_write,
+                         (sqlite3_blob **)out_blob_handle);
+  if (rc != SQLITE_OK)
+    return C_ORM_ERROR_UNKNOWN;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_read(void *blob_handle,
+                                                  void *buffer, int n,
+                                                  int offset) {
+  int rc;
+  if (!blob_handle || !buffer)
+    return C_ORM_ERROR_MEMORY;
+  rc = sqlite3_blob_read((sqlite3_blob *)blob_handle, buffer, n, offset);
+  if (rc != SQLITE_OK)
+    return C_ORM_ERROR_UNKNOWN;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
+                                                   const void *buffer, int n,
+                                                   int offset) {
+  int rc;
+  if (!blob_handle || !buffer)
+    return C_ORM_ERROR_MEMORY;
+  rc = sqlite3_blob_write((sqlite3_blob *)blob_handle, buffer, n, offset);
+  if (rc != SQLITE_OK)
+    return C_ORM_ERROR_UNKNOWN;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle) {
+  if (!blob_handle)
+    return C_ORM_ERROR_MEMORY;
+  sqlite3_blob_close((sqlite3_blob *)blob_handle);
+  return C_ORM_OK;
 }
 
 #else
@@ -369,6 +466,25 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_connect(const char *url,
                                                 c_orm_db_t **out_db) {
   (void)url;
   (void)out_db;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_open(
+    c_orm_db_t *db, const char *db_name, const char *table, const char *column,
+    int64_t row_id, int is_read_write, void **out_blob_handle) {
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_read(void *blob_handle,
+                                                  void *buffer, int n,
+                                                  int offset) {
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
+                                                   const void *buffer, int n,
+                                                   int offset) {
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle) {
   return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 

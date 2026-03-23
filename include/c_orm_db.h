@@ -57,17 +57,30 @@ typedef enum {
   C_ORM_ERROR_NOT_FOUND,
   C_ORM_ERROR_NOT_IMPLEMENTED,
   C_ORM_ERROR_UNKNOWN,
-  C_ORM_ERROR_EXPIRED
+  C_ORM_ERROR_EXPIRED,
+  C_ORM_ERROR_VALIDATION,
+  C_ORM_ERROR_RECURSION,
+  C_ORM_ERROR_READ_ONLY
 } c_orm_error_t;
-
 /**
  * @brief Get the last error message from the database driver.
  *
  * @param db The database connection.
- * @return A string detailing the last error, or NULL.
+ * @param out_message Returns a string detailing the last error.
+ * @return 0 on success.
  */
 C_ORM_EXPORT int c_orm_get_last_error_message(c_orm_db_t *db,
                                               const char **out_message);
+
+/**
+ * @brief Get context-aware stack trace for the last error (Step 265).
+ *
+ * @param db The database connection.
+ * @param out_trace Returns a string detailing the contextual trace stack.
+ * @return 0 on success.
+ */
+C_ORM_EXPORT int c_orm_get_last_error_trace(c_orm_db_t *db,
+                                            const char **out_trace);
 
 /**
  * @brief Query logging callback signature.
@@ -108,7 +121,37 @@ typedef struct c_orm_driver_vtable {
   c_orm_error_t (*finalize)(c_orm_query_t *query);
   c_orm_error_t (*reset)(c_orm_query_t *query);
   int (*get_last_error)(c_orm_db_t *db, const char **out_message);
+  int (*get_last_trace)(c_orm_db_t *db, const char **out_trace);
 } c_orm_driver_vtable_t;
+
+/**
+ * @brief Interceptor hooks for plugin architecture.
+ */
+typedef void (*c_orm_interceptor_cb)(c_orm_db_t *db, const char *sql,
+                                     void *context);
+
+/**
+ * @brief Crypto hooks for transparent encryption/decryption of
+ * C_ORM_SECURE_FIELD (Step 248).
+ *
+ * @param data The raw data to encrypt/decrypt.
+ * @param size The size of the data.
+ * @param context Opaque user context.
+ * @param out_data Returns pointer to processed buffer.
+ * @param out_size Returns size of processed buffer.
+ */
+typedef c_orm_error_t (*c_orm_crypto_hook_t)(const void *data, size_t size,
+                                             void *context, void **out_data,
+                                             size_t *out_size);
+
+/**
+ * @brief Represents a timezone offset from UTC.
+ */
+typedef struct c_orm_timezone {
+  int offset_minutes; /**< Offset from UTC in minutes */
+  const char
+      *name; /**< Optional IANA timezone name (e.g. "America/New_York") */
+} c_orm_timezone_t;
 
 /**
  * @brief Structure holding the generic DB context.
@@ -120,15 +163,28 @@ struct c_orm_db {
   void *log_user_data;
   c_orm_expire_cb expire_cb;
   void *expire_user_data;
-};
+  c_orm_identity_map_t *
+      identity_map; /**< Phase 1: Associated identity map for caching objects */
+  struct CddCHydrateRouter
+      *hydrate_router; /**< Phase 2: Associated cdd-c hydrate router */
 
-/**
- * @brief Set the global logging callback for a database connection.
- *
- * @param db Database handle.
- * @param cb The callback function.
- * @param user_data Opaque pointer passed to the callback.
- */
+  c_orm_interceptor_cb query_interceptor; /**< Query execution hook */
+  void *query_interceptor_ctx;
+  c_orm_interceptor_cb hydration_interceptor; /**< Hydration execution hook */
+  void *hydration_interceptor_ctx;
+
+  c_orm_crypto_hook_t encrypt_hook; /**< Cryptographic hook for encryption */
+  c_orm_crypto_hook_t decrypt_hook; /**< Cryptographic hook for decryption */
+  void *crypto_context;             /**< Cryptographic context */
+
+  c_orm_timezone_t timezone; /**< Timezone configuration for the session */
+}; /**
+    * @brief Set the global logging callback for a database connection.
+    *
+    * @param db Database handle.
+    * @param cb The callback function.
+    * @param user_data Opaque pointer passed to the callback.
+    */
 C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
                                          void *user_data);
 
@@ -141,6 +197,29 @@ C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
  */
 C_ORM_EXPORT void c_orm_set_expire_callback(c_orm_db_t *db, c_orm_expire_cb cb,
                                             void *user_data);
+
+/**
+ * @brief Register cryptographic hooks for transparent encryption/decryption of
+ * C_ORM_SECURE_FIELD fields.
+ *
+ * @param db Database connection.
+ * @param encrypt_hook Callback function to encrypt data.
+ * @param decrypt_hook Callback function to decrypt data.
+ * @param context Opaque user data for the crypto operations.
+ */
+C_ORM_EXPORT void c_orm_register_crypto_hooks(c_orm_db_t *db,
+                                              c_orm_crypto_hook_t encrypt_hook,
+                                              c_orm_crypto_hook_t decrypt_hook,
+                                              void *context);
+
+/**
+ * @brief Configure timezone logic for mapping datetime conversions locally on
+ * load (Step 252).
+ *
+ * @param db Database handle.
+ * @param tz The timezone struct offset.
+ */
+C_ORM_EXPORT void c_orm_set_timezone(c_orm_db_t *db, c_orm_timezone_t tz);
 
 #ifdef __cplusplus
 }

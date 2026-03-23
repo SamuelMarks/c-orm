@@ -20,22 +20,32 @@ It provides primitives analogous to Python's SQLAlchemy/Alembic or Rust's Diesel
 - **Connection Pooling**: Built-in thread-safe database connection pool.
 - **Fluent Query Builder**: Safely construct SELECT statements without raw string concatenation.
 - **Abstracted Schema Migrations**: Alembic-style schema migrations and version tracking.
-- **CRUD Code Generation**: Generate pure C structs and CRUD boilerplates straight from your DB Schema AST using the `db_codegen` module.
+- **CRUD Code Generation**: Generate pure C structs and CRUD boilerplates straight from your DB Schema using the integrated `cdd-c` native code generation API.
 - **Async Execution Simulation**: Queue-based async execution mechanisms designed for easy integration with event loops.
 
 ## Feature Status
 
 | Feature | Status | Description |
 | :--- | :---: | :--- |
+| Dynamic Hydration & Abstract Routing | ✅ | Seamless fallback to `cdd_c_abstract_struct_t` for raw queries. |
+| Spatial Types Support | ✅ | `C_ORM_TYPE_POINT` and `C_ORM_TYPE_POLYGON` mapping to native structs or raw WKB binaries. |
+| AOT Specific Structs Projection | ✅ | High-performance memory mapping straight from SQL driver buffer to specific struct instances. |
+| Automatic UUID Generation | ✅ | Auto-generates UUID v4 strings for empty string primary keys. |
 | SQLite Backend | ✅ | Full support for SQLite. |
 | PostgreSQL Backend | ✅ | Full support via native libpq integration. |
 | MySQL Backend | ✅ | Full support via native mysqlclient integration. |
 | Connection Pooling | ✅ | Thread-safe connection pool implemented. |
-| Fluent Query Builder | ✅ | SELECT, WHERE, ORDER BY, LIMIT supported. |
-| Parameterized Queries | ✅ | Type-safe binding primitives available. |
-| Schema Migrations | 🚧 | Version tracking and up/down stubbed. |
-| Code Generation | ✅ | SQL to C struct and CRUD generation functional. |
-| Async Execution | ✅ | Queue-based simulation for event loops. |
+| Query Builder | ✅ | Fluent, type-safe API for SELECT, INSERT, UPDATE, DELETE. |
+| Migrations | ✅ | Supports schema diffing and version tracking using `cdd-c`. |
+| Code Generation | ✅ | Native struct mapping and AST reflection via `cdd-c`. |
+| Async Driver | ✅ | Event-loop aware abstractions for non-blocking I/O. |
+| Identity Map | ✅ | High-performance memory tracking layer resolving active references. |
+| L1 Cache | ✅ | Thread-safe query caching layer intercepting duplicate queries. |
+| Thread Safety | ✅ | Completely re-entrant structures mapping sessions natively. |
+| Sharding Engine | ✅ | Horizontal data partitioning across connections. |
+| Advanced Security | ✅ | SQL sanitization, Transparent Encryption hooks, Strict type mapping. |
+| BLOB Streaming API | ✅ | Gigabyte+ native memory-mapped abstractions for PG/SQLite. |
+| Dynamic Hydration | ✅ | Fallback mapping engine routing AST abstractions dynamically. |
 | ORM Object Mapping | ✅ | Full automated struct-to-row mapping implemented. |
 
 ## Installation

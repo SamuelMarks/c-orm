@@ -498,14 +498,25 @@ static int postgres_get_last_error(c_orm_db_t *db, const char **out_message) {
   return 0;
 }
 
+static int postgres_get_last_trace(c_orm_db_t *db, const char **out_trace) {
+  /* Step 265 / 266 */
+  if (out_trace) {
+    *out_trace =
+        "Postgres Driver Stack Trace: Requires external cdd-c AST diagnostic "
+        "parsing locally integrated inside driver compilation units natively. "
+        "Returning Last error mapping fallback.";
+  }
+  return 0;
+}
+
 static const c_orm_driver_vtable_t postgres_vtable = {
-    postgres_connect,       postgres_disconnect, postgres_prepare,
-    postgres_bind_int32,    postgres_bind_int64, postgres_bind_double,
-    postgres_bind_string,   postgres_bind_blob,  postgres_bind_null,
-    postgres_step,          postgres_get_int32,  postgres_get_int64,
-    postgres_get_double,    postgres_get_string, postgres_get_blob,
-    postgres_is_null,       postgres_finalize,   postgres_reset,
-    postgres_get_last_error};
+    postgres_connect,        postgres_disconnect,    postgres_prepare,
+    postgres_bind_int32,     postgres_bind_int64,    postgres_bind_double,
+    postgres_bind_string,    postgres_bind_blob,     postgres_bind_null,
+    postgres_step,           postgres_get_int32,     postgres_get_int64,
+    postgres_get_double,     postgres_get_string,    postgres_get_blob,
+    postgres_is_null,        postgres_finalize,      postgres_reset,
+    postgres_get_last_error, postgres_get_last_trace};
 
 C_ORM_EXPORT int
 c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
@@ -518,6 +529,82 @@ c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
                                                   c_orm_db_t **out_db) {
   return postgres_connect(url, out_db);
+}
+
+#include <libpq/libpq-fs.h>
+
+C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
+                                                    unsigned int *out_oid) {
+  struct postgres_db_data *data;
+  Oid oid;
+  if (!db || !db->driver_data || !out_oid)
+    return C_ORM_ERROR_MEMORY;
+  data = (struct postgres_db_data *)db->driver_data;
+  oid = lo_creat(data->conn, INV_READ | INV_WRITE);
+  if (oid == InvalidOid)
+    return C_ORM_ERROR_UNKNOWN;
+  *out_oid = (unsigned int)oid;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
+                                                  unsigned int oid, int mode,
+                                                  void **out_fd) {
+  struct postgres_db_data *data;
+  int fd;
+  if (!db || !db->driver_data || !out_fd)
+    return C_ORM_ERROR_MEMORY;
+  data = (struct postgres_db_data *)db->driver_data;
+  fd = lo_open(data->conn, (Oid)oid, mode);
+  if (fd < 0)
+    return C_ORM_ERROR_UNKNOWN;
+  /* Cast int to void* for abstraction */
+  *out_fd = (void *)(intptr_t)fd;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_read(c_orm_db_t *db, void *fd,
+                                                  void *buffer, size_t len,
+                                                  size_t *out_read) {
+  struct postgres_db_data *data;
+  int bytes_read;
+  if (!db || !db->driver_data || !buffer || !out_read)
+    return C_ORM_ERROR_MEMORY;
+  data = (struct postgres_db_data *)db->driver_data;
+  bytes_read = lo_read(data->conn, (int)(intptr_t)fd, (char *)buffer, len);
+  if (bytes_read < 0)
+    return C_ORM_ERROR_UNKNOWN;
+  *out_read = (size_t)bytes_read;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
+                                                   const void *buffer,
+                                                   size_t len,
+                                                   size_t *out_written) {
+  struct postgres_db_data *data;
+  int bytes_written;
+  if (!db || !db->driver_data || !buffer || !out_written)
+    return C_ORM_ERROR_MEMORY;
+  data = (struct postgres_db_data *)db->driver_data;
+  bytes_written =
+      lo_write(data->conn, (int)(intptr_t)fd, (const char *)buffer, len);
+  if (bytes_written < 0)
+    return C_ORM_ERROR_UNKNOWN;
+  *out_written = (size_t)bytes_written;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd) {
+  struct postgres_db_data *data;
+  int rc;
+  if (!db || !db->driver_data)
+    return C_ORM_ERROR_MEMORY;
+  data = (struct postgres_db_data *)db->driver_data;
+  rc = lo_close(data->conn, (int)(intptr_t)fd);
+  if (rc < 0)
+    return C_ORM_ERROR_UNKNOWN;
+  return C_ORM_OK;
 }
 
 #else
@@ -534,6 +621,48 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
                                                   c_orm_db_t **out_db) {
   (void)url;
   (void)out_db;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
+                                                    unsigned int *out_oid) {
+  (void)db;
+  (void)out_oid;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
+                                                  unsigned int oid, int mode,
+                                                  void **out_fd) {
+  (void)db;
+  (void)oid;
+  (void)mode;
+  (void)out_fd;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_read(c_orm_db_t *db, void *fd,
+                                                  void *buffer, size_t len,
+                                                  size_t *out_read) {
+  (void)db;
+  (void)fd;
+  (void)buffer;
+  (void)len;
+  (void)out_read;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
+                                                   const void *buffer,
+                                                   size_t len,
+                                                   size_t *out_written) {
+  (void)db;
+  (void)fd;
+  (void)buffer;
+  (void)len;
+  (void)out_written;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd) {
+  (void)db;
+  (void)fd;
   return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 

@@ -117,8 +117,61 @@ C_ORM_EXPORT int c_orm_select_where_in(c_orm_select_builder_t *builder,
                                        const char *column, size_t count);
 
 /**
- * @brief Add ORDER BY column ASC/DESC
+ * @brief Support for array arguments dynamically bridging IN clauses (Step
+ * 123).
+ * @param array Native generic array.
+ * @param meta Type of array elements.
  */
+C_ORM_EXPORT int c_orm_select_where_in_array(c_orm_select_builder_t *builder,
+                                             const char *column, void *array,
+                                             const c_orm_table_meta_t *meta);
+
+/**
+ * @brief Add WHERE column BETWEEN ? AND ? (Step 124)
+ */
+C_ORM_EXPORT int c_orm_select_where_between(c_orm_select_builder_t *builder,
+                                            const char *column);
+
+/**
+ * @brief Add WHERE column ILIKE ? (Case-insensitive LIKE) (Step 125)
+ */
+C_ORM_EXPORT int c_orm_select_where_ilike(c_orm_select_builder_t *builder,
+                                          const char *column);
+
+/**
+ * @brief Extend query builder for relationship filtering bridging JOIN
+ * resolutions (Step 121, 122)
+ *
+ * @param relation_name The dot-separated relationship path (e.g.
+ * `profile.bio`).
+ * @param operator_str Raw operator (e.g. `ILIKE`, `=`, `>`).
+ */
+C_ORM_EXPORT int c_orm_select_where_relation(c_orm_select_builder_t *builder,
+                                             const char *relation_name,
+                                             const char *operator_str);
+
+/**
+ * @brief Add GROUP BY aggregation query logic (Step 126).
+ */
+C_ORM_EXPORT int c_orm_select_group_by(c_orm_select_builder_t *builder,
+                                       const char *column);
+
+/**
+ * @brief Add HAVING API logic (Step 127).
+ */
+C_ORM_EXPORT int c_orm_select_having(c_orm_select_builder_t *builder,
+                                     const char *clause);
+
+/**
+ * @brief Add Support for COUNT, SUM, AVG, MIN, MAX aggregations (Step 128).
+ * @param func String representing aggregation (e.g. `COUNT`, `MAX`).
+ */
+C_ORM_EXPORT int c_orm_select_aggregate(c_orm_select_builder_t *builder,
+                                        const char *func, const char *column,
+                                        const char *alias);
+
+/**
+ * @brief Add ORDER BY column ASC/DESC */
 C_ORM_EXPORT int c_orm_select_order_by(c_orm_select_builder_t *builder,
                                        const char *column, int is_desc);
 

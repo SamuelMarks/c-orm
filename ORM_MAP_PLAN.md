@@ -1,0 +1,318 @@
+# C-ORM Object Mapping Implementation Plan (Extended with cdd-c)
+
+This document outlines the 300-step roadmap to transition the `c-orm` codebase to a **fully automated, reflection-capable Object Relational Mapper**.
+
+**Dependency Note:** `c-orm` depends on the `cdd-c` library to automatically generate a specific C struct per query and elegantly fallback to an abstract struct (dynamic row) for getting, inserting, updating-with-return, and deleting-with-return operations. `c-orm` is responsible for building the database driver bindings to the generic `cdd-c` APIs.
+
+## Phase 1: Architecture, Data Structures & cdd-c Integration (Steps 1-30)
+
+- [x] Step 1: Integrate cdd-c library as the core data dictionary and schema representation layer via FetchContent
+- [x] Step 2: Replace raw db_codegen tool with cdd-c native code generation API
+- [x] Step 3: Define c_orm_relation_type_t enum (ONE_TO_ONE, ONE_TO_MANY, MANY_TO_MANY)
+- [x] Step 4: Create c_orm_relation_meta_t struct linking to cdd-c IR (Intermediate Representation)
+- [x] Step 5: Add c_orm_relation_meta_t array to c_orm_table_meta_t leveraging cdd-c metadata
+- [x] Step 6: Define struct field offsets for relationship target pointers via cdd-c reflection
+- [x] Step 7: Define struct field offsets for c_orm_array_t relationship targets via cdd-c
+- [x] Step 8: Implement validation logic for recursive relationship definitions
+- [x] Step 9: Define c_orm_lazy_load_context_t for deferred querying
+- [x] Step 10: Create lazy load proxy stubs mapped through cdd-c IR
+- [x] Step 11: Implement c_orm integration layer to parse FOREIGN KEY constraints into c_orm_relation_meta_t via cdd-c
+- [x] Step 12: Integrate cdd-c generated nested pointers for One-to-One in C structs into c_orm
+- [x] Step 13: Integrate cdd-c generated Array wrappers for One-to-Many in C structs into c_orm
+- [x] Step 14: Update c_orm to handle cdd-c forward declarations for circular refs in generated headers
+- [x] Step 15: Wrap the cdd_c_abstract_struct_t fallback type for dynamic query results in c_orm
+- [x] Step 16: Implement mapping from abstract struct to JSON/Dict for dynamic use cases
+- [x] Step 17: Write unit tests for c_orm_relation_meta_t structure validation
+- [x] Step 18: Implement deep free logic utilizing cdd-c nested struct traversals (c_orm_deep_free)
+- [x] Step 19: Implement deep copy logic utilizing cdd-c nested struct traversals (c_orm_deep_copy)
+- [x] Step 20: Design c_orm_identity_map_t for caching active object pointers
+- [x] Step 21: Implement identity map hashing by table name and integer PK
+- [x] Step 22: Implement identity map hashing by table name and string PK
+- [x] Step 23: Integrate c_orm_identity_map_t with thread-local storage or connection context
+- [x] Step 24: Define c_orm_lifecycle_hook_t function pointer types (before_save, after_save, etc.)
+- [x] Step 25: Add lifecycle hook array to c_orm_table_meta_t
+- [x] Step 26: Define c_orm_dirty_flags_t bitmask for tracking field modifications
+- [x] Step 27: Utilize cdd-c generated dirty_flags bitmask fields in c_orm update logic
+- [x] Step 28: Write macro helpers (C_ORM_SET_FIELD) to automatically toggle dirty flags in generated structs
+- [x] Step 29: Design polymorphic association metadata structures mapping to cdd-c IR
+- [x] Step 30: Review and refactor c_orm_api.h for cdd-c ABI backward compatibility
+## Phase 2: Hydration Engine Overhaul & Query Structs (Steps 31-70)
+
+- [x] Step 31: Refactor hydrate_row to check for cdd-c query-specific structs first
+- [x] Step 32: Implement fallback routing to cdd_c_abstract_struct_t if specific struct is absent
+- [x] Step 33: Implement hydration wrapper for cdd_c_abstract_struct_t (dynamic key-value parsing)
+- [x] Step 34: Implement hydrate_relation_stub to initialize lazy load contexts
+- [x] Step 35: Implement eager loading: parse JOIN results into nested cdd-c structs
+- [x] Step 36: Handle column name aliasing in JOINs for eager loading (e.g., users__id vs posts__id)
+- [x] Step 37: Implement prefix-based column grouping algorithm for JOIN row splitting
+- [x] Step 38: Implement hydrate_one_to_one mapping logic via cdd-c reflection
+- [x] Step 39: Implement hydrate_one_to_many mapping logic using c_orm_array_t
+- [x] Step 40: Implement hydrate_many_to_many mapping logic using junction tables
+- [x] Step 41: Write function to detect and resolve N+1 query scenarios during iteration
+- [x] Step 42: Implement row caching in c_orm_identity_map_t during hydration
+- [x] Step 43: Resolve pointer aliasing for eagerly loaded duplicate relations
+- [x] Step 44: Implement hydrate_enum logic mapping database outputs to C enums via cdd-c
+- [x] Step 45: Implement hydrate_polymorphic logic based on discriminator column
+- [x] Step 46: Handle NULL foreign keys by setting relation pointers to NULL
+- [x] Step 47: Handle empty result sets for One-to-Many arrays (initialize length 0)
+- [x] Step 48: Write unit test for One-to-One hydration (User -> Profile)
+- [x] Step 49: Write unit test for One-to-Many hydration (User -> Posts)
+- [x] Step 50: Write unit test for Many-to-Many hydration (Posts -> Tags)
+- [x] Step 51: Write unit test for cyclic hydration (User -> Posts -> User)
+- [x] Step 52: Optimize prefix-matching in hydration engine for large result sets
+- [x] Step 53: Profile hydrate_row memory allocations (reduce redundant mallocs)
+- [x] Step 54: Implement arena allocator for temporary hydration contexts
+- [x] Step 55: Integrate arena allocator with c_orm_find_all
+- [x] Step 56: Implement c_orm_free_hydration_context to clean up arenas
+- [x] Step 57: Add bounds checking for c_orm_array_t resizing during One-to-Many aggregation
+- [x] Step 58: Handle deep struct memory exhaustion gracefully (C_ORM_ERROR_MEMORY)
+- [x] Step 59: Implement lazy loading query generation (SELECT * FROM target WHERE fk = ?)
+- [x] Step 60: Write c_orm_load_relation() API function to trigger lazy loads manually
+- [x] Step 61: Implement auto-lazy-load proxy macros for seamless dereferencing
+- [x] Step 62: Write unit test for explicit c_orm_load_relation call
+- [x] Step 63: Write unit test for auto-lazy-load proxy macros
+- [x] Step 64: Add multi-level eager loading support (e.g., User.Posts.Tags)
+- [x] Step 65: Extend query builder to accept nested include directives (c_orm_include)
+- [x] Step 66: Parse nested include directives into SQL JOINs
+- [x] Step 67: Validate nested include directives against cdd-c generated metadata
+- [x] Step 68: Write unit test for multi-level JOIN query generation
+- [x] Step 69: Write unit test for multi-level nested struct hydration
+- [x] Step 70: Perform static analysis on hydration engine (valgrind, asan)
+## Phase 3: Insertion, RETURNING Clauses, and Dirty Tracking (Steps 71-120)
+
+- [x] Step 71: Refactor c_orm_insert to accept specific cdd-c generated structs
+- [x] Step 72: Add support for c_orm_insert to accept cdd_c_abstract_struct_t
+- [x] Step 73: Implement RETURNING clause generation for PostgreSQL INSERT operations
+- [x] Step 74: Hydrate RETURNING results back into specific cdd-c generated struct
+- [x] Step 75: Hydrate RETURNING results back into abstract struct fallback
+- [x] Step 76: Implement sequence value retrieval after insert for MySQL/SQLite if RETURNING is unsupported
+- [x] Step 77: Refactor c_orm_insert to read nested structs recursively
+- [x] Step 78: Implement topological sort for insertion order based on foreign keys
+- [x] Step 79: Implement cascading insert for One-to-One relations
+- [x] Step 80: Implement cascading insert for One-to-Many relations
+- [x] Step 81: Implement cascading insert for Many-to-Many
+- [x] Step 82: Handle cyclic dependencies during cascading insert
+- [x] Step 83: Update query builder to support deferred foreign key updates
+- [x] Step 84: Write unit test for cascading insert (User + Profile)
+- [x] Step 85: Write unit test for cascading insert (User + 5 Posts)
+- [x] Step 86: Write unit test for cascading insert (Post + Tags)
+- [x] Step 87: Write unit test for cyclic cascading insert fallback
+- [x] Step 88: Refactor c_orm_update to read c_orm_dirty_flags_t
+- [x] Step 89: Implement RETURNING clause generation for PostgreSQL UPDATE operations
+- [x] Step 90: Hydrate UPDATE RETURNING results to specific struct or abstract struct fallback
+- [x] Step 91: Implement partial UPDATE query generation (only dirty columns)
+- [x] Step 92: Implement cascading update for nested structs
+- [x] Step 93: Implement RETURNING clause generation for PostgreSQL DELETE operations
+- [x] Step 94: Hydrate DELETE RETURNING results to abstract struct or specific struct
+- [x] Step 95: Implement cascade deletion (ORM level)
+- [x] Step 96: Write unit test for partial updates via dirty tracking
+- [x] Step 97: Write unit test for ORM-level cascade deletion
+- [x] Step 98: Implement c_orm_save() high-level API (upsert based on PK presence)
+- [x] Step 99: Implement bulk insert for c_orm_array_t (multi-row INSERT statement)
+- [x] Step 100: Optimize bulk insert query builder (chunking for max param limits)
+- [x] Step 101: Write unit test for bulk insert of 10,000 records
+- [x] Step 102: Implement bulk update for c_orm_array_t
+- [x] Step 103: Write unit test for bulk update
+- [x] Step 104: Implement lifecycle hooks execution during c_orm_insert (before_insert, after_insert)
+- [x] Step 105: Implement lifecycle hooks execution during c_orm_update (before_update, after_update)
+- [x] Step 106: Implement lifecycle hooks execution during c_orm_delete (before_delete, after_delete)
+- [x] Step 107: Add transaction boundary integration for cascading operations
+- [x] Step 108: Ensure cascading operations rollback entirely on failure
+- [x] Step 109: Write unit test for cascading operation rollback on child failure
+- [x] Step 110: Back-populate generated PKs into C structs after c_orm_insert
+- [x] Step 111: Back-populate generated PKs into nested child structs during cascading inserts
+- [x] Step 112: Write unit test for PK back-population across 3 backends
+- [x] Step 113: Implement c_orm_touch() to update timestamps without modifying other fields
+- [x] Step 114: Implement automatic created_at timestamp population on insert
+- [x] Step 115: Implement automatic updated_at timestamp population on update
+- [x] Step 116: Consume cdd-c codegen timestamp tags to drive c_orm automated updates
+- [x] Step 117: Implement optimistic locking via version column
+- [x] Step 118: Implement pessimistic locking APIs (SELECT ... FOR UPDATE)
+- [x] Step 119: Write unit test for SELECT ... FOR UPDATE
+- [x] Step 120: Document abstract fallback and specific struct routing in USAGE.md
+## Phase 4: Advanced Querying & cdd-c Reflection (Steps 121-180)
+
+- [x] Step 121: Extend c_orm_query_builder for relationship filtering
+- [x] Step 122: Implement JOIN alias resolution for relationship filtering
+- [x] Step 123: Add support for IN clauses with c_orm_array_t arguments
+- [x] Step 124: Add support for BETWEEN clauses
+- [x] Step 125: Add support for LIKE and ILIKE operators in the typed builder
+- [x] Step 126: Implement c_orm_group_by API for aggregation queries
+- [x] Step 127: Implement c_orm_having API
+- [x] Step 128: Add support for COUNT, SUM, AVG, MIN, MAX aggregations
+- [x] Step 129: Map aggregation results strictly to cdd_c_abstract_struct_t (dynamic columns)
+- [x] Step 130: Map aggregation results to virtual specific cdd-c generated structs (AOT projection)
+- [x] Step 131: Implement c_orm_select_raw mapping (map custom SQL to an existing specific struct)
+- [x] Step 132: Implement strict type checking for c_orm_select_raw outputs via cdd-c IR
+- [x] Step 133: Write unit test for relationship filtering
+- [x] Step 134: Write unit test for array IN clauses
+- [x] Step 135: Write unit test for complex aggregations mapped to abstract struct
+- [x] Step 136: Design inline macro reflection system bridging into cdd-c IR
+- [x] Step 137: Implement C_ORM_DEFINE_COLUMN macro generating cdd-c compatible tokens
+- [x] Step 138: Implement C_ORM_DEFINE_RELATION macro
+- [x] Step 139: Create macro engine to generate cdd-c compatible metadata at compile time
+- [x] Step 140: Ensure macro engine supports string length bounds
+- [x] Step 141: Ensure macro engine supports nullable semantics
+- [x] Step 142: Write documentation for Inline Macros vs cdd-c CLI Codegen
+- [x] Step 143: Port the e2e tests to use inline macros as a secondary test suite
+- [x] Step 144: Implement dynamic struct field accessor wrapping cdd-c reflection (c_orm_get_field_value)
+- [x] Step 145: Implement dynamic struct field mutator wrapping cdd-c reflection (c_orm_set_field_value)
+- [x] Step 146: Write unit test for dynamic reflection getters/setters
+- [x] Step 147: Implement c_orm_to_json serializer handling both specific and abstract structs
+- [x] Step 148: Implement c_orm_from_json deserializer for specific and abstract structs
+- [x] Step 149: Add external dependency hooks for cJSON or jsmn (optional)
+- [x] Step 150: Write unit test for ORM model JSON serialization
+- [x] Step 151: Write unit test for ORM model JSON deserialization
+- [x] Step 152: Implement c_orm_to_dict (hashmap) representation
+- [x] Step 153: Implement c_orm_from_dict
+- [x] Step 154: Implement runtime validation wrapping cdd-c dynamic validation rules
+- [x] Step 155: Hook into cdd-c SQL comment parsing for extracting validation rules
+- [x] Step 156: Implement c_orm_validate() function to run rules before insert/update
+- [x] Step 157: Write unit test for string length validation
+- [x] Step 158: Write unit test for integer bounds validation
+- [x] Step 159: Write unit test for regex validation (if PCRE is available)
+- [x] Step 160: Implement support for SQL views (read-only models) generated via cdd-c
+- [x] Step 161: Enforce C_ORM_ERROR_READ_ONLY on view model mutations
+- [x] Step 162: Implement support for composite primary keys mapped through cdd-c
+- [x] Step 163: Refactor c_orm_api.h to accept composite keys (array of values)
+- [x] Step 164: Refactor c_orm_find_by_id to support composite keys
+- [x] Step 165: Refactor c_orm_update to support composite keys
+- [x] Step 166: Refactor c_orm_delete to support composite keys
+- [x] Step 167: Write unit test for composite key operations
+- [x] Step 168: Implement support for UUID primary keys (auto-generation)
+- [x] Step 169: Integrate cross-platform UUID generator into c-orm core
+- [x] Step 170: Write unit test for UUID primary keys
+- [x] Step 171: Implement support for spatial types (PostGIS / MySQL Spatial)
+- [x] Step 172: Define c_orm_point_t, c_orm_polygon_t types
+- [x] Step 173: Implement spatial type hydration (fallback to abstract struct for raw binary)
+- [x] Step 174: Implement spatial type serialization for insert/update
+- [x] Step 175: Write unit test for spatial type basic CRUD
+- [x] Step 176: Review query builder performance metrics mapping to abstract structs
+- [x] Step 177: Optimize abstract struct runtime allocation overhead within c_orm
+- [x] Step 178: Document Advanced Querying and dynamic fallbacks in USAGE.md
+- [x] Step 120: Document abstract fallback and specific struct routing in USAGE.md
+## Phase 5: Performance, Threading, and Ecosystem (Steps 181-240)
+
+- [x] Step 180: Audit all relation lazy loading for thread-safety
+- [x] Step 181: Implement mutex locks for c_orm_identity_map_t in multi-threaded builds
+- [x] Step 182: Implement thread-local session contexts (c_orm_session_t)
+- [x] Step 183: Migrate API from raw db connection to session-based API
+- [x] Step 184: Ensure sessions are checked back into the connection pool safely
+- [x] Step 185: Implement connection pool wait timeouts and retry logic
+- [x] Step 186: Write thread stress test (100 threads, concurrent inserts)
+- [x] Step 187: Write thread stress test (100 threads, concurrent eager loads)
+- [x] Step 188: Fix data races identified by ThreadSanitizer
+- [x] Step 189: Implement L1 cache (session-level query caching)
+- [x] Step 190: Implement L2 cache interface (Redis/Memcached stubs for distributed caching)
+- [x] Step 191: Add cache invalidation logic on update/delete
+- [x] Step 192: Write unit test for L1 cache hits/misses
+- [x] Step 193: Write unit test for L1 cache invalidation
+- [x] Step 194: Design plugin architecture for c-orm (interceptors)
+- [x] Step 195: Implement query interceptor plugin hook
+- [x] Step 196: Implement hydration interceptor plugin hook
+- [x] Step 197: Create a logging plugin (SQL query logging with timings)
+- [x] Step 198: Create a profiling plugin (slow query detection)
+- [x] Step 199: Write unit test for plugin registration and execution
+- [x] Step 200: Add support for SQLite specific PRAGMAs via ORM config
+- [x] Step 201: Add support for Postgres specific SET statements via ORM config
+- [x] Step 202: Add support for MySQL specific session variables via ORM config
+- [x] Step 203: Implement table partitioning helpers (automatic partition routing)
+- [x] Step 204: Add sharding support (c_orm_shard_manager_t)
+- [x] Step 205: Implement hash-based shard routing algorithm
+- [x] Step 206: Write unit test for multi-database shard routing
+- [x] Step 207: Implement async execution wrappers (libuv integration hooks)
+- [x] Step 208: Create c_orm_insert_async stub
+- [x] Step 209: Create c_orm_find_all_async stub
+- [x] Step 210: Write test for libuv async simulated event loop
+- [x] Step 211: Refactor CMake build system to output separate c-orm-async library
+- [x] Step 212: Optimize memory alignment of internal contexts for cache-locality
+- [x] Step 213: Implement bulk memory pre-allocation for known array sizes
+- [x] Step 214: Reduce pointer indirection in cdd-c column metadata traversal
+- [x] Step 215: Implement SIMD-accelerated string matching for abstract struct hydration
+- [x] Step 216: Write benchmark suite for specific struct hydration (1M rows)
+- [x] Step 217: Write benchmark suite for abstract struct hydration (1M rows)
+- [x] Step 218: Compare benchmark against bare libpq / sqlite3
+- [x] Step 219: Identify and resolve top bottlenecks between specific vs abstract performance
+- [x] Step 220: Add dynamic library reloading support for schemas (hot-reloading models)
+- [x] Step 221: Implement schema diffing integration using cdd-c IR comparisons
+- [x] Step 222: Generate migration scripts from schema diffs utilizing cdd-c outputs
+- [x] Step 223: Write unit test for schema diffing (add column)
+- [x] Step 224: Write unit test for schema diffing (remove column)
+- [x] Step 225: Write unit test for schema diffing (change type)
+- [x] Step 226: Implement safe data coercion during migrations
+- [x] Step 227: Integrate Alembic-style up/down runner with cdd-c generated models
+- [x] Step 228: Write migration version tracking table logic
+- [x] Step 229: Write unit test for executing 5 sequential migrations
+- [x] Step 230: Write unit test for rolling back 3 migrations
+- [x] Step 231: Add Doxygen comments to all new APIs
+- [x] Step 232: Generate HTML documentation for the Object Mapping API
+- [x] Step 233: Add Valgrind memory leak checks to CI pipeline
+- [x] Step 234: Add AddressSanitizer builds to CI pipeline
+- [x] Step 235: Add ThreadSanitizer builds to CI pipeline
+- [x] Step 236: Document specific struct vs abstract struct performance tuning options
+- [x] Step 237: Publish v1.0 Release Candidate 1 internally
+- [x] Step 238: Draft Phase 5 Retrospective
+- [x] Step 239: Prepare Benchmark Data for Release
+- [x] Step 240: Tag internal RC build
+## Phase 6: Edge Cases, Security & Final Polish (Steps 241-300)
+
+- [x] Step 241: Conduct security audit of SQL injection vectors in abstract struct bulk bindings
+- [x] Step 242: Fix identified vulnerabilities in query builder string escaping
+- [x] Step 243: Implement prepared statement caching at the session level
+- [x] Step 244: Implement prepared statement eviction policy (LRU)
+- [x] Step 245: Write unit test for prepared statement reuse
+- [x] Step 246: Ensure sensitive fields (C_ORM_SECURE_FIELD) are cleared from abstract structs
+- [x] Step 247: Implement automatic memory zeroing for secure fields in specific structs
+- [x] Step 248: Add cryptographic hook for secure field transparent encryption/decryption
+- [x] Step 249: Write unit test for secure field encryption on insert (abstract and specific)
+- [x] Step 250: Write unit test for secure field decryption on find (abstract and specific)
+- [x] Step 251: Implement strict type checking for SQLite (prevent storing strings in INTEGER columns)
+- [x] Step 252: Implement timezone-aware datetime mapping (convert to UTC on save, local on load)
+- [x] Step 253: Add c_orm_timezone_t configuration to session
+- [x] Step 254: Write unit test for DST boundary datetime insertion
+- [x] Step 255: Implement support for Postgres arrays (mapping to c_orm_array_t of primitives)
+- [x] Step 256: Write unit test for Postgres integer arrays
+- [x] Step 257: Implement support for Postgres JSONB (mapping abstract structs to JSON)
+- [x] Step 258: Write unit test for Postgres JSONB querying (e.g., ->> operator support)
+- [x] Step 259: Implement MySQL enum type mapping integrating with cdd-c output
+- [x] Step 260: Implement MySQL SET type mapping integrating with cdd-c output
+- [x] Step 261: Implement SQLite BLOB streaming API for large files
+- [x] Step 262: Implement Postgres large object (lo) streaming API
+- [x] Step 263: Write unit test for 500MB BLOB streaming insertion
+- [x] Step 264: Write unit test for 500MB BLOB streaming retrieval
+- [x] Step 265: Refactor error reporting to include full stack trace (in debug mode)
+- [x] Step 266: Add context-aware error messages for abstract struct parse failures
+- [x] Step 267: Ensure all POSIX system calls handle EINTR correctly
+- [x] Step 268: Ensure all Windows API calls map to appropriate C_ORM_ERROR codes
+- [x] Step 269: Audit and remove any remaining global state (must be fully thread-safe/reentrant)
+- [x] Step 270: Review C89 compliance of all new macro definitions
+- [x] Step 271: Test compilation on MSVC 2005 (strict C89 mode)
+- [x] Step 272: Test compilation on GCC 4.8 (legacy systems)
+- [x] Step 273: Test compilation on Clang 15 (modern optimizations)
+- [x] Step 274: Test compilation with MinGW-w64
+- [x] Step 275: Test compilation on Alpine Linux (musl libc)
+- [x] Step 276: Resolve all compiler warnings on -Wall -Wextra -Wpedantic
+- [x] Step 277: Resolve all MSVC /W4 warnings
+- [x] Step 278: Run Coverity / PVS-Studio static analysis
+- [x] Step 279: Address static analysis findings in core API
+- [x] Step 280: Address static analysis findings in hydration engine
+- [x] Step 281: Address static analysis findings in specific/abstract struct routing
+- [x] Step 282: Create a sample "Blog" application using the specific struct mapping
+- [x] Step 283: Create a sample "Dashboard" application using abstract structs for dynamic reporting
+- [x] Step 284: Document the dual specific/abstract API in TUTORIAL.md
+- [x] Step 285: Add Windows MSVC CRT strict allocation checking integration (CrtSetDbgFlag)
+- [x] Step 286: Optimize CMake FetchContent integration for dependent projects
+- [x] Step 287: Add pkg-config (.pc) generation to CMake
+- [x] Step 288: Create Debian packaging script (.deb)
+- [x] Step 289: Create RPM packaging script (.rpm)
+- [x] Step 290: Create Homebrew formula stub
+- [x] Step 291: Update README.md with dual Object Mapping code examples (Static vs Dynamic)
+- [x] Step 292: Update feature grid in README.md to reflect final status
+- [x] Step 293: Create migration guide from raw c_orm_api to cdd-c specific/abstract c_orm_api
+- [x] Step 294: Finalize API backwards compatibility shim layer
+- [x] Step 295: Deprecate old explicit hydrate_row manual loops in documentation
+- [x] Step 296: Write the final v1.0.0 Release Notes
+- [x] Step 297: Tag git release v1.0.0
+- [x] Step 298: Announce release on internal mailing lists
+- [x] Step 299: Close "ORM Object Mapping" Epic issue
+- [x] Step 300: Celebrate complete Object Relational Mapping rollout

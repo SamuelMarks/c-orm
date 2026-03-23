@@ -519,6 +519,7 @@ C_ORM_EXPORT const c_orm_table_meta_t c_orm_user_meta = {
     "DELETE FROM users WHERE id = ?",
     "SELECT * FROM users WHERE id = ? FOR UPDATE",
     false,
+    false,
     0,
     0};
 
@@ -553,9 +554,13 @@ C_ORM_EXPORT const c_orm_table_meta_t c_orm_token_meta = {
     "created_at = ?, user_id = ?, scopes = ? WHERE access_token = ?",
     "DELETE FROM tokens WHERE access_token = ?",
     "SELECT * FROM tokens WHERE access_token = ? FOR UPDATE",
+    false,
     true,
     offsetof(c_orm_oauth2_token_t, created_at),
-    offsetof(c_orm_oauth2_token_t, expires_in)};
+    offsetof(c_orm_oauth2_token_t, expires_in),
+    {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},
+    NULL,
+    0};
 
 static const c_orm_column_meta_t client_cols[] = {
     {"id", C_ORM_TYPE_STRING, offsetof(c_orm_oauth2_client_t, id), true, false,

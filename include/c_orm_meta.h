@@ -29,7 +29,7 @@ extern "C" {
 #ifndef C_ORM_EXPORT
 #if defined(_WIN32) || defined(__CYGWIN__)
 #if defined(C_ORM_SHARED)
-#if defined(c_orm_EXPORTS)
+#if defined(c_orm_EXPORTS) || defined(c_orm_async_EXPORTS)
 #define C_ORM_EXPORT __declspec(dllexport)
 #else
 #define C_ORM_EXPORT __declspec(dllimport)
@@ -61,8 +61,42 @@ typedef enum {
   C_ORM_TYPE_BLOB,
   C_ORM_TYPE_DATE,
   C_ORM_TYPE_TIMESTAMP,
+  C_ORM_TYPE_JSON,    /**< Dynamic JSON type (Postgres JSONB) */
+  C_ORM_TYPE_ENUM,    /**< Enumeration mapped via cdd-c (MySQL/PG ENUM) */
+  C_ORM_TYPE_SET,     /**< Set mapping via cdd-c (MySQL SET) */
+  C_ORM_TYPE_ARRAY,   /**< Homogeneous array mapping via cdd-c (PG Arrays) */
+  C_ORM_TYPE_POINT,   /**< Spatial Point (PostGIS/MySQL Spatial) */
+  C_ORM_TYPE_POLYGON, /**< Spatial Polygon (PostGIS/MySQL Spatial) */
   C_ORM_TYPE_UNKNOWN
 } c_orm_type_t;
+
+/**
+ * @brief Represents a 2D spatial point (Step 172).
+ */
+typedef struct {
+  double x;
+  double y;
+} c_orm_point_t;
+
+/**
+ * @brief Represents a 2D spatial polygon (Step 172).
+ */
+typedef struct {
+  c_orm_point_t *points;
+  size_t num_points;
+} c_orm_polygon_t;
+
+/**
+ * @brief Relationship types for mapping logic.
+ */
+typedef enum {
+  C_ORM_RELATION_ONE_TO_ONE,
+  C_ORM_RELATION_ONE_TO_MANY,
+  C_ORM_RELATION_MANY_TO_MANY,
+  C_ORM_RELATION_POLYMORPHIC /**< Association type where the target table is
+                                determined dynamically by a discriminator
+                                column. */
+} c_orm_relation_type_t;
 
 /**
  * @brief Represents binary large object (BLOB) data.
@@ -71,6 +105,53 @@ typedef struct {
   void *data;
   size_t size;
 } c_orm_blob_t;
+
+/**
+ * @brief Context structure embedded in generated proxy structs to track
+ * deferred hydration.
+ */
+typedef struct c_orm_lazy_load_context {
+  bool
+      is_loaded; /**< True if the relationship has been fully loaded from DB. */
+  void *db_connection;         /**< Pointer to the c_orm_db_t connection. */
+  const char *foreign_key_val; /**< Pre-extracted foreign key value for delayed
+                                  query. */
+} c_orm_lazy_load_context_t;
+
+struct c_orm_meta;
+
+/**
+ * @brief Defines a specific polymorphic target mapping.
+ */
+typedef struct c_orm_polymorphic_target {
+  const char *discriminator_value; /**< Value inside the discriminator column
+                                      identifying this target. */
+  const char *target_table;        /**< Table to query for this target type. */
+  const struct c_orm_meta
+      *target_ir; /**< Reflection metadata for the target struct. */
+} c_orm_polymorphic_target_t;
+
+typedef struct c_orm_relation_meta {
+  const char *field_name;     /**< Name of the field in the C struct. */
+  c_orm_relation_type_t type; /**< Relationship type (ONE_TO_ONE, etc). */
+  const char *target_table;   /**< Target table name. NULL if POLYMORPHIC. */
+  const char *foreign_key;    /**< Foreign key column name. */
+  const char *local_key;      /**< Local key column name (usually PK). */
+  size_t struct_offset; /**< Offset of the relation pointer or array within the
+                           struct. */
+  size_t target_array_len_offset; /**< Offset for the length field of a
+                                     C_ORM_RELATION_ONE_TO_MANY array. */
+  const struct c_orm_meta
+      *target_ir; /**< Pointer to the cdd-c IR metadata for the target struct.
+                     NULL if POLYMORPHIC. */
+
+  /* Polymorphic specific fields */
+  const char *discriminator_column; /**< Column name containing the string
+                                       discriminator mapping to targets. */
+  const c_orm_polymorphic_target_t
+      *polymorphic_targets;       /**< Array of polymorphic targets. */
+  size_t num_polymorphic_targets; /**< Number of targets in the array. */
+} c_orm_relation_meta_t;
 
 /**
  * @brief Column metadata definition.
@@ -89,6 +170,30 @@ typedef struct {
 } c_orm_column_meta_t;
 
 /**
+ * @brief Function pointer signature for ORM lifecycle hooks.
+ *
+ * @param obj The object triggering the hook.
+ * @param user_data Opaque pointer passed to the connection layer.
+ * @return 0 on success, non-zero to abort the operation.
+ */
+typedef int (*c_orm_lifecycle_hook_t)(void *obj, void *user_data);
+
+/**
+ * @brief Hook triggers.
+ */
+typedef enum {
+  C_ORM_HOOK_BEFORE_SAVE,
+  C_ORM_HOOK_AFTER_SAVE,
+  C_ORM_HOOK_BEFORE_INSERT,
+  C_ORM_HOOK_AFTER_INSERT,
+  C_ORM_HOOK_BEFORE_UPDATE,
+  C_ORM_HOOK_AFTER_UPDATE,
+  C_ORM_HOOK_BEFORE_DELETE,
+  C_ORM_HOOK_AFTER_DELETE,
+  C_ORM_HOOK_COUNT
+} c_orm_lifecycle_hook_type_t;
+
+/**
  * @brief Table metadata definition.
  */
 typedef struct {
@@ -105,13 +210,95 @@ typedef struct {
   const char *query_delete_by_pk;
   const char *query_select_by_pk_for_update;
 
+  /* Step 160: Support for SQL views (read-only models) generated via cdd-c */
+  bool is_view; /**< True if this is a view and mutations are restricted. */
+
   /* TTL & Expiration Tracking */
   bool has_ttl; /**< True if rows in this table can expire automatically */
   size_t created_at_offset; /**< Offset for the created_at UNIX timestamp
                                (int64) */
   size_t expires_in_offset; /**< Offset for the expires_in duration in seconds
                                (int32) */
+
+  /* Lifecycle hooks */
+  c_orm_lifecycle_hook_t
+      hooks[C_ORM_HOOK_COUNT]; /**< Array of active lifecycle hooks */
+
+  const c_orm_relation_meta_t
+      *relations;       /**< Array of relationship metadata. */
+  size_t num_relations; /**< Number of relationships. */
 } c_orm_table_meta_t;
+
+/* clang-format off */
+#if !defined(_MSC_VER) || _MSC_VER >= 1600
+#include <stdint.h>
+#else
+#ifndef _STDINT
+typedef signed __int32 int32_t;
+typedef unsigned __int64 uint64_t;
+#endif
+#endif
+/* clang-format on */
+
+/**
+ * @brief Represents a bitmask of dirty fields (up to 64 fields).
+ */
+typedef uint64_t c_orm_dirty_flags_t;
+
+/**
+ * @brief Helper macro to mark a field as dirty.
+ * @param obj The structure instance containing the dirty_flags field.
+ * @param bit_index The index of the field to flag as dirty.
+ */
+#define C_ORM_SET_FIELD_DIRTY(obj, bit_index)                                  \
+  ((obj)->dirty_flags |= (1ULL << (bit_index)))
+
+/**
+ * @brief Helper macro to mark a field as clean.
+ * @param obj The structure instance containing the dirty_flags field.
+ * @param bit_index The index of the field to flag as clean.
+ */
+#define C_ORM_CLEAR_FIELD_DIRTY(obj, bit_index)                                \
+  ((obj)->dirty_flags &= ~(1ULL << (bit_index)))
+
+/**
+ * @brief Helper macro to check if a field is dirty.
+ * @param obj The structure instance containing the dirty_flags field.
+ * @param bit_index The index of the field to check.
+ */
+#define C_ORM_IS_FIELD_DIRTY(obj, bit_index)                                   \
+  (((obj)->dirty_flags & (1ULL << (bit_index))) != 0)
+
+/**
+ * @brief Represents a single cached object entry in the Identity Map.
+ */
+typedef struct c_orm_identity_entry {
+  struct c_orm_identity_entry
+      *next;        /**< Linked list pointer for hash collisions */
+  void *object_ptr; /**< The cached C struct instance */
+  int32_t pk_int;   /**< The integer primary key (if applicable) */
+  char *pk_str;     /**< The string primary key (if applicable) */
+} c_orm_identity_entry_t;
+
+/**
+ * @brief Represents a bucketed hash table caching active object pointers per
+ * table.
+ */
+typedef struct c_orm_identity_bucket {
+  const c_orm_table_meta_t *table; /**< The table this bucket caches */
+  c_orm_identity_entry_t *
+      *entries;       /**< Array of hash map buckets for this table */
+  size_t num_buckets; /**< Size of the entries array */
+  struct c_orm_identity_bucket
+      *next; /**< Linked list for multiple table buckets */
+} c_orm_identity_bucket_t;
+
+/**
+ * @brief High-level Identity Map holding references to active objects.
+ */
+typedef struct c_orm_identity_map {
+  c_orm_identity_bucket_t *buckets; /**< Head of the bucket list */
+} c_orm_identity_map_t;
 
 #ifdef __cplusplus
 }

@@ -22,13 +22,11 @@ A fluent interface for constructing safe SQL strings dynamically.
 - Exposes `select`, `where`, `order_by`, and `limit` clauses.
 - Handles integer formatting using the `NUM_FORMAT` macro.
 
-### 4. Code Generator / AST (`db_codegen.c` & `database.c`)
+### 4. Code Generator / AST (`c_orm_codegen.c` wrapping `cdd-c`)
 The library isn't just a runtime ORM; it's also a development tool.
-- **DatabaseSchema AST:** In-memory C structs (`DatabaseTable`, `DatabaseColumn`) represent a database schema.
-- **Code Emitters:** The library can parse basic SQL (`db_codegen_parse_sql`) and output:
-  - Cross-dialect SQL `CREATE TABLE` scripts (`db_codegen_sql`).
-  - C Struct Headers (`db_codegen_struct_header`).
-  - C CRUD Boilerplate Code (`db_codegen_crud_h`, `db_codegen_crud_c`).
+- **Code Emitters:** By wrapping the `cdd-c` native code generation API, `c-orm` provides simple `c_orm_codegen_generate` methods to parse SQL schemas and output:
+  - C Struct Headers and `cdd-c` mapping definitions.
+  - C CRUD Boilerplate Code mapped to `cdd-c` fallbacks.
 
 ## Cross-Platform Considerations
 

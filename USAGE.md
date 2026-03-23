@@ -97,19 +97,16 @@ c_orm_pool_destroy(pool);
 
 ## 5. Schema Codegen
 
-`c-orm` can generate C structural definitions and boilerplate CRUD functions directly from an AST.
+`c-orm` uses the integrated `cdd-c` native code generation API to create C structural definitions and boilerplate CRUD functions directly from a schema.
 
 ```c
-#include <c_orm/db_codegen.h>
+#include <c_orm/c_orm_codegen.h>
 
-/* Assuming `schema` is a populated `struct DatabaseSchema` */
-FILE* f_sql = fopen("init.sql", "w");
-db_codegen_sql(&schema, f_sql, "postgres");
-fclose(f_sql);
-
-FILE* f_hdr = fopen("models.h", "w");
-db_codegen_struct_header(&schema, f_hdr, "MODELS_H");
-fclose(f_hdr);
+/* Generate models from a SQL schema file */
+int res = c_orm_codegen_generate("schema.sql", "output_dir");
+if (res == C_ORM_OK) {
+    printf("Models generated successfully.\n");
+}
 ```
 
 ## 6. Asynchronous Execution
@@ -129,3 +126,25 @@ c_orm_execute_async(db, "UPDATE users SET age = age + 1", my_async_callback, NUL
 /* Inside your event loop, poll to process the queue */
 c_orm_poll_async(db);
 ```
+
+
+## 4. Advanced Querying and Dynamic Fallbacks (Step 120, Step 178)
+
+`c-orm` utilizes the `cdd-c` library to automatically generate specific struct mappings. However, when executing complex aggregations (e.g., `COUNT`, `SUM`), dynamic SQL queries (`c_orm_select_raw`), or retrieving raw untyped metadata, `c-orm` elegantly falls back to a dynamic key-value store called `cdd_c_abstract_struct_t`.
+
+### Eager vs Lazy Loading
+Use `C_ORM_LAZY_LOAD(db, &user, &Users_meta, 0, relation_name);` to defer querying related entities until strictly necessary.
+
+### Abstract Struct Hydration
+When issuing raw queries without a known struct map, fallback hydration stores the dynamic columns:
+
+```c
+struct CddCAbstractStructArray abstract_arr;
+c_orm_find_all_abstract(db, "SELECT is_active, COUNT(id) as total FROM users GROUP BY is_active", &abstract_arr);
+/* Results map seamlessly to the abstract variant fields */
+c_orm_abstract_free(&abstract_arr);
+```
+
+### Spatial Types Support
+`c-orm` natively maps spatial objects (`C_ORM_TYPE_POINT`, `C_ORM_TYPE_POLYGON`) directly to native memory or fallback abstract raw binary (WKB) via `c_orm_point_t` and `c_orm_polygon_t`.
+

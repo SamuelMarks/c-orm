@@ -34,7 +34,7 @@ This will produce:
 
 Include `Models.h` and link against `Models.c` when building your application.
 
-## 3. Writing the C Application
+## 3. Writing the C Application (Static AST Mode)
 
 Your code will need the `c_orm_sqlite.h` header for the SQLite driver initialization, and `c_orm_api.h` for core functionality:
 
@@ -54,7 +54,7 @@ int main(void) {
     int32_t age = 30;
     float score = 9.5f;
     bool is_active = true;
-    
+
     /* 1. Connect */
     err = c_orm_sqlite_connect("app.db", &db);
     if (err != C_ORM_OK) return 1;
@@ -85,7 +85,7 @@ int main(void) {
     /* 4. Query */
     struct Users fetched_user;
     memset(&fetched_user, 0, sizeof(fetched_user));
-    
+
     err = c_orm_find_by_id_int32(db, &Users_meta, 1, &fetched_user);
     if (err == C_ORM_OK) {
         printf("Hello %s!\n", fetched_user.username);
@@ -99,3 +99,50 @@ int main(void) {
 ```
 
 By leveraging `cdd-c` alongside `c-orm`, database interaction in C becomes completely type-safe and vastly more efficient than manually writing `sqlite3_bind` routines.
+
+## 4. Writing Dynamic Applications (Abstract Struct Fallback Mode)
+
+Sometimes the schema isn't known at compile time, or writing generated structs isn't feasible (e.g., dynamic reporting dashboards mapping custom analytics SQL). c-orm provides a robust dynamic fallback mechanism via `cdd_c_abstract_struct_t` (Step 284).
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "c_orm_sqlite.h"
+#include "c_orm_api.h"
+#include "cdd_c_ast.h" /* For abstract struct types */
+
+int main(void) {
+    c_orm_db_t *db = NULL;
+    c_orm_query_t *query;
+    cdd_c_abstract_struct_t *row;
+
+    c_orm_sqlite_connect("app.db", &db);
+
+    /* We map directly against custom SQL missing a struct */
+    c_orm_query_builder_t *qb = c_orm_query_builder_new(db, NULL);
+    c_orm_select_raw(qb, "SELECT username, count(*) as post_count FROM users JOIN posts ON users.id = posts.user_id GROUP BY username");
+
+    query = c_orm_query_builder_build(qb);
+
+    /* Fetch using the dynamic router fallback internally mapped by c-orm when meta is NULL */
+    int has_row = 0;
+    while (c_orm_step(query, &has_row) == C_ORM_OK && has_row) {
+        row = c_orm_hydrate_abstract_row(db, query);
+        if (row) {
+             /* cdd-c dynamic keys are available at runtime */
+             printf("User: %s has %d posts\n", 
+                 cdd_c_abstract_struct_get_string(row, "username"), 
+                 cdd_c_abstract_struct_get_int32(row, "post_count"));
+             cdd_c_abstract_struct_free(row);
+        }
+    }
+
+    c_orm_finalize(query);
+    c_orm_query_builder_free(qb);
+    return 0;
+}
+```
+
+The abstract struct router enables high-level ORM features entirely dynamically when `c_orm_hydrate_routed` resolves `NULL` specific struct bindings.

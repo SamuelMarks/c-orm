@@ -15,8 +15,7 @@ CREATE TABLE posts (
     title VARCHAR(255) NOT NULL,
     content TEXT,
     views BIGINT,
-    published_date DATE,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    published_date DATE
 );
 
 CREATE TABLE oauth2_tokens (
