@@ -9,7 +9,7 @@
 
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
-#include "classes/parse/abstract_struct.h"
+/* #include "classes/parse/abstract_struct.h" */
 
 int main(void) {
   c_orm_db_t *db = NULL;

@@ -8,7 +8,13 @@
 #ifndef C_ORM_INLINE_MACROS_H
 #define C_ORM_INLINE_MACROS_H
 
+/* clang-format off */
 #include "c_orm_meta.h"
+/* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Step 137: Implement C_ORM_DEFINE_COLUMN macro generating cdd-c compatible
  * tokens */
@@ -87,5 +93,9 @@
    {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},                           \
    NULL,                                                                       \
    0}
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* C_ORM_INLINE_MACROS_H */

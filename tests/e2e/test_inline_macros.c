@@ -31,7 +31,7 @@ static const c_orm_table_meta_t SpatialModel_meta = C_ORM_DEFINE_MODEL(
     "spatial_models", SpatialModel_cols, 3, sizeof(struct SpatialModel),
     "SELECT * FROM spatial_models", "SELECT * FROM spatial_models WHERE id = ?",
     "INSERT INTO spatial_models (id, point, polygon) VALUES (?, ?, ?)",
-    "UPDATE spatial_models SET point = ?, polygon = ? WHERE id = ?",
+    "UPDATE spatial_models SET id = ?, point = ?, polygon = ? WHERE id = ?",
     "DELETE FROM spatial_models WHERE id = ?", NULL, false, 0, 0, NULL, 0);
 
 TEST test_spatial_crud(void) {
@@ -84,6 +84,12 @@ TEST test_spatial_crud(void) {
   /* Test Update */
   sm.point.x = 99.9;
   err = c_orm_update(db, &SpatialModel_meta, &sm);
+  if (err != C_ORM_OK) {
+    const char *msg;
+    c_orm_get_last_error_message(db, &msg);
+    printf("DEBUG: c_orm_update failed with %d. msg=%s\n", err,
+           msg ? msg : "none");
+  }
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   memset(&fetched, 0,
@@ -117,7 +123,7 @@ static const c_orm_table_meta_t InlineUser_meta = C_ORM_DEFINE_MODEL(
     "inline_users", InlineUser_cols, 2, sizeof(struct InlineUser),
     "SELECT * FROM inline_users", "SELECT * FROM inline_users WHERE id = ?",
     "INSERT INTO inline_users (id, username) VALUES (?, ?)",
-    "UPDATE inline_users SET username = ? WHERE id = ?",
+    "UPDATE inline_users SET id = ?, username = ? WHERE id = ?",
     "DELETE FROM inline_users WHERE id = ?", NULL, false, 0, 0, NULL, 0);
 
 static const c_orm_table_meta_t InlineUserView_meta = C_ORM_DEFINE_VIEW(
@@ -170,4 +176,7 @@ TEST test_inline_macros_crud(void) {
   PASS();
 }
 
-SUITE(inline_macros_suite) { RUN_TEST(test_inline_macros_crud); }
+SUITE(inline_macros_suite) {
+  RUN_TEST(test_inline_macros_crud);
+  RUN_TEST(test_spatial_crud);
+}

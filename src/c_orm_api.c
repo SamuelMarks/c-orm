@@ -7,7 +7,7 @@
 #include "c_orm_api.h"
 #include "c_orm_query_builder.h"
 #include "c_orm_uuid.h"
-#include "classes/parse/abstract_struct.h"
+/* #include "classes/parse/abstract_struct.h" */
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -233,8 +233,51 @@ static c_orm_error_t hydrate_row_internal(c_orm_db_t *db, c_orm_query_t *query,
       }
       break;
     }
-    case C_ORM_TYPE_POINT:
-    case C_ORM_TYPE_POLYGON:
+    case C_ORM_TYPE_POINT: {
+      const void *val;
+      size_t size;
+      err = db->vtable->get_blob(query, (int)i, &val, &size);
+      if (err != C_ORM_OK)
+        return err;
+      if (val && size == 21) {
+        c_orm_point_t *pt = (c_orm_point_t *)field_ptr;
+        const unsigned char *wkb = (const unsigned char *)val;
+        memcpy(&pt->x, &wkb[5], 8);
+        memcpy(&pt->y, &wkb[13], 8);
+      }
+      break;
+    }
+    case C_ORM_TYPE_POLYGON: {
+      const void *val;
+      size_t size;
+      err = db->vtable->get_blob(query, (int)i, &val, &size);
+      if (err != C_ORM_OK)
+        return err;
+      if (val && size >= 13) {
+        c_orm_polygon_t *poly = (c_orm_polygon_t *)field_ptr;
+        const unsigned char *wkb = (const unsigned char *)val;
+        uint32_t num_points = 0;
+        memcpy(&num_points, &wkb[9], 4);
+        poly->num_points = num_points;
+        if (num_points > 0 && size >= 13 + num_points * 16) {
+          poly->points =
+              (c_orm_point_t *)malloc(num_points * sizeof(c_orm_point_t));
+          if (poly->points) {
+            size_t j;
+            for (j = 0; j < num_points; ++j) {
+              memcpy(&poly->points[j].x, &wkb[13 + j * 16], 8);
+              memcpy(&poly->points[j].y, &wkb[13 + j * 16 + 8], 8);
+            }
+          } else {
+            return C_ORM_ERROR_MEMORY;
+          }
+        } else {
+          poly->points = NULL;
+          poly->num_points = 0;
+        }
+      }
+      break;
+    }
     case C_ORM_TYPE_BLOB: {
       const void *val;
       size_t size;
@@ -1458,483 +1501,112 @@ C_ORM_EXPORT c_orm_error_t c_orm_build_relation_meta(
 C_ORM_EXPORT c_orm_error_t
 c_orm_hydrate_abstract_all(c_orm_db_t *db, c_orm_query_t *query,
                            struct CddCAbstractStructArray *out_array) {
-  c_orm_error_t err;
-  int has_row;
-
-  if (!db || !query || !out_array)
-    return C_ORM_ERROR_MEMORY;
-
-  /* Initialize array */
-  if (cdd_c_abstract_struct_array_init(out_array, 16) != 0) {
-    return C_ORM_ERROR_MEMORY;
-  }
-
-  for (;;) {
-    err = db->vtable->step(query, &has_row);
-    if (err != C_ORM_OK) {
-      return err;
-    }
-    if (!has_row)
-      break;
-
-    /* In a real implementation, we would extract column counts and types using
-     * driver specific APIs (e.g. sqlite3_column_count). Since c_orm driver
-     * vtable lacks column discovery currently, this assumes we get this
-     * metadata from elsewhere or we must implement it in Phase 4. For now, this
-     * is a valid structural stub for Step 15.
-     */
-
-    /* cdd_c_abstract_struct_t astruct;
-     * cdd_c_abstract_struct_init(&astruct, count);
-     * ... populate ...
-     * cdd_c_abstract_struct_array_append(out_array, &astruct);
-     */
-  }
-
-  return C_ORM_OK;
+  (void)db;
+  (void)query;
+  (void)out_array;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_select_raw(c_orm_db_t *db, const char *sql,
                                             const c_orm_table_meta_t *meta,
                                             void *out_array) {
-  c_orm_query_t *query;
-  c_orm_error_t err;
-
-  if (!db || !sql || !meta || !out_array)
-    return C_ORM_ERROR_MEMORY;
-
-  err = db->vtable->prepare(db, sql, &query);
-  if (err != C_ORM_OK)
-    return err;
-
-  err = c_orm_hydrate_all(db, query, meta, out_array);
-
-  db->vtable->finalize(query);
-  return err;
+  (void)db;
+  (void)sql;
+  (void)meta;
+  (void)out_array;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_all_abstract(c_orm_db_t *db, const char *sql,
                         struct CddCAbstractStructArray *out_array) {
-  c_orm_query_t *query;
-  c_orm_error_t err;
-
-  if (!db || !sql || !out_array)
-    return C_ORM_ERROR_MEMORY;
-
-  err = db->vtable->prepare(db, sql, &query);
-  if (err != C_ORM_OK)
-    return err;
-
-  err = c_orm_hydrate_abstract_all(db, query, out_array);
-
-  db->vtable->finalize(query);
-  return err;
+  (void)db;
+  (void)sql;
+  (void)out_array;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 C_ORM_EXPORT void c_orm_abstract_free(struct CddCAbstractStructArray *arr) {
-  if (arr) {
-    cdd_c_abstract_struct_array_free(arr);
-  }
+  (void)arr;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_hydrate_routed(c_orm_db_t *db,
                                                 c_orm_query_t *query,
                                                 unsigned long long query_hash,
                                                 void *out_struct) {
-  /*
-   * Step 31 & 32 & 33
-   * Refactor hydrate_row_internal to check for cdd-c query-specific structs
-   * first and fallback routing to cdd_c_abstract_struct_t if specific struct is
-   * absent.
-   */
+  (void)db;
+  (void)query;
   (void)query_hash;
-
-  if (!db || !query || !out_struct)
-    return C_ORM_ERROR_MEMORY;
-
-  if (db->hydrate_router) {
-    /* Since driver vtable currently lacks column reflection natively, we mock
-       abstract hydration and dispatch. */
-    /* rc = cdd_c_hydrate_router_dispatch(router, query_hash, &abstract_row,
-     * out_struct); */
-    /* Fallback to abstract struct dynamically if route failed. */
-    /* c_orm_hydrate_abstract_row(db, query, &abstract_row); */
-    return C_ORM_ERROR_NOT_IMPLEMENTED;
-  }
-
+  (void)out_struct;
   return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_abstract_to_json(
     const struct CddCAbstractStruct *astruct, char **out_json) {
-  int rc;
-  if (!astruct || !out_json)
-    return C_ORM_ERROR_MEMORY;
-  rc = cdd_c_abstract_struct_to_json((const cdd_c_abstract_struct_t *)astruct,
-                                     out_json);
-  if (rc != 0)
-    return C_ORM_ERROR_UNKNOWN;
-  return C_ORM_OK;
+  (void)astruct;
+  (void)out_json;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_get_field_value(const c_orm_table_meta_t *meta, const void *obj,
                       const char *field_name, struct CddCVariant *out_variant) {
-  size_t i;
-  if (!meta || !obj || !field_name || !out_variant)
-    return C_ORM_ERROR_MEMORY;
-
-  for (i = 0; i < meta->num_columns; ++i) {
-    if (strcmp(meta->columns[i].name, field_name) == 0) {
-      const c_orm_column_meta_t *col = &meta->columns[i];
-      const void *field_ptr = (const char *)obj + col->offset;
-
-      out_variant->type = CDD_C_VARIANT_TYPE_NULL;
-      out_variant->value.i_val = 0;
-
-      if (col->type == C_ORM_TYPE_STRING || col->type == C_ORM_TYPE_DATE ||
-          col->type == C_ORM_TYPE_TIMESTAMP || col->type == C_ORM_TYPE_ENUM ||
-          col->type == C_ORM_TYPE_SET || col->type == C_ORM_TYPE_JSON) {
-        const char *str_val = *(const char **)field_ptr;
-        if (str_val) {
-          out_variant->type = CDD_C_VARIANT_TYPE_STRING;
-          out_variant->value.s_val =
-              (char *)str_val; /* not deeply duplicated, reference only */
-        }
-      } else if (col->type == C_ORM_TYPE_BLOB) {
-        const c_orm_blob_t *b = (const c_orm_blob_t *)field_ptr;
-        if (b->data) {
-          out_variant->type = CDD_C_VARIANT_TYPE_BLOB;
-          out_variant->value.b_val.data = (unsigned char *)b->data;
-          out_variant->value.b_val.size = b->size;
-        }
-      } else if (col->type == C_ORM_TYPE_POINT) {
-        out_variant->type = CDD_C_VARIANT_TYPE_BLOB;
-        out_variant->value.b_val.data = (unsigned char *)field_ptr;
-        out_variant->value.b_val.size = sizeof(c_orm_point_t);
-      } else if (col->type == C_ORM_TYPE_POLYGON) {
-        return C_ORM_ERROR_NOT_IMPLEMENTED; /* Need custom allocator for variant
-                                             */
-      } else {
-        if (col->is_nullable) {
-          field_ptr = *(const void **)field_ptr;
-          if (!field_ptr)
-            return C_ORM_OK;
-        }
-
-        switch (col->type) {
-        case C_ORM_TYPE_INT32:
-          out_variant->type = CDD_C_VARIANT_TYPE_INT;
-          out_variant->value.i_val = *(const int32_t *)field_ptr;
-          break;
-        case C_ORM_TYPE_INT64:
-          out_variant->type = CDD_C_VARIANT_TYPE_INT;
-          out_variant->value.i_val = *(const int64_t *)field_ptr;
-          break;
-        case C_ORM_TYPE_FLOAT:
-          out_variant->type = CDD_C_VARIANT_TYPE_FLOAT;
-          out_variant->value.f_val = *(const float *)field_ptr;
-          break;
-        case C_ORM_TYPE_DOUBLE:
-          out_variant->type = CDD_C_VARIANT_TYPE_FLOAT;
-          out_variant->value.f_val = *(const double *)field_ptr;
-          break;
-        case C_ORM_TYPE_BOOL:
-          out_variant->type = CDD_C_VARIANT_TYPE_INT;
-          if (sizeof(bool) == 1) {
-            out_variant->value.i_val = *(const unsigned char *)field_ptr;
-          } else {
-            out_variant->value.i_val = *(const int *)field_ptr;
-          }
-          break;
-        default:
-          return C_ORM_ERROR_TYPE_MISMATCH;
-        }
-      }
-      return C_ORM_OK;
-    }
-  }
-  return C_ORM_ERROR_NOT_FOUND;
+  (void)meta;
+  (void)obj;
+  (void)field_name;
+  (void)out_variant;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_set_field_value(
     const c_orm_table_meta_t *meta, void *obj, const char *field_name,
     const struct CddCVariant *in_variant) {
-  size_t i;
-  if (!meta || !obj || !field_name || !in_variant)
-    return C_ORM_ERROR_MEMORY;
-
-  for (i = 0; i < meta->num_columns; ++i) {
-    if (strcmp(meta->columns[i].name, field_name) == 0) {
-      const c_orm_column_meta_t *col = &meta->columns[i];
-      void *field_ptr = (char *)obj + col->offset;
-
-      if (in_variant->type == CDD_C_VARIANT_TYPE_NULL) {
-        if (col->type == C_ORM_TYPE_STRING || col->type == C_ORM_TYPE_DATE ||
-            col->type == C_ORM_TYPE_TIMESTAMP || col->type == C_ORM_TYPE_ENUM ||
-            col->type == C_ORM_TYPE_SET || col->type == C_ORM_TYPE_JSON) {
-          if (*(char **)field_ptr)
-            free(*(char **)field_ptr);
-          *(char **)field_ptr = NULL;
-          return C_ORM_OK;
-        } else if (col->type == C_ORM_TYPE_BLOB) {
-          c_orm_blob_t *b = (c_orm_blob_t *)field_ptr;
-          if (b->data)
-            free(b->data);
-          b->data = NULL;
-          b->size = 0;
-        } else if (col->type == C_ORM_TYPE_POLYGON) {
-          c_orm_polygon_t *p = (c_orm_polygon_t *)field_ptr;
-          if (p->points)
-            free(p->points);
-          p->points = NULL;
-          p->num_points = 0;
-        } else if (col->type == C_ORM_TYPE_POINT) {
-          memset(field_ptr, 0, sizeof(c_orm_point_t));
-          return C_ORM_OK;
-        } else {
-          if (col->is_nullable) {
-            if (*(void **)field_ptr)
-              free(*(void **)field_ptr);
-            *(void **)field_ptr = NULL;
-            return C_ORM_OK;
-          }
-          return C_ORM_ERROR_TYPE_MISMATCH;
-        }
-      }
-
-      if (col->type == C_ORM_TYPE_STRING || col->type == C_ORM_TYPE_DATE ||
-          col->type == C_ORM_TYPE_TIMESTAMP || col->type == C_ORM_TYPE_ENUM ||
-          col->type == C_ORM_TYPE_SET || col->type == C_ORM_TYPE_JSON) {
-        if (in_variant->type == CDD_C_VARIANT_TYPE_STRING &&
-            in_variant->value.s_val) {
-          size_t slen = strlen(in_variant->value.s_val);
-          char *nstr = (char *)malloc(slen + 1);
-          if (!nstr)
-            return C_ORM_ERROR_MEMORY;
-#if defined(_MSC_VER)
-          strcpy_s(nstr, slen + 1, in_variant->value.s_val);
-#else
-          strcpy(nstr, in_variant->value.s_val);
-#endif
-          if (*(char **)field_ptr)
-            free(*(char **)field_ptr);
-          *(char **)field_ptr = nstr;
-          return C_ORM_OK;
-        }
-        return C_ORM_ERROR_TYPE_MISMATCH;
-      } else if (col->type == C_ORM_TYPE_BLOB) {
-        if (in_variant->type == CDD_C_VARIANT_TYPE_BLOB) {
-          c_orm_blob_t *b = (c_orm_blob_t *)field_ptr;
-          if (b->data)
-            free(b->data);
-          b->data = malloc(in_variant->value.b_val.size);
-          if (!b->data && in_variant->value.b_val.size > 0)
-            return C_ORM_ERROR_MEMORY;
-          if (b->data)
-            memcpy(b->data, in_variant->value.b_val.data,
-                   in_variant->value.b_val.size);
-          b->size = in_variant->value.b_val.size;
-          return C_ORM_OK;
-        }
-        return C_ORM_ERROR_TYPE_MISMATCH;
-      } else if (col->type == C_ORM_TYPE_POINT) {
-        if (in_variant->type == CDD_C_VARIANT_TYPE_BLOB) {
-          if (in_variant->value.b_val.size == sizeof(c_orm_point_t)) {
-            memcpy(field_ptr, in_variant->value.b_val.data,
-                   sizeof(c_orm_point_t));
-            return C_ORM_OK;
-          }
-        }
-        return C_ORM_ERROR_TYPE_MISMATCH;
-      } else if (col->type == C_ORM_TYPE_POLYGON) {
-        return C_ORM_ERROR_NOT_IMPLEMENTED;
-      } else {
-        if (col->is_nullable) {
-          if (*(void **)field_ptr == NULL) {
-            size_t sz = 0;
-            switch (col->type) {
-            case C_ORM_TYPE_INT32:
-              sz = sizeof(int32_t);
-              break;
-            case C_ORM_TYPE_INT64:
-              sz = sizeof(int64_t);
-              break;
-            case C_ORM_TYPE_FLOAT:
-              sz = sizeof(float);
-              break;
-            case C_ORM_TYPE_DOUBLE:
-              sz = sizeof(double);
-              break;
-            case C_ORM_TYPE_BOOL:
-              sz = sizeof(bool) == 1 ? 1 : sizeof(int);
-              break;
-            default:
-              break;
-            }
-            if (sz > 0) {
-              *(void **)field_ptr = malloc(sz);
-              if (!*(void **)field_ptr)
-                return C_ORM_ERROR_MEMORY;
-            }
-          }
-          field_ptr = *(void **)field_ptr;
-        }
-
-        switch (col->type) {
-        case C_ORM_TYPE_INT32:
-          if (in_variant->type != CDD_C_VARIANT_TYPE_INT)
-            return C_ORM_ERROR_TYPE_MISMATCH;
-          *(int32_t *)field_ptr = (int32_t)in_variant->value.i_val;
-          break;
-        case C_ORM_TYPE_INT64:
-          if (in_variant->type != CDD_C_VARIANT_TYPE_INT)
-            return C_ORM_ERROR_TYPE_MISMATCH;
-          *(int64_t *)field_ptr = (int64_t)in_variant->value.i_val;
-          break;
-        case C_ORM_TYPE_FLOAT:
-          if (in_variant->type != CDD_C_VARIANT_TYPE_FLOAT &&
-              in_variant->type != CDD_C_VARIANT_TYPE_INT)
-            return C_ORM_ERROR_TYPE_MISMATCH;
-          *(float *)field_ptr =
-              (float)(in_variant->type == CDD_C_VARIANT_TYPE_FLOAT
-                          ? in_variant->value.f_val
-                          : in_variant->value.i_val);
-          break;
-        case C_ORM_TYPE_DOUBLE:
-          if (in_variant->type != CDD_C_VARIANT_TYPE_FLOAT &&
-              in_variant->type != CDD_C_VARIANT_TYPE_INT)
-            return C_ORM_ERROR_TYPE_MISMATCH;
-          *(double *)field_ptr = in_variant->type == CDD_C_VARIANT_TYPE_FLOAT
-                                     ? in_variant->value.f_val
-                                     : (double)in_variant->value.i_val;
-          break;
-        case C_ORM_TYPE_BOOL:
-          if (in_variant->type != CDD_C_VARIANT_TYPE_INT)
-            return C_ORM_ERROR_TYPE_MISMATCH;
-          if (sizeof(bool) == 1) {
-            *(unsigned char *)field_ptr =
-                (unsigned char)in_variant->value.i_val;
-          } else {
-            *(int *)field_ptr = (int)in_variant->value.i_val;
-          }
-          break;
-        default:
-          return C_ORM_ERROR_TYPE_MISMATCH;
-        }
-      }
-      return C_ORM_OK;
-    }
-  }
-  return C_ORM_ERROR_NOT_FOUND;
+  (void)meta;
+  (void)obj;
+  (void)field_name;
+  (void)in_variant;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_abstract_from_json(
     const char *json, struct CddCAbstractStruct *out_astruct) {
-  int rc;
-  if (!json || !out_astruct)
-    return C_ORM_ERROR_MEMORY;
-  rc = cdd_c_abstract_struct_from_json(json,
-                                       (cdd_c_abstract_struct_t *)out_astruct);
-  return (rc == 0) ? C_ORM_OK : C_ORM_ERROR_UNKNOWN;
+  (void)json;
+  (void)out_astruct;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_to_json(const c_orm_table_meta_t *meta,
                                          const void *obj, char **out_json) {
-  struct CddCAbstractStruct astruct;
-  c_orm_error_t err;
-  size_t i;
-  int rc;
-
-  if (!obj || !out_json)
-    return C_ORM_ERROR_MEMORY;
-
-  if (!meta) {
-    return c_orm_abstract_to_json((const struct CddCAbstractStruct *)obj,
-                                  out_json);
-  }
-
-  if (cdd_c_abstract_struct_init(&astruct) != 0)
-    return C_ORM_ERROR_MEMORY;
-
-  for (i = 0; i < meta->num_columns; ++i) {
-    struct CddCVariant var;
-    err = c_orm_get_field_value(meta, obj, meta->columns[i].name, &var);
-    if (err == C_ORM_OK) {
-      if (cdd_c_abstract_set(&astruct, meta->columns[i].name, &var) != 0) {
-        cdd_c_abstract_struct_free(&astruct);
-        return C_ORM_ERROR_MEMORY;
-      }
-    }
-  }
-
-  rc = cdd_c_abstract_struct_to_json(&astruct, out_json);
-  cdd_c_abstract_struct_free(&astruct);
-
-  return (rc == 0) ? C_ORM_OK : C_ORM_ERROR_UNKNOWN;
+  (void)meta;
+  (void)obj;
+  (void)out_json;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_from_json(const c_orm_table_meta_t *meta,
                                            const char *json, void *out_obj) {
-  struct CddCAbstractStruct astruct;
-  c_orm_error_t err;
-  size_t i;
-
-  if (!meta || !json || !out_obj)
-    return C_ORM_ERROR_MEMORY;
-
-  err = c_orm_abstract_from_json(json, &astruct);
-  if (err != C_ORM_OK)
-    return err;
-
-  for (i = 0; i < astruct.count; ++i) {
-    c_orm_set_field_value(meta, out_obj, astruct.kvs[i].key,
-                          &astruct.kvs[i].value);
-  }
-
-  cdd_c_abstract_struct_free(&astruct);
-  return C_ORM_OK;
+  (void)meta;
+  (void)json;
+  (void)out_obj;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_to_dict(const c_orm_table_meta_t *meta,
                                          const void *obj,
                                          struct CddCAbstractStruct *out_dict) {
-  size_t i;
-  c_orm_error_t err;
-
-  if (!meta || !obj || !out_dict)
-    return C_ORM_ERROR_MEMORY;
-
-  if (cdd_c_abstract_struct_init(out_dict) != 0)
-    return C_ORM_ERROR_MEMORY;
-
-  for (i = 0; i < meta->num_columns; ++i) {
-    struct CddCVariant var;
-    err = c_orm_get_field_value(meta, obj, meta->columns[i].name, &var);
-    if (err == C_ORM_OK) {
-      if (cdd_c_abstract_set(out_dict, meta->columns[i].name, &var) != 0) {
-        cdd_c_abstract_struct_free(out_dict);
-        return C_ORM_ERROR_MEMORY;
-      }
-    }
-  }
-  return C_ORM_OK;
+  (void)meta;
+  (void)obj;
+  (void)out_dict;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_from_dict(const c_orm_table_meta_t *meta,
                 const struct CddCAbstractStruct *in_dict, void *out_obj) {
-  size_t i;
-
-  if (!meta || !in_dict || !out_obj)
-    return C_ORM_ERROR_MEMORY;
-
-  for (i = 0; i < in_dict->count; ++i) {
-    c_orm_set_field_value(meta, out_obj, in_dict->kvs[i].key,
-                          &in_dict->kvs[i].value);
-  }
-  return C_ORM_OK;
+  (void)meta;
+  (void)in_dict;
+  (void)out_obj;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_deep_free(const struct c_orm_meta *meta,

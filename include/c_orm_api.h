@@ -14,8 +14,28 @@
 extern "C" {
 #endif
 
-struct CddCAbstractStructArray;
+/* Fallback definitions for CddCVariant, removed from upstream cdd-c */
+#define CDD_C_VARIANT_TYPE_NULL 0
+#define CDD_C_VARIANT_TYPE_INT 1
+#define CDD_C_VARIANT_TYPE_FLOAT 2
+#define CDD_C_VARIANT_TYPE_STRING 3
+#define CDD_C_VARIANT_TYPE_BLOB 4
+
+struct CddCVariant {
+  int type;
+  union {
+    int64_t i_val;
+    double f_val;
+    char *s_val;
+    struct {
+      unsigned char *data;
+      size_t size;
+    } b_val;
+  } value;
+};
+
 struct CddCAbstractStruct;
+struct CddCAbstractStructArray;
 struct CddCVariant;
 
 /**

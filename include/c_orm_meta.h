@@ -20,6 +20,15 @@ typedef unsigned char bool;
 #endif
 
 #include <stddef.h>
+
+#if !defined(_MSC_VER) || _MSC_VER >= 1600
+#include <stdint.h>
+#else
+#ifndef _STDINT
+typedef signed __int32 int32_t;
+typedef unsigned __int64 uint64_t;
+#endif
+#endif
 /* clang-format on */
 
 #ifdef __cplusplus
@@ -228,17 +237,6 @@ typedef struct {
       *relations;       /**< Array of relationship metadata. */
   size_t num_relations; /**< Number of relationships. */
 } c_orm_table_meta_t;
-
-/* clang-format off */
-#if !defined(_MSC_VER) || _MSC_VER >= 1600
-#include <stdint.h>
-#else
-#ifndef _STDINT
-typedef signed __int32 int32_t;
-typedef unsigned __int64 uint64_t;
-#endif
-#endif
-/* clang-format on */
 
 /**
  * @brief Represents a bitmask of dirty fields (up to 64 fields).

@@ -8,7 +8,6 @@
 /* clang-format off */
 #include "c_orm_meta.h"
 #if !defined(_MSC_VER) || _MSC_VER >= 1600
-#include "c_orm_meta.h"
 #include <stdint.h>
 #else
 typedef signed __int8 int8_t;
