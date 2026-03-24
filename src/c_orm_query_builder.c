@@ -5,9 +5,9 @@
 
 /* clang-format off */
 #include "c_orm_query_builder.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 /* clang-format on */
 
 struct c_orm_select_builder {
@@ -274,7 +274,12 @@ C_ORM_EXPORT int c_orm_select_aggregate(c_orm_select_builder_t *builder,
       if (!new_sql)
         return 1;
 
+#if defined(_MSC_VER)
+      strncpy_s(new_sql, strlen(current_sql) + extra_len, current_sql,
+                prefix_len);
+#else
       strncpy(new_sql, current_sql, prefix_len);
+#endif
       new_sql[prefix_len] = '\0';
 
 #if defined(_MSC_VER)

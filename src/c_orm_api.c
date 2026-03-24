@@ -7,11 +7,12 @@
 #include "c_orm_api.h"
 #include "c_orm_query_builder.h"
 #include "c_orm_uuid.h"
-/* #include "classes/parse/abstract_struct.h" */
+#include "classes/parse/sql.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <time.h>
+/* #include "classes/parse/abstract_struct.h" */
 /* clang-format on */
 
 static c_orm_error_t hydrate_row_internal(c_orm_db_t *db, c_orm_query_t *query,
@@ -1402,12 +1403,9 @@ c_orm_validate_relations(const c_orm_table_meta_t **tables, size_t num_tables) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #endif
-#include "classes/parse/sql.h"
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
-#include <stdlib.h>
-#include <string.h>
 
 C_ORM_EXPORT c_orm_error_t c_orm_build_relation_meta(
     const struct sql_table_t *sql_table, c_orm_relation_meta_t **out_relations,

@@ -5,14 +5,17 @@
 
 /* clang-format off */
 #include "c_orm_postgres.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-
 #ifdef C_ORM_ENABLE_POSTGRESQL
 #include <libpq-fe.h>
+#include <libpq/libpq-fs.h>
 #endif
 /* clang-format on */
+
+#ifdef C_ORM_ENABLE_POSTGRESQL
+#endif
 
 #ifdef C_ORM_ENABLE_POSTGRESQL
 
@@ -530,8 +533,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
                                                   c_orm_db_t **out_db) {
   return postgres_connect(url, out_db);
 }
-
-#include <libpq/libpq-fs.h>
 
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
                                                     unsigned int *out_oid) {

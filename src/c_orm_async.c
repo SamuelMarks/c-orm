@@ -3,16 +3,18 @@
  * @brief Implementation of high-level asynchronous API for c-orm.
  */
 
-/* clang-format off */
 /* Define C_ORM_ASYNC_EXPORTS if not already defined for shared builds */
-#if defined(_WIN32) && defined(c_orm_async_EXPORTS)
-  #ifndef C_ORM_ASYNC_EXPORTS
-    #define C_ORM_ASYNC_EXPORTS
-  #endif
-#endif
+
+/* clang-format off */
 #include "c_orm_api.h"
 #include <stdlib.h>
 /* clang-format on */
+
+#if defined(_WIN32) && defined(c_orm_async_EXPORTS)
+#ifndef C_ORM_ASYNC_EXPORTS
+#define C_ORM_ASYNC_EXPORTS
+#endif
+#endif
 
 C_ORM_EXPORT c_orm_error_t c_orm_insert_async(c_orm_db_t *db,
                                               const c_orm_table_meta_t *meta,

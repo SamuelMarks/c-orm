@@ -5,6 +5,7 @@
 
 #ifndef C_ORM_SQLITE_H
 #define C_ORM_SQLITE_H
+
 /* clang-format off */
 #include "c_orm_db.h"
 /* clang-format on */

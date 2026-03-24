@@ -1,13 +1,13 @@
 
-/* clang-format off */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
+/* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_inline_macros.h"
 #include "c_orm_sqlite.h"
 #include "greatest.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 /* clang-format on */
 
 struct SpatialModel {

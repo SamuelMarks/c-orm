@@ -5,31 +5,63 @@
 
 #ifndef C_ORM_META_H
 #define C_ORM_META_H
+
 /* clang-format off */
+#include <stddef.h>
+#if defined(_MSC_VER)
+#if _MSC_VER < 1600
+typedef signed __int8 int8_t;
+typedef signed __int16 int16_t;
+typedef signed __int32 int32_t;
+typedef signed __int64 int64_t;
+typedef unsigned __int8 uint8_t;
+typedef unsigned __int16 uint16_t;
+typedef unsigned __int32 uint32_t;
+typedef unsigned __int64 uint64_t;
+#else
+#include <stdint.h>
+#endif
+#if _MSC_VER < 1800
+#ifndef __cplusplus
+#ifndef _STDBOOL_H
+#define _STDBOOL_H
+typedef size_t bool;
+#define true 1
+#define false 0
+#endif
+#endif
+#else
+#include <stdbool.h>
+#endif
+#else
+#include <stdint.h>
+#include <stdbool.h>
+#endif
+
+/* clang-format on */
+
 #if !defined(_MSC_VER) || _MSC_VER >= 1800
 
-#include <stdbool.h>
 #else
 #ifndef __cplusplus
+#ifndef _STDBOOL_H
+#define _STDBOOL_H
 #ifndef bool
-typedef unsigned char bool;
+typedef size_t bool;
 #define true 1
 #define false 0
 #endif
 #endif
 #endif
-
-#include <stddef.h>
+#endif
 
 #if !defined(_MSC_VER) || _MSC_VER >= 1600
-#include <stdint.h>
 #else
 #ifndef _STDINT
 typedef signed __int32 int32_t;
 typedef unsigned __int64 uint64_t;
 #endif
 #endif
-/* clang-format on */
 
 #ifdef __cplusplus
 extern "C" {

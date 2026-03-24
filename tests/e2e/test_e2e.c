@@ -1,17 +1,22 @@
+
+
+/* The generated models */
+
 /* clang-format off */
+#include "Models.h"
+#include "c_orm_api.h"
+#include "c_orm_mysql.h"
+#include "c_orm_oauth2.h"
+#include "c_orm_postgres.h"
+#include "c_orm_query_builder.h"
+#include "c_orm_sqlite.h"
+#include "c_orm_uuid.h"
+#include "classes/parse/sql.h"
+#include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "c_orm_api.h"
-#include "c_orm_sqlite.h"
-#include "c_orm_postgres.h"
-#include "c_orm_mysql.h"
-#include "greatest.h"
 /* #include "classes/parse/abstract_struct.h" */
-
-/* The generated models */
-#include "Models.h"
 /* clang-format on */
 
 static c_orm_db_t *db = NULL;
@@ -66,7 +71,7 @@ TEST test_e2e_insert_user(void) {
   u.email = "samuel@example.com";
   u.age = &age;
   u.score = &score;
-  u.is_active = &is_active;
+  u.is_active = (void *)&is_active;
   u.created_at = created_at;
 
   err = c_orm_insert(db, &Users_meta, &u);
@@ -154,9 +159,6 @@ TEST test_e2e_transactions(void) {
 
   PASS();
 }
-
-#include "c_orm_oauth2.h"
-#include "c_orm_query_builder.h"
 
 TEST test_query_builder_extensions(void) {
   c_orm_select_builder_t *b;
@@ -465,8 +467,6 @@ TEST test_e2e_validate_relations(void) {
   PASS();
 }
 
-#include "classes/parse/sql.h"
-
 TEST test_e2e_build_relation_meta(void) {
   struct sql_table_t table;
   struct sql_column_t cols[1];
@@ -695,9 +695,7 @@ TEST test_e2e_bulk_processing(void) {
   PASS();
 }
 
-TEST test_c_orm_select_raw(void) {
-  PASS();
-}
+TEST test_c_orm_select_raw(void) { PASS(); }
 
 TEST test_c_orm_relationship_filtering(void) {
   /* Step 133: Write unit test for relationship filtering */
@@ -737,17 +735,11 @@ TEST test_c_orm_array_in_clauses(void) {
   PASS();
 }
 
-TEST test_c_orm_complex_aggregations(void) {
-  PASS();
-}
+TEST test_c_orm_complex_aggregations(void) { PASS(); }
 
-TEST test_c_orm_dynamic_reflection(void) {
-  PASS();
-}
+TEST test_c_orm_dynamic_reflection(void) { PASS(); }
 
-TEST test_c_orm_json_dict_serialization(void) {
-  PASS();
-}
+TEST test_c_orm_json_dict_serialization(void) { PASS(); }
 
 TEST test_c_orm_runtime_validation(void) {
   /*
@@ -817,8 +809,6 @@ TEST test_c_orm_composite_keys(void) {
 
   PASS();
 }
-
-#include "c_orm_uuid.h"
 
 TEST test_c_orm_uuid_generation(void) {
   /* Step 168, 169, 170: UUID generation logic */

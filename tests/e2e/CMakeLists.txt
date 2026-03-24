@@ -4,18 +4,6 @@ if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
 endif()
 
-include(FetchContent)
-
-# Disable tests for dependencies
-set(C_CDD_BUILD_TESTING OFF CACHE BOOL "Disable cdd-c tests" FORCE)
-
-FetchContent_Declare(
-    cdd_c
-    URL https://github.com/SamuelMarks/cdd-c/archive/refs/heads/master.zip
-    PATCH_COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../patch_cdd.py
-)
-FetchContent_MakeAvailable(cdd_c)
-
 # Fetch greatest.h
 set(GREATEST_H_URL "https://raw.githubusercontent.com/silentbicycle/greatest/master/greatest.h")
 set(GREATEST_H_DIR "${CMAKE_CURRENT_BINARY_DIR}/test_downloads")

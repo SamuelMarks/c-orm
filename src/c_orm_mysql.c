@@ -5,14 +5,16 @@
 
 /* clang-format off */
 #include "c_orm_mysql.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-
 #ifdef C_ORM_ENABLE_MYSQL
 #include <mysql.h>
 #endif
 /* clang-format on */
+
+#ifdef C_ORM_ENABLE_MYSQL
+#endif
 
 #ifdef C_ORM_ENABLE_MYSQL
 

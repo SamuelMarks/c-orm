@@ -16,32 +16,20 @@
 #include <time.h>
 
 #if defined(_MSC_VER)
-#pragma comment(lib, "Crypt32.lib")
+
 
 typedef struct _CRYPTOAPI_BLOB {
   unsigned long cbData;
   unsigned char *pbData;
 } DATA_BLOB;
 
-__declspec(dllimport) int __stdcall CryptProtectData(
-  DATA_BLOB *pDataIn,
-  const wchar_t *szDataDescr,
-  DATA_BLOB *pOptionalEntropy,
-  void *pvReserved,
-  void *pPromptStruct,
-  unsigned long dwFlags,
-  DATA_BLOB *pDataOut
-);
+__declspec(dllimport) void * __stdcall LoadLibraryA(const char *lpLibFileName);
+typedef int(__stdcall *FARPROC_t)(void);
+__declspec(dllimport) FARPROC_t __stdcall GetProcAddress(void *hModule, const char *lpProcName);
+__declspec(dllimport) int __stdcall FreeLibrary(void *hLibModule);
 
-__declspec(dllimport) int __stdcall CryptUnprotectData(
-  DATA_BLOB *pDataIn,
-  const wchar_t **ppszDataDescr,
-  DATA_BLOB *pOptionalEntropy,
-  void *pvReserved,
-  void *pPromptStruct,
-  unsigned long dwFlags,
-  DATA_BLOB *pDataOut
-);
+typedef int(__stdcall *CryptProtectData_t)(DATA_BLOB *, const wchar_t *, DATA_BLOB *, void *, void *, unsigned long, DATA_BLOB *);
+typedef int(__stdcall *CryptUnprotectData_t)(DATA_BLOB *, const wchar_t **, DATA_BLOB *, void *, void *, unsigned long, DATA_BLOB *);
 
 __declspec(dllimport) void * __stdcall LocalFree(void *hMem);
 
@@ -236,24 +224,34 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
     in_blob.pbData = (unsigned char *)plain_token;
     in_blob.cbData = (unsigned long)strlen(plain_token);
 
-    if (CryptProtectData(&in_blob, L"c_orm_token", NULL, NULL, NULL,
-                         C_ORM_CRYPTPROTECT_UI_FORBIDDEN, &out_blob)) {
-      hex_str = (char *)malloc((out_blob.cbData * 2) + 1);
-      if (!hex_str) {
-        LocalFree(out_blob.pbData);
-        return C_ORM_ERROR_MEMORY;
-      }
-      for (i = 0; i < out_blob.cbData; ++i) {
+    {
+      void *hCrypt32 = LoadLibraryA("crypt32.dll");
+      if (hCrypt32) {
+        CryptProtectData_t pCryptProtectData =
+            (CryptProtectData_t)GetProcAddress(hCrypt32, "CryptProtectData");
+        if (pCryptProtectData &&
+            pCryptProtectData(&in_blob, L"c_orm_token", NULL, NULL, NULL,
+                              C_ORM_CRYPTPROTECT_UI_FORBIDDEN, &out_blob)) {
+          hex_str = (char *)malloc((out_blob.cbData * 2) + 1);
+          if (!hex_str) {
+            LocalFree(out_blob.pbData);
+            return C_ORM_ERROR_MEMORY;
+          }
+          for (i = 0; i < out_blob.cbData; ++i) {
 #if defined(_MSC_VER)
-        sprintf_s(&hex_str[i * 2], 3, "%02x", out_blob.pbData[i]);
+            sprintf_s(&hex_str[i * 2], 3, "%02x", out_blob.pbData[i]);
 #else
-        sprintf(&hex_str[i * 2], "%02x", out_blob.pbData[i]);
+            sprintf(&hex_str[i * 2], "%02x", out_blob.pbData[i]);
 #endif
+          }
+          hex_str[out_blob.cbData * 2] = '\0';
+          LocalFree(out_blob.pbData);
+          *out_encrypted_token = hex_str;
+          FreeLibrary(hCrypt32);
+          return C_ORM_OK;
+        }
+        FreeLibrary(hCrypt32);
       }
-      hex_str[out_blob.cbData * 2] = '\0';
-      LocalFree(out_blob.pbData);
-      *out_encrypted_token = hex_str;
-      return C_ORM_OK;
     }
     return C_ORM_ERROR_UNKNOWN;
   }
@@ -311,20 +309,31 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
     in_blob.pbData = bin_data;
     in_blob.cbData = (unsigned long)bin_len;
 
-    if (CryptUnprotectData(&in_blob, NULL, NULL, NULL, NULL,
-                           C_ORM_CRYPTPROTECT_UI_FORBIDDEN, &out_blob)) {
-      char *plain = (char *)malloc(out_blob.cbData + 1);
-      if (!plain) {
-        LocalFree(out_blob.pbData);
-        free(bin_data);
-        return C_ORM_ERROR_MEMORY;
+    {
+      void *hCrypt32 = LoadLibraryA("crypt32.dll");
+      if (hCrypt32) {
+        CryptUnprotectData_t pCryptUnprotectData =
+            (CryptUnprotectData_t)GetProcAddress(hCrypt32,
+                                                 "CryptUnprotectData");
+        if (pCryptUnprotectData &&
+            pCryptUnprotectData(&in_blob, NULL, NULL, NULL, NULL,
+                                C_ORM_CRYPTPROTECT_UI_FORBIDDEN, &out_blob)) {
+          char *plain = (char *)malloc(out_blob.cbData + 1);
+          if (!plain) {
+            LocalFree(out_blob.pbData);
+            free(bin_data);
+            return C_ORM_ERROR_MEMORY;
+          }
+          memcpy(plain, out_blob.pbData, out_blob.cbData);
+          plain[out_blob.cbData] = '\0';
+          LocalFree(out_blob.pbData);
+          free(bin_data);
+          *out_plain_token = plain;
+          FreeLibrary(hCrypt32);
+          return C_ORM_OK;
+        }
+        FreeLibrary(hCrypt32);
       }
-      memcpy(plain, out_blob.pbData, out_blob.cbData);
-      plain[out_blob.cbData] = '\0';
-      LocalFree(out_blob.pbData);
-      free(bin_data);
-      *out_plain_token = plain;
-      return C_ORM_OK;
     }
     free(bin_data);
     return C_ORM_ERROR_UNKNOWN;

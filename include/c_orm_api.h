@@ -5,6 +5,7 @@
 
 #ifndef C_ORM_API_H
 #define C_ORM_API_H
+
 /* clang-format off */
 #include "c_orm_db.h"
 #include "c_orm_meta.h"

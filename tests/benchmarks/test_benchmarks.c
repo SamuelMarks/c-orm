@@ -3,17 +3,16 @@
  * @brief Profiling and benchmarking suite for c-orm parsing performance bounds.
  */
 
-/* clang-format off */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+/* Included from e2e tests */
 
+/* clang-format off */
+#include "Models.h"
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
 #include "greatest.h"
-
-/* Included from e2e tests */
-#include "Models.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 /* #include "classes/parse/abstract_struct.h" */
 /* clang-format on */
 
@@ -86,18 +85,18 @@ TEST benchmark_specific_struct_hydration_1m(void) {
   ...
   }
   */
-  TEST benchmark_abstract_struct_hydration_1m(void) { PASS(); }
+TEST benchmark_abstract_struct_hydration_1m(void) { PASS(); }
 
-  SUITE(benchmarks_suite) {
-    RUN_TEST(benchmark_setup);
-    RUN_TEST(benchmark_specific_struct_hydration_1m);
-    RUN_TEST(benchmark_abstract_struct_hydration_1m);
-  }
+SUITE(benchmarks_suite) {
+  RUN_TEST(benchmark_setup);
+  RUN_TEST(benchmark_specific_struct_hydration_1m);
+  RUN_TEST(benchmark_abstract_struct_hydration_1m);
+}
 
-  GREATEST_MAIN_DEFS();
+GREATEST_MAIN_DEFS();
 
-  int main(int argc, char **argv) {
-    GREATEST_MAIN_BEGIN();
-    RUN_SUITE(benchmarks_suite);
-    GREATEST_MAIN_END();
-  }
+int main(int argc, char **argv) {
+  GREATEST_MAIN_BEGIN();
+  RUN_SUITE(benchmarks_suite);
+  GREATEST_MAIN_END();
+}

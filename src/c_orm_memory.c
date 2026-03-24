@@ -1,8 +1,10 @@
+
+
 /* clang-format off */
 #include "c_orm_memory.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 /* clang-format on */
 
 typedef enum {

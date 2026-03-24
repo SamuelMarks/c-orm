@@ -7,15 +7,19 @@
 #include "c_orm_sqlite.h"
 #include <stdlib.h>
 #include <string.h>
+#ifdef C_ORM_ENABLE_SQLITE
+#include <sqlite3.h>
+#endif
+/* clang-format on */
 
 #ifdef C_ORM_ENABLE_SQLITE
 #if defined(_MSC_VER)
 #pragma warning(push)
-#pragma warning(disable : 4306) /* 'type cast' : conversion from 'int' to 'sqlite3_destructor_type' of greater size */
+#pragma warning(                                                               \
+    disable : 4306) /* 'type cast' : conversion from 'int' to                  \
+                       'sqlite3_destructor_type' of greater size */
 #endif
-#include <sqlite3.h>
 #endif
-/* clang-format on */
 
 #ifdef C_ORM_ENABLE_SQLITE
 #endif
