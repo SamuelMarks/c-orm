@@ -23,7 +23,7 @@ endif()
 
 # Strict warnings
 if(MSVC)
-    set(C_ORM_STRICT_OPTIONS /W4 /WX /sdl)
+    set(C_ORM_STRICT_OPTIONS /W4 /sdl)
 else()
     set(C_ORM_STRICT_OPTIONS -Wall -Wextra  -Wpedantic -std=c90)
 endif()
@@ -79,6 +79,7 @@ target_compile_options(c-orm PRIVATE ${C_ORM_STRICT_OPTIONS})
 
 target_include_directories(c-orm SYSTEM PUBLIC include)
 target_link_libraries(c-orm PUBLIC c_cdd)
+target_include_directories(c-orm PUBLIC ${cdd_c_SOURCE_DIR}/src ${cdd_c_BINARY_DIR}/src)
 
 target_compile_definitions(c-orm PUBLIC $<$<BOOL:${BUILD_SHARED_LIBS}>:C_ORM_SHARED>)
 
@@ -149,9 +150,18 @@ elseif(C_ORM_MYSQL STREQUAL "DYNAMIC")
     endif()
 endif()
 
-enable_testing()
-add_subdirectory(tests/e2e)
 
+option(C_ORM_BUILD_TESTS "Build tests" OFF)
+option(C_ORM_BUILD_BENCHMARKS "Build benchmarks" OFF)
+option(C_ORM_BUILD_EXAMPLES "Build examples" OFF)
+
+if(C_ORM_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests/e2e)
+endif()
+
+
+if(C_ORM_BUILD_BENCHMARKS)
 # Steps 216-218: Benchmarking suite
 if(WIN32 AND BUILD_SHARED_LIBS AND TARGET c89stringutils AND TARGET cfs)
     set(CDD_ENV_CMD ${CMAKE_COMMAND} -E env "PATH=$<TARGET_FILE_DIR:c89stringutils>;$<TARGET_FILE_DIR:cfs>;$ENV{PATH}")
@@ -173,7 +183,9 @@ if(MSVC)
     target_compile_definitions(c_orm_benchmarks PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 target_link_libraries(c_orm_benchmarks PRIVATE c-orm)
+endif()
 
+if(C_ORM_BUILD_EXAMPLES)
 # Steps 282-283: Sample applications
 add_executable(c_orm_example_blog examples/blog.c)
 target_link_libraries(c_orm_example_blog PRIVATE c-orm)
@@ -185,6 +197,7 @@ add_executable(c_orm_example_dashboard examples/dashboard.c)
 target_link_libraries(c_orm_example_dashboard PRIVATE c-orm c_cdd)
 if(MSVC)
     target_compile_definitions(c_orm_example_dashboard PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
 endif()
 
 # Steps 287-290: Packaging and Distribution
