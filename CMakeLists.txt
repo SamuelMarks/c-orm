@@ -41,6 +41,8 @@ FetchContent_Declare(
     cfs
     GIT_REPOSITORY https://github.com/SamuelMarks/c-fs.git
     GIT_TAG master
+    UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master
+    
 )
 FetchContent_MakeAvailable(cfs)
 
@@ -48,6 +50,8 @@ FetchContent_Declare(
     c_abstract_http
     GIT_REPOSITORY https://github.com/SamuelMarks/c-abstract-http.git
     GIT_TAG master
+    UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master
+    
     
 )
 FetchContent_MakeAvailable(c_abstract_http)
@@ -58,6 +62,8 @@ FetchContent_Declare(
     cdd_c
     GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git
     GIT_TAG master
+    UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master
+    
 )
 set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
 FetchContent_MakeAvailable(cdd_c)
@@ -82,7 +88,7 @@ target_compile_options(c-orm PRIVATE ${C_ORM_STRICT_OPTIONS})
 
 target_include_directories(c-orm SYSTEM PUBLIC include)
 target_link_libraries(c-orm PUBLIC c_cdd)
-target_include_directories(c-orm PUBLIC ${cdd_c_SOURCE_DIR}/src ${cdd_c_BINARY_DIR}/src)
+
 
 target_compile_definitions(c-orm PUBLIC $<$<BOOL:${BUILD_SHARED_LIBS}>:C_ORM_SHARED>)
 
