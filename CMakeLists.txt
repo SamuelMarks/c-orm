@@ -46,26 +46,19 @@ FetchContent_MakeAvailable(cfs)
 FetchContent_Declare(
     c_abstract_http
     URL https://github.com/SamuelMarks/c-abstract-http/archive/refs/heads/master.zip
-    PATCH_COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/patch_abstract_http.cmake
+    
 )
 FetchContent_MakeAvailable(c_abstract_http)
 
-if(EXISTS "${CMAKE_BINARY_DIR}/_deps/c_str_span-src/c_str_span/c_str_span.h")
-  file(READ "${CMAKE_BINARY_DIR}/_deps/c_str_span-src/c_str_span/c_str_span.h" span_content)
-  string(REPLACE "// size must be >= 0" "/* size must be >= 0 */" span_content "${span_content}")
-  string(REPLACE "/* Size = 1024 */" "Size = 1024" span_content "${span_content}")
-  string(REPLACE "// Size = 1024" "Size = 1024" span_content "${span_content}")
-  file(WRITE "${CMAKE_BINARY_DIR}/_deps/c_str_span-src/c_str_span/c_str_span.h" "${span_content}")
-endif()
+
 
 FetchContent_Declare(
     cdd_c
     URL https://github.com/SamuelMarks/cdd-c/archive/refs/heads/master.zip
-    PATCH_COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/patch_cdd.py
 )
+set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
 FetchContent_MakeAvailable(cdd_c)
 
-execute_process(COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/fix_span.py WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(c-orm
     src/c_orm_db.c
