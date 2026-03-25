@@ -29,8 +29,8 @@ else()
 endif()
 
 include(FetchContent)
-set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
-set(FETCHCONTENT_FULLY_DISCONNECTED OFF)
+
+
 
 set(C_REST_FRAMEWORK_FETCH_C_FS OFF CACHE BOOL "Disable c_fs fetch in c_rest_framework")
 set(C_REST_FRAMEWORK_FETCH_C_ORM OFF CACHE BOOL "Disable c_orm fetch in c_rest_framework")
@@ -39,13 +39,15 @@ set(C_REST_FRAMEWORK_FETCH_CDD_C OFF CACHE BOOL "Disable cdd_c fetch in c_rest_f
 
 FetchContent_Declare(
     cfs
-    URL https://github.com/SamuelMarks/c-fs/archive/refs/heads/master.zip
+    GIT_REPOSITORY https://github.com/SamuelMarks/c-fs.git
+    GIT_TAG master
 )
 FetchContent_MakeAvailable(cfs)
 
 FetchContent_Declare(
     c_abstract_http
-    URL https://github.com/SamuelMarks/c-abstract-http/archive/refs/heads/master.zip
+    GIT_REPOSITORY https://github.com/SamuelMarks/c-abstract-http.git
+    GIT_TAG master
     
 )
 FetchContent_MakeAvailable(c_abstract_http)
@@ -54,7 +56,8 @@ FetchContent_MakeAvailable(c_abstract_http)
 
 FetchContent_Declare(
     cdd_c
-    URL https://github.com/SamuelMarks/cdd-c/archive/refs/heads/master.zip
+    GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git
+    GIT_TAG master
 )
 set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
 FetchContent_MakeAvailable(cdd_c)
