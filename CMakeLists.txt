@@ -1,3 +1,4 @@
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
 cmake_minimum_required(VERSION 3.10)
 
 if(POLICY CMP0135)
@@ -37,34 +38,27 @@ set(C_REST_FRAMEWORK_FETCH_C_ORM OFF CACHE BOOL "Disable c_orm fetch in c_rest_f
 set(C_REST_FRAMEWORK_FETCH_C_ABSTRACT_HTTP OFF CACHE BOOL "Disable c_abstract_http fetch")
 set(C_REST_FRAMEWORK_FETCH_CDD_C OFF CACHE BOOL "Disable cdd_c fetch in c_rest_framework")
 
-FetchContent_Declare(
-    cfs
-    GIT_REPOSITORY https://github.com/SamuelMarks/c-fs.git
-    GIT_TAG master
-    UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master
-    
-)
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-fs/CMakeLists.txt")
+    FetchContent_Declare(cfs SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-fs")
+else()
+    FetchContent_Declare(cfs GIT_REPOSITORY https://github.com/SamuelMarks/c-fs.git GIT_TAG master GIT_CONFIG "core.autocrlf=false")
+endif()
 FetchContent_MakeAvailable(cfs)
 
-FetchContent_Declare(
-    c_abstract_http
-    GIT_REPOSITORY https://github.com/SamuelMarks/c-abstract-http.git
-    GIT_TAG master
-    UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master
-    
-    
-)
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http/CMakeLists.txt")
+    FetchContent_Declare(c_abstract_http SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http")
+else()
+    FetchContent_Declare(c_abstract_http GIT_REPOSITORY https://github.com/SamuelMarks/c-abstract-http.git GIT_TAG master GIT_CONFIG "core.autocrlf=false")
+endif()
 FetchContent_MakeAvailable(c_abstract_http)
 
 
 
-FetchContent_Declare(
-    cdd_c
-    GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git
-    GIT_TAG master
-    UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master
-    
-)
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../cdd-c/CMakeLists.txt")
+    FetchContent_Declare(cdd_c SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cdd-c")
+else()
+    FetchContent_Declare(cdd_c GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git GIT_TAG master GIT_CONFIG "core.autocrlf=false")
+endif()
 set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
 FetchContent_MakeAvailable(cdd_c)
 

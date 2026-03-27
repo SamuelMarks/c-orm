@@ -483,7 +483,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_abstract_to_json(
 C_ORM_EXPORT c_orm_error_t c_orm_abstract_from_json(
     const char *json, struct CddCAbstractStruct *out_astruct);
 
-struct c_orm_meta;
+struct cdd_c_meta;
 
 /**
  * @brief Implement deep free logic utilizing cdd-c nested struct traversals.
@@ -493,7 +493,7 @@ struct c_orm_meta;
  * only its allocations.
  * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT c_orm_error_t c_orm_deep_free(const struct c_orm_meta *meta,
+C_ORM_EXPORT c_orm_error_t c_orm_deep_free(const struct cdd_c_meta *meta,
                                            void *obj);
 
 /**
@@ -504,7 +504,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_deep_free(const struct c_orm_meta *meta,
  * @param src The source structure to copy from.
  * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT c_orm_error_t c_orm_deep_copy(const struct c_orm_meta *meta,
+C_ORM_EXPORT c_orm_error_t c_orm_deep_copy(const struct cdd_c_meta *meta,
                                            void *dest, const void *src);
 
 /**

@@ -159,7 +159,7 @@ typedef struct c_orm_lazy_load_context {
                                   query. */
 } c_orm_lazy_load_context_t;
 
-struct c_orm_meta;
+struct cdd_c_meta;
 
 /**
  * @brief Defines a specific polymorphic target mapping.
@@ -168,7 +168,7 @@ typedef struct c_orm_polymorphic_target {
   const char *discriminator_value; /**< Value inside the discriminator column
                                       identifying this target. */
   const char *target_table;        /**< Table to query for this target type. */
-  const struct c_orm_meta
+  const struct cdd_c_meta
       *target_ir; /**< Reflection metadata for the target struct. */
 } c_orm_polymorphic_target_t;
 
@@ -182,7 +182,7 @@ typedef struct c_orm_relation_meta {
                            struct. */
   size_t target_array_len_offset; /**< Offset for the length field of a
                                      C_ORM_RELATION_ONE_TO_MANY array. */
-  const struct c_orm_meta
+  const struct cdd_c_meta
       *target_ir; /**< Pointer to the cdd-c IR metadata for the target struct.
                      NULL if POLYMORPHIC. */
 
