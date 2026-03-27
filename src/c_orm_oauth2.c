@@ -264,7 +264,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
       return C_ORM_ERROR_MEMORY;
     for (i = 0; i < len; ++i) {
       unsigned char c = (unsigned char)(plain_token[i] ^ 0x42);
+#if defined(_MSC_VER)
+      sprintf_s(&hex_str[i * 2], 3, "%02x", c);
+#else
       sprintf(&hex_str[i * 2], "%02x", c);
+#endif
     }
     hex_str[len * 2] = '\0';
     *out_encrypted_token = hex_str;

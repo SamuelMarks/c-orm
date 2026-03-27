@@ -174,9 +174,16 @@ static c_orm_error_t hydrate_row_internal(c_orm_db_t *db, c_orm_query_t *query,
             tm_val.tm_min += db->timezone.offset_minutes;
             mktime(&tm_val);
 
+#if defined(_MSC_VER)
+            sprintf_s(tz_buffer, sizeof(tz_buffer),
+                      "%04d-%02d-%02d %02d:%02d:%02d", tm_val.tm_year + 1900,
+                      tm_val.tm_mon + 1, tm_val.tm_mday, tm_val.tm_hour,
+                      tm_val.tm_min, tm_val.tm_sec);
+#else
             sprintf(tz_buffer, "%04d-%02d-%02d %02d:%02d:%02d",
                     tm_val.tm_year + 1900, tm_val.tm_mon + 1, tm_val.tm_mday,
                     tm_val.tm_hour, tm_val.tm_min, tm_val.tm_sec);
+#endif
 
             /* We need to re-copy tz_buffer since val is read-only */
             {
@@ -661,9 +668,16 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
           tm_val.tm_min -= db->timezone.offset_minutes;
           mktime(&tm_val); /* Normalize overflow/underflow */
 
+#if defined(_MSC_VER)
+          sprintf_s(tz_buffer, sizeof(tz_buffer),
+                    "%04d-%02d-%02d %02d:%02d:%02d", tm_val.tm_year + 1900,
+                    tm_val.tm_mon + 1, tm_val.tm_mday, tm_val.tm_hour,
+                    tm_val.tm_min, tm_val.tm_sec);
+#else
           sprintf(tz_buffer, "%04d-%02d-%02d %02d:%02d:%02d",
                   tm_val.tm_year + 1900, tm_val.tm_mon + 1, tm_val.tm_mday,
                   tm_val.tm_hour, tm_val.tm_min, tm_val.tm_sec);
+#endif
           str_val = tz_buffer;
         }
       }

@@ -297,9 +297,9 @@ static c_orm_error_t postgres_bind_int64(c_orm_query_t *query, int index,
     return C_ORM_ERROR_BIND;
   free_param(query->data, index);
 #if defined(_MSC_VER)
-  sprintf_s(buf, sizeof(buf), "%I64d", (long long)val);
+  sprintf_s(buf, sizeof(buf), INT64_FORMAT, (long long)val);
 #else
-  sprintf(buf, "%lld", (long long)val);
+  sprintf(buf, INT64_FORMAT, (long long)val);
 #endif
   query->data->param_values[index - 1] = orm_strdup(buf);
   return C_ORM_OK;
