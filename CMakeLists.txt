@@ -1,4 +1,3 @@
-set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
 cmake_minimum_required(VERSION 3.10)
 
 if(POLICY CMP0135)
@@ -40,27 +39,37 @@ set(C_REST_FRAMEWORK_FETCH_CDD_C OFF CACHE BOOL "Disable cdd_c fetch in c_rest_f
 
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-fs/CMakeLists.txt")
     FetchContent_Declare(cfs SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-fs")
+    FetchContent_MakeAvailable(cfs)
+elseif(CDD_DEPS STREQUAL "VCPKG")
+    find_package(cfs CONFIG REQUIRED)
 else()
-    FetchContent_Declare(cfs GIT_REPOSITORY https://github.com/SamuelMarks/c-fs.git GIT_TAG master GIT_CONFIG "core.autocrlf=false")
+    FetchContent_Declare(cfs GIT_REPOSITORY https://github.com/SamuelMarks/c-fs.git GIT_TAG master UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master COMMAND git clean -fdx)
+    FetchContent_MakeAvailable(cfs)
 endif()
-FetchContent_MakeAvailable(cfs)
 
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http/CMakeLists.txt")
     FetchContent_Declare(c_abstract_http SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http")
+    FetchContent_MakeAvailable(c_abstract_http)
+elseif(CDD_DEPS STREQUAL "VCPKG")
+    find_package(c_abstract_http CONFIG REQUIRED)
 else()
-    FetchContent_Declare(c_abstract_http GIT_REPOSITORY https://github.com/SamuelMarks/c-abstract-http.git GIT_TAG master GIT_CONFIG "core.autocrlf=false")
+    FetchContent_Declare(c_abstract_http GIT_REPOSITORY https://github.com/SamuelMarks/c-abstract-http.git GIT_TAG master UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master COMMAND git clean -fdx)
+    FetchContent_MakeAvailable(c_abstract_http)
 endif()
-FetchContent_MakeAvailable(c_abstract_http)
 
 
 
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../cdd-c/CMakeLists.txt")
     FetchContent_Declare(cdd_c SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cdd-c")
+    set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
+    FetchContent_MakeAvailable(cdd_c)
+elseif(CDD_DEPS STREQUAL "VCPKG")
+    find_package(cdd_c CONFIG REQUIRED)
 else()
-    FetchContent_Declare(cdd_c GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git GIT_TAG master GIT_CONFIG "core.autocrlf=false")
+    FetchContent_Declare(cdd_c GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git GIT_TAG master UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master COMMAND git clean -fdx)
+    set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
+    FetchContent_MakeAvailable(cdd_c)
 endif()
-set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
-FetchContent_MakeAvailable(cdd_c)
 
 
 add_library(c-orm
