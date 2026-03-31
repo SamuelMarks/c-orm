@@ -3821,11 +3821,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
           rel->type == C_ORM_RELATION_BELONGS_TO) {
         void *ptr = *(void **)target_data_ptr;
         if (ptr) {
+          size_t c;
           c_orm_free_relations(rel->target_meta, ptr);
           /* We must free allocated basic strings in target_meta. */
           /* Since we don't have a direct c_orm_free_columns yet, we'll iterate
            * columns here: */
-          size_t c;
           for (c = 0; c < rel->target_meta->num_columns; c++) {
             if (rel->target_meta->columns[c].type == C_ORM_TYPE_STRING) {
               char **str_ptr =
@@ -3844,10 +3844,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
         if (arr->data) {
           size_t j;
           for (j = 0; j < arr->length; j++) {
+            size_t c;
             void *child =
                 (char *)arr->data + (j * rel->target_meta->struct_size);
             c_orm_free_relations(rel->target_meta, child);
-            size_t c;
             for (c = 0; c < rel->target_meta->num_columns; c++) {
               if (rel->target_meta->columns[c].type == C_ORM_TYPE_STRING) {
                 char **str_ptr = (char **)((char *)child +

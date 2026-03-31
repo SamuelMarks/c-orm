@@ -420,13 +420,13 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
   {
     const char *sql_str;
     if (c_orm_string_builder_get(sb, &sql_str) == 0) {
-#if defined(_MSC_VER)
       size_t len = strlen(sql_str);
       *out_sql = (char *)malloc(len + 1);
       if (*out_sql)
+#if defined(_MSC_VER)
         strcpy_s(*out_sql, len + 1, sql_str);
 #else
-      *out_sql = strdup(sql_str);
+        strcpy(*out_sql, sql_str);
 #endif
     } else {
       *out_sql = NULL;
