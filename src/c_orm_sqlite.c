@@ -390,14 +390,24 @@ static int sqlite_get_last_trace(c_orm_db_t *db, const char **out_trace) {
   return 0;
 }
 
+static c_orm_error_t sqlite_get_last_insert_rowid(c_orm_db_t *db,
+                                                  int64_t *out_id) {
+  struct sqlite_db_data *db_data;
+  if (!db || !db->driver_data || !out_id)
+    return C_ORM_ERROR_MEMORY;
+  db_data = (struct sqlite_db_data *)db->driver_data;
+  *out_id = (int64_t)sqlite3_last_insert_rowid(db_data->db);
+  return C_ORM_OK;
+}
+
 static const c_orm_driver_vtable_t sqlite_vtable = {
-    sqlite_connect,        sqlite_disconnect,    sqlite_prepare,
-    sqlite_bind_int32,     sqlite_bind_int64,    sqlite_bind_double,
-    sqlite_bind_string,    sqlite_bind_blob,     sqlite_bind_null,
-    sqlite_step,           sqlite_get_int32,     sqlite_get_int64,
-    sqlite_get_double,     sqlite_get_string,    sqlite_get_blob,
-    sqlite_is_null,        sqlite_finalize,      sqlite_reset,
-    sqlite_get_last_error, sqlite_get_last_trace};
+    sqlite_connect,        sqlite_disconnect,     sqlite_prepare,
+    sqlite_bind_int32,     sqlite_bind_int64,     sqlite_bind_double,
+    sqlite_bind_string,    sqlite_bind_blob,      sqlite_bind_null,
+    sqlite_step,           sqlite_get_int32,      sqlite_get_int64,
+    sqlite_get_double,     sqlite_get_string,     sqlite_get_blob,
+    sqlite_is_null,        sqlite_finalize,       sqlite_reset,
+    sqlite_get_last_error, sqlite_get_last_trace, sqlite_get_last_insert_rowid};
 
 C_ORM_EXPORT int
 c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {

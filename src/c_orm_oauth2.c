@@ -534,6 +534,9 @@ C_ORM_EXPORT const c_orm_table_meta_t c_orm_user_meta = {
     false,
     false,
     0,
+    0,
+    {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},
+    NULL,
     0};
 
 static const c_orm_column_meta_t token_cols[] = {
@@ -603,7 +606,11 @@ C_ORM_EXPORT const c_orm_table_meta_t c_orm_oauth2_client_meta = {
     "DELETE FROM clients WHERE id = ?",
     "SELECT * FROM clients WHERE id = ? FOR UPDATE",
     false,
+    false,
     0,
+    0,
+    {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},
+    NULL,
     0};
 
 static const c_orm_column_meta_t auth_code_cols[] = {
@@ -636,7 +643,11 @@ C_ORM_EXPORT const c_orm_table_meta_t c_orm_auth_code_meta = {
     "DELETE FROM auth_codes WHERE code = ?",
     "SELECT * FROM auth_codes WHERE code = ? FOR UPDATE",
     false,
+    false,
     0,
+    0,
+    {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},
+    NULL,
     0};
 
 C_ORM_EXPORT c_orm_error_t c_orm_user_verify_credentials(c_orm_db_t *db,
@@ -732,7 +743,7 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
   if (!db || !token || !token->access_token)
     return C_ORM_ERROR_MEMORY;
 
-  err = db->vtable->prepare(db, c_orm_token_meta.query_insert, &query);
+  err = c_orm_prepare_cached(db, c_orm_token_meta.query_insert, &query);
   if (err != C_ORM_OK)
     return err;
 
@@ -757,7 +768,7 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
     db->vtable->bind_null(query, 7);
 
   err = db->vtable->step(query, &has_row);
-  db->vtable->finalize(query);
+  c_orm_finalize_cached(db, query);
 
   if (err == C_ORM_ERROR_NOT_FOUND)
     return C_ORM_OK;
@@ -844,7 +855,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
   if (!db || !auth_code || !auth_code->code)
     return C_ORM_ERROR_MEMORY;
 
-  err = db->vtable->prepare(db, c_orm_auth_code_meta.query_insert, &query);
+  err = c_orm_prepare_cached(db, c_orm_auth_code_meta.query_insert, &query);
   if (err != C_ORM_OK)
     return err;
 
@@ -868,7 +879,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
     db->vtable->bind_null(query, 6);
 
   err = db->vtable->step(query, &has_row);
-  db->vtable->finalize(query);
+  c_orm_finalize_cached(db, query);
 
   if (err == C_ORM_ERROR_NOT_FOUND)
     return C_ORM_OK;
@@ -912,14 +923,14 @@ c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
   if (!db)
     return C_ORM_ERROR_MEMORY;
 
-  err = db->vtable->prepare(
+  err = c_orm_prepare_cached(
       db, "DELETE FROM tokens WHERE created_at + expires_in < ?", &query);
   if (err != C_ORM_OK)
     return err;
 
   db->vtable->bind_int64(query, 1, current_time);
   err = db->vtable->step(query, &has_row);
-  db->vtable->finalize(query);
+  c_orm_finalize_cached(db, query);
 
   if (err == C_ORM_ERROR_NOT_FOUND)
     return C_ORM_OK;

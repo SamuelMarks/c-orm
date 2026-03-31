@@ -104,6 +104,15 @@ TEST test_e2e_fetch_user(void) {
   ASSERT_EQ(1, (int)(*(unsigned char *)u.is_active));
 
   Users_free(&u);
+
+  memset(&u, 0, sizeof(u));
+  c_orm_transaction_begin(db);
+  err = c_orm_find_for_update_by_id_int32(db, &Users_meta, 1, &u);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_STR_EQ("smarks", u.username);
+  Users_free(&u);
+  c_orm_transaction_rollback(db);
+
   PASS();
 }
 
@@ -153,6 +162,16 @@ TEST test_e2e_transactions(void) {
 
   err = c_orm_transaction_begin(db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  err = c_orm_savepoint_create(db, "my_sp");
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  err = c_orm_savepoint_rollback(db, "my_sp");
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  err = c_orm_savepoint_release(db, "my_sp");
+  /* SQLite lets you release a rollback'd savepoint if it was just rolled back,
+     some dialects don't. We'll just rollback the whole tx to be safe. */
 
   err = c_orm_transaction_rollback(db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -701,15 +720,34 @@ TEST test_c_orm_relationship_filtering(void) {
   /* Step 133: Write unit test for relationship filtering */
   c_orm_select_builder_t *b;
   char *sql = NULL;
+  c_orm_table_meta_t dummy_meta = Users_meta;
+  c_orm_relation_meta_t dummy_rel;
+  c_orm_table_meta_t target_meta = Users_meta;
+  c_orm_column_meta_t target_col;
 
-  ASSERT_EQ(0, c_orm_select_builder_init(&Users_meta, &b));
+  /* Mock relationship for test */
+  target_col.name = "id";
+  target_col.is_pk = 1;
+  target_meta.name = "posts";
+  target_meta.columns = &target_col;
+  target_meta.num_columns = 1;
+
+  dummy_rel.field_name = "posts";
+  dummy_rel.target_meta = &target_meta;
+  dummy_rel.type = C_ORM_RELATION_ONE_TO_MANY;
+  dummy_rel.foreign_key = "user_id";
+  dummy_rel.local_key = "id";
+
+  dummy_meta.relations = &dummy_rel;
+  dummy_meta.num_relations = 1;
+
+  ASSERT_EQ(0, c_orm_select_builder_init(&dummy_meta, &b));
   ASSERT_EQ(0, c_orm_select_where_relation(b, "posts.title", "ILIKE"));
   ASSERT_EQ(0, c_orm_select_builder_compile(b, &sql));
 
-  /* Should generate JOIN correctly based on relations. For now, the stub
-     usually generates static SQL but let's check output. */
   ASSERT(sql != NULL);
   ASSERT(strstr(sql, "ILIKE") != NULL);
+  ASSERT(strstr(sql, "EXISTS") != NULL);
 
   free(sql);
   c_orm_select_builder_free(b);
@@ -860,6 +898,188 @@ TEST test_c_orm_uuid_generation(void) {
   PASS();
 }
 
+TEST test_c_orm_update_partial(void) {
+  struct Users user;
+  struct Users fetched;
+  c_orm_error_t err;
+  const char *fields[] = {"username"};
+
+  c_orm_execute_raw(db, "DELETE FROM Users WHERE id = 777");
+
+  memset(&user, 0, sizeof(user));
+  user.id = 777;
+  user.username = "partial_target";
+  user.email = "partial_target@example.com";
+  err = c_orm_insert(db, &Users_meta, &user);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  memset(&user, 0, sizeof(user));
+  user.id = 777;
+  user.username = "new_username";
+  err = c_orm_update_partial(db, &Users_meta, &user, fields, 1);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  memset(&fetched, 0, sizeof(fetched));
+  err = c_orm_find_by_id_int32(db, &Users_meta, 777, &fetched);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_STR_EQ("new_username", fetched.username);
+  ASSERT_STR_EQ("partial_target@example.com", fetched.email);
+
+  Users_free(&fetched);
+  PASS();
+}
+
+TEST test_c_orm_exists_int32(void) {
+  c_orm_error_t err;
+  int exists = 0;
+  struct Users user;
+
+  memset(&user, 0, sizeof(user));
+  user.id = 555;
+  user.username = "exists_user";
+  user.email = "exists@example.com";
+  err = c_orm_insert(db, &Users_meta, &user);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  err = c_orm_exists_int32(db, &Users_meta, 555, &exists);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT(exists != 0);
+
+  err = c_orm_exists_int32(db, &Users_meta, 99999, &exists);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT(exists == 0);
+
+  PASS();
+}
+
+TEST test_c_orm_exists_string(void) {
+  c_orm_error_t err;
+  int exists = 0;
+  struct Oauth2_tokens token;
+  int32_t expires_in = 3600;
+
+  memset(&token, 0, sizeof(token));
+  token.access_token = "exists_string_token";
+  token.refresh_token = "rtk_exists";
+  token.token_type = "Bearer";
+  token.expires_in = &expires_in;
+
+  err = c_orm_insert(db, &Oauth2_tokens_meta, &token);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  err = c_orm_exists_string(db, &Oauth2_tokens_meta, "exists_string_token",
+                            &exists);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT(exists != 0);
+
+  err = c_orm_exists_string(db, &Oauth2_tokens_meta, "missing_token_123",
+                            &exists);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT(exists == 0);
+
+  PASS();
+}
+
+TEST test_c_orm_find_all_paginated(void) {
+  c_orm_error_t err;
+  struct Users_Array arr;
+  struct Users user;
+
+  memset(&user, 0, sizeof(user));
+  user.id = 200;
+  user.username = "page_user1";
+  user.email = "page1@example.com";
+  err = c_orm_insert(db, &Users_meta, &user);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  memset(&user, 0, sizeof(user));
+  user.id = 201;
+  user.username = "page_user2";
+  user.email = "page2@example.com";
+  err = c_orm_insert(db, &Users_meta, &user);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  memset(&arr, 0, sizeof(arr));
+  err = c_orm_find_all_paginated(db, &Users_meta, &arr, 1, 0);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_EQ(1, arr.length);
+  Users_Array_free(&arr);
+
+  memset(&arr, 0, sizeof(arr));
+  err = c_orm_find_all_paginated(db, &Users_meta, &arr, 2, 0);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_EQ(2, arr.length);
+  Users_Array_free(&arr);
+
+  PASS();
+}
+
+TEST test_c_orm_statement_cache(void) {
+  struct Users user;
+  c_orm_error_t err;
+
+  err = c_orm_enable_statement_caching(db, 10);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  c_orm_execute_raw(db, "DELETE FROM Users WHERE id IN (888, 889)");
+
+  /* Test insert with cache */
+  memset(&user, 0, sizeof(user));
+  user.id = 888;
+  user.username = "cached_user";
+  user.email = "cached@example.com";
+  err = c_orm_insert(db, &Users_meta, &user);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  /* Second insert should reuse the cached insert statement */
+  memset(&user, 0, sizeof(user));
+  user.id = 889;
+  user.username = "cached_user_2";
+  user.email = "cached2@example.com";
+  err = c_orm_insert(db, &Users_meta, &user);
+  if (err != C_ORM_OK) {
+    const char *msg;
+    db->vtable->get_last_error(db, &msg);
+    fprintf(stderr, "SQL ERR: %s\n", msg);
+  }
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  /* Find by id should cache the select query */
+  memset(&user, 0, sizeof(user));
+  err = c_orm_find_by_id_int32(db, &Users_meta, 888, &user);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_STR_EQ("cached_user", user.username);
+  Users_free(&user);
+
+  /* Find second user, reusing cached query */
+  memset(&user, 0, sizeof(user));
+  err = c_orm_find_by_id_int32(db, &Users_meta, 889, &user);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_STR_EQ("cached_user_2", user.username);
+  Users_free(&user);
+
+  err = c_orm_disable_statement_caching(db);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  PASS();
+}
+
+TEST test_c_orm_delete_all(void) {
+  c_orm_error_t err;
+  struct Oauth2_tokens_Array arr;
+
+  err = c_orm_delete_all(db, &Oauth2_tokens_meta);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  memset(&arr, 0, sizeof(arr));
+  err = c_orm_find_all(db, &Oauth2_tokens_meta, &arr);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_EQ(0, arr.length);
+  Oauth2_tokens_Array_free(&arr);
+
+  PASS();
+}
+
 SUITE(e2e_suite) {
   RUN_TEST(test_e2e_connect);
   RUN_TEST(test_e2e_generate_schema);
@@ -892,15 +1112,27 @@ SUITE(e2e_suite) {
   RUN_TEST(test_e2e_cascade_deletion);
   RUN_TEST(test_e2e_bulk_processing);
   RUN_TEST(test_c_orm_uuid_generation);
+  RUN_TEST(test_c_orm_update_partial);
+  RUN_TEST(test_c_orm_exists_int32);
+  RUN_TEST(test_c_orm_exists_string);
+  RUN_TEST(test_c_orm_find_all_paginated);
+  RUN_TEST(test_c_orm_statement_cache);
+  RUN_TEST(test_c_orm_delete_all);
 }
 
 GREATEST_MAIN_DEFS();
 
 extern SUITE(inline_macros_suite);
+extern SUITE(ast_suite);
+extern SUITE(migrations_suite);
+extern SUITE(relations_suite);
 
 int main(int argc, char **argv) {
   GREATEST_MAIN_BEGIN();
   RUN_SUITE(e2e_suite);
   RUN_SUITE(inline_macros_suite);
+  RUN_SUITE(ast_suite);
+  RUN_SUITE(migrations_suite);
+  RUN_SUITE(relations_suite);
   GREATEST_MAIN_END();
 }

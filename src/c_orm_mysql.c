@@ -505,23 +505,46 @@ static int mysql_drv_get_last_error(c_orm_db_t *db, const char **out_message) {
   *out_message = data->last_error;
   return 0;
 }
-
 static int mysql_drv_get_last_trace(c_orm_db_t *db, const char **out_trace) {
+  (void)db;
   if (out_trace) {
-    *out_trace = "MySQL Driver Stack Trace: Contextual reporting relies on "
+    *out_trace = "MySQL stack traces require extended trace plugins lacking in "
                  "cdd-c struct wrappers. Database trace missing natively.";
   }
   return 0;
 }
 
+static c_orm_error_t mysql_drv_get_last_insert_rowid(c_orm_db_t *db,
+                                                     int64_t *out_id) {
+  /* Stub implementation for now */
+  (void)db;
+  if (out_id)
+    *out_id = 0;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+
 static const c_orm_driver_vtable_t mysql_vtable = {
-    mysql_drv_connect,        mysql_drv_disconnect,    mysql_drv_prepare,
-    mysql_drv_bind_int32,     mysql_drv_bind_int64,    mysql_drv_bind_double,
-    mysql_drv_bind_string,    mysql_drv_bind_blob,     mysql_drv_bind_null,
-    mysql_drv_step,           mysql_drv_get_int32,     mysql_drv_get_int64,
-    mysql_drv_get_double,     mysql_drv_get_string,    mysql_drv_get_blob,
-    mysql_drv_is_null,        mysql_drv_finalize,      mysql_drv_reset,
-    mysql_drv_get_last_error, mysql_drv_get_last_trace};
+    mysql_drv_connect,
+    mysql_drv_disconnect,
+    mysql_drv_prepare,
+    mysql_drv_bind_int32,
+    mysql_drv_bind_int64,
+    mysql_drv_bind_double,
+    mysql_drv_bind_string,
+    mysql_drv_bind_blob,
+    mysql_drv_bind_null,
+    mysql_drv_step,
+    mysql_drv_get_int32,
+    mysql_drv_get_int64,
+    mysql_drv_get_double,
+    mysql_drv_get_string,
+    mysql_drv_get_blob,
+    mysql_drv_is_null,
+    mysql_drv_finalize,
+    mysql_drv_reset,
+    mysql_drv_get_last_error,
+    mysql_drv_get_last_trace,
+    mysql_drv_get_last_insert_rowid};
 
 C_ORM_EXPORT int
 c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {

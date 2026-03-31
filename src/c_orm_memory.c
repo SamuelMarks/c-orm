@@ -271,12 +271,22 @@ static int mem_get_last_error(c_orm_db_t *db, const char **out_message) {
   return 1;
 }
 
+static c_orm_error_t mem_get_last_insert_rowid(c_orm_db_t *db,
+                                               int64_t *out_id) {
+  (void)db;
+  if (out_id)
+    *out_id = 0;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+
 static const c_orm_driver_vtable_t memory_vtable = {
-    mem_connect,    mem_disconnect,  mem_prepare,       mem_bind_int32,
-    mem_bind_int64, mem_bind_double, mem_bind_string,   mem_bind_blob,
-    mem_bind_null,  mem_step,        mem_get_int32,     mem_get_int64,
-    mem_get_double, mem_get_string,  mem_get_blob,      mem_is_null,
-    mem_finalize,   mem_reset,       mem_get_last_error};
+    mem_connect,        mem_disconnect, mem_prepare,
+    mem_bind_int32,     mem_bind_int64, mem_bind_double,
+    mem_bind_string,    mem_bind_blob,  mem_bind_null,
+    mem_step,           mem_get_int32,  mem_get_int64,
+    mem_get_double,     mem_get_string, mem_get_blob,
+    mem_is_null,        mem_finalize,   mem_reset,
+    mem_get_last_error, NULL,           mem_get_last_insert_rowid};
 
 C_ORM_EXPORT int
 c_orm_memory_get_vtable(const c_orm_driver_vtable_t **out_vtable) {

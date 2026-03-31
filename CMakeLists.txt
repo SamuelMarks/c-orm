@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+﻿cmake_minimum_required(VERSION 3.10)
 
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
@@ -76,7 +76,11 @@ add_library(c-orm
     src/c_orm_db.c
     src/c_orm_string_builder.c
     src/c_orm_query_builder.c
+    src/c_orm_arena.c
+    src/c_orm_query_fluent.c
+    src/c_orm_query_sql.c
     src/c_orm_api.c
+    src/c_orm_cache.c
     src/c_orm_sqlite.c
     src/c_orm_postgres.c
     src/c_orm_mysql.c
@@ -84,13 +88,14 @@ add_library(c-orm
     src/c_orm_memory.c
     src/c_orm_codegen.c
     src/c_orm_uuid.c
+    src/c_orm_migrations.c
 )
 set_target_properties(c-orm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 target_compile_options(c-orm PRIVATE ${C_ORM_STRICT_OPTIONS})
 
 target_include_directories(c-orm SYSTEM PUBLIC include)
-target_link_libraries(c-orm PUBLIC c_cdd)
+target_link_libraries(c-orm PUBLIC c_cdd cfs)
 
 
 target_compile_definitions(c-orm PUBLIC $<$<BOOL:${BUILD_SHARED_LIBS}>:C_ORM_SHARED>)
@@ -163,7 +168,8 @@ elseif(C_ORM_MYSQL STREQUAL "DYNAMIC")
 endif()
 
 
-option(C_ORM_BUILD_TESTS "Build tests" OFF)
+include(CTest)
+option(C_ORM_BUILD_TESTS "Build tests" ON)
 option(C_ORM_BUILD_BENCHMARKS "Build benchmarks" OFF)
 option(C_ORM_BUILD_EXAMPLES "Build examples" OFF)
 
@@ -205,6 +211,11 @@ if(MSVC)
     target_compile_definitions(c_orm_example_blog PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
+add_executable(c_orm_example_relationships examples/relationships.c)
+target_link_libraries(c_orm_example_relationships PRIVATE c-orm)
+if(MSVC)
+    target_compile_definitions(c_orm_example_relationships PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
 add_executable(c_orm_example_dashboard examples/dashboard.c)
 target_link_libraries(c_orm_example_dashboard PRIVATE c-orm c_cdd)
 if(MSVC)
@@ -219,6 +230,13 @@ set(CPACK_PACKAGE_VERSION "0.1.0")
 set(CPACK_PACKAGE_CONTACT "Samuel Marks")
 
 include(GNUInstallDirs)
+# Phase 4: CLI
+add_executable(c-orm-cli src/c_orm_cli.c)
+target_link_libraries(c-orm-cli PRIVATE c-orm)
+if(MSVC)
+    target_compile_definitions(c-orm-cli PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+install(TARGETS c-orm-cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(TARGETS c-orm c-orm-async
     EXPORT c-orm-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -246,5 +264,6 @@ set(CPACK_GENERATOR "DEB;RPM")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14)")
 set(CPACK_RPM_PACKAGE_REQUIRES "glibc >= 2.14")
 include(CPack)
+
 
 

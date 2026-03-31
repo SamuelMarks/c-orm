@@ -132,8 +132,10 @@ typedef struct {
  */
 typedef enum {
   C_ORM_RELATION_ONE_TO_ONE,
+  C_ORM_RELATION_BELONGS_TO,
   C_ORM_RELATION_ONE_TO_MANY,
   C_ORM_RELATION_MANY_TO_MANY,
+  C_ORM_RELATION_HAS_MANY_THROUGH,
   C_ORM_RELATION_POLYMORPHIC /**< Association type where the target table is
                                 determined dynamically by a discriminator
                                 column. */
@@ -172,6 +174,17 @@ typedef struct c_orm_polymorphic_target {
       *target_ir; /**< Reflection metadata for the target struct. */
 } c_orm_polymorphic_target_t;
 
+/**
+ * @brief Cascading rules for relationships
+ */
+typedef enum {
+  C_ORM_CASCADE_NONE = 0,
+  C_ORM_CASCADE_DELETE = 1,
+  C_ORM_CASCADE_SET_NULL = 2,
+  C_ORM_CASCADE_RESTRICT = 3,
+  C_ORM_CASCADE_UPDATE = 4
+} c_orm_cascade_rule_t;
+
 typedef struct c_orm_relation_meta {
   const char *field_name;     /**< Name of the field in the C struct. */
   c_orm_relation_type_t type; /**< Relationship type (ONE_TO_ONE, etc). */
@@ -185,6 +198,9 @@ typedef struct c_orm_relation_meta {
   const struct cdd_c_meta
       *target_ir; /**< Pointer to the cdd-c IR metadata for the target struct.
                      NULL if POLYMORPHIC. */
+  const struct c_orm_table_meta
+      *target_meta; /**< Pointer to the c-orm table metadata for the target
+                       struct. */
 
   /* Polymorphic specific fields */
   const char *discriminator_column; /**< Column name containing the string
@@ -192,6 +208,23 @@ typedef struct c_orm_relation_meta {
   const c_orm_polymorphic_target_t
       *polymorphic_targets;       /**< Array of polymorphic targets. */
   size_t num_polymorphic_targets; /**< Number of targets in the array. */
+
+  /* Cascading rules */
+  c_orm_cascade_rule_t on_delete;
+  c_orm_cascade_rule_t on_update;
+
+  /* Join table for many to many */
+  const char *join_table;
+  const char *join_local_key;
+  const char *join_foreign_key;
+
+  /* Phase 4 features */
+  int (*on_attach)(void *parent_obj, void *child_obj, void *db_ctx);
+  int (*on_detach)(void *parent_obj, void *child_obj, void *db_ctx);
+  const char *custom_filter;
+  const char *order_by;
+  int soft_delete_aware;
+
 } c_orm_relation_meta_t;
 
 /**
@@ -237,7 +270,7 @@ typedef enum {
 /**
  * @brief Table metadata definition.
  */
-typedef struct {
+typedef struct c_orm_table_meta {
   const char *name;                   /**< Table name. */
   const c_orm_column_meta_t *columns; /**< Array of column metadata. */
   size_t num_columns;                 /**< Number of columns. */

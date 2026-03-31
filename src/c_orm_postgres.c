@@ -512,14 +512,38 @@ static int postgres_get_last_trace(c_orm_db_t *db, const char **out_trace) {
   return 0;
 }
 
+static c_orm_error_t postgres_get_last_insert_rowid(c_orm_db_t *db,
+                                                    int64_t *out_id) {
+  /* Postgres doesn't have a single last_insert_rowid function, usually requires
+   * RETURNING clause. Stub implementation for now. */
+  (void)db;
+  if (out_id)
+    *out_id = 0;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
+}
+
 static const c_orm_driver_vtable_t postgres_vtable = {
-    postgres_connect,        postgres_disconnect,    postgres_prepare,
-    postgres_bind_int32,     postgres_bind_int64,    postgres_bind_double,
-    postgres_bind_string,    postgres_bind_blob,     postgres_bind_null,
-    postgres_step,           postgres_get_int32,     postgres_get_int64,
-    postgres_get_double,     postgres_get_string,    postgres_get_blob,
-    postgres_is_null,        postgres_finalize,      postgres_reset,
-    postgres_get_last_error, postgres_get_last_trace};
+    postgres_connect,
+    postgres_disconnect,
+    postgres_prepare,
+    postgres_bind_int32,
+    postgres_bind_int64,
+    postgres_bind_double,
+    postgres_bind_string,
+    postgres_bind_blob,
+    postgres_bind_null,
+    postgres_step,
+    postgres_get_int32,
+    postgres_get_int64,
+    postgres_get_double,
+    postgres_get_string,
+    postgres_get_blob,
+    postgres_is_null,
+    postgres_finalize,
+    postgres_reset,
+    postgres_get_last_error,
+    postgres_get_last_trace,
+    postgres_get_last_insert_rowid};
 
 C_ORM_EXPORT int
 c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {

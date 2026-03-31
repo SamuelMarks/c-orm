@@ -39,6 +39,9 @@ add_custom_target(generate_e2e_models
 add_executable(c_orm_e2e_tests
     test_e2e.c
     test_inline_macros.c
+    test_ast.c
+    test_migrations.c
+    test_relations.c
     ${CMAKE_CURRENT_BINARY_DIR}/Models.c
 )
 

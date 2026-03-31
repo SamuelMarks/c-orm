@@ -16,6 +16,34 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Macro to define a "Has One" relationship in a struct.
+ * Usage: C_ORM_HAS_ONE(struct TargetType, target_field_name);
+ */
+#define C_ORM_HAS_ONE(Type, name) Type *name
+
+/**
+ * @brief Macro to define a "Belongs To" relationship in a struct.
+ * Usage: C_ORM_BELONGS_TO(struct TargetType, target_field_name);
+ */
+#define C_ORM_BELONGS_TO(Type, name) Type *name
+
+/**
+ * @brief Macro to define a "Has Many" relationship in a struct.
+ * Usage: C_ORM_HAS_MANY(struct TargetType, target_field_name);
+ */
+#define C_ORM_HAS_MANY(Type, name)                                             \
+  size_t num_##name;                                                           \
+  Type *name
+
+/**
+ * @brief Macro to define a "Many To Many" relationship in a struct.
+ * Usage: C_ORM_MANY_TO_MANY(struct TargetType, target_field_name);
+ */
+#define C_ORM_MANY_TO_MANY(Type, name)                                         \
+  size_t num_##name;                                                           \
+  Type *name
+
 /* Step 137: Implement C_ORM_DEFINE_COLUMN macro generating cdd-c compatible
  * tokens */
 /**
@@ -47,6 +75,14 @@ extern "C" {
    local_key_val,                                                              \
    struct_offset_val,                                                          \
    target_array_len_offset_val,                                                \
+   NULL,                                                                       \
+   NULL,                                                                       \
+   NULL,                                                                       \
+   0,                                                                          \
+   C_ORM_CASCADE_NONE,                                                         \
+   C_ORM_CASCADE_NONE,                                                         \
+   NULL,                                                                       \
+   NULL,                                                                       \
    NULL}
 
 /* Step 139: Create macro engine to generate cdd-c compatible metadata at

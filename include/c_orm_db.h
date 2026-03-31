@@ -138,6 +138,7 @@ typedef struct c_orm_driver_vtable {
   c_orm_error_t (*reset)(c_orm_query_t *query);
   int (*get_last_error)(c_orm_db_t *db, const char **out_message);
   int (*get_last_trace)(c_orm_db_t *db, const char **out_trace);
+  c_orm_error_t (*get_last_insert_rowid)(c_orm_db_t *db, int64_t *out_id);
 } c_orm_driver_vtable_t;
 
 /**
@@ -194,13 +195,17 @@ struct c_orm_db {
   void *crypto_context;             /**< Cryptographic context */
 
   c_orm_timezone_t timezone; /**< Timezone configuration for the session */
-}; /**
-    * @brief Set the global logging callback for a database connection.
-    *
-    * @param db Database handle.
-    * @param cb The callback function.
-    * @param user_data Opaque pointer passed to the callback.
-    */
+
+  void *stmt_cache; /**< Phase 4: Statement LRU cache */
+};
+
+/**
+ * @brief Set the global logging callback for a database connection.
+ *
+ * @param db Database handle.
+ * @param cb The callback function.
+ * @param user_data Opaque pointer passed to the callback.
+ */
 C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
                                          void *user_data);
 

@@ -5,6 +5,7 @@
 
 /* clang-format off */
 #include "c_orm_db.h"
+#include "c_orm_api.h"
 #include <stddef.h>
 /* clang-format on */
 

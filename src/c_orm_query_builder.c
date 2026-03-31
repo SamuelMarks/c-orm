@@ -186,6 +186,106 @@ C_ORM_EXPORT int c_orm_select_where_ilike(c_orm_select_builder_t *builder,
   return append_where(builder, column, " ILIKE ?");
 }
 
+static int build_exists_query(c_orm_string_builder_t *sb,
+                              const c_orm_table_meta_t *meta, const char *path,
+                              const char *operator_str,
+                              const char *parent_alias, int depth) {
+  const char *dot = strchr(path, '.');
+  if (!dot) {
+    /* No dot means it's a column on the current table */
+    c_orm_string_builder_append(sb, parent_alias);
+    c_orm_string_builder_append(sb, ".");
+    c_orm_string_builder_append(sb, path);
+    c_orm_string_builder_append(sb, " ");
+    c_orm_string_builder_append(sb, operator_str);
+    c_orm_string_builder_append(sb, " ?");
+    return 0;
+  } else {
+    char rel_name[64];
+    size_t len = dot - path;
+    const c_orm_relation_meta_t *rel = NULL;
+    size_t i;
+    char target_alias[32];
+    int res;
+    const char *target_pk = "id"; /* Fallback */
+
+    if (len >= sizeof(rel_name))
+      len = sizeof(rel_name) - 1;
+    strncpy(rel_name, path, len);
+    rel_name[len] = '\0';
+
+    for (i = 0; i < meta->num_relations; i++) {
+      if (strcmp(meta->relations[i].field_name, rel_name) == 0) {
+        rel = &meta->relations[i];
+        break;
+      }
+    }
+
+    if (!rel || !rel->target_meta)
+      return 1;
+
+    for (i = 0; i < rel->target_meta->num_columns; i++) {
+      if (rel->target_meta->columns[i].is_pk) {
+        target_pk = rel->target_meta->columns[i].name;
+        break;
+      }
+    }
+
+#if defined(_MSC_VER)
+    sprintf_s(target_alias, sizeof(target_alias), "t%d", depth);
+#else
+    sprintf(target_alias, "t%d", depth);
+#endif
+
+    c_orm_string_builder_append(sb, "EXISTS (SELECT 1 FROM ");
+    c_orm_string_builder_append(sb, rel->target_meta->name);
+    c_orm_string_builder_append(sb, " ");
+    c_orm_string_builder_append(sb, target_alias);
+
+    if (rel->type == C_ORM_RELATION_MANY_TO_MANY) {
+      c_orm_string_builder_append(sb, " INNER JOIN ");
+      c_orm_string_builder_append(sb, rel->join_table);
+      c_orm_string_builder_append(sb, " j_");
+      c_orm_string_builder_append(sb, target_alias);
+      c_orm_string_builder_append(sb, " ON ");
+      c_orm_string_builder_append(sb, target_alias);
+      c_orm_string_builder_append(sb, ".");
+      c_orm_string_builder_append(sb, target_pk);
+      c_orm_string_builder_append(sb, " = j_");
+      c_orm_string_builder_append(sb, target_alias);
+      c_orm_string_builder_append(sb, ".");
+      c_orm_string_builder_append(sb, rel->join_foreign_key);
+
+      c_orm_string_builder_append(sb, " WHERE j_");
+      c_orm_string_builder_append(sb, target_alias);
+      c_orm_string_builder_append(sb, ".");
+      c_orm_string_builder_append(sb, rel->join_local_key);
+      c_orm_string_builder_append(sb, " = ");
+      c_orm_string_builder_append(sb, parent_alias);
+      c_orm_string_builder_append(sb, ".");
+      c_orm_string_builder_append(sb, rel->local_key);
+    } else {
+      c_orm_string_builder_append(sb, " WHERE ");
+      c_orm_string_builder_append(sb, target_alias);
+      c_orm_string_builder_append(sb, ".");
+      c_orm_string_builder_append(sb, rel->foreign_key);
+      c_orm_string_builder_append(sb, " = ");
+      c_orm_string_builder_append(sb, parent_alias);
+      c_orm_string_builder_append(sb, ".");
+      c_orm_string_builder_append(sb, rel->local_key);
+    }
+
+    c_orm_string_builder_append(sb, " AND ");
+    res = build_exists_query(sb, rel->target_meta, dot + 1, operator_str,
+                             target_alias, depth + 1);
+    if (res != 0)
+      return res;
+
+    c_orm_string_builder_append(sb, ")");
+    return 0;
+  }
+}
+
 C_ORM_EXPORT int c_orm_select_where_relation(c_orm_select_builder_t *builder,
                                              const char *relation_name,
                                              const char *operator_str) {
@@ -198,10 +298,9 @@ C_ORM_EXPORT int c_orm_select_where_relation(c_orm_select_builder_t *builder,
   } else {
     c_orm_string_builder_append(builder->sb, " AND ");
   }
-  c_orm_string_builder_append(builder->sb, relation_name);
-  c_orm_string_builder_append(builder->sb, operator_str);
-  c_orm_string_builder_append(builder->sb, "?");
-  return 0;
+
+  return build_exists_query(builder->sb, builder->meta, relation_name,
+                            operator_str, builder->meta->name, 1);
 }
 
 C_ORM_EXPORT int c_orm_select_group_by(c_orm_select_builder_t *builder,
