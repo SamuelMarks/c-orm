@@ -30,6 +30,7 @@ extern "C" {
 typedef struct {
   char version[256];
   char name[256];
+  char hash[65];
   char *up_sql;
   char *down_sql;
 } c_orm_migration_t;
@@ -109,6 +110,47 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
 C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
     c_orm_db_t *db, const c_orm_migration_t *migrations, size_t count,
     size_t steps, const c_orm_migration_options_t *options);
+
+/**
+ * @brief Migrate up using a directory of migrations.
+ *
+ * @param db The database connection.
+ * @param dir_path The directory containing migration scripts.
+ * @param options Migration options (can be NULL).
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_migrate_up(c_orm_db_t *db, const char *dir_path,
+                 const c_orm_migration_options_t *options);
+
+/**
+ * @brief Migrate down by N steps using a directory of migrations.
+ *
+ * @param db The database connection.
+ * @param dir_path The directory containing migration scripts.
+ * @param steps Number of steps to rollback.
+ * @param options Migration options (can be NULL).
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_migrate_down(c_orm_db_t *db, const char *dir_path, size_t steps,
+                   const c_orm_migration_options_t *options);
+
+/**
+ * @brief Acquire a distributed lock for schema migration.
+ *
+ * @param db The database connection.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_migration_lock(c_orm_db_t *db);
+
+/**
+ * @brief Release the distributed lock for schema migration.
+ *
+ * @param db The database connection.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_migration_unlock(c_orm_db_t *db);
 
 #include "classes/emit/cdd_c_orm_meta.h"
 

@@ -139,7 +139,21 @@ typedef struct c_orm_driver_vtable {
   int (*get_last_error)(c_orm_db_t *db, const char **out_message);
   int (*get_last_trace)(c_orm_db_t *db, const char **out_trace);
   c_orm_error_t (*get_last_insert_rowid)(c_orm_db_t *db, int64_t *out_id);
+  c_orm_error_t (*get_column_count)(c_orm_query_t *query, int *out_count);
+  c_orm_error_t (*get_column_name)(c_orm_query_t *query, int index,
+                                   const char **out_name);
 } c_orm_driver_vtable_t;
+
+/**
+ * @brief Telemetry data for a connection pool.
+ */
+typedef struct c_orm_pool_telemetry {
+  size_t active_connections;
+  size_t idle_connections;
+  size_t exhaustion_count;
+  double average_wait_time_ms;
+  size_t slow_queries_logged;
+} c_orm_pool_telemetry_t;
 
 /**
  * @brief Interceptor hooks for plugin architecture.
@@ -171,6 +185,18 @@ typedef struct c_orm_timezone {
 } c_orm_timezone_t;
 
 /**
+ * @brief Execution Modalities for query processing.
+ */
+typedef enum {
+  C_ORM_MODALITY_SYNC = 0,    /**< Synchronous blocking execution */
+  C_ORM_MODALITY_ASYNC,       /**< Asynchronous non-blocking execution */
+  C_ORM_MODALITY_THREAD_POOL, /**< Thread pool execution */
+  C_ORM_MODALITY_GREENTHREAD, /**< Cooperative user-space thread execution */
+  C_ORM_MODALITY_MESSAGE_PASSING, /**< Actor-model message passing execution */
+  C_ORM_MODALITY_MULTIPROCESS     /**< Multi-process preforked execution */
+} c_orm_modality_t;
+
+/**
  * @brief Structure holding the generic DB context.
  */
 struct c_orm_db {
@@ -196,8 +222,35 @@ struct c_orm_db {
 
   c_orm_timezone_t timezone; /**< Timezone configuration for the session */
 
+  c_orm_modality_t modality; /**< Execution modality setting */
+  void *modality_ctx;        /**< Modality specific execution context */
+
   void *stmt_cache; /**< Phase 4: Statement LRU cache */
+
+  /* Telemetry config */
+  uint32_t slow_query_threshold_ms;
+  c_orm_pool_telemetry_t telemetry;
 };
+
+/**
+ * @brief Enable slow query logging and set the millisecond threshold.
+ *
+ * @param db Database handle.
+ * @param threshold_ms Milliseconds a query must take to be logged. Set 0 to
+ * disable.
+ */
+C_ORM_EXPORT void c_orm_set_slow_query_threshold(c_orm_db_t *db,
+                                                 uint32_t threshold_ms);
+
+/**
+ * @brief Fetch current telemetry data from the database pool.
+ *
+ * @param db Database handle.
+ * @param out_telemetry Pointer to receive the telemetry data struct.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_get_telemetry(c_orm_db_t *db, c_orm_pool_telemetry_t *out_telemetry);
 
 /**
  * @brief Set the global logging callback for a database connection.
@@ -241,6 +294,19 @@ C_ORM_EXPORT void c_orm_register_crypto_hooks(c_orm_db_t *db,
  * @param tz The timezone struct offset.
  */
 C_ORM_EXPORT void c_orm_set_timezone(c_orm_db_t *db, c_orm_timezone_t tz);
+
+/**
+ * @brief Configure the execution modality paradigm for this database
+ * connection.
+ *
+ * @param db Database handle.
+ * @param modality The desired execution paradigm (e.g., SYNC, THREAD_POOL).
+ * @param ctx Context for the modality (e.g., pointer to a thread pool object).
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_set_modality(c_orm_db_t *db,
+                                              c_orm_modality_t modality,
+                                              void *ctx);
 
 #ifdef __cplusplus
 }

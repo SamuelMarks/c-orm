@@ -360,7 +360,131 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row(c_orm_db_t *db,
                                              c_orm_query_t *query,
                                              const c_orm_table_meta_t *meta,
                                              void *out_struct) {
-  return c_orm_hydrate_row_from(db, query, meta, out_struct, 0);
+  c_orm_error_t err = c_orm_hydrate_row_from(db, query, meta, out_struct, 0);
+  int col_count = 0;
+  int i;
+  void *cached_row = NULL;
+
+  if (err != C_ORM_OK)
+    return err;
+
+  /* Dynamic nested hydration for prefix columns (e.g. "company_id") */
+  if (db->vtable->get_column_count && db->vtable->get_column_name) {
+    if (db->vtable->get_column_count(query, &col_count) == C_ORM_OK) {
+      for (i = (int)meta->num_columns; i < col_count; i++) {
+        const char *col_name = NULL;
+        if (db->vtable->get_column_name(query, i, &col_name) == C_ORM_OK &&
+            col_name) {
+          size_t rel_idx;
+          for (rel_idx = 0; rel_idx < meta->num_relations; rel_idx++) {
+            const c_orm_relation_meta_t *rel = &meta->relations[rel_idx];
+            size_t prefix_len = strlen(rel->field_name);
+            if (strncmp(col_name, rel->field_name, prefix_len) == 0 &&
+                col_name[prefix_len] == '_') {
+              const char *target_col_name = col_name + prefix_len + 1;
+              size_t tc;
+              for (tc = 0; tc < rel->target_meta->num_columns; tc++) {
+                if (strcmp(rel->target_meta->columns[tc].name,
+                           target_col_name) == 0) {
+                  /* We found a match! Initialize proxy if needed and hydrate */
+                  void *context_ptr = (char *)out_struct + rel->struct_offset;
+                  c_orm_lazy_load_context_t *ctx =
+                      (c_orm_lazy_load_context_t *)context_ptr;
+                  void *target_data_ptr =
+                      (char *)context_ptr + sizeof(c_orm_lazy_load_context_t);
+
+                  if (rel->type == C_ORM_RELATION_ONE_TO_ONE ||
+                      rel->type == C_ORM_RELATION_BELONGS_TO) {
+                    void *nested_struct = *(void **)target_data_ptr;
+                    int is_null = 0;
+
+                    if (!nested_struct) {
+                      /* Check if this prefix column itself is null first to
+                       * avoid instantiating empty structs */
+                      db->vtable->is_null(query, i, &is_null);
+                      if (!is_null) {
+                        nested_struct =
+                            calloc(1, rel->target_meta->struct_size);
+                        if (nested_struct) {
+                          *(void **)target_data_ptr = nested_struct;
+                          ctx->is_loaded = 1;
+                        }
+                      }
+                    }
+
+                    if (nested_struct && !is_null) {
+                      /* Wait, hydrate_row_from reads ALL columns from
+                       * start_col! We only want ONE column. */
+                      /* Let's inline the single column hydration here: */
+                      const c_orm_column_meta_t *tcol =
+                          &rel->target_meta->columns[tc];
+                      void *field_ptr = (char *)nested_struct + tcol->offset;
+
+                      switch (tcol->type) {
+                      case C_ORM_TYPE_INT32:
+                        db->vtable->get_int32(query, i, (int32_t *)field_ptr);
+                        break;
+                      case C_ORM_TYPE_INT64:
+                        db->vtable->get_int64(query, i, (int64_t *)field_ptr);
+                        break;
+                      case C_ORM_TYPE_DOUBLE:
+                        db->vtable->get_double(query, i, (double *)field_ptr);
+                        break;
+                      case C_ORM_TYPE_STRING: {
+                        const char *str_val = NULL;
+                        db->vtable->get_string(query, i, &str_val);
+                        if (str_val) {
+                          char **dst = (char **)field_ptr;
+                          if (*dst)
+                            free(*dst);
+                          *dst = (char *)malloc(strlen(str_val) + 1);
+                          if (*dst) {
+#if defined(_MSC_VER)
+                            strcpy_s(*dst, strlen(str_val) + 1, str_val);
+#else
+                            strcpy(*dst, str_val);
+#endif
+                          }
+                        }
+                        break;
+                      }
+                      case C_ORM_TYPE_BLOB: {
+                        const void *blob_val = NULL;
+                        size_t blob_size = 0;
+                        db->vtable->get_blob(query, i, &blob_val, &blob_size);
+                        /* Not dealing with blob struct allocation here for
+                         * brevity */
+                        break;
+                      }
+                      case C_ORM_TYPE_BOOL: {
+                        int32_t bool_val = 0;
+                        db->vtable->get_int32(query, i, &bool_val);
+                        *(int *)field_ptr = bool_val;
+                        break;
+                      }
+                      }
+
+                      /* If this is the last column for this relation, try
+                       * caching it */
+                      if (tc == rel->target_meta->num_columns - 1) {
+                        void *cached_nested = NULL;
+                        c_orm_hydrate_cache_row(db, rel->target_meta,
+                                                nested_struct, &cached_nested);
+                        *(void **)target_data_ptr = cached_nested;
+                      }
+                    }
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return c_orm_hydrate_cache_row(db, meta, out_struct, &cached_row);
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_find_all(c_orm_db_t *db,
@@ -3965,6 +4089,77 @@ C_ORM_EXPORT void c_orm_shard_manager_free(c_orm_shard_manager_t *manager) {
   }
 }
 
+C_ORM_EXPORT c_orm_error_t c_orm_scatter_gather_generic(
+    c_orm_shard_manager_t *manager, const c_orm_table_meta_t *meta,
+    void **out_array, size_t *out_count) {
+  size_t total_count = 0;
+  size_t total_cap = 16;
+  void *total_data = NULL;
+  size_t i;
+  c_orm_error_t last_err = C_ORM_OK;
+
+  if (!manager || !meta || !out_array || !out_count)
+    return C_ORM_ERROR_MEMORY;
+
+  total_data = malloc(total_cap * meta->struct_size);
+  if (!total_data)
+    return C_ORM_ERROR_MEMORY;
+
+  /* Execute sequentially across shards for now.
+     A true MODALITY_THREAD_POOL scatter-gather would dispatch to thread queues.
+   */
+  for (i = 0; i < manager->num_shards; i++) {
+    c_orm_db_t *shard_db = manager->nodes[i];
+    void *shard_array = NULL;
+    size_t shard_count = 0;
+    c_orm_error_t err;
+
+    if (!shard_db)
+      continue;
+
+    err = c_orm_find_all_generic(shard_db, meta, &shard_array, &shard_count);
+    if (err == C_ORM_OK && shard_count > 0 && shard_array) {
+      /* Merge arrays */
+      if (total_count + shard_count > total_cap) {
+        void *new_data;
+        while (total_count + shard_count > total_cap) {
+          total_cap *= 2;
+        }
+        new_data = realloc(total_data, total_cap * meta->struct_size);
+        if (!new_data) {
+          free(total_data);
+          free(shard_array);
+          return C_ORM_ERROR_MEMORY;
+        }
+        total_data = new_data;
+      }
+
+      /* We must deep copy string pointers? No, out_array holds newly malloc'd
+         strings per shard instance! We can just raw copy the structs, taking
+         ownership of the pointers. */
+      memcpy((char *)total_data + (total_count * meta->struct_size),
+             shard_array, shard_count * meta->struct_size);
+
+      /* Free the shard's container array (not the inner pointers, we took
+       * ownership!) */
+      free(shard_array);
+
+      total_count += shard_count;
+    } else if (err != C_ORM_OK && err != C_ORM_ERROR_NOT_FOUND) {
+      last_err = err;
+    }
+  }
+
+  if (last_err != C_ORM_OK && total_count == 0) {
+    free(total_data);
+    return last_err;
+  }
+
+  *out_array = total_data;
+  *out_count = total_count;
+  return C_ORM_OK;
+}
+
 C_ORM_EXPORT c_orm_error_t c_orm_escape_string(c_orm_db_t *db,
                                                const char *input, char *output,
                                                size_t output_size) {
@@ -4535,4 +4730,272 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_all(c_orm_db_t *db,
   sprintf(sql, "DELETE FROM %s", meta->name);
 #endif
   return c_orm_execute_raw(db, sql);
+}
+C_ORM_EXPORT c_orm_error_t c_orm_insert_generic(c_orm_db_t *db,
+                                                const c_orm_table_meta_t *meta,
+                                                const void *ptr) {
+  c_orm_string_builder_t *sb;
+  const char *sql_str;
+  c_orm_query_t *query;
+  c_orm_error_t err;
+  size_t i;
+  int bind_idx = 1;
+  int has_row = 0;
+
+  if (!db || !meta || !ptr)
+    return C_ORM_ERROR_MEMORY;
+  if (meta->is_view)
+    return C_ORM_ERROR_READ_ONLY;
+
+  if (c_orm_string_builder_init(&sb) != 0)
+    return C_ORM_ERROR_MEMORY;
+
+  c_orm_string_builder_append(sb, "INSERT INTO ");
+  c_orm_string_builder_append(sb, meta->name);
+  c_orm_string_builder_append(sb, " (");
+
+  for (i = 0; i < meta->num_columns; i++) {
+    if (i > 0)
+      c_orm_string_builder_append(sb, ", ");
+    c_orm_string_builder_append(sb, meta->columns[i].name);
+  }
+
+  c_orm_string_builder_append(sb, ") VALUES (");
+
+  for (i = 0; i < meta->num_columns; i++) {
+    if (i > 0)
+      c_orm_string_builder_append(sb, ", ");
+    c_orm_string_builder_append(sb, "?");
+  }
+  c_orm_string_builder_append(sb, ")");
+
+  if (c_orm_string_builder_get(sb, &sql_str) != 0) {
+    c_orm_string_builder_free(sb);
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  err = db->vtable->prepare(db, sql_str, &query);
+  c_orm_string_builder_free(sb);
+  if (err != C_ORM_OK)
+    return err;
+
+  err = bind_row(db, query, meta, ptr, 0, 0, &bind_idx);
+  if (err != C_ORM_OK) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  err = db->vtable->step(query, &has_row);
+  if (err != C_ORM_OK && err != C_ORM_ERROR_NOT_FOUND) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  db->vtable->finalize(query);
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_get_generic(c_orm_db_t *db,
+                                             const c_orm_table_meta_t *meta,
+                                             int32_t pk_val, void *out_struct) {
+  c_orm_string_builder_t *sb;
+  const char *sql_str;
+  c_orm_query_t *query;
+  c_orm_error_t err;
+  const c_orm_column_meta_t *pk_col = NULL;
+  size_t i;
+  int has_row;
+
+  if (!db || !meta || !out_struct)
+    return C_ORM_ERROR_MEMORY;
+
+  for (i = 0; i < meta->num_columns; i++) {
+    if (meta->columns[i].is_pk) {
+      pk_col = &meta->columns[i];
+      break;
+    }
+  }
+
+  if (!pk_col)
+    return C_ORM_ERROR_VALIDATION;
+
+  if (c_orm_string_builder_init(&sb) != 0)
+    return C_ORM_ERROR_MEMORY;
+
+  c_orm_string_builder_append(sb, "SELECT * FROM ");
+  c_orm_string_builder_append(sb, meta->name);
+  c_orm_string_builder_append(sb, " WHERE ");
+  c_orm_string_builder_append(sb, pk_col->name);
+  c_orm_string_builder_append(sb, " = ?");
+
+  if (c_orm_string_builder_get(sb, &sql_str) != 0) {
+    c_orm_string_builder_free(sb);
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  err = db->vtable->prepare(db, sql_str, &query);
+  c_orm_string_builder_free(sb);
+  if (err != C_ORM_OK)
+    return err;
+
+  err = db->vtable->bind_int32(query, 1, pk_val);
+  if (err != C_ORM_OK) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  err = db->vtable->step(query, &has_row);
+  if (err != C_ORM_OK) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  if (!has_row) {
+    db->vtable->finalize(query);
+    return C_ORM_ERROR_NOT_FOUND;
+  }
+
+  err = c_orm_hydrate_row(db, query, meta, out_struct);
+  db->vtable->finalize(query);
+  return err;
+}
+
+C_ORM_EXPORT c_orm_error_t
+c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                       void **out_array, size_t *out_count) {
+  c_orm_string_builder_t *sb;
+  const char *sql_str;
+  c_orm_query_t *query;
+  c_orm_error_t err;
+  int has_row;
+  size_t count = 0;
+  size_t cap = 16;
+  void *data;
+
+  if (!db || !meta || !out_array || !out_count)
+    return C_ORM_ERROR_MEMORY;
+
+  if (c_orm_string_builder_init(&sb) != 0)
+    return C_ORM_ERROR_MEMORY;
+
+  c_orm_string_builder_append(sb, "SELECT * FROM ");
+  c_orm_string_builder_append(sb, meta->name);
+
+  if (c_orm_string_builder_get(sb, &sql_str) != 0) {
+    c_orm_string_builder_free(sb);
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  err = db->vtable->prepare(db, sql_str, &query);
+  c_orm_string_builder_free(sb);
+  if (err != C_ORM_OK)
+    return err;
+
+  data = malloc(cap * meta->struct_size);
+  if (!data) {
+    db->vtable->finalize(query);
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  while ((err = db->vtable->step(query, &has_row)) == C_ORM_OK && has_row) {
+    if (count >= cap) {
+      void *new_data;
+      cap *= 2;
+      new_data = realloc(data, cap * meta->struct_size);
+      if (!new_data) {
+        free(data);
+        db->vtable->finalize(query);
+        return C_ORM_ERROR_MEMORY;
+      }
+      data = new_data;
+    }
+
+    memset((char *)data + (count * meta->struct_size), 0, meta->struct_size);
+    err = c_orm_hydrate_row(db, query, meta,
+                            (char *)data + (count * meta->struct_size));
+    if (err == C_ORM_OK) {
+      count++;
+    } else if (err == C_ORM_ERROR_EXPIRED) {
+      continue;
+    } else {
+      free(data);
+      db->vtable->finalize(query);
+      return err;
+    }
+  }
+
+  if (err != C_ORM_OK && err != C_ORM_ERROR_NOT_FOUND) {
+    free(data);
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  *out_array = data;
+  *out_count = count;
+  db->vtable->finalize(query);
+  return C_ORM_OK;
+}
+C_ORM_EXPORT c_orm_error_t
+c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                         const char *pk_val, void *out_struct) {
+  c_orm_string_builder_t *sb;
+  const char *sql_str;
+  c_orm_query_t *query;
+  c_orm_error_t err;
+  const c_orm_column_meta_t *pk_col = NULL;
+  size_t i;
+  int has_row;
+
+  if (!db || !meta || !pk_val || !out_struct)
+    return C_ORM_ERROR_MEMORY;
+
+  for (i = 0; i < meta->num_columns; i++) {
+    if (meta->columns[i].is_pk) {
+      pk_col = &meta->columns[i];
+      break;
+    }
+  }
+
+  if (!pk_col)
+    return C_ORM_ERROR_VALIDATION;
+
+  if (c_orm_string_builder_init(&sb) != 0)
+    return C_ORM_ERROR_MEMORY;
+
+  c_orm_string_builder_append(sb, "SELECT * FROM ");
+  c_orm_string_builder_append(sb, meta->name);
+  c_orm_string_builder_append(sb, " WHERE ");
+  c_orm_string_builder_append(sb, pk_col->name);
+  c_orm_string_builder_append(sb, " = ?");
+
+  if (c_orm_string_builder_get(sb, &sql_str) != 0) {
+    c_orm_string_builder_free(sb);
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  err = db->vtable->prepare(db, sql_str, &query);
+  c_orm_string_builder_free(sb);
+  if (err != C_ORM_OK)
+    return err;
+
+  err = db->vtable->bind_string(query, 1, pk_val);
+  if (err != C_ORM_OK) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  err = db->vtable->step(query, &has_row);
+  if (err != C_ORM_OK) {
+    db->vtable->finalize(query);
+    return err;
+  }
+
+  if (!has_row) {
+    db->vtable->finalize(query);
+    return C_ORM_ERROR_NOT_FOUND;
+  }
+
+  err = c_orm_hydrate_row(db, query, meta, out_struct);
+  db->vtable->finalize(query);
+  return err;
 }

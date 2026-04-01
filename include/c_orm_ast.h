@@ -409,6 +409,8 @@ struct c_orm_query {
   c_orm_query_t *(*distinct)(c_orm_query_t *q);
   c_orm_query_t *(*from_alias)(c_orm_query_t *q, const char *table,
                                const char *alias);
+  c_orm_query_t *(*eager_load)(c_orm_query_t *q, const c_orm_table_meta_t *meta,
+                               const char *relation_name);
 
   /* AST Node Builders */
   c_orm_ast_node_t *(*group)(c_orm_query_t *q, c_orm_ast_node_t *expr);

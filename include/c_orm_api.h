@@ -1143,6 +1143,20 @@ c_orm_shard_route_hash(c_orm_shard_manager_t *manager, const char *routing_key,
 C_ORM_EXPORT void c_orm_shard_manager_free(c_orm_shard_manager_t *manager);
 
 /**
+ * @brief Execute a scatter-gather find_all query across all shards in parallel.
+ *
+ * @param manager The shard manager.
+ * @param meta The table metadata to query.
+ * @param out_array Pointer to a void* to receive the dynamically allocated
+ * combined results array.
+ * @param out_count Pointer to receive the total number of combined results.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_scatter_gather_generic(
+    c_orm_shard_manager_t *manager, const c_orm_table_meta_t *meta,
+    void **out_array, size_t *out_count);
+
+/**
  * @brief Escapes a string to prevent SQL injection vulnerabilities (Steps 241,
  * 242).
  *
@@ -1288,6 +1302,34 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
  */
 C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
                                                  c_orm_query_t *query);
+
+/**
+ * @name Generic CRUD Backend
+ * @{
+ */
+
+/**
+ * @brief Generic dynamically constructed insert.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_insert_generic(c_orm_db_t *db,
+                                                const c_orm_table_meta_t *meta,
+                                                const void *ptr);
+
+/**
+ * @brief Generic dynamically constructed get by int32 PK.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_get_generic(c_orm_db_t *db,
+                                             const c_orm_table_meta_t *meta,
+                                             int32_t pk_val, void *out_struct);
+
+/**
+ * @brief Generic dynamically constructed find_all with array allocation.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                       void **out_array, size_t *out_count);
+
+/** @} */
 
 #ifdef __cplusplus
 }

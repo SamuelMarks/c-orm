@@ -1126,6 +1126,7 @@ extern SUITE(inline_macros_suite);
 extern SUITE(ast_suite);
 extern SUITE(migrations_suite);
 extern SUITE(relations_suite);
+extern SUITE(generic_suite);
 
 int main(int argc, char **argv) {
   GREATEST_MAIN_BEGIN();
@@ -1134,5 +1135,6 @@ int main(int argc, char **argv) {
   RUN_SUITE(ast_suite);
   RUN_SUITE(migrations_suite);
   RUN_SUITE(relations_suite);
+  RUN_SUITE(generic_suite);
   GREATEST_MAIN_END();
 }

@@ -7,6 +7,7 @@
 #include "c_orm_ast.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 /* clang-format on */
 
 static const char *c_orm_escape_literal(c_orm_arena_t *arena, const char *val) {
@@ -629,6 +630,106 @@ static c_orm_query_t *c_orm_query_from_alias_impl(c_orm_query_t *q,
   return q;
 }
 
+static c_orm_query_t *
+c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
+                            const char *relation_name) {
+  size_t i;
+  const c_orm_relation_meta_t *rel = NULL;
+  char *on_cond;
+  char *columns;
+  c_orm_ast_node_t *curr;
+
+  if (!q || q->error || !meta || !relation_name)
+    return q;
+
+  for (i = 0; i < meta->num_relations; i++) {
+    if (strcmp(meta->relations[i].field_name, relation_name) == 0) {
+      rel = &meta->relations[i];
+      break;
+    }
+  }
+
+  if (!rel || !rel->target_meta) {
+    q->error = 1;
+    return q;
+  }
+
+  on_cond = (char *)malloc(128);
+  if (!on_cond) {
+    q->error = 1;
+    return q;
+  }
+#if defined(_MSC_VER)
+  sprintf_s(on_cond, 128, "%s.%s = %s.%s", meta->name, rel->local_key,
+            rel->target_meta->name, rel->foreign_key);
+#else
+  sprintf(on_cond, "%s.%s = %s.%s", meta->name, rel->local_key,
+          rel->target_meta->name, rel->foreign_key);
+#endif
+
+  q->left_join(q, rel->target_meta->name, q->raw(q, on_cond));
+  free(on_cond);
+
+  /* Expand SELECT columns dynamically to add child columns with prefix
+   * `relation_name_` */
+  if (c_orm_arena_alloc(q->arena, 4096, (void **)&columns) == 0) {
+    char *p = columns;
+    size_t col_i;
+    int first = 1;
+
+    /* We MUST include parent columns explicitly too to avoid ambiguity if we
+     * replace '*' */
+    for (col_i = 0; col_i < meta->num_columns; col_i++) {
+      int w;
+      if (!first) {
+        *p++ = ',';
+        *p++ = ' ';
+      }
+      first = 0;
+#if defined(_MSC_VER)
+      w = sprintf_s(p, 4096 - (p - columns), "%s.%s", meta->name,
+                    meta->columns[col_i].name);
+#else
+      w = sprintf(p, "%s.%s", meta->name, meta->columns[col_i].name);
+#endif
+      p += w;
+    }
+
+    for (col_i = 0; col_i < rel->target_meta->num_columns; col_i++) {
+      int w;
+      if (!first) {
+        *p++ = ',';
+        *p++ = ' ';
+      }
+      first = 0;
+#if defined(_MSC_VER)
+      w = sprintf_s(p, 4096 - (p - columns), "%s.%s AS %s_%s",
+                    rel->target_meta->name,
+                    rel->target_meta->columns[col_i].name, relation_name,
+                    rel->target_meta->columns[col_i].name);
+#else
+      w = sprintf(p, "%s.%s AS %s_%s", rel->target_meta->name,
+                  rel->target_meta->columns[col_i].name, relation_name,
+                  rel->target_meta->columns[col_i].name);
+#endif
+      p += w;
+    }
+
+    /* Find existing SELECT and replace it */
+    curr = q->ast_head;
+    while (curr) {
+      if (curr->type == C_ORM_AST_NODE_SELECT) {
+        c_orm_ast_select_t *s = (c_orm_ast_select_t *)curr;
+        s->columns = columns;
+        break;
+      }
+      curr = curr->next;
+    }
+  }
+
+  return q;
+}
+
 static c_orm_ast_node_t *c_orm_query_group_node_impl(c_orm_query_t *q,
                                                      c_orm_ast_node_t *expr) {
   c_orm_ast_group_t *node;
@@ -814,6 +915,7 @@ C_ORM_EXPORT int c_orm_query_new(c_orm_query_t **out_query) {
   q->union_ = c_orm_query_union_impl;
   q->distinct = c_orm_query_distinct_impl;
   q->from_alias = c_orm_query_from_alias_impl;
+  q->eager_load = c_orm_query_eager_load_impl;
 
   q->group = c_orm_query_group_node_impl;
   q->subquery = c_orm_query_subquery_node_impl;

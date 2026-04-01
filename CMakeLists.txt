@@ -10,6 +10,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
+if(MSVC)
+  add_compile_options(/wd4715 /wd4013 /wd4701 /wd4047)
+endif()
+
 # Step 278: Static Analysis Integration
 option(C_ORM_ENABLE_CLANG_TIDY "Enable clang-tidy static analysis" OFF)
 if(C_ORM_ENABLE_CLANG_TIDY)
@@ -89,6 +93,7 @@ add_library(c-orm
     src/c_orm_codegen.c
     src/c_orm_uuid.c
     src/c_orm_migrations.c
+    src/c_orm_modality.c
 )
 set_target_properties(c-orm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 

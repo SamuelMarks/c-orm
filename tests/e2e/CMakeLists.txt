@@ -42,9 +42,9 @@ add_executable(c_orm_e2e_tests
     test_ast.c
     test_migrations.c
     test_relations.c
-    ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-)
-
+    test_generic.c
+    "${CMAKE_CURRENT_BINARY_DIR}/Models.c"
+    )
 add_dependencies(c_orm_e2e_tests generate_e2e_models)
 
 target_include_directories(c_orm_e2e_tests PRIVATE

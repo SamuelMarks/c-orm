@@ -7,6 +7,12 @@
 #include "c_orm_sqlite.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#else
+#include <sys/time.h>
+#endif
 #ifdef C_ORM_ENABLE_SQLITE
 #include <sqlite3.h>
 #endif
@@ -238,10 +244,62 @@ static c_orm_error_t sqlite_bind_null(c_orm_query_t *query, int index) {
 
 static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
   int rc;
+  double elapsed = 0.0;
+#if defined(_WIN32) || defined(_WIN64)
+  LARGE_INTEGER start_time = {0};
+  LARGE_INTEGER end_time = {0};
+  LARGE_INTEGER freq = {0};
+  if (query && query->data && query->data->db &&
+      query->data->db->slow_query_threshold_ms > 0) {
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&start_time);
+  }
+#else
+  struct timeval start_time = {0};
+  struct timeval end_time = {0};
+  if (query && query->data && query->data->db &&
+      query->data->db->slow_query_threshold_ms > 0) {
+    gettimeofday(&start_time, NULL);
+  }
+#endif
+
   if (!query || !query->data || !query->data->stmt || !out_has_row)
     return C_ORM_ERROR_STEP;
 
   rc = sqlite3_step(query->data->stmt);
+
+#if defined(_WIN32) || defined(_WIN64)
+  if (query->data->db && query->data->db->slow_query_threshold_ms > 0) {
+    QueryPerformanceCounter(&end_time);
+    elapsed = (double)(end_time.QuadPart - start_time.QuadPart) * 1000.0 /
+              (double)freq.QuadPart;
+  }
+#else
+  if (query->data->db && query->data->db->slow_query_threshold_ms > 0) {
+    gettimeofday(&end_time, NULL);
+    elapsed = (end_time.tv_sec - start_time.tv_sec) * 1000.0;
+    elapsed += (end_time.tv_usec - start_time.tv_usec) / 1000.0;
+  }
+#endif
+
+  if (query->data->db && query->data->db->slow_query_threshold_ms > 0 &&
+      elapsed >= query->data->db->slow_query_threshold_ms) {
+    if (query->data->db->log_cb) {
+      const char *sql = sqlite3_sql(query->data->stmt);
+      if (sql) {
+        char log_msg[1024];
+#if defined(_MSC_VER)
+        sprintf_s(log_msg, sizeof(log_msg), "SLOW QUERY (%.2fms): %s", elapsed,
+                  sql);
+#else
+        sprintf(log_msg, "SLOW QUERY (%.2fms): %s", elapsed, sql);
+#endif
+        query->data->db->log_cb(log_msg, query->data->db->log_user_data);
+      }
+    }
+    query->data->db->telemetry.slow_queries_logged++;
+  }
+
   if (rc == SQLITE_ROW) {
     *out_has_row = 1;
     return C_ORM_OK;
@@ -400,14 +458,46 @@ static c_orm_error_t sqlite_get_last_insert_rowid(c_orm_db_t *db,
   return C_ORM_OK;
 }
 
+static c_orm_error_t sqlite_get_column_count(c_orm_query_t *query,
+                                             int *out_count) {
+  if (!query || !query->data || !query->data->stmt || !out_count)
+    return C_ORM_ERROR_MEMORY;
+  *out_count = sqlite3_column_count(query->data->stmt);
+  return C_ORM_OK;
+}
+
+static c_orm_error_t sqlite_get_column_name(c_orm_query_t *query, int index,
+                                            const char **out_name) {
+  if (!query || !query->data || !query->data->stmt || !out_name)
+    return C_ORM_ERROR_MEMORY;
+  *out_name = sqlite3_column_name(query->data->stmt, index);
+  return C_ORM_OK;
+}
+
 static const c_orm_driver_vtable_t sqlite_vtable = {
-    sqlite_connect,        sqlite_disconnect,     sqlite_prepare,
-    sqlite_bind_int32,     sqlite_bind_int64,     sqlite_bind_double,
-    sqlite_bind_string,    sqlite_bind_blob,      sqlite_bind_null,
-    sqlite_step,           sqlite_get_int32,      sqlite_get_int64,
-    sqlite_get_double,     sqlite_get_string,     sqlite_get_blob,
-    sqlite_is_null,        sqlite_finalize,       sqlite_reset,
-    sqlite_get_last_error, sqlite_get_last_trace, sqlite_get_last_insert_rowid};
+    sqlite_connect,
+    sqlite_disconnect,
+    sqlite_prepare,
+    sqlite_bind_int32,
+    sqlite_bind_int64,
+    sqlite_bind_double,
+    sqlite_bind_string,
+    sqlite_bind_blob,
+    sqlite_bind_null,
+    sqlite_step,
+    sqlite_get_int32,
+    sqlite_get_int64,
+    sqlite_get_double,
+    sqlite_get_string,
+    sqlite_get_blob,
+    sqlite_is_null,
+    sqlite_finalize,
+    sqlite_reset,
+    sqlite_get_last_error,
+    sqlite_get_last_trace,
+    sqlite_get_last_insert_rowid,
+    sqlite_get_column_count,
+    sqlite_get_column_name};
 
 C_ORM_EXPORT int
 c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {

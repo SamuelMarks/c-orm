@@ -43,6 +43,21 @@ C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
   }
 }
 
+C_ORM_EXPORT void c_orm_set_slow_query_threshold(c_orm_db_t *db,
+                                                 uint32_t threshold_ms) {
+  if (db) {
+    db->slow_query_threshold_ms = threshold_ms;
+  }
+}
+
+C_ORM_EXPORT c_orm_error_t
+c_orm_get_telemetry(c_orm_db_t *db, c_orm_pool_telemetry_t *out_telemetry) {
+  if (!db || !out_telemetry)
+    return C_ORM_ERROR_MEMORY;
+  *out_telemetry = db->telemetry;
+  return C_ORM_OK;
+}
+
 C_ORM_EXPORT void c_orm_set_expire_callback(c_orm_db_t *db, c_orm_expire_cb cb,
                                             void *user_data) {
   if (db) {

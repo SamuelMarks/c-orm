@@ -1,4 +1,4 @@
-#include "c_orm_api.h"
+﻿#include "c_orm_api.h"
 #include "c_orm_db.h"
 #include <stdlib.h>
 #include <string.h>
@@ -48,34 +48,21 @@ typedef struct c_orm_stmt_entry {
   c_orm_query_t *query;
   struct c_orm_stmt_entry *next;
   struct c_orm_stmt_entry *prev;
-  struct c_orm_stmt_entry *hash_next;
+  int in_use;
 } c_orm_stmt_entry_t;
 
 typedef struct {
   size_t capacity;
-  size_t size;
+  size_t count;
   c_orm_stmt_entry_t *head;
   c_orm_stmt_entry_t *tail;
-  c_orm_stmt_entry_t **hash_table;
-  size_t hash_size;
   void *lock;
 } c_orm_stmt_cache_t;
-
-#if 0
-static size_t hash_sql(const char *sql) {
-  size_t hash = 5381;
-  int c;
-  while ((c = *sql++)) {
-    hash = ((hash << 5) + hash) + c;
-  }
-  return hash;
-}
-#endif
 
 C_ORM_EXPORT c_orm_error_t c_orm_enable_statement_caching(c_orm_db_t *db,
                                                           size_t cache_size) {
   c_orm_stmt_cache_t *cache;
-  size_t i;
+
   if (!db)
     return C_ORM_ERROR_MEMORY;
   if (db->stmt_cache)
@@ -88,19 +75,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_enable_statement_caching(c_orm_db_t *db,
     return C_ORM_ERROR_MEMORY;
 
   cache->capacity = cache_size;
-  cache->size = 0;
+  cache->count = 0;
   cache->head = NULL;
   cache->tail = NULL;
-  cache->hash_size = cache_size * 2;
-  cache->hash_table = (c_orm_stmt_entry_t **)malloc(
-      cache->hash_size * sizeof(c_orm_stmt_entry_t *));
-  if (!cache->hash_table) {
-    free(cache);
-    return C_ORM_ERROR_MEMORY;
-  }
-  for (i = 0; i < cache->hash_size; i++) {
-    cache->hash_table[i] = NULL;
-  }
+
   C_ORM_MUTEX_INIT(cache->lock);
   db->stmt_cache = cache;
   return C_ORM_OK;
@@ -123,7 +101,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_disable_statement_caching(c_orm_db_t *db) {
     free(entry);
     entry = next;
   }
-  free(cache->hash_table);
   C_ORM_MUTEX_UNLOCK(cache->lock);
   C_ORM_MUTEX_DESTROY(cache->lock);
   free(cache);
@@ -133,15 +110,146 @@ C_ORM_EXPORT c_orm_error_t c_orm_disable_statement_caching(c_orm_db_t *db) {
 
 C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
                                                 c_orm_query_t **out_query) {
+  c_orm_stmt_cache_t *cache;
+  c_orm_stmt_entry_t *entry;
+  c_orm_error_t err;
+
   if (!db || !sql || !out_query)
     return C_ORM_ERROR_MEMORY;
 
-  return db->vtable->prepare(db, sql, out_query);
+  if (!db->stmt_cache) {
+    return db->vtable->prepare(db, sql, out_query);
+  }
+
+  cache = (c_orm_stmt_cache_t *)db->stmt_cache;
+
+  C_ORM_MUTEX_LOCK(cache->lock);
+  entry = cache->head;
+  while (entry) {
+    if (!entry->in_use && strcmp(entry->sql, sql) == 0) {
+      /* Found! Mark in use and move to front of LRU */
+      entry->in_use = 1;
+
+      if (entry != cache->head) {
+        /* Unlink */
+        if (entry->prev)
+          entry->prev->next = entry->next;
+        if (entry->next)
+          entry->next->prev = entry->prev;
+        if (entry == cache->tail)
+          cache->tail = entry->prev;
+
+        /* Re-insert at head */
+        entry->next = cache->head;
+        entry->prev = NULL;
+        if (cache->head)
+          cache->head->prev = entry;
+        cache->head = entry;
+      }
+
+      *out_query = entry->query;
+      C_ORM_MUTEX_UNLOCK(cache->lock);
+      db->vtable->reset(*out_query);
+      return C_ORM_OK;
+    }
+    entry = entry->next;
+  }
+
+  /* Not found or all in use. Prepare new query. */
+  err = db->vtable->prepare(db, sql, out_query);
+  if (err != C_ORM_OK) {
+    C_ORM_MUTEX_UNLOCK(cache->lock);
+    return err;
+  }
+
+  /* Create cache entry */
+  entry = (c_orm_stmt_entry_t *)malloc(sizeof(c_orm_stmt_entry_t));
+  if (!entry) {
+    /* Cache allocation failed, just return query to caller normally */
+    C_ORM_MUTEX_UNLOCK(cache->lock);
+    return C_ORM_OK;
+  }
+
+  entry->sql = (char *)malloc(strlen(sql) + 1);
+  if (!entry->sql) {
+    free(entry);
+    C_ORM_MUTEX_UNLOCK(cache->lock);
+    return C_ORM_OK;
+  }
+#if defined(_MSC_VER)
+  strcpy_s(entry->sql, strlen(sql) + 1, sql);
+#else
+  strcpy(entry->sql, sql);
+#endif
+
+  entry->query = *out_query;
+  entry->in_use = 1;
+
+  /* Insert at head */
+  entry->next = cache->head;
+  entry->prev = NULL;
+  if (cache->head) {
+    cache->head->prev = entry;
+  } else {
+    cache->tail = entry;
+  }
+  cache->head = entry;
+  cache->count++;
+
+  /* Evict if capacity exceeded. Only evict items NOT in use! */
+  if (cache->count > cache->capacity) {
+    c_orm_stmt_entry_t *evict = cache->tail;
+    while (evict) {
+      if (!evict->in_use) {
+        if (evict->prev)
+          evict->prev->next = evict->next;
+        if (evict->next)
+          evict->next->prev = evict->prev;
+        if (evict == cache->head)
+          cache->head = evict->next;
+        if (evict == cache->tail)
+          cache->tail = evict->prev;
+
+        db->vtable->finalize(evict->query);
+        free(evict->sql);
+        free(evict);
+        cache->count--;
+        break;
+      }
+      evict = evict->prev;
+    }
+  }
+
+  C_ORM_MUTEX_UNLOCK(cache->lock);
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
                                                  c_orm_query_t *query) {
-  if (!db)
+  c_orm_stmt_cache_t *cache;
+  c_orm_stmt_entry_t *entry;
+
+  if (!db || !query)
     return C_ORM_ERROR_MEMORY;
+
+  if (!db->stmt_cache) {
+    return db->vtable->finalize(query);
+  }
+
+  cache = (c_orm_stmt_cache_t *)db->stmt_cache;
+
+  C_ORM_MUTEX_LOCK(cache->lock);
+  entry = cache->head;
+  while (entry) {
+    if (entry->query == query) {
+      entry->in_use = 0; /* Release back to pool */
+      C_ORM_MUTEX_UNLOCK(cache->lock);
+      return C_ORM_OK;
+    }
+    entry = entry->next;
+  }
+  C_ORM_MUTEX_UNLOCK(cache->lock);
+
+  /* Query not managed by cache, finalize normally */
   return db->vtable->finalize(query);
 }
