@@ -4,8 +4,6 @@
   "homepage": "https://github.com/SamuelMarks/c-orm",
   "description": "C Object-Relational Mapping library",
   "dependencies": [
-    "c-str-span",
-    "c89stringutils",
     "civetweb",
     "libmariadb",
     "libpq",
