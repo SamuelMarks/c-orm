@@ -38,13 +38,7 @@ endif()
 
 include(FetchContent)
 
-# Shadow BUILD_TESTING to OFF for dependencies
-set(BUILD_TESTING OFF)
-set(C_STR_SPAN_BUILD_TESTING OFF)
-set(C89STRINGUTILS_BUILD_TESTING OFF)
-set(C_CDD_BUILD_TESTING OFF)
-set(C_ABSTRACT_HTTP_BUILD_TESTING OFF)
-set(C_FS_BUILD_TESTING OFF)
+
 
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-str-span/CMakeLists.txt")
     FetchContent_Declare(c_str_span SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-str-span")
@@ -105,7 +99,7 @@ else()
     FetchContent_MakeAvailable(cdd_c)
 endif()
 
-set(BUILD_TESTING ON)
+
 
 add_library(c-orm
     src/c_orm_db.c
@@ -205,7 +199,11 @@ endif()
 
 
 include(CTest)
-option(C_ORM_BUILD_TESTS "Build tests" ON)
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    option(C_ORM_BUILD_TESTS "Build tests" ON)
+else()
+    option(C_ORM_BUILD_TESTS "Build tests" OFF)
+endif()
 option(C_ORM_BUILD_BENCHMARKS "Build benchmarks" OFF)
 option(C_ORM_BUILD_EXAMPLES "Build examples" OFF)
 
