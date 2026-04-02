@@ -1,3 +1,4 @@
+/* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_migrations.h"
 #include "c_orm_sqlite.h"
@@ -12,6 +13,7 @@
 #include <sys/stat.h>
 #define MKDIR(path) mkdir(path, 0777)
 #endif
+/* clang-format on */
 
 static void print_usage(const char *prog) {
   printf("Usage: %s <command> [options]\n\n", prog);

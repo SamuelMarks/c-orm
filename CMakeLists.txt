@@ -18,6 +18,7 @@ if(MSVC)
 endif()
 
 # Step 278: Static Analysis Integration
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 option(C_ORM_ENABLE_CLANG_TIDY "Enable clang-tidy static analysis" OFF)
 if(C_ORM_ENABLE_CLANG_TIDY)
     find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
@@ -37,12 +38,13 @@ endif()
 
 include(FetchContent)
 
-set(BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies" FORCE)
-set(C_STR_SPAN_BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies" FORCE)
-set(C89STRINGUTILS_BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies" FORCE)
-set(C_CDD_BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies" FORCE)
-set(C_ABSTRACT_HTTP_BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies" FORCE)
-set(C_FS_BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies" FORCE)
+# Shadow BUILD_TESTING to OFF for dependencies
+set(BUILD_TESTING OFF)
+set(C_STR_SPAN_BUILD_TESTING OFF)
+set(C89STRINGUTILS_BUILD_TESTING OFF)
+set(C_CDD_BUILD_TESTING OFF)
+set(C_ABSTRACT_HTTP_BUILD_TESTING OFF)
+set(C_FS_BUILD_TESTING OFF)
 
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-str-span/CMakeLists.txt")
     FetchContent_Declare(c_str_span SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-str-span")

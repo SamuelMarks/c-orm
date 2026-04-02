@@ -9,7 +9,19 @@
 #include <string.h>
 #include <stdio.h>
 #if defined(_WIN32) || defined(_WIN64)
-#include <windows.h>
+typedef union _LARGE_INTEGER {
+    struct {
+        unsigned long LowPart;
+        long HighPart;
+    } u;
+#if defined(_MSC_VER)
+    __int64 QuadPart;
+#else
+    long long QuadPart;
+#endif
+} LARGE_INTEGER;
+__declspec(dllimport) int __stdcall QueryPerformanceCounter(LARGE_INTEGER *lpPerformanceCount);
+__declspec(dllimport) int __stdcall QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency);
 #else
 #include <sys/time.h>
 #endif

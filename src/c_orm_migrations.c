@@ -1,7 +1,9 @@
+/* clang-format off */
 #include "c_orm_migrations.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+/* clang-format on */
 
 C_ORM_EXPORT c_orm_error_t c_orm_migration_init_table(c_orm_db_t *db) {
   const char *sql = "CREATE TABLE IF NOT EXISTS _c_orm_migrations ("

@@ -1,7 +1,9 @@
-﻿#include "c_orm_api.h"
+﻿/* clang-format off */
+#include "c_orm_api.h"
 #include "c_orm_db.h"
 #include <stdlib.h>
 #include <string.h>
+/* clang-format on */
 
 #if defined(_WIN32) || defined(_WIN64)
 #ifndef _CRITICAL_SECTION_DEFINED
