@@ -1329,6 +1329,13 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                        void **out_array, size_t *out_count);
 
+/**
+ * @brief Generic dynamically constructed get by string PK.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                         const char *pk_val, void *out_struct);
+
 /** @} */
 
 #ifdef __cplusplus

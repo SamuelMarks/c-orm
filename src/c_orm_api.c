@@ -462,6 +462,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row(c_orm_db_t *db,
                         *(int *)field_ptr = bool_val;
                         break;
                       }
+                      default:
+                        break;
                       }
 
                       /* If this is the last column for this relation, try
