@@ -16,10 +16,17 @@ if(NOT EXISTS "${GREATEST_H_DIR}/greatest.h")
     endif()
 endif()
 
-if(WIN32 AND BUILD_SHARED_LIBS AND TARGET c89stringutils AND TARGET cfs)
+if(WIN32 AND BUILD_SHARED_LIBS)
+    set(CDD_C_PATH_ENV "$ENV{PATH}")
+    foreach(tgt c89stringutils cfs c_cdd c-abstract-http sqlite3 c-orm c_str_span)
+        if(TARGET ${tgt})
+            set(CDD_C_PATH_ENV "$<TARGET_FILE_DIR:${tgt}>;${CDD_C_PATH_ENV}")
+        endif()
+    endforeach()
+
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-        COMMAND ${CMAKE_COMMAND} -E env "PATH=$<TARGET_FILE_DIR:c89stringutils>;$<TARGET_FILE_DIR:cfs>;$ENV{PATH}" $<TARGET_FILE:cdd-c> sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E env "PATH=${CDD_C_PATH_ENV}" $<TARGET_FILE:cdd-c> sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
         DEPENDS cdd-c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
         COMMENT "Generating C Models from schema.sql using cdd-c..."
     )
@@ -59,3 +66,7 @@ endif()
 target_link_libraries(c_orm_e2e_tests PRIVATE c-orm)
 
 add_test(NAME e2e_test COMMAND c_orm_e2e_tests)
+if(WIN32 AND BUILD_SHARED_LIBS AND DEFINED CDD_C_PATH_ENV)
+    string(REPLACE ";" "\\;" CDD_C_PATH_ENV_ESCAPED "${CDD_C_PATH_ENV}")
+    set_tests_properties(e2e_test PROPERTIES ENVIRONMENT "PATH=${CDD_C_PATH_ENV_ESCAPED}")
+endif()

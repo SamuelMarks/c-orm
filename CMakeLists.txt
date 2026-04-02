@@ -3,6 +3,9 @@
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
 endif()
+if(POLICY CMP0077)
+  cmake_policy(SET CMP0077 NEW)
+endif()
 
 project(c-orm VERSION 0.1.0 LANGUAGES C)
 
@@ -33,6 +36,13 @@ else()
 endif()
 
 include(FetchContent)
+
+set(BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies" FORCE)
+set(C_STR_SPAN_BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies" FORCE)
+set(C89STRINGUTILS_BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies" FORCE)
+set(C_CDD_BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies" FORCE)
+set(C_ABSTRACT_HTTP_BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies" FORCE)
+set(C_FS_BUILD_TESTING OFF CACHE BOOL "Disable testing for dependencies" FORCE)
 
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-str-span/CMakeLists.txt")
     FetchContent_Declare(c_str_span SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-str-span")
@@ -93,6 +103,7 @@ else()
     FetchContent_MakeAvailable(cdd_c)
 endif()
 
+set(BUILD_TESTING ON)
 
 add_library(c-orm
     src/c_orm_db.c

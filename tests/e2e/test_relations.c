@@ -131,6 +131,7 @@ TEST test_c_orm_lazy_load_relations(void) {
   team_m = Team_meta;
   user_m = User_meta;
   team_m.columns = team_cols;
+  (void)team_m;
   user_m.columns = user_cols;
 
   err = c_orm_sqlite_connect(":memory:", &db);
@@ -190,6 +191,7 @@ TEST test_c_orm_eager_load_relations(void) {
   team_m = Team_meta;
   user_m = User_meta;
   team_m.columns = team_cols;
+  (void)team_m;
   user_m.columns = user_cols;
 
   err = c_orm_sqlite_connect(":memory:", &db);
@@ -247,6 +249,7 @@ TEST test_c_orm_nested_insert_relations(void) {
   team_m = Team_meta;
   user_m = User_meta;
   team_m.columns = team_cols;
+  (void)team_m;
   user_m.columns = user_cols;
 
   user_rels[0].target_meta = &team_m;
