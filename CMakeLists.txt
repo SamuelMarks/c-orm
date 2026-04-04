@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.10)
 
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
@@ -264,6 +264,7 @@ set(CPACK_PACKAGE_VERSION "0.1.0")
 set(CPACK_PACKAGE_CONTACT "Samuel Marks")
 
 include(GNUInstallDirs)
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 # Phase 4: CLI
 add_executable(c-orm-cli src/c_orm_cli.c)
 target_link_libraries(c-orm-cli PRIVATE c-orm)
@@ -271,6 +272,8 @@ if(MSVC)
     target_compile_definitions(c-orm-cli PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 install(TARGETS c-orm-cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+endif()
 install(TARGETS c-orm c-orm-async
     EXPORT c-orm-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -298,6 +301,7 @@ set(CPACK_GENERATOR "DEB;RPM")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14)")
 set(CPACK_RPM_PACKAGE_REQUIRES "glibc >= 2.14")
 include(CPack)
+
 
 
 
