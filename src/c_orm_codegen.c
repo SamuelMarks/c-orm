@@ -11,12 +11,17 @@
 
 c_orm_error_t c_orm_codegen_generate(const char *schema_file,
                                      const char *output_dir) {
+  int rc;
+
   int argc;
   char *argv[3];
   int res;
 
   if (!schema_file || !output_dir) {
-    return C_ORM_ERROR_UNKNOWN; /* Or a more specific error if added */
+    {
+      rc = C_ORM_ERROR_UNKNOWN;
+      return (c_orm_error_t)rc;
+    } /* Or a more specific error if added */
   }
 
   /* We expect a .sql file, so we use sql2c_main.
@@ -29,8 +34,14 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 
   res = sql2c_main(argc, argv);
   if (res != 0) {
-    return C_ORM_ERROR_UNKNOWN;
+    {
+      rc = C_ORM_ERROR_UNKNOWN;
+      return (c_orm_error_t)rc;
+    }
   }
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }

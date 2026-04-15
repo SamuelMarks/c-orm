@@ -6,6 +6,8 @@
 /* clang-format on */
 
 C_ORM_EXPORT c_orm_error_t c_orm_migration_init_table(c_orm_db_t *db) {
+  int rc;
+
   const char *sql = "CREATE TABLE IF NOT EXISTS _c_orm_migrations ("
                     "  id INTEGER PRIMARY KEY,"
                     "  version VARCHAR(255) NOT NULL UNIQUE,"
@@ -13,20 +15,30 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_init_table(c_orm_db_t *db) {
                     "  hash VARCHAR(65) NOT NULL,"
                     "  applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
                     ");";
-  return c_orm_execute_raw(db, sql);
+  {
+    rc = c_orm_execute_raw(db, sql);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
     const char *dir_path, c_orm_migration_t **out_migrations,
     size_t *out_count) {
+  int rc;
+
   (void)dir_path;
-  if (!out_migrations || !out_count)
-    return C_ORM_ERROR_VALIDATION;
+  if (!out_migrations || !out_count) {
+    rc = C_ORM_ERROR_VALIDATION;
+    return (c_orm_error_t)rc;
+  }
   /* Not implemented yet because c_fs logic requires handling cross platform
    * directory scanning */
   *out_migrations = NULL;
   *out_count = 0;
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT void c_orm_migration_free_array(c_orm_migration_t *migrations,
@@ -46,19 +58,26 @@ C_ORM_EXPORT void c_orm_migration_free_array(c_orm_migration_t *migrations,
 C_ORM_EXPORT c_orm_error_t
 c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
                   size_t count, const c_orm_migration_options_t *options) {
+  int rc;
+
   size_t i;
   c_orm_error_t err;
   char query[1024];
 
-  if (!db || !migrations)
-    return C_ORM_ERROR_VALIDATION;
+  if (!db || !migrations) {
+    rc = C_ORM_ERROR_VALIDATION;
+    return (c_orm_error_t)rc;
+  }
 
   c_orm_migration_lock(db);
 
   err = c_orm_migration_init_table(db);
   if (err != C_ORM_OK) {
     c_orm_migration_unlock(db);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   for (i = 0; i < count; i++) {
@@ -90,7 +109,12 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
       sprintf_s(log_msg, sizeof(log_msg), "Applying migration %s: %s",
                 mig->version, mig->name);
 #else
+#if defined(_MSC_VER)
+      sprintf_s(log_msg, sizeof(log_msg), "Applying migration %s: %s",
+                mig->version, mig->name);
+#else
       sprintf(log_msg, "Applying migration %s: %s", mig->version, mig->name);
+#endif
 #endif
       options->log_cb(log_msg);
     }
@@ -100,8 +124,10 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
 
     if (options && options->pre_migrate) {
       err = options->pre_migrate(db, mig, options->user_data);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
 
     c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step");
@@ -110,7 +136,10 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
       err = c_orm_execute_raw(db, mig->up_sql);
       if (err != C_ORM_OK) {
         c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step");
-        return err;
+        {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
     }
 
@@ -128,7 +157,10 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
     err = c_orm_execute_raw(db, query);
     if (err != C_ORM_OK) {
       c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step");
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
 
     c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step");
@@ -137,18 +169,26 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
       err = options->post_migrate(db, mig, options->user_data);
       if (err != C_ORM_OK) {
         c_orm_migration_unlock(db);
-        return err;
+        {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
     }
   }
 
   c_orm_migration_unlock(db);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
     c_orm_db_t *db, const c_orm_migration_t *migrations, size_t count,
     size_t steps, const c_orm_migration_options_t *options) {
+  int rc;
+
   size_t applied_count = 0;
   c_orm_migration_t *applied = NULL;
   c_orm_error_t err;
@@ -156,15 +196,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
   size_t rolled_back = 0;
   char query[1024];
 
-  if (!db || !migrations)
-    return C_ORM_ERROR_VALIDATION;
+  if (!db || !migrations) {
+    rc = C_ORM_ERROR_VALIDATION;
+    return (c_orm_error_t)rc;
+  }
 
   c_orm_migration_lock(db);
 
   err = c_orm_migration_get_applied(db, &applied, &applied_count);
   if (err != C_ORM_OK) {
     c_orm_migration_unlock(db);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (steps == 0)
@@ -234,10 +279,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
     free(applied);
 
   c_orm_migration_unlock(db);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
     c_orm_db_t *db, const char *table_name, cdd_c_meta_t **out_schema) {
+  int rc;
+
   char sql[256];
   c_orm_query_t *q;
   c_orm_error_t err;
@@ -245,25 +295,37 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
   size_t cap = 10;
   cdd_c_meta_t *meta;
 
-  if (!db || !table_name || !out_schema)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !table_name || !out_schema) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   /* Try SQLite first */
 #if defined(_MSC_VER)
   sprintf_s(sql, sizeof(sql), "PRAGMA table_info('%s')", table_name);
 #else
+#if defined(_MSC_VER)
+  sprintf_s(sql, sizeof(sql), "PRAGMA table_info('%s')", table_name);
+#else
   sprintf(sql, "PRAGMA table_info('%s')", table_name);
+#endif
 #endif
 
   err = c_orm_prepare_cached(db, sql, &q);
   if (err != C_ORM_OK) {
-    return err; /* SQLite fallback for now */
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    } /* SQLite fallback for now */
   }
 
   meta = (cdd_c_meta_t *)malloc(sizeof(cdd_c_meta_t));
   if (!meta) {
     c_orm_finalize_cached(db, q);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
   meta->name = (char *)malloc(strlen(table_name) + 1);
   if (meta->name)
@@ -277,7 +339,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
       free((void *)meta->name);
     free(meta);
     c_orm_finalize_cached(db, q);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   while ((err = db->vtable->step(q, &has_row)) == C_ORM_OK && has_row) {
@@ -312,7 +377,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
 
   c_orm_finalize_cached(db, q);
   *out_schema = meta;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT void c_orm_migration_free_table_schema(cdd_c_meta_t *schema) {
@@ -334,6 +402,8 @@ C_ORM_EXPORT void c_orm_migration_free_table_schema(cdd_c_meta_t *schema) {
 }
 C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
     c_orm_db_t *db, c_orm_migration_t **out_migrations, size_t *out_count) {
+  int rc;
+
   c_orm_query_t *q = NULL;
   c_orm_error_t err;
   int has_row;
@@ -341,19 +411,26 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
   size_t cap = 10;
   c_orm_migration_t *migs;
 
-  if (!db || !out_migrations || !out_count)
-    return C_ORM_ERROR_VALIDATION;
+  if (!db || !out_migrations || !out_count) {
+    rc = C_ORM_ERROR_VALIDATION;
+    return (c_orm_error_t)rc;
+  }
 
   err = c_orm_prepare_cached(
       db, "SELECT version, name, hash FROM _c_orm_migrations ORDER BY id ASC",
       &q);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   migs = (c_orm_migration_t *)malloc(cap * sizeof(c_orm_migration_t));
   if (!migs) {
     c_orm_finalize_cached(db, q);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   while ((err = db->vtable->step(q, &has_row)) == C_ORM_OK && has_row) {
@@ -399,77 +476,116 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
   c_orm_finalize_cached(db, q);
   *out_migrations = migs;
   *out_count = count;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 C_ORM_EXPORT c_orm_error_t
 c_orm_migrate_up(c_orm_db_t *db, const char *dir_path,
                  const c_orm_migration_options_t *options) {
+  int rc;
+
   c_orm_migration_t *migs = NULL;
   size_t count = 0;
   c_orm_error_t err;
 
-  if (!db || !dir_path)
-    return C_ORM_ERROR_VALIDATION;
+  if (!db || !dir_path) {
+    rc = C_ORM_ERROR_VALIDATION;
+    return (c_orm_error_t)rc;
+  }
 
   err = c_orm_migration_load_dir(dir_path, &migs, &count);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = c_orm_migrate_all(db, migs, count, options);
 
   c_orm_migration_free_array(migs, count);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_migrate_down(c_orm_db_t *db, const char *dir_path, size_t steps,
                    const c_orm_migration_options_t *options) {
+  int rc;
+
   c_orm_migration_t *migs = NULL;
   size_t count = 0;
   c_orm_error_t err;
 
-  if (!db || !dir_path)
-    return C_ORM_ERROR_VALIDATION;
+  if (!db || !dir_path) {
+    rc = C_ORM_ERROR_VALIDATION;
+    return (c_orm_error_t)rc;
+  }
 
   err = c_orm_migration_load_dir(dir_path, &migs, &count);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = c_orm_migrate_rollback(db, migs, count, steps, options);
 
   c_orm_migration_free_array(migs, count);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 C_ORM_EXPORT c_orm_error_t c_orm_migration_lock(c_orm_db_t *db) {
+  int rc;
+
   c_orm_error_t err;
   /* Attempt SQLite Exclusive transaction */
   err = c_orm_execute_raw(db, "BEGIN EXCLUSIVE");
-  if (err == C_ORM_OK)
-    return C_ORM_OK;
+  if (err == C_ORM_OK) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 
   /* Attempt Postgres Advisory Lock using a fixed hash/ID for c-orm */
   err = c_orm_execute_raw(db, "SELECT pg_advisory_lock(723821)");
-  if (err == C_ORM_OK)
-    return C_ORM_OK;
+  if (err == C_ORM_OK) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 
   /* Attempt MySQL/MariaDB Lock */
   err = c_orm_execute_raw(db, "SELECT GET_LOCK('c_orm_migration', 10)");
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_migration_unlock(c_orm_db_t *db) {
+  int rc;
+
   c_orm_error_t err;
   /* Attempt SQLite */
   err = c_orm_execute_raw(db, "COMMIT");
-  if (err == C_ORM_OK)
-    return C_ORM_OK;
+  if (err == C_ORM_OK) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 
   /* Attempt Postgres */
   err = c_orm_execute_raw(db, "SELECT pg_advisory_unlock(723821)");
-  if (err == C_ORM_OK)
-    return C_ORM_OK;
+  if (err == C_ORM_OK) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 
   /* Attempt MySQL */
   err = c_orm_execute_raw(db, "SELECT RELEASE_LOCK('c_orm_migration')");
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }

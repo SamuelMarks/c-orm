@@ -35,6 +35,8 @@ static void print_usage(const char *prog) {
 static void log_cb(const char *msg) { printf("[Migration] %s\n", msg); }
 
 int main(int argc, char **argv) {
+  int rc;
+
   const char *command = NULL;
   const char *db_str = getenv("C_ORM_DB_URL");
   const char *dir_path = "./migrations";
@@ -43,7 +45,12 @@ int main(int argc, char **argv) {
 
   if (argc < 2) {
     print_usage(argv[0]);
-    return 1;
+    {
+      rc = 1;
+      {
+        return rc;
+      }
+    }
   }
 
   command = argv[1];
@@ -73,7 +80,12 @@ int main(int argc, char **argv) {
 
     if (!arg_name) {
       printf("Error: 'create' requires a migration name.\n");
-      return 1;
+      {
+        rc = 1;
+        {
+          return rc;
+        }
+      }
     }
 
 #if defined(_MSC_VER)
@@ -81,8 +93,17 @@ int main(int argc, char **argv) {
     sprintf_s(down_file, sizeof(down_file), "%s/%s.down.sql", dir_path,
               arg_name);
 #else
+#if defined(_MSC_VER)
+    sprintf_s(up_file, sizeof(up_file), "%s/%s.up.sql", dir_path, arg_name);
+#else
     sprintf(up_file, "%s/%s.up.sql", dir_path, arg_name);
+#endif
+#if defined(_MSC_VER)
+    sprintf_s(down_file, sizeof(down_file), "%s/%s.down.sql", dir_path,
+              arg_name);
+#else
     sprintf(down_file, "%s/%s.down.sql", dir_path, arg_name);
+#endif
 #endif
 
     fp = fopen(up_file, "w");
@@ -111,13 +132,23 @@ int main(int argc, char **argv) {
     if (!db_str) {
       printf("Error: Database connection string required (--db or C_ORM_DB_URL "
              "env)\n");
-      return 1;
+      {
+        rc = 1;
+        {
+          return rc;
+        }
+      }
     }
 
     err = c_orm_sqlite_connect(db_str, &db);
     if (err != C_ORM_OK) {
       printf("Error connecting to database.\n");
-      return 1;
+      {
+        rc = 1;
+        {
+          return rc;
+        }
+      }
     }
 
     memset(&opts, 0, sizeof(opts));
@@ -143,13 +174,23 @@ int main(int argc, char **argv) {
     if (!db_str) {
       printf("Error: Database connection string required (--db or C_ORM_DB_URL "
              "env)\n");
-      return 1;
+      {
+        rc = 1;
+        {
+          return rc;
+        }
+      }
     }
 
     err = c_orm_sqlite_connect(db_str, &db);
     if (err != C_ORM_OK) {
       printf("Error connecting to database.\n");
-      return 1;
+      {
+        rc = 1;
+        {
+          return rc;
+        }
+      }
     }
 
     err = c_orm_migration_get_applied(db, &applied, &count);
@@ -171,8 +212,18 @@ int main(int argc, char **argv) {
   } else {
     printf("Unknown command: %s\n", command);
     print_usage(argv[0]);
-    return 1;
+    {
+      rc = 1;
+      {
+        return rc;
+      }
+    }
   }
 
-  return 0;
+  {
+    rc = 0;
+    {
+      return rc;
+    }
+  }
 }

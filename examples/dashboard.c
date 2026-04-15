@@ -12,6 +12,8 @@
 /* #include "classes/parse/abstract_struct.h" */
 
 int main(void) {
+  int rc;
+
   c_orm_db_t *db = NULL;
   c_orm_query_t *query = NULL;
   c_orm_error_t err;
@@ -20,8 +22,12 @@ int main(void) {
   printf("Starting Dashboard Analytics Engine...\n");
 
   err = c_orm_sqlite_connect(":memory:", &db);
-  if (err != C_ORM_OK)
-    return 1;
+  if (err != C_ORM_OK) {
+    rc = 1;
+    {
+      return rc;
+    }
+  }
 
   /* Assume some legacy tables we don't have struct mappings for. */
   c_orm_execute_raw(db,
@@ -36,8 +42,12 @@ int main(void) {
                             "SELECT event_name, SUM(metric) as total_metric "
                             "FROM events GROUP BY event_name",
                             &query);
-  if (err != C_ORM_OK)
-    return 1;
+  if (err != C_ORM_OK) {
+    rc = 1;
+    {
+      return rc;
+    }
+  }
 
   /* Iterate rows and hydrate dynamically. Step 283 logic mapping custom metrics
    */
@@ -55,5 +65,10 @@ int main(void) {
   }
 
   db->vtable->finalize(query);
-  return 0;
+  {
+    rc = 0;
+    {
+      return rc;
+    }
+  }
 }

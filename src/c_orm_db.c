@@ -11,28 +11,39 @@
 
 C_ORM_EXPORT int c_orm_get_last_error_message(c_orm_db_t *db,
                                               const char **out_message) {
-  if (!out_message)
-    return 1;
+  int rc;
+  if (!out_message) {
+    rc = 1;
+    return rc;
+  }
   if (!db || !db->vtable || !db->vtable->get_last_error) {
     *out_message = "Unknown Error (No DB context)";
-    return 0;
+    rc = 0;
+    return rc;
   }
-  return db->vtable->get_last_error(db, out_message);
+  rc = db->vtable->get_last_error(db, out_message);
+  return rc;
 }
 
 C_ORM_EXPORT int c_orm_get_last_error_trace(c_orm_db_t *db,
                                             const char **out_trace) {
-  if (!out_trace)
-    return 1;
+  int rc;
+  if (!out_trace) {
+    rc = 1;
+    return rc;
+  }
   if (!db || !db->vtable) {
     *out_trace = "Unknown Error (No DB context or vtable)";
-    return 1;
+    rc = 1;
+    return rc;
   }
   if (!db->vtable->get_last_trace) {
     *out_trace = "Driver does not support stack trace reporting";
-    return 1;
+    rc = 1;
+    return rc;
   }
-  return db->vtable->get_last_trace(db, out_trace);
+  rc = db->vtable->get_last_trace(db, out_trace);
+  return rc;
 }
 
 C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
@@ -52,10 +63,17 @@ C_ORM_EXPORT void c_orm_set_slow_query_threshold(c_orm_db_t *db,
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_get_telemetry(c_orm_db_t *db, c_orm_pool_telemetry_t *out_telemetry) {
-  if (!db || !out_telemetry)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!db || !out_telemetry) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   *out_telemetry = db->telemetry;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT void c_orm_set_expire_callback(c_orm_db_t *db, c_orm_expire_cb cb,
@@ -68,10 +86,17 @@ C_ORM_EXPORT void c_orm_set_expire_callback(c_orm_db_t *db, c_orm_expire_cb cb,
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_db_attach_identity_map(c_orm_db_t *db, c_orm_identity_map_t *map) {
-  if (!db)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!db) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   db->identity_map = map;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT void c_orm_register_query_interceptor(c_orm_db_t *db,

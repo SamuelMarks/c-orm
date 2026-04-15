@@ -22,27 +22,33 @@ struct c_orm_arena {
 
 C_ORM_EXPORT int c_orm_arena_new(c_orm_arena_t **out_arena) {
   c_orm_arena_t *arena;
+  int rc;
 
   if (!out_arena) {
-    return 1;
+    rc = 1;
+    return rc;
   }
 
   arena = (c_orm_arena_t *)malloc(sizeof(c_orm_arena_t));
   if (!arena) {
-    return 1;
+    rc = 1;
+    return rc;
   }
 
   arena->head = NULL;
   *out_arena = arena;
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 C_ORM_EXPORT int c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
                                    void **out_ptr) {
   c_orm_arena_block_t *block;
+  int rc;
 
   if (!arena || !out_ptr || size == 0) {
-    return 1;
+    rc = 1;
+    return rc;
   }
 
   /* Simple alignment */
@@ -59,7 +65,8 @@ C_ORM_EXPORT int c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
 
     block = (c_orm_arena_block_t *)malloc(alloc_size);
     if (!block) {
-      return 1;
+      rc = 1;
+      return rc;
     }
 
     block->used = 0;
@@ -69,7 +76,8 @@ C_ORM_EXPORT int c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
 
   *out_ptr = arena->head->data + arena->head->used;
   arena->head->used += size;
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 C_ORM_EXPORT void c_orm_arena_free(c_orm_arena_t *arena) {

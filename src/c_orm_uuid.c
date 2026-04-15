@@ -16,11 +16,16 @@
 static int c_orm_uuid_seeded = 0;
 
 C_ORM_EXPORT c_orm_error_t c_orm_uuid_v4(char out_uuid[37]) {
+  int rc;
+
   int i;
   unsigned char bytes[16];
 
   if (!out_uuid) {
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (!c_orm_uuid_seeded) {
@@ -53,5 +58,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_uuid_v4(char out_uuid[37]) {
       bytes[14], bytes[15]);
 #endif
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }

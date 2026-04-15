@@ -175,6 +175,8 @@ SUITE(benchmarks_suite) {
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
+  int rc;
+
   GREATEST_MAIN_BEGIN();
   RUN_SUITE(benchmarks_suite);
   GREATEST_MAIN_END();

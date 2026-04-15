@@ -31,6 +31,8 @@ C_ORM_STRUCT(Post, POST_FIELDS)
 C_ORM_STRUCT_WITH_RELATIONS(User, USER_FIELDS, USER_RELS)
 
 int main(void) {
+  int rc;
+
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
   struct User new_user;
@@ -78,8 +80,12 @@ int main(void) {
 
   printf("Connecting to memory DB...\n");
   err = c_orm_sqlite_connect(":memory:", &db);
-  if (err != C_ORM_OK)
-    return 1;
+  if (err != C_ORM_OK) {
+    rc = 1;
+    {
+      return rc;
+    }
+  }
 
   printf("Creating tables...\n");
   c_orm_execute_raw(
@@ -102,7 +108,12 @@ int main(void) {
   err = c_orm_insert(db, &user_m, &new_user);
   if (err != C_ORM_OK) {
     printf("Insert failed\n");
-    return 1;
+    {
+      rc = 1;
+      {
+        return rc;
+      }
+    }
   }
 
   printf("Attaching Role 1 & 2 to Alice...\n");
@@ -145,5 +156,10 @@ int main(void) {
 
   if (db)
     db->vtable->disconnect(db);
-  return 0;
+  {
+    rc = 0;
+    {
+      return rc;
+    }
+  }
 }

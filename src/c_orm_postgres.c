@@ -48,12 +48,18 @@ struct postgres_query_data {
 };
 
 static int generate_stmt_name(char *buf, size_t size) {
+  int rc;
   static int counter = 0;
 #if defined(_MSC_VER)
-  return sprintf_s(buf, size, "c_orm_stmt_%d", ++counter);
+  rc = sprintf_s(buf, size, "c_orm_stmt_%d", ++counter);
 #else
-  return sprintf(buf, "c_orm_stmt_%d", ++counter);
+#if defined(_MSC_VER)
+  sprintf_s(buf, sizeof(buf), "c_orm_stmt_%d", ++counter);
+#else
+  rc = sprintf(buf, "c_orm_stmt_%d", ++counter);
 #endif
+#endif
+  return rc;
 }
 
 /* Replace '?' with '$1', '$2', etc. */
@@ -87,7 +93,11 @@ static char *rewrite_query(const char *sql, int *out_param_count) {
 #if defined(_MSC_VER)
       num_len = sprintf_s(num_buf, sizeof(num_buf), "$%d", count);
 #else
+#if defined(_MSC_VER)
+      sprintf_s(num_buf, sizeof(num_buf), "$%d", count);
+#else
       num_len = sprintf(num_buf, "$%d", count);
+#endif
 #endif
       memcpy(q, num_buf, num_len);
       q += num_len;
@@ -122,20 +132,29 @@ static void set_error(c_orm_db_t *db, const char *msg) {
 }
 
 static c_orm_error_t postgres_connect(const char *url, c_orm_db_t **out_db) {
+  int rc;
+
   c_orm_db_t *db;
   struct postgres_db_data *data;
 
-  if (!url || !out_db)
-    return C_ORM_ERROR_MEMORY;
+  if (!url || !out_db) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   db = (c_orm_db_t *)calloc(1, sizeof(c_orm_db_t));
-  if (!db)
-    return C_ORM_ERROR_MEMORY;
+  if (!db) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   data = (struct postgres_db_data *)calloc(1, sizeof(struct postgres_db_data));
   if (!data) {
     free(db);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   data->conn = PQconnectdb(url);
@@ -144,25 +163,38 @@ static c_orm_error_t postgres_connect(const char *url, c_orm_db_t **out_db) {
     PQfinish(data->conn);
     free(data);
     free(db);
-    return C_ORM_ERROR_CONNECTION;
+    {
+      rc = C_ORM_ERROR_CONNECTION;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (c_orm_postgres_get_vtable(&db->vtable) != 0) {
     PQfinish(data->conn);
     free(data);
     free(db);
-    return C_ORM_ERROR_UNKNOWN;
+    {
+      rc = C_ORM_ERROR_UNKNOWN;
+      return (c_orm_error_t)rc;
+    }
   }
   db->driver_data = data;
   *out_db = db;
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_disconnect(c_orm_db_t *db) {
+  int rc;
+
   struct postgres_db_data *data;
-  if (!db)
-    return C_ORM_OK;
+  if (!db) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 
   data = (struct postgres_db_data *)db->driver_data;
   if (data) {
@@ -172,7 +204,10 @@ static c_orm_error_t postgres_disconnect(c_orm_db_t *db) {
     free(data);
   }
   free(db);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 struct c_orm_query {
@@ -181,6 +216,8 @@ struct c_orm_query {
 
 static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
                                       c_orm_query_t **out_query) {
+  int rc;
+
   struct postgres_db_data *db_data;
   struct postgres_query_data *q_data;
   c_orm_query_t *query;
@@ -189,8 +226,10 @@ static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
   char stmt_name[64];
   PGresult *res;
 
-  if (!db || !sql || !out_query)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !sql || !out_query) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   db_data = (struct postgres_db_data *)db->driver_data;
 
   if (db->log_cb) {
@@ -198,13 +237,18 @@ static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
   }
 
   new_sql = rewrite_query(sql, &param_count);
-  if (!new_sql)
-    return C_ORM_ERROR_MEMORY;
+  if (!new_sql) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   query = (c_orm_query_t *)calloc(1, sizeof(c_orm_query_t));
   if (!query) {
     free(new_sql);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   q_data = (struct postgres_query_data *)calloc(
@@ -212,7 +256,10 @@ static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
   if (!q_data) {
     free(query);
     free(new_sql);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   generate_stmt_name(stmt_name, sizeof(stmt_name));
@@ -224,7 +271,10 @@ static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
     free(q_data);
     free(query);
     free(new_sql);
-    return C_ORM_ERROR_SQL;
+    {
+      rc = C_ORM_ERROR_SQL;
+      return (c_orm_error_t)rc;
+    }
   }
   PQclear(res);
 
@@ -252,7 +302,10 @@ static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
   query->data = q_data;
   *out_query = query;
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static void free_param(struct postgres_query_data *q_data, int index) {
@@ -277,62 +330,106 @@ static char *orm_strdup(const char *s) {
 
 static c_orm_error_t postgres_bind_int32(c_orm_query_t *query, int index,
                                          int32_t val) {
+  int rc;
+
   char buf[32];
-  if (!query || !query->data || index < 1 || index > query->data->param_count)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || index < 1 || index > query->data->param_count) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   free_param(query->data, index);
+#if defined(_MSC_VER)
+  sprintf_s(buf, sizeof(buf), "%d", (int)val);
+#else
 #if defined(_MSC_VER)
   sprintf_s(buf, sizeof(buf), "%d", (int)val);
 #else
   sprintf(buf, "%d", (int)val);
 #endif
+#endif
   query->data->param_values[index - 1] = orm_strdup(buf);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_bind_int64(c_orm_query_t *query, int index,
                                          int64_t val) {
+  int rc;
+
   char buf[64];
-  if (!query || !query->data || index < 1 || index > query->data->param_count)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || index < 1 || index > query->data->param_count) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   free_param(query->data, index);
+#if defined(_MSC_VER)
+  sprintf_s(buf, sizeof(buf), INT64_FORMAT, (long long)val);
+#else
 #if defined(_MSC_VER)
   sprintf_s(buf, sizeof(buf), INT64_FORMAT, (long long)val);
 #else
   sprintf(buf, INT64_FORMAT, (long long)val);
 #endif
+#endif
   query->data->param_values[index - 1] = orm_strdup(buf);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_bind_double(c_orm_query_t *query, int index,
                                           double val) {
+  int rc;
+
   char buf[64];
-  if (!query || !query->data || index < 1 || index > query->data->param_count)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || index < 1 || index > query->data->param_count) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   free_param(query->data, index);
+#if defined(_MSC_VER)
+  sprintf_s(buf, sizeof(buf), "%.17g", val);
+#else
 #if defined(_MSC_VER)
   sprintf_s(buf, sizeof(buf), "%.17g", val);
 #else
   sprintf(buf, "%.17g", val);
 #endif
+#endif
   query->data->param_values[index - 1] = orm_strdup(buf);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_bind_string(c_orm_query_t *query, int index,
                                           const char *val) {
-  if (!query || !query->data || index < 1 || index > query->data->param_count)
-    return C_ORM_ERROR_BIND;
+  int rc;
+
+  if (!query || !query->data || index < 1 || index > query->data->param_count) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   free_param(query->data, index);
   query->data->param_values[index - 1] = orm_strdup(val);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_bind_blob(c_orm_query_t *query, int index,
                                         const void *val, size_t size) {
-  if (!query || !query->data || index < 1 || index > query->data->param_count)
-    return C_ORM_ERROR_BIND;
+  int rc;
+
+  if (!query || !query->data || index < 1 || index > query->data->param_count) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   free_param(query->data, index);
   query->data->param_values[index - 1] = malloc(size);
   if (query->data->param_values[index - 1]) {
@@ -340,22 +437,36 @@ static c_orm_error_t postgres_bind_blob(c_orm_query_t *query, int index,
   }
   query->data->param_lengths[index - 1] = (int)size;
   query->data->param_formats[index - 1] = 1; /* binary format */
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_bind_null(c_orm_query_t *query, int index) {
-  if (!query || !query->data || index < 1 || index > query->data->param_count)
-    return C_ORM_ERROR_BIND;
+  int rc;
+
+  if (!query || !query->data || index < 1 || index > query->data->param_count) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   free_param(query->data, index);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_step(c_orm_query_t *query, int *out_has_row) {
+  int rc;
+
   struct postgres_query_data *q_data;
   struct postgres_db_data *db_data;
 
-  if (!query || !query->data || !out_has_row)
-    return C_ORM_ERROR_STEP;
+  if (!query || !query->data || !out_has_row) {
+    rc = C_ORM_ERROR_STEP;
+    return (c_orm_error_t)rc;
+  }
   q_data = query->data;
   db_data = (struct postgres_db_data *)q_data->db->driver_data;
 
@@ -370,7 +481,10 @@ static c_orm_error_t postgres_step(c_orm_query_t *query, int *out_has_row) {
       set_error(q_data->db, PQerrorMessage(db_data->conn));
       PQclear(q_data->res);
       q_data->res = NULL;
-      return C_ORM_ERROR_STEP;
+      {
+        rc = C_ORM_ERROR_STEP;
+        return (c_orm_error_t)rc;
+      }
     }
 
     q_data->row_count = PQntuples(q_data->res);
@@ -381,77 +495,129 @@ static c_orm_error_t postgres_step(c_orm_query_t *query, int *out_has_row) {
 
   if (q_data->current_row < q_data->row_count) {
     *out_has_row = 1;
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   } else {
     *out_has_row = 0;
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   }
 }
 
 static c_orm_error_t postgres_get_int32(c_orm_query_t *query, int index,
                                         int32_t *out_val) {
+  int rc;
+
   const char *val;
-  if (!query || !query->data || !query->data->res || !out_val)
-    return C_ORM_ERROR_MEMORY;
+  if (!query || !query->data || !query->data->res || !out_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   val = PQgetvalue(query->data->res, query->data->current_row, index);
   *out_val = (int32_t)atoi(val);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_get_int64(c_orm_query_t *query, int index,
                                         int64_t *out_val) {
+  int rc;
+
   const char *val;
-  if (!query || !query->data || !query->data->res || !out_val)
-    return C_ORM_ERROR_MEMORY;
+  if (!query || !query->data || !query->data->res || !out_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   val = PQgetvalue(query->data->res, query->data->current_row, index);
 #if defined(_MSC_VER)
   *out_val = (int64_t)_atoi64(val);
 #else
   *out_val = (int64_t)atoll(val);
 #endif
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_get_double(c_orm_query_t *query, int index,
                                          double *out_val) {
+  int rc;
+
   const char *val;
-  if (!query || !query->data || !query->data->res || !out_val)
-    return C_ORM_ERROR_MEMORY;
+  if (!query || !query->data || !query->data->res || !out_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   val = PQgetvalue(query->data->res, query->data->current_row, index);
   *out_val = atof(val);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_get_string(c_orm_query_t *query, int index,
                                          const char **out_val) {
-  if (!query || !query->data || !query->data->res || !out_val)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data || !query->data->res || !out_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   *out_val = PQgetvalue(query->data->res, query->data->current_row, index);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_get_blob(c_orm_query_t *query, int index,
                                        const void **out_val, size_t *out_size) {
-  if (!query || !query->data || !query->data->res || !out_val || !out_size)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data || !query->data->res || !out_val || !out_size) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   *out_val = PQgetvalue(query->data->res, query->data->current_row, index);
   *out_size = PQgetlength(query->data->res, query->data->current_row, index);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_is_null(c_orm_query_t *query, int index,
                                       int *out_is_null) {
-  if (!query || !query->data || !query->data->res || !out_is_null)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data || !query->data->res || !out_is_null) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   *out_is_null =
       PQgetisnull(query->data->res, query->data->current_row, index) ? 1 : 0;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_finalize(c_orm_query_t *query) {
+  int rc;
+
   int i;
-  if (!query)
-    return C_ORM_OK;
+  if (!query) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
   if (query->data) {
     if (query->data->res) {
       PQclear(query->data->res);
@@ -469,13 +635,20 @@ static c_orm_error_t postgres_finalize(c_orm_query_t *query) {
     free(query->data);
   }
   free(query);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t postgres_reset(c_orm_query_t *query) {
+  int rc;
+
   int i;
-  if (!query || !query->data)
-    return C_ORM_ERROR_MEMORY;
+  if (!query || !query->data) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   if (query->data->res) {
     PQclear(query->data->res);
     query->data->res = NULL;
@@ -485,23 +658,32 @@ static c_orm_error_t postgres_reset(c_orm_query_t *query) {
   }
   query->data->current_row = 0;
   query->data->row_count = 0;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static int postgres_get_last_error(c_orm_db_t *db, const char **out_message) {
+  int rc;
   struct postgres_db_data *data;
-  if (!out_message)
-    return 1;
+  if (!out_message) {
+    rc = 1;
+    return rc;
+  }
   if (!db || !db->driver_data) {
     *out_message = "Invalid DB object";
-    return 1;
+    rc = 1;
+    return rc;
   }
   data = (struct postgres_db_data *)db->driver_data;
   *out_message = data->last_error;
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 static int postgres_get_last_trace(c_orm_db_t *db, const char **out_trace) {
+  int rc;
   /* Step 265 / 266 */
   if (out_trace) {
     *out_trace =
@@ -509,17 +691,24 @@ static int postgres_get_last_trace(c_orm_db_t *db, const char **out_trace) {
         "parsing locally integrated inside driver compilation units natively. "
         "Returning Last error mapping fallback.";
   }
-  return 0;
+  (void)db;
+  rc = 0;
+  return rc;
 }
 
 static c_orm_error_t postgres_get_last_insert_rowid(c_orm_db_t *db,
                                                     int64_t *out_id) {
+  int rc;
+
   /* Postgres doesn't have a single last_insert_rowid function, usually requires
    * RETURNING clause. Stub implementation for now. */
   (void)db;
   if (out_id)
     *out_id = 0;
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static const c_orm_driver_vtable_t postgres_vtable = {
@@ -547,89 +736,141 @@ static const c_orm_driver_vtable_t postgres_vtable = {
 
 C_ORM_EXPORT int
 c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  if (!out_vtable)
-    return 1;
+  int rc;
+  if (!out_vtable) {
+    rc = 1;
+    return rc;
+  }
   *out_vtable = &postgres_vtable;
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
                                                   c_orm_db_t **out_db) {
-  return postgres_connect(url, out_db);
+  int rc;
+
+  {
+    rc = postgres_connect(url, out_db);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
                                                     unsigned int *out_oid) {
+  int rc;
+
   struct postgres_db_data *data;
   Oid oid;
-  if (!db || !db->driver_data || !out_oid)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !db->driver_data || !out_oid) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   data = (struct postgres_db_data *)db->driver_data;
   oid = lo_creat(data->conn, INV_READ | INV_WRITE);
-  if (oid == InvalidOid)
-    return C_ORM_ERROR_UNKNOWN;
+  if (oid == InvalidOid) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
   *out_oid = (unsigned int)oid;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
                                                   unsigned int oid, int mode,
                                                   void **out_fd) {
+  int rc;
+
   struct postgres_db_data *data;
   int fd;
-  if (!db || !db->driver_data || !out_fd)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !db->driver_data || !out_fd) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   data = (struct postgres_db_data *)db->driver_data;
   fd = lo_open(data->conn, (Oid)oid, mode);
-  if (fd < 0)
-    return C_ORM_ERROR_UNKNOWN;
+  if (fd < 0) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
   /* Cast int to void* for abstraction */
   *out_fd = (void *)(intptr_t)fd;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_read(c_orm_db_t *db, void *fd,
                                                   void *buffer, size_t len,
                                                   size_t *out_read) {
+  int rc;
+
   struct postgres_db_data *data;
   int bytes_read;
-  if (!db || !db->driver_data || !buffer || !out_read)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !db->driver_data || !buffer || !out_read) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   data = (struct postgres_db_data *)db->driver_data;
   bytes_read = lo_read(data->conn, (int)(intptr_t)fd, (char *)buffer, len);
-  if (bytes_read < 0)
-    return C_ORM_ERROR_UNKNOWN;
+  if (bytes_read < 0) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
   *out_read = (size_t)bytes_read;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
                                                    const void *buffer,
                                                    size_t len,
                                                    size_t *out_written) {
+  int rc;
+
   struct postgres_db_data *data;
   int bytes_written;
-  if (!db || !db->driver_data || !buffer || !out_written)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !db->driver_data || !buffer || !out_written) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   data = (struct postgres_db_data *)db->driver_data;
   bytes_written =
       lo_write(data->conn, (int)(intptr_t)fd, (const char *)buffer, len);
-  if (bytes_written < 0)
-    return C_ORM_ERROR_UNKNOWN;
+  if (bytes_written < 0) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
   *out_written = (size_t)bytes_written;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd) {
   struct postgres_db_data *data;
   int rc;
-  if (!db || !db->driver_data)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !db->driver_data) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   data = (struct postgres_db_data *)db->driver_data;
   rc = lo_close(data->conn, (int)(intptr_t)fd);
-  if (rc < 0)
-    return C_ORM_ERROR_UNKNOWN;
-  return C_ORM_OK;
+  if (rc < 0) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 #else
@@ -637,58 +878,91 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd) {
 /* Stub out if PostgreSQL is not enabled */
 C_ORM_EXPORT int
 c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  if (out_vtable)
+  int rc;
+  if (out_vtable) {
     *out_vtable = NULL;
-  return 1;
+  }
+  rc = 1;
+  return rc;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
                                                   c_orm_db_t **out_db) {
+  int rc;
+
   (void)url;
   (void)out_db;
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
                                                     unsigned int *out_oid) {
+  int rc;
+
   (void)db;
   (void)out_oid;
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
                                                   unsigned int oid, int mode,
                                                   void **out_fd) {
+  int rc;
+
   (void)db;
   (void)oid;
   (void)mode;
   (void)out_fd;
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_read(c_orm_db_t *db, void *fd,
                                                   void *buffer, size_t len,
                                                   size_t *out_read) {
+  int rc;
+
   (void)db;
   (void)fd;
   (void)buffer;
   (void)len;
   (void)out_read;
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
                                                    const void *buffer,
                                                    size_t len,
                                                    size_t *out_written) {
+  int rc;
+
   (void)db;
   (void)fd;
   (void)buffer;
   (void)len;
   (void)out_written;
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd) {
+  int rc;
+
   (void)db;
   (void)fd;
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 
 #endif

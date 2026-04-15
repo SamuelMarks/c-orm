@@ -66,29 +66,41 @@ static void set_error(c_orm_db_t *db, const char *msg) {
 }
 
 static c_orm_error_t mysql_drv_connect(const char *url, c_orm_db_t **out_db) {
+  int rc;
+
   c_orm_db_t *db;
   struct mysql_db_data *data;
   /* Very basic url parsing for stub logic, real impl should parse user/pass/db
      For now assuming simple usage. */
 
-  if (!url || !out_db)
-    return C_ORM_ERROR_MEMORY;
+  if (!url || !out_db) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   db = (c_orm_db_t *)calloc(1, sizeof(c_orm_db_t));
-  if (!db)
-    return C_ORM_ERROR_MEMORY;
+  if (!db) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   data = (struct mysql_db_data *)calloc(1, sizeof(struct mysql_db_data));
   if (!data) {
     free(db);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   data->conn = mysql_init(NULL);
   if (!data->conn) {
     free(data);
     free(db);
-    return C_ORM_ERROR_CONNECTION;
+    {
+      rc = C_ORM_ERROR_CONNECTION;
+      return (c_orm_error_t)rc;
+    }
   }
 
   /* In a real implementation we would parse url. For CI, let's just
@@ -103,18 +115,28 @@ static c_orm_error_t mysql_drv_connect(const char *url, c_orm_db_t **out_db) {
     mysql_close(data->conn);
     free(data);
     free(db);
-    return C_ORM_ERROR_UNKNOWN;
+    {
+      rc = C_ORM_ERROR_UNKNOWN;
+      return (c_orm_error_t)rc;
+    }
   }
   db->driver_data = data;
   *out_db = db;
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_disconnect(c_orm_db_t *db) {
+  int rc;
+
   struct mysql_db_data *data;
-  if (!db)
-    return C_ORM_OK;
+  if (!db) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 
   data = (struct mysql_db_data *)db->driver_data;
   if (data) {
@@ -124,7 +146,10 @@ static c_orm_error_t mysql_drv_disconnect(c_orm_db_t *db) {
     free(data);
   }
   free(db);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 struct c_orm_query {
@@ -133,12 +158,16 @@ struct c_orm_query {
 
 static c_orm_error_t mysql_drv_prepare(c_orm_db_t *db, const char *sql,
                                        c_orm_query_t **out_query) {
+  int rc;
+
   struct mysql_db_data *db_data;
   struct mysql_query_data *q_data;
   c_orm_query_t *query;
 
-  if (!db || !sql || !out_query)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !sql || !out_query) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   db_data = (struct mysql_db_data *)db->driver_data;
 
   if (db->log_cb) {
@@ -146,14 +175,19 @@ static c_orm_error_t mysql_drv_prepare(c_orm_db_t *db, const char *sql,
   }
 
   query = (c_orm_query_t *)calloc(1, sizeof(c_orm_query_t));
-  if (!query)
-    return C_ORM_ERROR_MEMORY;
+  if (!query) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   q_data =
       (struct mysql_query_data *)calloc(1, sizeof(struct mysql_query_data));
   if (!q_data) {
     free(query);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   q_data->stmt = mysql_stmt_init(db_data->conn);
@@ -161,7 +195,10 @@ static c_orm_error_t mysql_drv_prepare(c_orm_db_t *db, const char *sql,
     set_error(db, mysql_error(db_data->conn));
     free(q_data);
     free(query);
-    return C_ORM_ERROR_SQL;
+    {
+      rc = C_ORM_ERROR_SQL;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (mysql_stmt_prepare(q_data->stmt, sql, (unsigned long)strlen(sql))) {
@@ -169,7 +206,10 @@ static c_orm_error_t mysql_drv_prepare(c_orm_db_t *db, const char *sql,
     mysql_stmt_close(q_data->stmt);
     free(q_data);
     free(query);
-    return C_ORM_ERROR_SQL;
+    {
+      rc = C_ORM_ERROR_SQL;
+      return (c_orm_error_t)rc;
+    }
   }
 
   q_data->db = db;
@@ -184,15 +224,22 @@ static c_orm_error_t mysql_drv_prepare(c_orm_db_t *db, const char *sql,
   query->data = q_data;
   *out_query = query;
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_bind_int32(c_orm_query_t *query, int index,
                                           int32_t val) {
+  int rc;
+
   int i;
   MYSQL_BIND *b;
-  if (!query || !query->data || index < 1 || index > query->data->param_count)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || index < 1 || index > query->data->param_count) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   i = index - 1;
   b = &query->data->bind_params[i];
 
@@ -203,15 +250,22 @@ static c_orm_error_t mysql_drv_bind_int32(c_orm_query_t *query, int index,
   *(int32_t *)b->buffer = val;
   b->is_null = &query->data->param_is_null[i];
   *b->is_null = 0;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_bind_int64(c_orm_query_t *query, int index,
                                           int64_t val) {
+  int rc;
+
   int i;
   MYSQL_BIND *b;
-  if (!query || !query->data || index < 1 || index > query->data->param_count)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || index < 1 || index > query->data->param_count) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   i = index - 1;
   b = &query->data->bind_params[i];
 
@@ -221,15 +275,22 @@ static c_orm_error_t mysql_drv_bind_int64(c_orm_query_t *query, int index,
   *(int64_t *)b->buffer = val;
   b->is_null = &query->data->param_is_null[i];
   *b->is_null = 0;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_bind_double(c_orm_query_t *query, int index,
                                            double val) {
+  int rc;
+
   int i;
   MYSQL_BIND *b;
-  if (!query || !query->data || index < 1 || index > query->data->param_count)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || index < 1 || index > query->data->param_count) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   i = index - 1;
   b = &query->data->bind_params[i];
 
@@ -239,15 +300,22 @@ static c_orm_error_t mysql_drv_bind_double(c_orm_query_t *query, int index,
   *(double *)b->buffer = val;
   b->is_null = &query->data->param_is_null[i];
   *b->is_null = 0;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_bind_string(c_orm_query_t *query, int index,
                                            const char *val) {
+  int rc;
+
   int i;
   MYSQL_BIND *b;
-  if (!query || !query->data || index < 1 || index > query->data->param_count)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || index < 1 || index > query->data->param_count) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   i = index - 1;
   b = &query->data->bind_params[i];
 
@@ -263,15 +331,22 @@ static c_orm_error_t mysql_drv_bind_string(c_orm_query_t *query, int index,
   b->buffer_length = (unsigned long)strlen(val);
   b->is_null = &query->data->param_is_null[i];
   *b->is_null = 0;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_bind_blob(c_orm_query_t *query, int index,
                                          const void *val, size_t size) {
+  int rc;
+
   int i;
   MYSQL_BIND *b;
-  if (!query || !query->data || index < 1 || index > query->data->param_count)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || index < 1 || index > query->data->param_count) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   i = index - 1;
   b = &query->data->bind_params[i];
 
@@ -284,24 +359,36 @@ static c_orm_error_t mysql_drv_bind_blob(c_orm_query_t *query, int index,
   b->buffer_length = (unsigned long)size;
   b->is_null = &query->data->param_is_null[i];
   *b->is_null = 0;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_bind_null(c_orm_query_t *query, int index) {
+  int rc;
+
   int i;
   MYSQL_BIND *b;
-  if (!query || !query->data || index < 1 || index > query->data->param_count)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || index < 1 || index > query->data->param_count) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   i = index - 1;
   b = &query->data->bind_params[i];
 
   b->buffer_type = MYSQL_TYPE_NULL;
   b->is_null = &query->data->param_is_null[i];
   *b->is_null = 1;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t init_result_binds(struct mysql_query_data *q_data) {
+  int rc;
+
   MYSQL_RES *meta;
   int i;
 
@@ -309,7 +396,10 @@ static c_orm_error_t init_result_binds(struct mysql_query_data *q_data) {
   if (!meta) {
     /* No result set */
     q_data->result_col_count = 0;
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   }
 
   q_data->result_col_count = mysql_num_fields(meta);
@@ -336,42 +426,62 @@ static c_orm_error_t init_result_binds(struct mysql_query_data *q_data) {
     }
 
     if (mysql_stmt_bind_result(q_data->stmt, q_data->result_binds)) {
-      return C_ORM_ERROR_STEP;
+      {
+        rc = C_ORM_ERROR_STEP;
+        return (c_orm_error_t)rc;
+      }
     }
   }
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_step(c_orm_query_t *query, int *out_has_row) {
   struct mysql_query_data *q_data;
   int rc;
 
-  if (!query || !query->data || !out_has_row)
-    return C_ORM_ERROR_STEP;
+  if (!query || !query->data || !out_has_row) {
+    rc = C_ORM_ERROR_STEP;
+    return (c_orm_error_t)rc;
+  }
   q_data = query->data;
 
   if (!q_data->has_result) {
     if (q_data->param_count > 0) {
       if (mysql_stmt_bind_param(q_data->stmt, q_data->bind_params)) {
         set_error(q_data->db, mysql_stmt_error(q_data->stmt));
-        return C_ORM_ERROR_STEP;
+        {
+          rc = C_ORM_ERROR_STEP;
+          return (c_orm_error_t)rc;
+        }
       }
     }
 
     if (mysql_stmt_execute(q_data->stmt)) {
       set_error(q_data->db, mysql_stmt_error(q_data->stmt));
-      return C_ORM_ERROR_STEP;
+      {
+        rc = C_ORM_ERROR_STEP;
+        return (c_orm_error_t)rc;
+      }
     }
 
     if (init_result_binds(q_data) != C_ORM_OK) {
       set_error(q_data->db, mysql_stmt_error(q_data->stmt));
-      return C_ORM_ERROR_STEP;
+      {
+        rc = C_ORM_ERROR_STEP;
+        return (c_orm_error_t)rc;
+      }
     }
 
     if (q_data->result_col_count > 0) {
       if (mysql_stmt_store_result(q_data->stmt)) {
         set_error(q_data->db, mysql_stmt_error(q_data->stmt));
-        return C_ORM_ERROR_STEP;
+        {
+          rc = C_ORM_ERROR_STEP;
+          return (c_orm_error_t)rc;
+        }
       }
     }
     q_data->has_result = 1;
@@ -379,81 +489,139 @@ static c_orm_error_t mysql_drv_step(c_orm_query_t *query, int *out_has_row) {
 
   if (q_data->result_col_count == 0) {
     *out_has_row = 0;
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   }
 
   rc = mysql_stmt_fetch(q_data->stmt);
   if (rc == 0 || rc == MYSQL_DATA_TRUNCATED) {
     *out_has_row = 1;
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   } else if (rc == MYSQL_NO_DATA) {
     *out_has_row = 0;
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   }
 
   set_error(q_data->db, mysql_stmt_error(q_data->stmt));
-  return C_ORM_ERROR_STEP;
+  {
+    rc = C_ORM_ERROR_STEP;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_get_int32(c_orm_query_t *query, int index,
                                          int32_t *out_val) {
-  if (!query || !query->data || !query->data->has_result || !out_val)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data || !query->data->has_result || !out_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   *out_val = (int32_t)atoi(query->data->result_buffers[index]);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_get_int64(c_orm_query_t *query, int index,
                                          int64_t *out_val) {
-  if (!query || !query->data || !query->data->has_result || !out_val)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data || !query->data->has_result || !out_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 #if defined(_MSC_VER)
   *out_val = (int64_t)_atoi64(query->data->result_buffers[index]);
 #else
   *out_val = (int64_t)atoll(query->data->result_buffers[index]);
 #endif
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_get_double(c_orm_query_t *query, int index,
                                           double *out_val) {
-  if (!query || !query->data || !query->data->has_result || !out_val)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data || !query->data->has_result || !out_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   *out_val = atof(query->data->result_buffers[index]);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_get_string(c_orm_query_t *query, int index,
                                           const char **out_val) {
-  if (!query || !query->data || !query->data->has_result || !out_val)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data || !query->data->has_result || !out_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   *out_val = query->data->result_buffers[index];
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_get_blob(c_orm_query_t *query, int index,
                                         const void **out_val,
                                         size_t *out_size) {
+  int rc;
+
   if (!query || !query->data || !query->data->has_result || !out_val ||
-      !out_size)
-    return C_ORM_ERROR_MEMORY;
+      !out_size) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   *out_val = query->data->result_buffers[index];
   *out_size = (size_t)query->data->result_length[index];
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_is_null(c_orm_query_t *query, int index,
                                        int *out_is_null) {
-  if (!query || !query->data || !query->data->has_result || !out_is_null)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data || !query->data->has_result || !out_is_null) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   *out_is_null = query->data->result_is_null[index];
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_finalize(c_orm_query_t *query) {
+  int rc;
+
   int i;
-  if (!query)
-    return C_ORM_OK;
+  if (!query) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
   if (query->data) {
     if (query->data->stmt) {
       mysql_stmt_close(query->data->stmt);
@@ -479,48 +647,70 @@ static c_orm_error_t mysql_drv_finalize(c_orm_query_t *query) {
     free(query->data);
   }
   free(query);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t mysql_drv_reset(c_orm_query_t *query) {
-  if (!query || !query->data)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   /* Just reset the has_result flag, the stmt stays open */
   if (query->data->has_result) {
     mysql_stmt_free_result(query->data->stmt);
     query->data->has_result = 0;
   }
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static int mysql_drv_get_last_error(c_orm_db_t *db, const char **out_message) {
+  int rc;
   struct mysql_db_data *data;
-  if (!out_message)
-    return 1;
+  if (!out_message) {
+    rc = 1;
+    return rc;
+  }
   if (!db || !db->driver_data) {
     *out_message = "Invalid DB object";
-    return 1;
+    rc = 1;
+    return rc;
   }
   data = (struct mysql_db_data *)db->driver_data;
   *out_message = data->last_error;
-  return 0;
+  rc = 0;
+  return rc;
 }
 static int mysql_drv_get_last_trace(c_orm_db_t *db, const char **out_trace) {
+  int rc;
   (void)db;
   if (out_trace) {
     *out_trace = "MySQL stack traces require extended trace plugins lacking in "
                  "cdd-c struct wrappers. Database trace missing natively.";
   }
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 static c_orm_error_t mysql_drv_get_last_insert_rowid(c_orm_db_t *db,
                                                      int64_t *out_id) {
+  int rc;
+
   /* Stub implementation for now */
   (void)db;
   if (out_id)
     *out_id = 0;
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static const c_orm_driver_vtable_t mysql_vtable = {
@@ -548,15 +738,24 @@ static const c_orm_driver_vtable_t mysql_vtable = {
 
 C_ORM_EXPORT int
 c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  if (!out_vtable)
-    return 1;
+  int rc;
+  if (!out_vtable) {
+    rc = 1;
+    return rc;
+  }
   *out_vtable = &mysql_vtable;
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
                                                c_orm_db_t **out_db) {
-  return mysql_drv_connect(url, out_db);
+  int rc;
+
+  {
+    rc = mysql_drv_connect(url, out_db);
+    return (c_orm_error_t)rc;
+  }
 }
 
 #else
@@ -564,16 +763,24 @@ C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
 /* Stub out if MySQL is not enabled */
 C_ORM_EXPORT int
 c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  if (out_vtable)
+  int rc;
+  if (out_vtable) {
     *out_vtable = NULL;
-  return 1;
+  }
+  rc = 1;
+  return rc;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
                                                c_orm_db_t **out_db) {
+  int rc;
+
   (void)url;
   (void)out_db;
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 
 #endif

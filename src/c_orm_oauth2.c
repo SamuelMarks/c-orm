@@ -241,7 +241,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
 #if defined(_MSC_VER)
             sprintf_s(&hex_str[i * 2], 3, "%02x", out_blob.pbData[i]);
 #else
+#if defined(_MSC_VER)
+            sprintf_s(&hex_str[i * 2], sizeof(&hex_str[i * 2]), "%02x",
+                      out_blob.pbData[i]);
+#else
             sprintf(&hex_str[i * 2], "%02x", out_blob.pbData[i]);
+#endif
 #endif
           }
           hex_str[out_blob.cbData * 2] = '\0';
@@ -267,7 +272,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
 #if defined(_MSC_VER)
       sprintf_s(&hex_str[i * 2], 3, "%02x", c);
 #else
+#if defined(_MSC_VER)
+      sprintf_s(&hex_str[i * 2], sizeof(&hex_str[i * 2]), "%02x", c);
+#else
       sprintf(&hex_str[i * 2], "%02x", c);
+#endif
 #endif
     }
     hex_str[len * 2] = '\0';

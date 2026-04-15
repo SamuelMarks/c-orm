@@ -316,15 +316,20 @@ static c_orm_ast_node_t *c_orm_ast_clone_node(c_orm_arena_t *arena,
   return new_node;
 }
 
-static int c_orm_query_clone_impl(c_orm_query_t *q, c_orm_query_t **out_q) {
+C_ORM_EXPORT int c_orm_query_clone(c_orm_query_t *q, c_orm_query_t **out_q) {
+  int rc;
   c_orm_ast_node_t *curr;
   c_orm_ast_node_t *tail = NULL;
 
-  if (!q || !out_q)
-    return 1;
+  if (!q || !out_q) {
+    rc = 1;
+    return rc;
+  }
 
-  if (c_orm_query_new(out_q) != 0)
-    return 1;
+  if (c_orm_query_new(out_q) != 0) {
+    rc = 1;
+    return rc;
+  }
   (*out_q)->error = q->error;
 
   curr = q->ast_head;
@@ -333,7 +338,8 @@ static int c_orm_query_clone_impl(c_orm_query_t *q, c_orm_query_t **out_q) {
     if (!cloned) {
       c_orm_query_free(*out_q);
       *out_q = NULL;
-      return 1;
+      rc = 1;
+      return rc;
     }
     if (!tail) {
       (*out_q)->ast_head = cloned;
@@ -344,7 +350,8 @@ static int c_orm_query_clone_impl(c_orm_query_t *q, c_orm_query_t **out_q) {
     }
     curr = curr->next;
   }
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 static c_orm_query_t *c_orm_query_select_impl(c_orm_query_t *q,
@@ -690,7 +697,11 @@ c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
       w = sprintf_s(p, 4096 - (p - columns), "%s.%s", meta->name,
                     meta->columns[col_i].name);
 #else
+#if defined(_MSC_VER)
+      sprintf_s(p, sizeof(p), "%s.%s", meta->name, meta->columns[col_i].name);
+#else
       w = sprintf(p, "%s.%s", meta->name, meta->columns[col_i].name);
+#endif
 #endif
       p += w;
     }
@@ -879,18 +890,24 @@ static c_orm_ast_node_t *c_orm_query_window_impl(c_orm_query_t *q,
 }
 
 C_ORM_EXPORT int c_orm_query_new(c_orm_query_t **out_query) {
+  int rc;
   c_orm_query_t *q;
 
-  if (!out_query)
-    return 1;
+  if (!out_query) {
+    rc = 1;
+    return rc;
+  }
 
   q = (c_orm_query_t *)malloc(sizeof(c_orm_query_t));
-  if (!q)
-    return 1;
+  if (!q) {
+    rc = 1;
+    return rc;
+  }
 
   if (c_orm_arena_new(&q->arena) != 0) {
     free(q);
-    return 1;
+    rc = 1;
+    return rc;
   }
 
   q->ast_head = NULL;
@@ -937,7 +954,8 @@ C_ORM_EXPORT int c_orm_query_new(c_orm_query_t **out_query) {
   q->col = c_orm_query_col_impl;
 
   *out_query = q;
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 C_ORM_EXPORT void c_orm_query_free(c_orm_query_t *query) {

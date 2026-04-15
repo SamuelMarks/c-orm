@@ -1129,6 +1129,8 @@ extern SUITE(relations_suite);
 extern SUITE(generic_suite);
 
 int main(int argc, char **argv) {
+  int rc;
+  (void)rc;
   GREATEST_MAIN_BEGIN();
   RUN_SUITE(e2e_suite);
   RUN_SUITE(inline_macros_suite);

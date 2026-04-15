@@ -18,25 +18,32 @@ struct c_orm_string_builder {
 C_ORM_EXPORT int
 c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
   c_orm_string_builder_t *sb;
+  int rc;
 
-  if (!out_builder)
-    return 1;
+  if (!out_builder) {
+    rc = 1;
+    return rc;
+  }
 
   sb = (c_orm_string_builder_t *)malloc(sizeof(c_orm_string_builder_t));
-  if (!sb)
-    return 1;
+  if (!sb) {
+    rc = 1;
+    return rc;
+  }
 
   sb->capacity = 64;
   sb->length = 0;
   sb->buffer = (char *)malloc(sb->capacity);
   if (!sb->buffer) {
     free(sb);
-    return 1;
+    rc = 1;
+    return rc;
   }
   sb->buffer[0] = '\0';
 
   *out_builder = sb;
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 C_ORM_EXPORT void c_orm_string_builder_free(c_orm_string_builder_t *builder) {
@@ -52,13 +59,18 @@ C_ORM_EXPORT int c_orm_string_builder_append(c_orm_string_builder_t *builder,
                                              const char *str) {
   size_t len;
   size_t required_capacity;
+  int rc;
 
-  if (!builder || !str)
-    return 1;
+  if (!builder || !str) {
+    rc = 1;
+    return rc;
+  }
 
   len = strlen(str);
-  if (len == 0)
-    return 0;
+  if (len == 0) {
+    rc = 0;
+    return rc;
+  }
 
   required_capacity = builder->length + len + 1;
   if (required_capacity > builder->capacity) {
@@ -68,8 +80,10 @@ C_ORM_EXPORT int c_orm_string_builder_append(c_orm_string_builder_t *builder,
       new_capacity *= 2;
     }
     new_buffer = (char *)realloc(builder->buffer, new_capacity);
-    if (!new_buffer)
-      return 1;
+    if (!new_buffer) {
+      rc = 1;
+      return rc;
+    }
     builder->buffer = new_buffer;
     builder->capacity = new_capacity;
   }
@@ -82,21 +96,30 @@ C_ORM_EXPORT int c_orm_string_builder_append(c_orm_string_builder_t *builder,
 #endif
 
   builder->length += len;
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 C_ORM_EXPORT int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
                                           const char **out_str) {
-  if (!builder || !out_str)
-    return 1;
+  int rc;
+  if (!builder || !out_str) {
+    rc = 1;
+    return rc;
+  }
   *out_str = builder->buffer ? builder->buffer : "";
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 C_ORM_EXPORT int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
                                           size_t *out_len) {
-  if (!builder || !out_len)
-    return 1;
+  int rc;
+  if (!builder || !out_len) {
+    rc = 1;
+    return rc;
+  }
   *out_len = builder->length;
-  return 0;
+  rc = 0;
+  return rc;
 }

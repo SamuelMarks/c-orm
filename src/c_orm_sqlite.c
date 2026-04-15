@@ -82,17 +82,24 @@ static c_orm_error_t sqlite_connect(const char *url, c_orm_db_t **out_db) {
   struct sqlite_db_data *data;
   int rc;
 
-  if (!url || !out_db)
-    return C_ORM_ERROR_MEMORY;
+  if (!url || !out_db) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   db = (c_orm_db_t *)calloc(1, sizeof(c_orm_db_t));
-  if (!db)
-    return C_ORM_ERROR_MEMORY;
+  if (!db) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   data = (struct sqlite_db_data *)calloc(1, sizeof(struct sqlite_db_data));
   if (!data) {
     free(db);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   rc = sqlite3_open(url, &data->db);
@@ -100,25 +107,38 @@ static c_orm_error_t sqlite_connect(const char *url, c_orm_db_t **out_db) {
     sqlite3_close(data->db); /* clean up if needed */
     free(data);
     free(db);
-    return C_ORM_ERROR_CONNECTION;
+    {
+      rc = C_ORM_ERROR_CONNECTION;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (c_orm_sqlite_get_vtable(&db->vtable) != 0) {
     sqlite3_close(data->db);
     free(data);
     free(db);
-    return C_ORM_ERROR_UNKNOWN;
+    {
+      rc = C_ORM_ERROR_UNKNOWN;
+      return (c_orm_error_t)rc;
+    }
   }
   db->driver_data = data;
   *out_db = db;
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_disconnect(c_orm_db_t *db) {
+  int rc;
+
   struct sqlite_db_data *data;
-  if (!db)
-    return C_ORM_OK;
+  if (!db) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 
   data = (struct sqlite_db_data *)db->driver_data;
   if (data) {
@@ -128,7 +148,10 @@ static c_orm_error_t sqlite_disconnect(c_orm_db_t *db) {
     free(data);
   }
   free(db);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 struct c_orm_query {
@@ -142,8 +165,10 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
   c_orm_query_t *query;
   int rc;
 
-  if (!db || !sql || !out_query)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !sql || !out_query) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   db_data = (struct sqlite_db_data *)db->driver_data;
 
   if (db->log_cb) {
@@ -151,14 +176,19 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
   }
 
   query = (c_orm_query_t *)calloc(1, sizeof(c_orm_query_t));
-  if (!query)
-    return C_ORM_ERROR_MEMORY;
+  if (!query) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   q_data =
       (struct sqlite_query_data *)calloc(1, sizeof(struct sqlite_query_data));
   if (!q_data) {
     free(query);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   rc = sqlite3_prepare_v2(db_data->db, sql, -1, &q_data->stmt, NULL);
@@ -166,92 +196,146 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
     set_error(db, NULL);
     free(q_data);
     free(query);
-    return C_ORM_ERROR_SQL;
+    {
+      rc = C_ORM_ERROR_SQL;
+      return (c_orm_error_t)rc;
+    }
   }
 
   q_data->db = db;
   query->data = q_data;
   *out_query = query;
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_bind_int32(c_orm_query_t *query, int index,
                                        int32_t val) {
   int rc;
-  if (!query || !query->data || !query->data->stmt)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || !query->data->stmt) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   rc = sqlite3_bind_int(query->data->stmt, index, val);
   if (rc != SQLITE_OK) {
     set_error(query->data->db, NULL);
-    return C_ORM_ERROR_BIND;
+    {
+      rc = C_ORM_ERROR_BIND;
+      return (c_orm_error_t)rc;
+    }
   }
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_bind_int64(c_orm_query_t *query, int index,
                                        int64_t val) {
   int rc;
-  if (!query || !query->data || !query->data->stmt)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || !query->data->stmt) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   rc = sqlite3_bind_int64(query->data->stmt, index, val);
   if (rc != SQLITE_OK) {
     set_error(query->data->db, NULL);
-    return C_ORM_ERROR_BIND;
+    {
+      rc = C_ORM_ERROR_BIND;
+      return (c_orm_error_t)rc;
+    }
   }
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_bind_double(c_orm_query_t *query, int index,
                                         double val) {
   int rc;
-  if (!query || !query->data || !query->data->stmt)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || !query->data->stmt) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   rc = sqlite3_bind_double(query->data->stmt, index, val);
   if (rc != SQLITE_OK) {
     set_error(query->data->db, NULL);
-    return C_ORM_ERROR_BIND;
+    {
+      rc = C_ORM_ERROR_BIND;
+      return (c_orm_error_t)rc;
+    }
   }
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_bind_string(c_orm_query_t *query, int index,
                                         const char *val) {
   int rc;
-  if (!query || !query->data || !query->data->stmt)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || !query->data->stmt) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   rc = sqlite3_bind_text(query->data->stmt, index, val, -1, SQLITE_TRANSIENT);
   if (rc != SQLITE_OK) {
     set_error(query->data->db, NULL);
-    return C_ORM_ERROR_BIND;
+    {
+      rc = C_ORM_ERROR_BIND;
+      return (c_orm_error_t)rc;
+    }
   }
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_bind_blob(c_orm_query_t *query, int index,
                                       const void *val, size_t size) {
   int rc;
-  if (!query || !query->data || !query->data->stmt)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || !query->data->stmt) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   rc = sqlite3_bind_blob(query->data->stmt, index, val, (int)size,
                          SQLITE_TRANSIENT);
   if (rc != SQLITE_OK) {
     set_error(query->data->db, NULL);
-    return C_ORM_ERROR_BIND;
+    {
+      rc = C_ORM_ERROR_BIND;
+      return (c_orm_error_t)rc;
+    }
   }
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_bind_null(c_orm_query_t *query, int index) {
   int rc;
-  if (!query || !query->data || !query->data->stmt)
-    return C_ORM_ERROR_BIND;
+  if (!query || !query->data || !query->data->stmt) {
+    rc = C_ORM_ERROR_BIND;
+    return (c_orm_error_t)rc;
+  }
   rc = sqlite3_bind_null(query->data->stmt, index);
   if (rc != SQLITE_OK) {
     set_error(query->data->db, NULL);
-    return C_ORM_ERROR_BIND;
+    {
+      rc = C_ORM_ERROR_BIND;
+      return (c_orm_error_t)rc;
+    }
   }
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
@@ -275,8 +359,10 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
   }
 #endif
 
-  if (!query || !query->data || !query->data->stmt || !out_has_row)
-    return C_ORM_ERROR_STEP;
+  if (!query || !query->data || !query->data->stmt || !out_has_row) {
+    rc = C_ORM_ERROR_STEP;
+    return (c_orm_error_t)rc;
+  }
 
   rc = sqlite3_step(query->data->stmt);
 
@@ -304,7 +390,12 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
         sprintf_s(log_msg, sizeof(log_msg), "SLOW QUERY (%.2fms): %s", elapsed,
                   sql);
 #else
+#if defined(_MSC_VER)
+        sprintf_s(log_msg, sizeof(log_msg), "SLOW QUERY (%.2fms): %s", elapsed,
+                  sql);
+#else
         sprintf(log_msg, "SLOW QUERY (%.2fms): %s", elapsed, sql);
+#endif
 #endif
         query->data->db->log_cb(log_msg, query->data->db->log_user_data);
       }
@@ -314,106 +405,176 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
 
   if (rc == SQLITE_ROW) {
     *out_has_row = 1;
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   } else if (rc == SQLITE_DONE) {
     *out_has_row = 0;
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   }
 
   set_error(query->data->db, NULL);
-  return C_ORM_ERROR_STEP;
+  {
+    rc = C_ORM_ERROR_STEP;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_get_int32(c_orm_query_t *query, int index,
                                       int32_t *out_val) {
+  int rc;
+
   int type;
-  if (!query || !query->data || !query->data->stmt || !out_val)
-    return C_ORM_ERROR_MEMORY;
+  if (!query || !query->data || !query->data->stmt || !out_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   type = sqlite3_column_type(query->data->stmt, index);
   if (type != SQLITE_INTEGER && type != SQLITE_NULL) {
-    return C_ORM_ERROR_TYPE_MISMATCH;
+    {
+      rc = C_ORM_ERROR_TYPE_MISMATCH;
+      return (c_orm_error_t)rc;
+    }
   }
 
   *out_val = (int32_t)sqlite3_column_int(query->data->stmt, index);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_get_int64(c_orm_query_t *query, int index,
                                       int64_t *out_val) {
+  int rc;
+
   int type;
-  if (!query || !query->data || !query->data->stmt || !out_val)
-    return C_ORM_ERROR_MEMORY;
+  if (!query || !query->data || !query->data->stmt || !out_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   type = sqlite3_column_type(query->data->stmt, index);
   if (type != SQLITE_INTEGER && type != SQLITE_NULL) {
-    return C_ORM_ERROR_TYPE_MISMATCH;
+    {
+      rc = C_ORM_ERROR_TYPE_MISMATCH;
+      return (c_orm_error_t)rc;
+    }
   }
 
   *out_val = (int64_t)sqlite3_column_int64(query->data->stmt, index);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_get_double(c_orm_query_t *query, int index,
                                        double *out_val) {
+  int rc;
+
   int type;
-  if (!query || !query->data || !query->data->stmt || !out_val)
-    return C_ORM_ERROR_MEMORY;
+  if (!query || !query->data || !query->data->stmt || !out_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   type = sqlite3_column_type(query->data->stmt, index);
   if (type != SQLITE_FLOAT && type != SQLITE_INTEGER && type != SQLITE_NULL) {
-    return C_ORM_ERROR_TYPE_MISMATCH;
+    {
+      rc = C_ORM_ERROR_TYPE_MISMATCH;
+      return (c_orm_error_t)rc;
+    }
   }
 
   *out_val = sqlite3_column_double(query->data->stmt, index);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_get_string(c_orm_query_t *query, int index,
                                        const char **out_val) {
+  int rc;
+
   int type;
-  if (!query || !query->data || !query->data->stmt || !out_val)
-    return C_ORM_ERROR_MEMORY;
+  if (!query || !query->data || !query->data->stmt || !out_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   type = sqlite3_column_type(query->data->stmt, index);
   /* Text and Null are okay. Sometimes integer is tolerated in loose databases
    * but step 251 requires strict checks */
   if (type != SQLITE_TEXT && type != SQLITE_NULL) {
-    return C_ORM_ERROR_TYPE_MISMATCH;
+    {
+      rc = C_ORM_ERROR_TYPE_MISMATCH;
+      return (c_orm_error_t)rc;
+    }
   }
 
   *out_val = (const char *)sqlite3_column_text(query->data->stmt, index);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_get_blob(c_orm_query_t *query, int index,
                                      const void **out_val, size_t *out_size) {
+  int rc;
+
   int type;
-  if (!query || !query->data || !query->data->stmt || !out_val || !out_size)
-    return C_ORM_ERROR_MEMORY;
+  if (!query || !query->data || !query->data->stmt || !out_val || !out_size) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   type = sqlite3_column_type(query->data->stmt, index);
   if (type != SQLITE_BLOB && type != SQLITE_NULL) {
-    return C_ORM_ERROR_TYPE_MISMATCH;
+    {
+      rc = C_ORM_ERROR_TYPE_MISMATCH;
+      return (c_orm_error_t)rc;
+    }
   }
 
   *out_val = sqlite3_column_blob(query->data->stmt, index);
   *out_size = (size_t)sqlite3_column_bytes(query->data->stmt, index);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_is_null(c_orm_query_t *query, int index,
                                     int *out_is_null) {
-  if (!query || !query->data || !query->data->stmt || !out_is_null)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data || !query->data->stmt || !out_is_null) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   *out_is_null =
       (sqlite3_column_type(query->data->stmt, index) == SQLITE_NULL) ? 1 : 0;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_finalize(c_orm_query_t *query) {
-  if (!query)
-    return C_ORM_OK;
+  int rc;
+
+  if (!query) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
   if (query->data) {
     if (query->data->stmt) {
       sqlite3_finalize(query->data->stmt);
@@ -421,31 +582,47 @@ static c_orm_error_t sqlite_finalize(c_orm_query_t *query) {
     free(query->data);
   }
   free(query);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_reset(c_orm_query_t *query) {
-  if (!query || !query->data || !query->data->stmt)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data || !query->data->stmt) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   sqlite3_reset(query->data->stmt);
   sqlite3_clear_bindings(query->data->stmt);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static int sqlite_get_last_error(c_orm_db_t *db, const char **out_message) {
+  int rc;
   struct sqlite_db_data *data;
-  if (!out_message)
-    return 1;
+  if (!out_message) {
+    rc = 1;
+    return rc;
+  }
   if (!db || !db->driver_data) {
     *out_message = "Invalid DB object";
-    return 1;
+    rc = 1;
+    return rc;
   }
   data = (struct sqlite_db_data *)db->driver_data;
   *out_message = data->last_error;
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 static int sqlite_get_last_trace(c_orm_db_t *db, const char **out_trace) {
+  int rc;
   (void)db;
   /* SQLite doesn't natively expose rich trace stacks through its public C API
    * without compiling with SQLITE_ENABLE_API_ARMOR or SQLITE_ENABLE_SQLLOG.
@@ -457,33 +634,55 @@ static int sqlite_get_last_trace(c_orm_db_t *db, const char **out_trace) {
     /* It normally concatenates, but as a stub returning the literal string fits
      * signature. */
   }
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 static c_orm_error_t sqlite_get_last_insert_rowid(c_orm_db_t *db,
                                                   int64_t *out_id) {
+  int rc;
+
   struct sqlite_db_data *db_data;
-  if (!db || !db->driver_data || !out_id)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !db->driver_data || !out_id) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   db_data = (struct sqlite_db_data *)db->driver_data;
   *out_id = (int64_t)sqlite3_last_insert_rowid(db_data->db);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_get_column_count(c_orm_query_t *query,
                                              int *out_count) {
-  if (!query || !query->data || !query->data->stmt || !out_count)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data || !query->data->stmt || !out_count) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   *out_count = sqlite3_column_count(query->data->stmt);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t sqlite_get_column_name(c_orm_query_t *query, int index,
                                             const char **out_name) {
-  if (!query || !query->data || !query->data->stmt || !out_name)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!query || !query->data || !query->data->stmt || !out_name) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   *out_name = sqlite3_column_name(query->data->stmt, index);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static const c_orm_driver_vtable_t sqlite_vtable = {
@@ -513,60 +712,97 @@ static const c_orm_driver_vtable_t sqlite_vtable = {
 
 C_ORM_EXPORT int
 c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  if (!out_vtable)
-    return 1;
+  int rc;
+  if (!out_vtable) {
+    rc = 1;
+    return rc;
+  }
   *out_vtable = &sqlite_vtable;
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_connect(const char *url,
                                                 c_orm_db_t **out_db) {
-  return sqlite_connect(url, out_db);
+  int rc;
+
+  {
+    rc = sqlite_connect(url, out_db);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_open(
     c_orm_db_t *db, const char *db_name, const char *table, const char *column,
     int64_t row_id, int is_read_write, void **out_blob_handle) {
   int rc;
-  if (!db || !db->driver_data || !table || !column || !out_blob_handle)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !db->driver_data || !table || !column || !out_blob_handle) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   rc = sqlite3_blob_open((sqlite3 *)db->driver_data, db_name ? db_name : "main",
                          table, column, row_id, is_read_write,
                          (sqlite3_blob **)out_blob_handle);
-  if (rc != SQLITE_OK)
-    return C_ORM_ERROR_UNKNOWN;
-  return C_ORM_OK;
+  if (rc != SQLITE_OK) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_read(void *blob_handle,
                                                   void *buffer, int n,
                                                   int offset) {
   int rc;
-  if (!blob_handle || !buffer)
-    return C_ORM_ERROR_MEMORY;
+  if (!blob_handle || !buffer) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   rc = sqlite3_blob_read((sqlite3_blob *)blob_handle, buffer, n, offset);
-  if (rc != SQLITE_OK)
-    return C_ORM_ERROR_UNKNOWN;
-  return C_ORM_OK;
+  if (rc != SQLITE_OK) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
                                                    const void *buffer, int n,
                                                    int offset) {
   int rc;
-  if (!blob_handle || !buffer)
-    return C_ORM_ERROR_MEMORY;
+  if (!blob_handle || !buffer) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   rc = sqlite3_blob_write((sqlite3_blob *)blob_handle, buffer, n, offset);
-  if (rc != SQLITE_OK)
-    return C_ORM_ERROR_UNKNOWN;
-  return C_ORM_OK;
+  if (rc != SQLITE_OK) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle) {
-  if (!blob_handle)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!blob_handle) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   sqlite3_blob_close((sqlite3_blob *)blob_handle);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 #else
@@ -574,34 +810,62 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle) {
 /* Stub out if SQLite is not enabled */
 C_ORM_EXPORT int
 c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  if (out_vtable)
+  int rc;
+  if (out_vtable) {
     *out_vtable = NULL;
-  return 1;
+  }
+  rc = 1;
+  return rc;
 }
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_connect(const char *url,
                                                 c_orm_db_t **out_db) {
+  int rc;
+
   (void)url;
   (void)out_db;
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_open(
     c_orm_db_t *db, const char *db_name, const char *table, const char *column,
     int64_t row_id, int is_read_write, void **out_blob_handle) {
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  int rc;
+
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_read(void *blob_handle,
                                                   void *buffer, int n,
                                                   int offset) {
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  int rc;
+
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
                                                    const void *buffer, int n,
                                                    int offset) {
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  int rc;
+
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle) {
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
+  int rc;
+
+  {
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    return (c_orm_error_t)rc;
+  }
 }
 
 #endif

@@ -47,6 +47,8 @@ static c_orm_table_meta_t BlogPost_meta = {
     0};
 
 int main(void) {
+  int rc;
+
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
   BlogPost post;
@@ -57,7 +59,10 @@ int main(void) {
   err = c_orm_sqlite_connect(":memory:", &db);
   if (err != C_ORM_OK) {
     printf("Failed to connect to SQLite in memory.\n");
-    return 1;
+    {
+      rc = 1;
+      return rc;
+    }
   }
 
   c_orm_execute_raw(db, "CREATE TABLE blog_posts (id INTEGER PRIMARY KEY, "
@@ -90,5 +95,8 @@ int main(void) {
   /* Disconnect not available directly in high level api. Rely on internal
    * teardowns in full apps */
 
-  return 0;
+  {
+    rc = 0;
+    return rc;
+  }
 }

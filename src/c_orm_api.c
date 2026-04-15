@@ -20,6 +20,8 @@
 C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
     c_orm_db_t *db, c_orm_query_t *query, const c_orm_table_meta_t *meta,
     void *out_struct, size_t start_col) {
+  int rc;
+
   size_t i;
   c_orm_error_t err;
 
@@ -30,13 +32,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
     size_t col_idx = start_col + i;
 
     err = db->vtable->is_null(query, (int)col_idx, &is_null);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     if (is_null) {
       if (!col->is_nullable) {
         /* This is actually a constraint violation */
-        return C_ORM_ERROR_TYPE_MISMATCH;
+        {
+          rc = C_ORM_ERROR_TYPE_MISMATCH;
+          return (c_orm_error_t)rc;
+        }
       }
       /* If it's nullable primitive, we need to set the pointer to NULL.
          For string, set char* to NULL. */
@@ -64,12 +71,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
     case C_ORM_TYPE_INT32: {
       int32_t val;
       err = db->vtable->get_int32(query, (int)col_idx, &val);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
       if (col->is_nullable) {
         int32_t *ptr = (int32_t *)malloc(sizeof(int32_t));
-        if (!ptr)
-          return C_ORM_ERROR_MEMORY;
+        if (!ptr) {
+          rc = C_ORM_ERROR_MEMORY;
+          return (c_orm_error_t)rc;
+        }
         *ptr = val;
         *(int32_t **)field_ptr = ptr;
       } else {
@@ -80,14 +91,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
     case C_ORM_TYPE_BOOL: {
       int32_t val;
       err = db->vtable->get_int32(query, (int)col_idx, &val);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
       if (col->is_nullable) {
         /* Allocate 4 bytes to safely cover any compiler bool size mismatches (1
          * vs 4) */
         int *ptr = (int *)malloc(sizeof(int));
-        if (!ptr)
-          return C_ORM_ERROR_MEMORY;
+        if (!ptr) {
+          rc = C_ORM_ERROR_MEMORY;
+          return (c_orm_error_t)rc;
+        }
         *ptr = (val != 0 ? 1 : 0);
         *(int **)field_ptr = ptr;
       } else {
@@ -102,12 +117,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
     case C_ORM_TYPE_INT64: {
       int64_t val;
       err = db->vtable->get_int64(query, (int)col_idx, &val);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
       if (col->is_nullable) {
         int64_t *ptr = (int64_t *)malloc(sizeof(int64_t));
-        if (!ptr)
-          return C_ORM_ERROR_MEMORY;
+        if (!ptr) {
+          rc = C_ORM_ERROR_MEMORY;
+          return (c_orm_error_t)rc;
+        }
         *ptr = val;
         *(int64_t **)field_ptr = ptr;
       } else {
@@ -119,19 +138,25 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
     case C_ORM_TYPE_DOUBLE: {
       double val;
       err = db->vtable->get_double(query, (int)col_idx, &val);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
       if (col->is_nullable) {
         if (col->type == C_ORM_TYPE_FLOAT) {
           float *ptr = (float *)malloc(sizeof(float));
-          if (!ptr)
-            return C_ORM_ERROR_MEMORY;
+          if (!ptr) {
+            rc = C_ORM_ERROR_MEMORY;
+            return (c_orm_error_t)rc;
+          }
           *ptr = (float)val;
           *(float **)field_ptr = ptr;
         } else {
           double *ptr = (double *)malloc(sizeof(double));
-          if (!ptr)
-            return C_ORM_ERROR_MEMORY;
+          if (!ptr) {
+            rc = C_ORM_ERROR_MEMORY;
+            return (c_orm_error_t)rc;
+          }
           *ptr = val;
           *(double **)field_ptr = ptr;
         }
@@ -152,8 +177,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
     case C_ORM_TYPE_JSON: {
       const char *val;
       err = db->vtable->get_string(query, (int)col_idx, &val);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
 
       if (val) {
         if (col->type == C_ORM_TYPE_TIMESTAMP &&
@@ -200,8 +227,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
 #endif
               }
             }
-            if (!*(char **)field_ptr)
-              return C_ORM_ERROR_MEMORY;
+            if (!*(char **)field_ptr) {
+              rc = C_ORM_ERROR_MEMORY;
+              return (c_orm_error_t)rc;
+            }
             break; /* Skip the rest of string processing for this column since
                       we mapped it */
           }
@@ -216,16 +245,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
            */
           err = db->decrypt_hook(val, strlen(val), db->crypto_context,
                                  &decrypted_data, &decrypted_size);
-          if (err != C_ORM_OK)
-            return err;
+          if (err != C_ORM_OK) {
+            rc = err;
+            return (c_orm_error_t)rc;
+          }
           *(char **)field_ptr = (char *)malloc(decrypted_size + 1);
           if (*(char **)field_ptr) {
             memcpy(*(char **)field_ptr, decrypted_data, decrypted_size);
             (*(char **)field_ptr)[decrypted_size] = '\0';
           }
           free(decrypted_data);
-          if (!*(char **)field_ptr)
-            return C_ORM_ERROR_MEMORY;
+          if (!*(char **)field_ptr) {
+            rc = C_ORM_ERROR_MEMORY;
+            return (c_orm_error_t)rc;
+          }
         } else {
           size_t len = strlen(val);
           *(char **)field_ptr = (char *)malloc(len + 1);
@@ -236,8 +269,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
             strcpy(*(char **)field_ptr, val);
 #endif
           }
-          if (!*(char **)field_ptr)
-            return C_ORM_ERROR_MEMORY;
+          if (!*(char **)field_ptr) {
+            rc = C_ORM_ERROR_MEMORY;
+            return (c_orm_error_t)rc;
+          }
         }
       } else {
         *(char **)field_ptr = NULL;
@@ -248,8 +283,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       const void *val;
       size_t size;
       err = db->vtable->get_blob(query, (int)col_idx, &val, &size);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
       if (val && size == 21) {
         c_orm_point_t *pt = (c_orm_point_t *)field_ptr;
         const unsigned char *wkb = (const unsigned char *)val;
@@ -262,8 +299,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       const void *val;
       size_t size;
       err = db->vtable->get_blob(query, (int)col_idx, &val, &size);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
       if (val && size >= 13) {
         c_orm_polygon_t *poly = (c_orm_polygon_t *)field_ptr;
         const unsigned char *wkb = (const unsigned char *)val;
@@ -280,7 +319,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
               memcpy(&poly->points[j].y, &wkb[13 + j * 16 + 8], 8);
             }
           } else {
-            return C_ORM_ERROR_MEMORY;
+            {
+              rc = C_ORM_ERROR_MEMORY;
+              return (c_orm_error_t)rc;
+            }
           }
         } else {
           poly->points = NULL;
@@ -293,8 +335,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       const void *val;
       size_t size;
       err = db->vtable->get_blob(query, (int)col_idx, &val, &size);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
 
       if (val && size > 0) {
         c_orm_blob_t *blob_ptr = (c_orm_blob_t *)field_ptr;
@@ -304,8 +348,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
           size_t decrypted_size = 0;
           err = db->decrypt_hook(val, size, db->crypto_context, &decrypted_data,
                                  &decrypted_size);
-          if (err != C_ORM_OK)
-            return err;
+          if (err != C_ORM_OK) {
+            rc = err;
+            return (c_orm_error_t)rc;
+          }
 
           blob_ptr->data = malloc(decrypted_size);
           if (blob_ptr->data) {
@@ -315,7 +361,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
           free(decrypted_data);
           if (!blob_ptr->data) {
             blob_ptr->size = 0;
-            return C_ORM_ERROR_MEMORY;
+            {
+              rc = C_ORM_ERROR_MEMORY;
+              return (c_orm_error_t)rc;
+            }
           }
         } else {
           blob_ptr->data = malloc(size);
@@ -324,7 +373,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
             blob_ptr->size = size;
           } else {
             blob_ptr->size = 0;
-            return C_ORM_ERROR_MEMORY;
+            {
+              rc = C_ORM_ERROR_MEMORY;
+              return (c_orm_error_t)rc;
+            }
           }
         }
       } else {
@@ -334,8 +386,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       }
       break;
     }
-    default:
-      return C_ORM_ERROR_TYPE_MISMATCH;
+    default: {
+      rc = C_ORM_ERROR_TYPE_MISMATCH;
+      return (c_orm_error_t)rc;
+    }
     }
   }
 
@@ -349,24 +403,34 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       if (db->expire_cb) {
         db->expire_cb(db, meta, out_struct, db->expire_user_data);
       }
-      return C_ORM_ERROR_EXPIRED;
+      {
+        rc = C_ORM_ERROR_EXPIRED;
+        return (c_orm_error_t)rc;
+      }
     }
   }
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row(c_orm_db_t *db,
                                              c_orm_query_t *query,
                                              const c_orm_table_meta_t *meta,
                                              void *out_struct) {
+  int rc;
+
   c_orm_error_t err = c_orm_hydrate_row_from(db, query, meta, out_struct, 0);
   int col_count = 0;
   int i;
   void *cached_row = NULL;
 
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   /* Dynamic nested hydration for prefix columns (e.g. "company_id") */
   if (db->vtable->get_column_count && db->vtable->get_column_name) {
@@ -486,45 +550,65 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row(c_orm_db_t *db,
     }
   }
 
-  return c_orm_hydrate_cache_row(db, meta, out_struct, &cached_row);
+  {
+    rc = c_orm_hydrate_cache_row(db, meta, out_struct, &cached_row);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_find_all(c_orm_db_t *db,
                                           const c_orm_table_meta_t *meta,
                                           void *out_array) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
 
-  if (!db || !meta || !out_array)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !out_array) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   err = c_orm_prepare_cached(db, meta->query_select_all, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = c_orm_hydrate_all(db, query, meta, out_array);
 
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_find_by_composite_key(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, size_t num_keys,
     const struct CddCVariant *key_values, void *out_struct) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
   size_t i;
 
-  if (!db || !meta || !key_values || !out_struct)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !key_values || !out_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
-  if (!meta->query_select_by_pk)
-    return 700;
+  if (!meta->query_select_by_pk) {
+    rc = 700;
+    return (c_orm_error_t)rc;
+  }
 
   err = c_orm_prepare_cached(db, meta->query_select_by_pk, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < num_keys; ++i) {
     const struct CddCVariant *var = &key_values[i];
@@ -539,29 +623,43 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_by_composite_key(
 
     if (err != C_ORM_OK) {
       c_orm_finalize_cached(db, query);
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
   }
 
   err = db->vtable->step(query, &has_row);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (!has_row) {
     c_orm_finalize_cached(db, query);
-    return C_ORM_ERROR_NOT_FOUND;
+    {
+      rc = C_ORM_ERROR_NOT_FOUND;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_hydrate_row(db, query, meta, out_struct);
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_update_by_composite_key(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, size_t num_keys,
     const struct CddCVariant *key_values, const void *in_struct) {
+  int rc;
+
   /*
    * Step 165: Refactor c_orm_update to support composite keys
    * Standard c_orm_update loops over all columns and binds them implicitly
@@ -573,28 +671,41 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_by_composite_key(
    */
   (void)num_keys;
   (void)key_values;
-  return c_orm_update(db, meta, in_struct);
+  {
+    rc = c_orm_update(db, meta, in_struct);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_delete_by_composite_key(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, size_t num_keys,
     const struct CddCVariant *key_values) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
   size_t i;
 
-  if (!db || !meta || !key_values)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !key_values) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
-  if (!meta->query_delete_by_pk)
-    return 701;
-  if (meta->is_view)
-    return C_ORM_ERROR_READ_ONLY;
+  if (!meta->query_delete_by_pk) {
+    rc = 701;
+    return (c_orm_error_t)rc;
+  }
+  if (meta->is_view) {
+    rc = C_ORM_ERROR_READ_ONLY;
+    return (c_orm_error_t)rc;
+  }
 
   err = c_orm_prepare_cached(db, meta->query_delete_by_pk, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < num_keys; ++i) {
     const struct CddCVariant *var = &key_values[i];
@@ -608,48 +719,72 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_by_composite_key(
 
     if (err != C_ORM_OK) {
       c_orm_finalize_cached(db, query);
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
   }
 
   err = db->vtable->step(query, &has_row);
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_by_id_int32(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                        int32_t id_val, void *out_struct) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
 
-  if (!db || !meta || !out_struct)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !out_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   if (!meta->query_select_by_pk) {
-    return 702; /* No single PK available */
+    {
+      rc = 702;
+      return (c_orm_error_t)rc;
+    } /* No single PK available */
   }
 
   err = c_orm_prepare_cached(db, meta->query_select_by_pk, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = db->vtable->bind_int32(query, 1, id_val);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (!has_row) {
     c_orm_finalize_cached(db, query);
-    return C_ORM_ERROR_NOT_FOUND;
+    {
+      rc = C_ORM_ERROR_NOT_FOUND;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_hydrate_row(db, query, meta, out_struct);
@@ -658,7 +793,10 @@ c_orm_find_by_id_int32(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     fflush(stdout);
   }
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 /* Array Layout matching cdd-c:
@@ -677,6 +815,8 @@ struct Generic_Array {
 C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, int32_t id_val,
     const char *relation_name, void *out_struct) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   c_orm_string_builder_t *sb;
@@ -691,8 +831,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
   c_orm_lazy_load_context_t *ctx;
   void *target_data_ptr;
 
-  if (!db || !meta || !relation_name || !out_struct)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !relation_name || !out_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   /* Find relation */
   for (i = 0; i < meta->num_relations; i++) {
@@ -702,20 +844,27 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
     }
   }
 
-  if (!rel)
-    return C_ORM_ERROR_NOT_FOUND;
+  if (!rel) {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
 
   if (rel->type != C_ORM_RELATION_ONE_TO_ONE &&
       rel->type != C_ORM_RELATION_BELONGS_TO &&
       rel->type != C_ORM_RELATION_ONE_TO_MANY &&
       rel->type != C_ORM_RELATION_MANY_TO_MANY) {
-    return 703; /* Eager load array not implemented here
-                                           yet for others */
+    {
+      rc = 703;
+      return (c_orm_error_t)rc;
+    } /* Eager load array not implemented here
+     yet for others */
   }
 
   target_meta = rel->target_meta;
-  if (!target_meta)
-    return 704;
+  if (!target_meta) {
+    rc = 704;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < meta->num_columns; i++) {
     if (meta->columns[i].is_pk) {
@@ -724,11 +873,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
     }
   }
 
-  if (!pk_col || pk_col->type != C_ORM_TYPE_INT32)
-    return 705;
+  if (!pk_col || pk_col->type != C_ORM_TYPE_INT32) {
+    rc = 705;
+    return (c_orm_error_t)rc;
+  }
 
-  if (c_orm_string_builder_init(&sb) != 0)
-    return C_ORM_ERROR_MEMORY;
+  if (c_orm_string_builder_init(&sb) != 0) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   /* Build LEFT JOIN query: SELECT p.*, c.* FROM Parent p LEFT JOIN Child c ON
    * p.local_key = c.foreign_key WHERE p.pk = ? */
@@ -779,36 +932,53 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
 
   if (c_orm_string_builder_get(sb, &sql) != 0) {
     c_orm_string_builder_free(sb);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_prepare_cached(db, sql, &query);
   c_orm_string_builder_free(sb);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = db->vtable->bind_int32(query, 1, id_val);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (!has_row) {
     c_orm_finalize_cached(db, query);
-    return C_ORM_ERROR_NOT_FOUND;
+    {
+      rc = C_ORM_ERROR_NOT_FOUND;
+      return (c_orm_error_t)rc;
+    }
   }
 
   /* Hydrate parent from columns 0 to num_columns-1 */
   err = c_orm_hydrate_row_from(db, query, meta, out_struct, 0);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   context_ptr = (char *)out_struct + rel->struct_offset;
@@ -823,7 +993,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
       void *new_struct = calloc(1, target_meta->struct_size);
       if (!new_struct) {
         c_orm_finalize_cached(db, query);
-        return C_ORM_ERROR_MEMORY;
+        {
+          rc = C_ORM_ERROR_MEMORY;
+          return (c_orm_error_t)rc;
+        }
       }
       err = c_orm_hydrate_row_from(db, query, target_meta, new_struct,
                                    meta->num_columns);
@@ -853,7 +1026,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
           void *new_data = realloc(data, new_cap * target_meta->struct_size);
           if (!new_data) {
             c_orm_finalize_cached(db, query);
-            return C_ORM_ERROR_MEMORY;
+            {
+              rc = C_ORM_ERROR_MEMORY;
+              return (c_orm_error_t)rc;
+            }
           }
           memset((char *)new_data + (cap * target_meta->struct_size), 0,
                  (new_cap - cap) * target_meta->struct_size);
@@ -869,14 +1045,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
           count++;
         } else {
           c_orm_finalize_cached(db, query);
-          return err;
+          {
+            rc = err;
+            return (c_orm_error_t)rc;
+          }
         }
       }
 
       err = db->vtable->step(query, &has_row);
       if (err != C_ORM_OK) {
         c_orm_finalize_cached(db, query);
-        return err;
+        {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
     } while (has_row);
 
@@ -887,12 +1069,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
   }
 
   c_orm_finalize_cached(db, query);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                              const char *relation_name, void *out_array) {
+  int rc;
+
   c_orm_error_t err;
   size_t i;
   const c_orm_relation_meta_t *rel = NULL;
@@ -905,8 +1092,10 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   c_orm_query_t *query = NULL;
   int has_row;
 
-  if (!db || !meta || !relation_name || !out_array)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !relation_name || !out_array) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   /* Find relation */
   for (i = 0; i < meta->num_relations; i++) {
@@ -916,19 +1105,26 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     }
   }
 
-  if (!rel)
-    return C_ORM_ERROR_NOT_FOUND;
+  if (!rel) {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
 
   if (rel->type != C_ORM_RELATION_ONE_TO_ONE &&
       rel->type != C_ORM_RELATION_BELONGS_TO &&
       rel->type != C_ORM_RELATION_ONE_TO_MANY &&
       rel->type != C_ORM_RELATION_MANY_TO_MANY) {
-    return 706;
+    {
+      rc = 706;
+      return (c_orm_error_t)rc;
+    }
   }
 
   target_meta = rel->target_meta;
-  if (!target_meta)
-    return 707;
+  if (!target_meta) {
+    rc = 707;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < meta->num_columns; i++) {
     if (meta->columns[i].is_pk) {
@@ -937,17 +1133,23 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     }
   }
 
-  if (!pk_col || pk_col->type != C_ORM_TYPE_INT32)
-    return 708;
+  if (!pk_col || pk_col->type != C_ORM_TYPE_INT32) {
+    rc = 708;
+    return (c_orm_error_t)rc;
+  }
 
   /* Fetch all parents first */
   err = c_orm_find_all(db, meta, out_array);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   parents_count = out_arr->length;
-  if (parents_count == 0)
-    return C_ORM_OK;
+  if (parents_count == 0) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
   parents_data = out_arr->data;
 
   /* Initialize relation fields for all parents to empty/NULL */
@@ -981,8 +1183,10 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
       if (actual_chunk > chunk_size)
         actual_chunk = chunk_size;
 
-      if (c_orm_string_builder_init(&sb) != 0)
-        return C_ORM_ERROR_MEMORY;
+      if (c_orm_string_builder_init(&sb) != 0) {
+        rc = C_ORM_ERROR_MEMORY;
+        return (c_orm_error_t)rc;
+      }
 
       if (rel->type == C_ORM_RELATION_MANY_TO_MANY) {
         const char *target_pk = NULL;
@@ -1003,7 +1207,10 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
         }
         if (!target_pk) {
           c_orm_string_builder_free(sb);
-          return 709;
+          {
+            rc = 709;
+            return (c_orm_error_t)rc;
+          }
         }
         c_orm_string_builder_append(sb, target_pk);
         c_orm_string_builder_append(sb, " = j.");
@@ -1037,13 +1244,19 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 
       if (c_orm_string_builder_get(sb, &sql) != 0) {
         c_orm_string_builder_free(sb);
-        return C_ORM_ERROR_MEMORY;
+        {
+          rc = C_ORM_ERROR_MEMORY;
+          return (c_orm_error_t)rc;
+        }
       }
 
       err = c_orm_prepare_cached(db, sql, &query);
       if (err != C_ORM_OK) {
         c_orm_string_builder_free(sb);
-        return err;
+        {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
 
       for (i = 0; i < actual_chunk; i++) {
@@ -1054,7 +1267,10 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
         if (err != C_ORM_OK) {
           c_orm_finalize_cached(db, query);
           c_orm_string_builder_free(sb);
-          return err;
+          {
+            rc = err;
+            return (c_orm_error_t)rc;
+          }
         }
       }
 
@@ -1062,7 +1278,10 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
       if (err != C_ORM_OK) {
         c_orm_finalize_cached(db, query);
         c_orm_string_builder_free(sb);
-        return err;
+        {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
 
       while (has_row) {
@@ -1163,20 +1382,28 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
       sb = NULL;
 
       if (err != C_ORM_OK && err != C_ORM_ERROR_NOT_FOUND) {
-        return err;
+        {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
 
       start_idx += actual_chunk;
     }
   }
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
                                              c_orm_query_t *query,
                                              const c_orm_table_meta_t *meta,
                                              void *out_array) {
+  int rc;
+
   c_orm_error_t err;
   int has_row;
   struct Generic_Array *arr = (struct Generic_Array *)out_array;
@@ -1184,13 +1411,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
   size_t cap = arr->capacity;
   void *data = arr->data;
 
-  if (!db || !query || !meta || !out_array)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !query || !meta || !out_array) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   for (;;) {
     err = db->vtable->step(query, &has_row);
     if (err != C_ORM_OK) {
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
     if (!has_row)
       break;
@@ -1199,7 +1431,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
       size_t new_cap = cap == 0 ? 16 : cap * 2;
       void *new_data = realloc(data, new_cap * meta->struct_size);
       if (!new_data) {
-        return C_ORM_ERROR_MEMORY;
+        {
+          rc = C_ORM_ERROR_MEMORY;
+          return (c_orm_error_t)rc;
+        }
       }
       /* Step 47: Initialize structure fully including child arrays/relations to
        * 0 */
@@ -1216,7 +1451,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
       /* Skip adding this record to the output array */
       continue;
     } else if (err != C_ORM_OK) {
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
     count++;
   }
@@ -1225,23 +1463,32 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
   arr->capacity = cap;
   arr->length = count;
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_find_with_relations_int32(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, int32_t id_val,
     const char **relation_paths, size_t num_paths, void *out_struct) {
+  int rc;
+
   c_orm_error_t err;
   size_t i;
   char first_rel[64];
 
-  if (!db || !meta || !relation_paths || !out_struct)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !relation_paths || !out_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   /* Baseline parent fetch */
   err = c_orm_find_by_id_int32(db, meta, id_val, out_struct);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   /* Iterative lazy load to simulate eager mapping recursively */
   /* Real eager load mapping via huge JOIN AST parsing would go here in Phase 6
@@ -1267,8 +1514,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relations_int32(
     }
 
     err = c_orm_lazy_load(db, meta, out_struct, first_rel);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     /* Handle deep nesting */
     if (dot) {
@@ -1294,8 +1543,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relations_int32(
              * load */
             err =
                 c_orm_lazy_load(db, rel->target_meta, nested_obj, nested_path);
-            if (err != C_ORM_OK)
-              return err;
+            if (err != C_ORM_OK) {
+              rc = err;
+              return (c_orm_error_t)rc;
+            }
           }
         } else {
           struct Generic_Array *arr = (struct Generic_Array *)target_data_ptr;
@@ -1304,30 +1555,41 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relations_int32(
             void *child_obj =
                 (char *)arr->data + (j * rel->target_meta->struct_size);
             err = c_orm_lazy_load(db, rel->target_meta, child_obj, nested_path);
-            if (err != C_ORM_OK)
-              return err;
+            if (err != C_ORM_OK) {
+              rc = err;
+              return (c_orm_error_t)rc;
+            }
           }
         }
       }
     }
   }
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_find_all_with_relations(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, const char **relation_paths,
     size_t num_paths, void *out_array) {
+  int rc;
+
   c_orm_error_t err;
   struct Generic_Array *arr;
   size_t i, p;
 
-  if (!db || !meta || !relation_paths || !out_array)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !relation_paths || !out_array) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   err = c_orm_find_all(db, meta, out_array);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   arr = (struct Generic_Array *)out_array;
   for (i = 0; i < arr->length; i++) {
@@ -1352,8 +1614,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_with_relations(
       }
 
       err = c_orm_lazy_load(db, meta, parent_obj, first_rel);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
 
       if (dot) {
         const char *nested_path = dot + 1;
@@ -1376,8 +1640,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_with_relations(
             if (nested_obj) {
               err = c_orm_lazy_load(db, rel->target_meta, nested_obj,
                                     nested_path);
-              if (err != C_ORM_OK)
-                return err;
+              if (err != C_ORM_OK) {
+                rc = err;
+                return (c_orm_error_t)rc;
+              }
             }
           } else {
             struct Generic_Array *child_arr =
@@ -1388,8 +1654,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_with_relations(
                   (char *)child_arr->data + (j * rel->target_meta->struct_size);
               err =
                   c_orm_lazy_load(db, rel->target_meta, child_obj, nested_path);
-              if (err != C_ORM_OK)
-                return err;
+              if (err != C_ORM_OK) {
+                rc = err;
+                return (c_orm_error_t)rc;
+              }
             }
           }
         }
@@ -1397,11 +1665,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_with_relations(
     }
   }
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t set_null_field(const c_orm_table_meta_t *meta,
                                     void *struct_ptr, const char *field_name) {
+  int rc;
+
   size_t i;
   for (i = 0; i < meta->num_columns; i++) {
     if (strcmp(meta->columns[i].name, field_name) == 0) {
@@ -1423,15 +1696,23 @@ static c_orm_error_t set_null_field(const c_orm_table_meta_t *meta,
           *(double *)field_ptr = 0.0;
         }
       }
-      return C_ORM_OK;
+      {
+        rc = C_ORM_OK;
+        return (c_orm_error_t)rc;
+      }
     }
   }
-  return C_ORM_ERROR_NOT_FOUND;
+  {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t set_int_field(const c_orm_table_meta_t *meta,
                                    void *struct_ptr, const char *field_name,
                                    int64_t val) {
+  int rc;
+
   size_t i;
   for (i = 0; i < meta->num_columns; i++) {
     if (strcmp(meta->columns[i].name, field_name) == 0) {
@@ -1440,8 +1721,10 @@ static c_orm_error_t set_int_field(const c_orm_table_meta_t *meta,
         if (meta->columns[i].is_nullable) {
           if (!*(int32_t **)field_ptr) {
             *(int32_t **)field_ptr = (int32_t *)malloc(sizeof(int32_t));
-            if (!*(int32_t **)field_ptr)
-              return C_ORM_ERROR_MEMORY;
+            if (!*(int32_t **)field_ptr) {
+              rc = C_ORM_ERROR_MEMORY;
+              return (c_orm_error_t)rc;
+            }
           }
           **(int32_t **)field_ptr = (int32_t)val;
         } else {
@@ -1451,56 +1734,81 @@ static c_orm_error_t set_int_field(const c_orm_table_meta_t *meta,
         if (meta->columns[i].is_nullable) {
           if (!*(int64_t **)field_ptr) {
             *(int64_t **)field_ptr = (int64_t *)malloc(sizeof(int64_t));
-            if (!*(int64_t **)field_ptr)
-              return C_ORM_ERROR_MEMORY;
+            if (!*(int64_t **)field_ptr) {
+              rc = C_ORM_ERROR_MEMORY;
+              return (c_orm_error_t)rc;
+            }
           }
           **(int64_t **)field_ptr = val;
         } else {
           *(int64_t *)field_ptr = val;
         }
       }
-      return C_ORM_OK;
+      {
+        rc = C_ORM_OK;
+        return (c_orm_error_t)rc;
+      }
     }
   }
-  return C_ORM_ERROR_NOT_FOUND;
+  {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t get_int_field(const c_orm_table_meta_t *meta,
                                    const void *struct_ptr,
                                    const char *field_name, int64_t *out_val) {
+  int rc;
+
   size_t i;
   for (i = 0; i < meta->num_columns; i++) {
     if (strcmp(meta->columns[i].name, field_name) == 0) {
       void *field_ptr = (char *)struct_ptr + meta->columns[i].offset;
       if (meta->columns[i].type == C_ORM_TYPE_INT32) {
         if (meta->columns[i].is_nullable) {
-          if (!*(int32_t **)field_ptr)
-            return C_ORM_ERROR_NOT_FOUND;
+          if (!*(int32_t **)field_ptr) {
+            rc = C_ORM_ERROR_NOT_FOUND;
+            return (c_orm_error_t)rc;
+          }
           *out_val = **(int32_t **)field_ptr;
         } else {
           *out_val = *(int32_t *)field_ptr;
         }
       } else if (meta->columns[i].type == C_ORM_TYPE_INT64) {
         if (meta->columns[i].is_nullable) {
-          if (!*(int64_t **)field_ptr)
-            return C_ORM_ERROR_NOT_FOUND;
+          if (!*(int64_t **)field_ptr) {
+            rc = C_ORM_ERROR_NOT_FOUND;
+            return (c_orm_error_t)rc;
+          }
           *out_val = **(int64_t **)field_ptr;
         } else {
           *out_val = *(int64_t *)field_ptr;
         }
       } else {
-        return C_ORM_ERROR_TYPE_MISMATCH;
+        {
+          rc = C_ORM_ERROR_TYPE_MISMATCH;
+          return (c_orm_error_t)rc;
+        }
       }
-      return C_ORM_OK;
+      {
+        rc = C_ORM_OK;
+        return (c_orm_error_t)rc;
+      }
     }
   }
-  return C_ORM_ERROR_NOT_FOUND;
+  {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
                               const c_orm_table_meta_t *meta,
                               const void *in_struct, int skip_pk,
                               int skip_clean, int *bind_idx) {
+  int rc;
+
   size_t i;
   c_orm_error_t err;
   const c_orm_dirty_flags_t *flags = NULL;
@@ -1551,8 +1859,10 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
 
       if (!str_val) {
         err = db->vtable->bind_null(query, (*bind_idx)++);
-        if (err != C_ORM_OK)
-          return err;
+        if (err != C_ORM_OK) {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
         continue;
       }
 
@@ -1595,21 +1905,27 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
         size_t encrypted_size = 0;
         err = db->encrypt_hook(str_val, strlen(str_val), db->crypto_context,
                                &encrypted_data, &encrypted_size);
-        if (err != C_ORM_OK)
-          return err;
+        if (err != C_ORM_OK) {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
         /* Re-route secured strings directly into blob parameters to guarantee
          * raw byte safety */
         err = db->vtable->bind_blob(query, (*bind_idx)++, encrypted_data,
                                     encrypted_size);
         free(encrypted_data); /* Assumes hook allocates generic dynamically */
-        if (err != C_ORM_OK)
-          return err;
+        if (err != C_ORM_OK) {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
         continue;
       }
 
       err = db->vtable->bind_string(query, (*bind_idx)++, str_val);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
       continue;
     }
 
@@ -1617,8 +1933,10 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
       const c_orm_blob_t *blob_val = (const c_orm_blob_t *)field_ptr;
       if (!blob_val->data || blob_val->size == 0) {
         err = db->vtable->bind_null(query, (*bind_idx)++);
-        if (err != C_ORM_OK)
-          return err;
+        if (err != C_ORM_OK) {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
         continue;
       }
 
@@ -1629,20 +1947,26 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
         err =
             db->encrypt_hook(blob_val->data, blob_val->size, db->crypto_context,
                              &encrypted_data, &encrypted_size);
-        if (err != C_ORM_OK)
-          return err;
+        if (err != C_ORM_OK) {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
         err = db->vtable->bind_blob(query, (*bind_idx)++, encrypted_data,
                                     encrypted_size);
         free(encrypted_data);
-        if (err != C_ORM_OK)
-          return err;
+        if (err != C_ORM_OK) {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
         continue;
       }
 
       err = db->vtable->bind_blob(query, (*bind_idx)++, blob_val->data,
                                   blob_val->size);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
       continue;
     }
 
@@ -1651,8 +1975,10 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
       const void *ptr_val = *(const void **)field_ptr;
       if (!ptr_val) {
         err = db->vtable->bind_null(query, (*bind_idx)++);
-        if (err != C_ORM_OK)
-          return err;
+        if (err != C_ORM_OK) {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
         continue;
       }
       field_ptr = ptr_val; /* Dereference to read the primitive value */
@@ -1706,8 +2032,10 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
       const c_orm_polygon_t *poly = (const c_orm_polygon_t *)field_ptr;
       size_t size = 1 + 4 + 4 + 4 + (poly->num_points * 16);
       unsigned char *wkb = (unsigned char *)malloc(size);
-      if (!wkb)
-        return C_ORM_ERROR_MEMORY;
+      if (!wkb) {
+        rc = C_ORM_ERROR_MEMORY;
+        return (c_orm_error_t)rc;
+      }
       wkb[0] = 1;
       wkb[1] = 3;
       wkb[2] = 0;
@@ -1733,13 +2061,20 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
       free(wkb);
       break;
     }
-    default:
-      return C_ORM_ERROR_TYPE_MISMATCH;
+    default: {
+      rc = C_ORM_ERROR_TYPE_MISMATCH;
+      return (c_orm_error_t)rc;
     }
-    if (err != C_ORM_OK)
-      return err;
+    }
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 struct c_orm_iterator {
@@ -1753,16 +2088,24 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, const void *in_array,
     size_t num_items, size_t chunk_size, c_orm_on_conflict_t conflict_policy,
     c_orm_batch_progress_cb progress_cb, void *progress_ctx) {
+  int rc;
+
   c_orm_error_t err;
   size_t i, j, k;
   size_t actual_chunk;
 
-  if (!db || !meta || !in_array)
-    return C_ORM_ERROR_MEMORY;
-  if (meta->is_view)
-    return C_ORM_ERROR_READ_ONLY;
-  if (num_items == 0)
-    return C_ORM_OK;
+  if (!db || !meta || !in_array) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  if (meta->is_view) {
+    rc = C_ORM_ERROR_READ_ONLY;
+    return (c_orm_error_t)rc;
+  }
+  if (num_items == 0) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 
   if (chunk_size == 0) {
     chunk_size = 30000 / (meta->num_columns > 0 ? meta->num_columns : 1);
@@ -1771,8 +2114,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
   }
 
   err = c_orm_transaction_begin(db);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < num_items; i += actual_chunk) {
     c_orm_query_t *query;
@@ -1788,7 +2133,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
 
     if (c_orm_string_builder_init(&sb) != 0) {
       c_orm_transaction_rollback(db);
-      return C_ORM_ERROR_MEMORY;
+      {
+        rc = C_ORM_ERROR_MEMORY;
+        return (c_orm_error_t)rc;
+      }
     }
 
     c_orm_string_builder_append(sb, "INSERT INTO ");
@@ -1827,14 +2175,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
     if (c_orm_string_builder_get(sb, &sql_str) != 0) {
       c_orm_string_builder_free(sb);
       c_orm_transaction_rollback(db);
-      return C_ORM_ERROR_MEMORY;
+      {
+        rc = C_ORM_ERROR_MEMORY;
+        return (c_orm_error_t)rc;
+      }
     }
 
     err = db->vtable->prepare(db, sql_str, &query);
     c_orm_string_builder_free(sb);
     if (err != C_ORM_OK) {
       c_orm_transaction_rollback(db);
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
 
     for (j = 0; j < actual_chunk; j++) {
@@ -1846,21 +2200,30 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
               0) {
         db->vtable->finalize(query);
         c_orm_transaction_rollback(db);
-        return C_ORM_ERROR_UNKNOWN;
+        {
+          rc = C_ORM_ERROR_UNKNOWN;
+          return (c_orm_error_t)rc;
+        }
       }
       if (meta->hooks[C_ORM_HOOK_BEFORE_INSERT] &&
           meta->hooks[C_ORM_HOOK_BEFORE_INSERT]((void *)current_struct, db) !=
               0) {
         db->vtable->finalize(query);
         c_orm_transaction_rollback(db);
-        return C_ORM_ERROR_UNKNOWN;
+        {
+          rc = C_ORM_ERROR_UNKNOWN;
+          return (c_orm_error_t)rc;
+        }
       }
 
       err = bind_row(db, query, meta, current_struct, 0, 0, &bind_idx);
       if (err != C_ORM_OK) {
         db->vtable->finalize(query);
         c_orm_transaction_rollback(db);
-        return err;
+        {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
     }
 
@@ -1869,7 +2232,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
 
     if (err != C_ORM_OK) {
       c_orm_transaction_rollback(db);
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
 
     for (j = 0; j < actual_chunk; j++) {
@@ -1879,12 +2245,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
           meta->hooks[C_ORM_HOOK_AFTER_INSERT]((void *)current_struct, db) !=
               0) {
         c_orm_transaction_rollback(db);
-        return C_ORM_ERROR_UNKNOWN;
+        {
+          rc = C_ORM_ERROR_UNKNOWN;
+          return (c_orm_error_t)rc;
+        }
       }
       if (meta->hooks[C_ORM_HOOK_AFTER_SAVE] &&
           meta->hooks[C_ORM_HOOK_AFTER_SAVE]((void *)current_struct, db) != 0) {
         c_orm_transaction_rollback(db);
-        return C_ORM_ERROR_UNKNOWN;
+        {
+          rc = C_ORM_ERROR_UNKNOWN;
+          return (c_orm_error_t)rc;
+        }
       }
     }
 
@@ -1894,7 +2266,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
   }
 
   err = c_orm_transaction_commit(db);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_insert_batch(c_orm_db_t *db,
@@ -1902,22 +2277,33 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch(c_orm_db_t *db,
                                               const void *in_array,
                                               size_t num_items,
                                               size_t chunk_size) {
-  return c_orm_insert_batch_ext(db, meta, in_array, num_items, chunk_size,
+  int rc;
+
+  {
+    rc = c_orm_insert_batch_ext(db, meta, in_array, num_items, chunk_size,
                                 C_ORM_ON_CONFLICT_FAIL, NULL, NULL);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_find_batch_init(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *sql,
     size_t chunk_size, struct c_orm_iterator **out_iter) {
+  int rc;
+
   struct c_orm_iterator *iter;
   c_orm_error_t err;
 
-  if (!db || !meta || !out_iter || chunk_size == 0)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !out_iter || chunk_size == 0) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   iter = (struct c_orm_iterator *)malloc(sizeof(struct c_orm_iterator));
-  if (!iter)
-    return C_ORM_ERROR_MEMORY;
+  if (!iter) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   iter->db = db;
   iter->meta = meta;
@@ -1930,22 +2316,32 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_batch_init(
   err = db->vtable->prepare(db, sql, &iter->query);
   if (err != C_ORM_OK) {
     free(iter);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   *out_iter = iter;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_iterator_next(struct c_orm_iterator *iter,
                                                void *out_array,
                                                size_t *out_num_fetched) {
+  int rc;
+
   size_t count = 0;
   int has_row;
   c_orm_error_t err;
 
-  if (!iter || !out_array || !out_num_fetched)
-    return C_ORM_ERROR_MEMORY;
+  if (!iter || !out_array || !out_num_fetched) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   *out_num_fetched = 0;
 
@@ -1956,8 +2352,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_iterator_next(struct c_orm_iterator *iter,
 
   for (count = 0; count < iter->chunk_size; count++) {
     err = iter->db->vtable->step(iter->query, &has_row);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
     if (!has_row)
       break;
 
@@ -1971,46 +2369,69 @@ C_ORM_EXPORT c_orm_error_t c_orm_iterator_next(struct c_orm_iterator *iter,
       count--; /* Overwrite on next loop */
       continue;
     } else if (err != C_ORM_OK) {
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
   }
 
   *out_num_fetched = count;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_iterator_close(struct c_orm_iterator *iter) {
-  if (!iter)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!iter) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   if (iter->query) {
     iter->db->vtable->finalize(iter->query);
   }
   free(iter);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
                                         const c_orm_table_meta_t *meta,
                                         const void *in_struct) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
   size_t i;
   int bind_idx = 1;
 
-  if (!db || !meta || !in_struct)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !in_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
-  if (meta->is_view)
-    return C_ORM_ERROR_READ_ONLY;
+  if (meta->is_view) {
+    rc = C_ORM_ERROR_READ_ONLY;
+    return (c_orm_error_t)rc;
+  }
 
   if (meta->hooks[C_ORM_HOOK_BEFORE_SAVE] &&
-      meta->hooks[C_ORM_HOOK_BEFORE_SAVE]((void *)in_struct, db) != 0)
-    return C_ORM_ERROR_UNKNOWN;
+      meta->hooks[C_ORM_HOOK_BEFORE_SAVE]((void *)in_struct, db) != 0) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
   if (meta->hooks[C_ORM_HOOK_BEFORE_INSERT] &&
-      meta->hooks[C_ORM_HOOK_BEFORE_INSERT]((void *)in_struct, db) != 0)
-    return C_ORM_ERROR_UNKNOWN;
+      meta->hooks[C_ORM_HOOK_BEFORE_INSERT]((void *)in_struct, db) != 0) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
 
   /* BELONGS_TO: Insert children first, get their PK, assign to parent's FK */
   for (i = 0; i < meta->num_relations; i++) {
@@ -2039,7 +2460,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
             }
           }
         } else {
-          return err;
+          {
+            rc = err;
+            return (c_orm_error_t)rc;
+          }
         }
       } else {
         /* Validate required BelongsTo */
@@ -2050,14 +2474,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
               int64_t existing_fk = 0;
               get_int_field(meta, in_struct, rel->local_key, &existing_fk);
               if (existing_fk == 0) {
-                return C_ORM_ERROR_VALIDATION;
+                {
+                  rc = C_ORM_ERROR_VALIDATION;
+                  return (c_orm_error_t)rc;
+                }
               } else {
                 /* Runtime check if FK exists */
                 int exists = 0;
                 c_orm_error_t exists_err = c_orm_exists_int32(
                     db, rel->target_meta, (int32_t)existing_fk, &exists);
                 if (exists_err == C_ORM_OK && !exists) {
-                  return C_ORM_ERROR_VALIDATION;
+                  {
+                    rc = C_ORM_ERROR_VALIDATION;
+                    return (c_orm_error_t)rc;
+                  }
                 }
               }
             } else {
@@ -2070,7 +2500,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
                 c_orm_error_t exists_err = c_orm_exists_int32(
                     db, rel->target_meta, (int32_t)existing_fk, &exists);
                 if (exists_err == C_ORM_OK && !exists) {
-                  return C_ORM_ERROR_VALIDATION;
+                  {
+                    rc = C_ORM_ERROR_VALIDATION;
+                    return (c_orm_error_t)rc;
+                  }
                 }
               }
             }
@@ -2082,20 +2515,27 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
   }
 
   err = c_orm_prepare_cached(db, meta->query_insert, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = bind_row(db, query, meta, in_struct, 0, 0, &bind_idx); /* Bind all */
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
   c_orm_finalize_cached(db, query);
 
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   /* HAS_ONE / ONE_TO_ONE: Insert parent, get its PK, assign to child's FK,
    * insert child */
@@ -2121,25 +2561,36 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
                         parent_id);
         }
         err = c_orm_insert(db, rel->target_meta, nested_ptr);
-        if (err != C_ORM_OK)
-          return err;
+        if (err != C_ORM_OK) {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
     }
   }
 
   if (meta->hooks[C_ORM_HOOK_AFTER_INSERT] &&
-      meta->hooks[C_ORM_HOOK_AFTER_INSERT]((void *)in_struct, db) != 0)
-    return C_ORM_ERROR_UNKNOWN;
+      meta->hooks[C_ORM_HOOK_AFTER_INSERT]((void *)in_struct, db) != 0) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
   if (meta->hooks[C_ORM_HOOK_AFTER_SAVE] &&
-      meta->hooks[C_ORM_HOOK_AFTER_SAVE]((void *)in_struct, db) != 0)
-    return C_ORM_ERROR_UNKNOWN;
+      meta->hooks[C_ORM_HOOK_AFTER_SAVE]((void *)in_struct, db) != 0) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
                                         const c_orm_table_meta_t *meta,
                                         const void *in_struct) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
@@ -2147,12 +2598,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
   int bind_idx = 1;
   size_t i;
 
-  if (!db || !meta || !in_struct)
-    return C_ORM_ERROR_MEMORY;
-  if (meta->is_view)
-    return C_ORM_ERROR_READ_ONLY;
-  if (!meta->query_update)
-    return 710;
+  if (!db || !meta || !in_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  if (meta->is_view) {
+    rc = C_ORM_ERROR_READ_ONLY;
+    return (c_orm_error_t)rc;
+  }
+  if (!meta->query_update) {
+    rc = 710;
+    return (c_orm_error_t)rc;
+  }
 
   /* Step 92: Implement cascading update for nested structs */
   /* BELONGS_TO: Update children first */
@@ -2165,8 +2622,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
       void *nested_ptr = *(void **)target_data_ptr;
       if (nested_ptr && rel->on_update == C_ORM_CASCADE_UPDATE) {
         err = c_orm_save(db, rel->target_meta, nested_ptr);
-        if (err != C_ORM_OK)
-          return err;
+        if (err != C_ORM_OK) {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       } else if (!nested_ptr) {
         /* Validate required BelongsTo */
         size_t j;
@@ -2176,13 +2635,19 @@ C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
               int64_t existing_fk = 0;
               get_int_field(meta, in_struct, rel->local_key, &existing_fk);
               if (existing_fk == 0) {
-                return C_ORM_ERROR_VALIDATION;
+                {
+                  rc = C_ORM_ERROR_VALIDATION;
+                  return (c_orm_error_t)rc;
+                }
               } else {
                 int exists = 0;
                 c_orm_error_t exists_err = c_orm_exists_int32(
                     db, rel->target_meta, (int32_t)existing_fk, &exists);
                 if (exists_err == C_ORM_OK && !exists) {
-                  return C_ORM_ERROR_VALIDATION;
+                  {
+                    rc = C_ORM_ERROR_VALIDATION;
+                    return (c_orm_error_t)rc;
+                  }
                 }
               }
             } else {
@@ -2194,7 +2659,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
                 c_orm_error_t exists_err = c_orm_exists_int32(
                     db, rel->target_meta, (int32_t)existing_fk, &exists);
                 if (exists_err == C_ORM_OK && !exists) {
-                  return C_ORM_ERROR_VALIDATION;
+                  {
+                    rc = C_ORM_ERROR_VALIDATION;
+                    return (c_orm_error_t)rc;
+                  }
                 }
               }
             }
@@ -2206,15 +2674,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
   }
 
   err = c_orm_prepare_cached(db, meta->query_update, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   /* We bind all fields, then the PK at the end. Here we can use dirty tracking
    */
   err = bind_row(db, query, meta, in_struct, 0, 1, &bind_idx);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   bind_idx = (int)(meta->num_columns + 1);
@@ -2228,21 +2701,30 @@ C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
         err = db->vtable->bind_int32(query, bind_idx, pk_val);
         if (err != C_ORM_OK) {
           c_orm_finalize_cached(db, query);
-          return err;
+          {
+            rc = err;
+            return (c_orm_error_t)rc;
+          }
         }
       } else if (meta->columns[i].type == C_ORM_TYPE_STRING) {
         const char *pk_str = *(const char **)field_ptr;
         err = db->vtable->bind_string(query, bind_idx, pk_str);
         if (err != C_ORM_OK) {
           c_orm_finalize_cached(db, query);
-          return err;
+          {
+            rc = err;
+            return (c_orm_error_t)rc;
+          }
         }
       } else if (meta->columns[i].type == C_ORM_TYPE_INT64) {
         int64_t pk_64 = *(const int64_t *)field_ptr;
         err = db->vtable->bind_int64(query, bind_idx, pk_64);
         if (err != C_ORM_OK) {
           c_orm_finalize_cached(db, query);
-          return err;
+          {
+            rc = err;
+            return (c_orm_error_t)rc;
+          }
         }
       }
       bind_idx++;
@@ -2250,20 +2732,29 @@ C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
   }
   err = db->vtable->step(query, &has_row);
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_save(c_orm_db_t *db,
                                       const c_orm_table_meta_t *meta,
                                       const void *in_struct) {
+  int rc;
+
   size_t i;
   int is_pk_set = 0;
 
-  if (!db || !meta || !in_struct)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !in_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
-  if (meta->is_view)
-    return C_ORM_ERROR_READ_ONLY;
+  if (meta->is_view) {
+    rc = C_ORM_ERROR_READ_ONLY;
+    return (c_orm_error_t)rc;
+  }
 
   /* Step 98: Upsert based on PK presence. Check if PK is zero/null */
   for (i = 0; i < meta->num_columns; ++i) {
@@ -2285,9 +2776,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_save(c_orm_db_t *db,
   }
 
   if (is_pk_set) {
-    return c_orm_update(db, meta, in_struct);
+    {
+      rc = c_orm_update(db, meta, in_struct);
+      return (c_orm_error_t)rc;
+    }
   } else {
-    return c_orm_insert(db, meta, in_struct);
+    {
+      rc = c_orm_insert(db, meta, in_struct);
+      return (c_orm_error_t)rc;
+    }
   }
 }
 
@@ -2296,17 +2793,25 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
                                               const void *in_array,
                                               size_t num_items,
                                               size_t chunk_size) {
+  int rc;
+
   c_orm_error_t err;
   size_t i, j;
   size_t actual_chunk;
   const c_orm_column_meta_t *pk_col = NULL;
 
-  if (!db || !meta || !in_array)
-    return C_ORM_ERROR_MEMORY;
-  if (meta->is_view)
-    return C_ORM_ERROR_READ_ONLY;
-  if (num_items == 0)
-    return C_ORM_OK;
+  if (!db || !meta || !in_array) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  if (meta->is_view) {
+    rc = C_ORM_ERROR_READ_ONLY;
+    return (c_orm_error_t)rc;
+  }
+  if (num_items == 0) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < meta->num_columns; i++) {
     if (meta->columns[i].is_pk) {
@@ -2315,8 +2820,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
     }
   }
 
-  if (!pk_col)
-    return 711;
+  if (!pk_col) {
+    rc = 711;
+    return (c_orm_error_t)rc;
+  }
 
   if (chunk_size == 0) {
     chunk_size = 30000;
@@ -2325,8 +2832,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
   }
 
   err = c_orm_transaction_begin(db);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < num_items; i += actual_chunk) {
     c_orm_query_t *query;
@@ -2341,7 +2850,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
 
     if (c_orm_string_builder_init(&sb) != 0) {
       c_orm_transaction_rollback(db);
-      return C_ORM_ERROR_MEMORY;
+      {
+        rc = C_ORM_ERROR_MEMORY;
+        return (c_orm_error_t)rc;
+      }
     }
 
     c_orm_string_builder_append(sb, "DELETE FROM ");
@@ -2360,14 +2872,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
     if (c_orm_string_builder_get(sb, &sql_str) != 0) {
       c_orm_string_builder_free(sb);
       c_orm_transaction_rollback(db);
-      return C_ORM_ERROR_MEMORY;
+      {
+        rc = C_ORM_ERROR_MEMORY;
+        return (c_orm_error_t)rc;
+      }
     }
 
     err = db->vtable->prepare(db, sql_str, &query);
     c_orm_string_builder_free(sb);
     if (err != C_ORM_OK) {
       c_orm_transaction_rollback(db);
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
 
     for (j = 0; j < actual_chunk; j++) {
@@ -2381,7 +2899,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
               0) {
         db->vtable->finalize(query);
         c_orm_transaction_rollback(db);
-        return C_ORM_ERROR_UNKNOWN;
+        {
+          rc = C_ORM_ERROR_UNKNOWN;
+          return (c_orm_error_t)rc;
+        }
       }
 
       if (pk_col->type == C_ORM_TYPE_INT32) {
@@ -2400,7 +2921,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
       if (err != C_ORM_OK) {
         db->vtable->finalize(query);
         c_orm_transaction_rollback(db);
-        return err;
+        {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
     }
 
@@ -2409,7 +2933,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
 
     if (err != C_ORM_OK) {
       c_orm_transaction_rollback(db);
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
 
     for (j = 0; j < actual_chunk; j++) {
@@ -2419,13 +2946,19 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
           meta->hooks[C_ORM_HOOK_AFTER_DELETE]((void *)current_struct, db) !=
               0) {
         c_orm_transaction_rollback(db);
-        return C_ORM_ERROR_UNKNOWN;
+        {
+          rc = C_ORM_ERROR_UNKNOWN;
+          return (c_orm_error_t)rc;
+        }
       }
     }
   }
 
   err = c_orm_transaction_commit(db);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
@@ -2433,17 +2966,25 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
                                               const void *in_array,
                                               size_t num_items,
                                               size_t chunk_size) {
+  int rc;
+
   c_orm_error_t err;
   size_t i, j, k;
   size_t actual_chunk;
   const c_orm_column_meta_t *pk_col = NULL;
 
-  if (!db || !meta || !in_array)
-    return C_ORM_ERROR_MEMORY;
-  if (meta->is_view)
-    return C_ORM_ERROR_READ_ONLY;
-  if (num_items == 0)
-    return C_ORM_OK;
+  if (!db || !meta || !in_array) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  if (meta->is_view) {
+    rc = C_ORM_ERROR_READ_ONLY;
+    return (c_orm_error_t)rc;
+  }
+  if (num_items == 0) {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < meta->num_columns; i++) {
     if (meta->columns[i].is_pk) {
@@ -2452,8 +2993,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
     }
   }
 
-  if (!pk_col)
-    return 712;
+  if (!pk_col) {
+    rc = 712;
+    return (c_orm_error_t)rc;
+  }
 
   /* CASE WHEN generates 2 params per column per row, plus 1 for IN clause.
      Total params = chunk_size * ( (num_cols - 1)*2 + 1 )
@@ -2466,8 +3009,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
   }
 
   err = c_orm_transaction_begin(db);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < num_items; i += actual_chunk) {
     c_orm_query_t *query;
@@ -2484,7 +3029,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
 
     if (c_orm_string_builder_init(&sb) != 0) {
       c_orm_transaction_rollback(db);
-      return C_ORM_ERROR_MEMORY;
+      {
+        rc = C_ORM_ERROR_MEMORY;
+        return (c_orm_error_t)rc;
+      }
     }
 
     c_orm_string_builder_append(sb, "UPDATE ");
@@ -2524,14 +3072,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
     if (c_orm_string_builder_get(sb, &sql_str) != 0) {
       c_orm_string_builder_free(sb);
       c_orm_transaction_rollback(db);
-      return C_ORM_ERROR_MEMORY;
+      {
+        rc = C_ORM_ERROR_MEMORY;
+        return (c_orm_error_t)rc;
+      }
     }
 
     err = db->vtable->prepare(db, sql_str, &query);
     c_orm_string_builder_free(sb);
     if (err != C_ORM_OK) {
       c_orm_transaction_rollback(db);
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
 
     /* Bind SET CASE WHEN params */
@@ -2596,7 +3150,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
 
     if (err != C_ORM_OK) {
       c_orm_transaction_rollback(db);
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
 
     for (j = 0; j < actual_chunk; j++) {
@@ -2605,7 +3162,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
       if (meta->hooks[C_ORM_HOOK_AFTER_SAVE] &&
           meta->hooks[C_ORM_HOOK_AFTER_SAVE]((void *)current_struct, db) != 0) {
         c_orm_transaction_rollback(db);
-        return C_ORM_ERROR_UNKNOWN;
+        {
+          rc = C_ORM_ERROR_UNKNOWN;
+          return (c_orm_error_t)rc;
+        }
       }
     }
     continue;
@@ -2613,16 +3173,24 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
   update_err:
     db->vtable->finalize(query);
     c_orm_transaction_rollback(db);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_transaction_commit(db);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
                                         const c_orm_table_meta_t *meta,
                                         const void *in_struct) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
@@ -2630,16 +3198,24 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
   size_t i;
   int is_pk_found = 0;
 
-  if (!db || !meta || !in_struct)
-    return C_ORM_ERROR_MEMORY;
-  if (!meta->query_delete_by_pk)
-    return 713;
-  if (meta->is_view)
-    return C_ORM_ERROR_READ_ONLY;
+  if (!db || !meta || !in_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  if (!meta->query_delete_by_pk) {
+    rc = 713;
+    return (c_orm_error_t)rc;
+  }
+  if (meta->is_view) {
+    rc = C_ORM_ERROR_READ_ONLY;
+    return (c_orm_error_t)rc;
+  }
 
   if (meta->hooks[C_ORM_HOOK_BEFORE_DELETE] &&
-      meta->hooks[C_ORM_HOOK_BEFORE_DELETE]((void *)in_struct, db) != 0)
-    return C_ORM_ERROR_UNKNOWN;
+      meta->hooks[C_ORM_HOOK_BEFORE_DELETE]((void *)in_struct, db) != 0) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    return (c_orm_error_t)rc;
+  }
 
   /* Handle cascade delete before deleting the parent to avoid FK constraints */
   for (i = 0; i < meta->num_relations; ++i) {
@@ -2760,8 +3336,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
   }
 
   err = c_orm_prepare_cached(db, meta->query_delete_by_pk, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   /* Find PK to bind to WHERE clause */
   for (i = 0; i < meta->num_columns; ++i) {
@@ -2782,7 +3360,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
 
       if (err != C_ORM_OK) {
         c_orm_finalize_cached(db, query);
-        return err;
+        {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
       is_pk_found++;
       bind_idx++;
@@ -2791,7 +3372,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
 
   if (!is_pk_found) {
     c_orm_finalize_cached(db, query);
-    return 714;
+    {
+      rc = 714;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
@@ -2799,24 +3383,37 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
 
   if (err == C_ORM_OK) {
     if (meta->hooks[C_ORM_HOOK_AFTER_DELETE] &&
-        meta->hooks[C_ORM_HOOK_AFTER_DELETE]((void *)in_struct, db) != 0)
-      return C_ORM_ERROR_UNKNOWN;
+        meta->hooks[C_ORM_HOOK_AFTER_DELETE]((void *)in_struct, db) != 0) {
+      rc = C_ORM_ERROR_UNKNOWN;
+      return (c_orm_error_t)rc;
+    }
   }
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_delete_by_id_int32(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, int32_t id_val) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
 
-  if (!db || !meta)
-    return C_ORM_ERROR_MEMORY;
-  if (!meta->query_delete_by_pk)
-    return 715;
-  if (meta->is_view)
-    return C_ORM_ERROR_READ_ONLY;
+  if (!db || !meta) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  if (!meta->query_delete_by_pk) {
+    rc = 715;
+    return (c_orm_error_t)rc;
+  }
+  if (meta->is_view) {
+    rc = C_ORM_ERROR_READ_ONLY;
+    return (c_orm_error_t)rc;
+  }
 
   /* Step 106: c_orm_delete_by_id_int32 lacks the struct pointer to trigger
      BEFORE_DELETE/AFTER_DELETE hooks safely. Users must rely on cascading
@@ -2824,303 +3421,477 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_by_id_int32(
      delete. */
 
   err = c_orm_prepare_cached(db, meta->query_delete_by_pk, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = db->vtable->bind_int32(query, 1, id_val);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_execute_raw(c_orm_db_t *db, const char *sql) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
 
-  if (!db || !sql)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !sql) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   if (db->query_interceptor) {
     db->query_interceptor(db, sql, db->query_interceptor_ctx);
   }
 
   err = c_orm_prepare_cached(db, sql, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = db->vtable->step(query, &has_row);
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_transaction_begin(c_orm_db_t *db) {
-  return c_orm_execute_raw(db, "BEGIN");
+  int rc;
+
+  {
+    rc = c_orm_execute_raw(db, "BEGIN");
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_transaction_commit(c_orm_db_t *db) {
-  return c_orm_execute_raw(db, "COMMIT");
+  int rc;
+
+  {
+    rc = c_orm_execute_raw(db, "COMMIT");
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_transaction_rollback(c_orm_db_t *db) {
-  return c_orm_execute_raw(db, "ROLLBACK");
+  int rc;
+
+  {
+    rc = c_orm_execute_raw(db, "ROLLBACK");
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_savepoint_create(c_orm_db_t *db,
                                                   const char *savepoint_name) {
+  int rc;
+
   char sql[256];
-  if (!db || !savepoint_name)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !savepoint_name) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+#if defined(_MSC_VER)
+  sprintf_s(sql, sizeof(sql), "SAVEPOINT %s", savepoint_name);
+#else
 #if defined(_MSC_VER)
   sprintf_s(sql, sizeof(sql), "SAVEPOINT %s", savepoint_name);
 #else
   sprintf(sql, "SAVEPOINT %s", savepoint_name);
 #endif
-  return c_orm_execute_raw(db, sql);
+#endif
+  {
+    rc = c_orm_execute_raw(db, sql);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_savepoint_rollback(c_orm_db_t *db, const char *savepoint_name) {
+  int rc;
+
   char sql[256];
-  if (!db || !savepoint_name)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !savepoint_name) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+#if defined(_MSC_VER)
+  sprintf_s(sql, sizeof(sql), "ROLLBACK TO SAVEPOINT %s", savepoint_name);
+#else
 #if defined(_MSC_VER)
   sprintf_s(sql, sizeof(sql), "ROLLBACK TO SAVEPOINT %s", savepoint_name);
 #else
   sprintf(sql, "ROLLBACK TO SAVEPOINT %s", savepoint_name);
 #endif
-  return c_orm_execute_raw(db, sql);
+#endif
+  {
+    rc = c_orm_execute_raw(db, sql);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_savepoint_release(c_orm_db_t *db,
                                                    const char *savepoint_name) {
+  int rc;
+
   char sql[256];
-  if (!db || !savepoint_name)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !savepoint_name) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+#if defined(_MSC_VER)
+  sprintf_s(sql, sizeof(sql), "RELEASE SAVEPOINT %s", savepoint_name);
+#else
 #if defined(_MSC_VER)
   sprintf_s(sql, sizeof(sql), "RELEASE SAVEPOINT %s", savepoint_name);
 #else
   sprintf(sql, "RELEASE SAVEPOINT %s", savepoint_name);
 #endif
-  return c_orm_execute_raw(db, sql);
+#endif
+  {
+    rc = c_orm_execute_raw(db, sql);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_by_id_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                         const char *id_val, void *out_struct) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
 
-  if (!db || !meta || !id_val || !out_struct)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !id_val || !out_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   if (!meta->query_select_by_pk) {
-    return 716;
+    {
+      rc = 716;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_prepare_cached(db, meta->query_select_by_pk, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = db->vtable->bind_string(query, 1, id_val);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (!has_row) {
     c_orm_finalize_cached(db, query);
-    return C_ORM_ERROR_NOT_FOUND;
+    {
+      rc = C_ORM_ERROR_NOT_FOUND;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_hydrate_row(db, query, meta, out_struct);
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_find_for_update_by_id_int32(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, int32_t id_val,
     void *out_struct) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
 
-  if (!db || !meta || !out_struct)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !out_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   if (!meta->query_select_by_pk_for_update) {
     /* Fallback to standard select if for_update query is not provided. */
-    return c_orm_find_by_id_int32(db, meta, id_val, out_struct);
+    {
+      rc = c_orm_find_by_id_int32(db, meta, id_val, out_struct);
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_prepare_cached(db, meta->query_select_by_pk_for_update, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = db->vtable->bind_int32(query, 1, id_val);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (!has_row) {
     c_orm_finalize_cached(db, query);
-    return C_ORM_ERROR_NOT_FOUND;
+    {
+      rc = C_ORM_ERROR_NOT_FOUND;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_hydrate_row(db, query, meta, out_struct);
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_find_for_update_by_id_string(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *id_val,
     void *out_struct) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
 
-  if (!db || !meta || !id_val || !out_struct)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !id_val || !out_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   if (!meta->query_select_by_pk_for_update) {
     /* Fallback to standard select if for_update query is not provided. */
-    return c_orm_find_by_id_string(db, meta, id_val, out_struct);
+    {
+      rc = c_orm_find_by_id_string(db, meta, id_val, out_struct);
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_prepare_cached(db, meta->query_select_by_pk_for_update, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = db->vtable->bind_string(query, 1, id_val);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (!has_row) {
     c_orm_finalize_cached(db, query);
-    return C_ORM_ERROR_NOT_FOUND;
+    {
+      rc = C_ORM_ERROR_NOT_FOUND;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_hydrate_row(db, query, meta, out_struct);
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_delete_by_id_string(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *id_val) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
 
-  if (!db || !meta || !id_val)
-    return C_ORM_ERROR_MEMORY;
-  if (!meta->query_delete_by_pk)
-    return 717;
+  if (!db || !meta || !id_val) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  if (!meta->query_delete_by_pk) {
+    rc = 717;
+    return (c_orm_error_t)rc;
+  }
 
   err = c_orm_prepare_cached(db, meta->query_delete_by_pk, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = db->vtable->bind_string(query, 1, id_val);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_find_one_by_string(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *column_name,
     const char *value, void *out_struct) {
+  int rc;
+
   c_orm_select_builder_t *builder;
   char *sql;
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
 
-  if (!db || !meta || !column_name || !value || !out_struct)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !column_name || !value || !out_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   if (c_orm_select_builder_init(meta, &builder) != 0) {
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (c_orm_select_where_eq(builder, column_name) != 0) {
     c_orm_select_builder_free(builder);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (c_orm_select_limit(builder, 1) != 0) {
     c_orm_select_builder_free(builder);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (c_orm_select_builder_compile(builder, &sql) != 0) {
     c_orm_select_builder_free(builder);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
   c_orm_select_builder_free(builder);
 
   err = c_orm_prepare_cached(db, sql, &query);
   free(sql);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = db->vtable->bind_string(query, 1, value);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
   if (err != C_ORM_OK) {
     c_orm_finalize_cached(db, query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (!has_row) {
     c_orm_finalize_cached(db, query);
-    return C_ORM_ERROR_NOT_FOUND;
+    {
+      rc = C_ORM_ERROR_NOT_FOUND;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_hydrate_row(db, query, meta, out_struct);
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_error_t c_orm_dfs_validate_table(const c_orm_table_meta_t **tables,
                                               size_t num_tables,
                                               const c_orm_table_meta_t *current,
                                               int *visited) {
+  int rc;
+
   size_t current_idx = (size_t)-1;
   size_t i, j;
   c_orm_error_t err;
@@ -3131,13 +3902,22 @@ static c_orm_error_t c_orm_dfs_validate_table(const c_orm_table_meta_t **tables,
     }
   }
   if (current_idx == (size_t)-1) {
-    return C_ORM_ERROR_NOT_FOUND;
+    {
+      rc = C_ORM_ERROR_NOT_FOUND;
+      return (c_orm_error_t)rc;
+    }
   }
   if (visited[current_idx] == 1) {
-    return C_ORM_ERROR_RECURSION;
+    {
+      rc = C_ORM_ERROR_RECURSION;
+      return (c_orm_error_t)rc;
+    }
   }
   if (visited[current_idx] == 2) {
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   }
   visited[current_idx] = 1;
   for (i = 0; i < current->num_relations; i++) {
@@ -3151,23 +3931,33 @@ static c_orm_error_t c_orm_dfs_validate_table(const c_orm_table_meta_t **tables,
     if (target) {
       err = c_orm_dfs_validate_table(tables, num_tables, target, visited);
       if (err != C_ORM_OK) {
-        return err;
+        {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
     }
   }
   visited[current_idx] = 2;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_validate(const c_orm_table_meta_t *meta,
                                           const void *obj) {
+  int rc;
+
   size_t i, j;
   /*
    * Step 154: Implement runtime validation wrapping cdd-c dynamic validation
    * rules.
    */
-  if (!meta || !obj)
-    return C_ORM_ERROR_MEMORY;
+  if (!meta || !obj) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < meta->num_relations; i++) {
     const c_orm_relation_meta_t *rel = &meta->relations[i];
@@ -3188,7 +3978,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_validate(const c_orm_table_meta_t *meta,
             if (err != C_ORM_OK || fk_val == 0) {
               /* If fk is 0 or null, check if the data pointer is set */
               if (!data) {
-                return C_ORM_ERROR_VALIDATION;
+                {
+                  rc = C_ORM_ERROR_VALIDATION;
+                  return (c_orm_error_t)rc;
+                }
               }
             }
           }
@@ -3199,22 +3992,33 @@ C_ORM_EXPORT c_orm_error_t c_orm_validate(const c_orm_table_meta_t *meta,
   }
 
   /* Dynamic validation against cdd-c rules parsed from AST. */
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_validate_relations(const c_orm_table_meta_t **tables, size_t num_tables) {
+  int rc;
+
   int *visited;
   size_t i;
   c_orm_error_t err = C_ORM_OK;
 
   if (!tables || num_tables == 0) {
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   visited = (int *)malloc(num_tables * sizeof(int));
   if (!visited) {
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   for (i = 0; i < num_tables; i++) {
@@ -3231,7 +4035,10 @@ c_orm_validate_relations(const c_orm_table_meta_t **tables, size_t num_tables) {
   }
 
   free(visited);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -3245,12 +4052,17 @@ c_orm_validate_relations(const c_orm_table_meta_t **tables, size_t num_tables) {
 C_ORM_EXPORT c_orm_error_t c_orm_build_relation_meta(
     const struct sql_table_t *sql_table, c_orm_relation_meta_t **out_relations,
     size_t *out_num_relations) {
+  int rc;
+
   size_t total_fks = 0;
   size_t i, j, current_fk;
   c_orm_relation_meta_t *relations;
 
   if (!sql_table || !out_relations || !out_num_relations) {
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   /* Count column-level foreign keys */
@@ -3273,13 +4085,19 @@ C_ORM_EXPORT c_orm_error_t c_orm_build_relation_meta(
   if (total_fks == 0) {
     *out_relations = NULL;
     *out_num_relations = 0;
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   }
 
   relations = (c_orm_relation_meta_t *)malloc(total_fks *
                                               sizeof(c_orm_relation_meta_t));
   if (!relations) {
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   current_fk = 0;
@@ -3328,35 +4146,53 @@ C_ORM_EXPORT c_orm_error_t c_orm_build_relation_meta(
 
   *out_relations = relations;
   *out_num_relations = total_fks;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_hydrate_abstract_all(c_orm_db_t *db, c_orm_query_t *query,
                            struct CddCAbstractStructArray *out_array) {
+  int rc;
+
   (void)db;
   (void)query;
   (void)out_array;
-  return 718;
+  {
+    rc = 718;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_select_raw(c_orm_db_t *db, const char *sql,
                                             const c_orm_table_meta_t *meta,
                                             void *out_array) {
+  int rc;
+
   (void)db;
   (void)sql;
   (void)meta;
   (void)out_array;
-  return 719;
+  {
+    rc = 719;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_all_abstract(c_orm_db_t *db, const char *sql,
                         struct CddCAbstractStructArray *out_array) {
+  int rc;
+
   (void)db;
   (void)sql;
   (void)out_array;
-  return 720;
+  {
+    rc = 720;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT void c_orm_abstract_free(struct CddCAbstractStructArray *arr) {
@@ -3367,120 +4203,190 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_routed(c_orm_db_t *db,
                                                 c_orm_query_t *query,
                                                 unsigned long long query_hash,
                                                 void *out_struct) {
+  int rc;
+
   (void)db;
   (void)query;
   (void)query_hash;
   (void)out_struct;
-  return 721;
+  {
+    rc = 721;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_abstract_to_json(
     const struct CddCAbstractStruct *astruct, char **out_json) {
+  int rc;
+
   (void)astruct;
   (void)out_json;
-  return 722;
+  {
+    rc = 722;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_get_field_value(const c_orm_table_meta_t *meta, const void *obj,
                       const char *field_name, struct CddCVariant *out_variant) {
+  int rc;
+
   (void)meta;
   (void)obj;
   (void)field_name;
   (void)out_variant;
-  return 723;
+  {
+    rc = 723;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_set_field_value(
     const c_orm_table_meta_t *meta, void *obj, const char *field_name,
     const struct CddCVariant *in_variant) {
+  int rc;
+
   (void)meta;
   (void)obj;
   (void)field_name;
   (void)in_variant;
-  return 724;
+  {
+    rc = 724;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_abstract_from_json(
     const char *json, struct CddCAbstractStruct *out_astruct) {
+  int rc;
+
   (void)json;
   (void)out_astruct;
-  return 725;
+  {
+    rc = 725;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_to_json(const c_orm_table_meta_t *meta,
                                          const void *obj, char **out_json) {
+  int rc;
+
   (void)meta;
   (void)obj;
   (void)out_json;
-  return 726;
+  {
+    rc = 726;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_from_json(const c_orm_table_meta_t *meta,
                                            const char *json, void *out_obj) {
+  int rc;
+
   (void)meta;
   (void)json;
   (void)out_obj;
-  return 727;
+  {
+    rc = 727;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_to_dict(const c_orm_table_meta_t *meta,
                                          const void *obj,
                                          struct CddCAbstractStruct *out_dict) {
+  int rc;
+
   (void)meta;
   (void)obj;
   (void)out_dict;
-  return 728;
+  {
+    rc = 728;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_from_dict(const c_orm_table_meta_t *meta,
                 const struct CddCAbstractStruct *in_dict, void *out_obj) {
+  int rc;
+
   (void)meta;
   (void)in_dict;
   (void)out_obj;
-  return 729;
+  {
+    rc = 729;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_deep_free(const struct cdd_c_meta *meta,
                                            void *obj) {
+  int rc;
+
   /*
    * Currently, deep traversal relies on the c_orm_meta mapping generated by
    * cdd-c. This is a stub until Phase 4's reflection engine allows
    * property-by-property iteration over nested struct sizes and pointers.
    */
-  if (!meta || !obj)
-    return C_ORM_ERROR_MEMORY;
-  return 730;
+  if (!meta || !obj) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  {
+    rc = 730;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_deep_copy(const struct cdd_c_meta *meta,
                                            void *dest, const void *src) {
+  int rc;
+
   /*
    * Deep copy traverses struct pointers via c_orm_meta and duplicates them
    * dynamically. Requires Phase 4's cdd_c reflection accessors.
    */
-  if (!meta || !dest || !src)
-    return C_ORM_ERROR_MEMORY;
-  return 731;
+  if (!meta || !dest || !src) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  {
+    rc = 731;
+    return (c_orm_error_t)rc;
+  }
 }
 
 #define C_ORM_IDENTITY_MAP_DEFAULT_BUCKETS 64
 
 C_ORM_EXPORT c_orm_error_t c_orm_identity_map_init(c_orm_identity_map_t *map) {
-  if (!map)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!map) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   map->buckets = NULL;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_identity_map_free(c_orm_identity_map_t *map) {
+  int rc;
+
   c_orm_identity_bucket_t *curr_bucket;
   c_orm_identity_bucket_t *next_bucket;
   size_t i;
 
-  if (!map)
-    return C_ORM_ERROR_MEMORY;
+  if (!map) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   curr_bucket = map->buckets;
   while (curr_bucket) {
@@ -3503,7 +4409,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_free(c_orm_identity_map_t *map) {
     curr_bucket = next_bucket;
   }
   map->buckets = NULL;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 static c_orm_identity_bucket_t *
@@ -3545,16 +4454,22 @@ get_or_create_bucket(c_orm_identity_map_t *map,
 C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_int(
     c_orm_identity_map_t *map, const c_orm_table_meta_t *table, int32_t pk_int,
     void *object_ptr, void **out_object) {
+  int rc;
+
   c_orm_identity_bucket_t *bucket;
   c_orm_identity_entry_t *entry;
   size_t hash_index;
 
-  if (!map || !table || !out_object)
-    return C_ORM_ERROR_MEMORY;
+  if (!map || !table || !out_object) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   bucket = get_or_create_bucket(map, table);
-  if (!bucket)
-    return C_ORM_ERROR_MEMORY;
+  if (!bucket) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   hash_index = (size_t)pk_int % bucket->num_buckets;
   entry = bucket->entries[hash_index];
@@ -3562,17 +4477,24 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_int(
   while (entry) {
     if (entry->pk_int == pk_int) {
       *out_object = entry->object_ptr;
-      return C_ORM_OK;
+      {
+        rc = C_ORM_OK;
+        return (c_orm_error_t)rc;
+      }
     }
     entry = entry->next;
   }
 
-  if (!object_ptr)
-    return C_ORM_ERROR_NOT_FOUND;
+  if (!object_ptr) {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
 
   entry = (c_orm_identity_entry_t *)malloc(sizeof(c_orm_identity_entry_t));
-  if (!entry)
-    return C_ORM_ERROR_MEMORY;
+  if (!entry) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   entry->object_ptr = object_ptr;
   entry->pk_int = pk_int;
@@ -3581,23 +4503,32 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_int(
   bucket->entries[hash_index] = entry;
 
   *out_object = object_ptr;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_str(
     c_orm_identity_map_t *map, const c_orm_table_meta_t *table,
     const char *pk_str, void *object_ptr, void **out_object) {
+  int rc;
+
   c_orm_identity_bucket_t *bucket;
   c_orm_identity_entry_t *entry;
   size_t hash_index = 0;
   const char *p;
 
-  if (!map || !table || !pk_str || !out_object)
-    return C_ORM_ERROR_MEMORY;
+  if (!map || !table || !pk_str || !out_object) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   bucket = get_or_create_bucket(map, table);
-  if (!bucket)
-    return C_ORM_ERROR_MEMORY;
+  if (!bucket) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   /* djb2 string hash */
   for (p = pk_str; *p; p++) {
@@ -3609,17 +4540,24 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_str(
   while (entry) {
     if (entry->pk_str && strcmp(entry->pk_str, pk_str) == 0) {
       *out_object = entry->object_ptr;
-      return C_ORM_OK;
+      {
+        rc = C_ORM_OK;
+        return (c_orm_error_t)rc;
+      }
     }
     entry = entry->next;
   }
 
-  if (!object_ptr)
-    return C_ORM_ERROR_NOT_FOUND;
+  if (!object_ptr) {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
 
   entry = (c_orm_identity_entry_t *)malloc(sizeof(c_orm_identity_entry_t));
-  if (!entry)
-    return C_ORM_ERROR_MEMORY;
+  if (!entry) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   entry->object_ptr = object_ptr;
   entry->pk_int = 0;
@@ -3627,7 +4565,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_str(
   entry->pk_str = (char *)malloc(strlen(pk_str) + 1);
   if (!entry->pk_str) {
     free(entry);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 #if defined(_MSC_VER)
   strcpy_s(entry->pk_str, strlen(pk_str) + 1, pk_str);
@@ -3639,12 +4580,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_str(
   bucket->entries[hash_index] = entry;
 
   *out_object = object_ptr;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_resolve_n_plus_one(
     c_orm_db_t *db, void *array, const c_orm_table_meta_t *meta,
     size_t target_relation) {
+  int rc;
+
   /*
    * Fallback implementation: this requires iterating through the parent `array`
    * matching metadata layouts across generic array structures mapped out by
@@ -3652,27 +4598,41 @@ C_ORM_EXPORT c_orm_error_t c_orm_resolve_n_plus_one(
    * clause, then submitting that secondary SQL to cdd-c struct hydration
    * routers natively.
    */
-  if (!db || !array || !meta)
-    return C_ORM_ERROR_MEMORY;
-  if (target_relation >= meta->num_relations)
-    return C_ORM_ERROR_NOT_FOUND;
-  return 732;
+  if (!db || !array || !meta) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  if (target_relation >= meta->num_relations) {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
+  {
+    rc = 732;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_hydrate_cache_row(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                         void *hydrated_row, void **out_cached_row) {
+  int rc;
+
   size_t i;
   int32_t pk_val_int = 0;
   const char *pk_val_str = NULL;
 
-  if (!db || !meta || !hydrated_row || !out_cached_row)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !hydrated_row || !out_cached_row) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   if (!db->identity_map) {
     /* If no identity map is mounted to the db session, memory identity acts as
      * a passthrough */
     *out_cached_row = hydrated_row;
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   }
 
   /* Identify Primary Key recursively if necessary */
@@ -3681,35 +4641,56 @@ c_orm_hydrate_cache_row(c_orm_db_t *db, const c_orm_table_meta_t *meta,
       void *pk_ptr = (char *)hydrated_row + meta->columns[i].offset;
       if (meta->columns[i].type == C_ORM_TYPE_INT32) {
         pk_val_int = *(int32_t *)pk_ptr;
-        return c_orm_identity_map_get_or_set_int(
-            db->identity_map, meta, pk_val_int, hydrated_row, out_cached_row);
+        {
+          rc = c_orm_identity_map_get_or_set_int(
+              db->identity_map, meta, pk_val_int, hydrated_row, out_cached_row);
+          return (c_orm_error_t)rc;
+        }
       } else if (meta->columns[i].type == C_ORM_TYPE_STRING) {
         pk_val_str = *(const char **)pk_ptr;
-        if (!pk_val_str)
-          return C_ORM_ERROR_TYPE_MISMATCH;
-        return c_orm_identity_map_get_or_set_str(
-            db->identity_map, meta, pk_val_str, hydrated_row, out_cached_row);
+        if (!pk_val_str) {
+          rc = C_ORM_ERROR_TYPE_MISMATCH;
+          return (c_orm_error_t)rc;
+        }
+        {
+          rc = c_orm_identity_map_get_or_set_str(
+              db->identity_map, meta, pk_val_str, hydrated_row, out_cached_row);
+          return (c_orm_error_t)rc;
+        }
       } else {
         /* Unsupported primary key mapping constraint for identity layer */
-        return 733;
+        {
+          rc = 733;
+          return (c_orm_error_t)rc;
+        }
       }
     }
   }
 
   /* No explicit Primary Key declared, caching bypassed */
   *out_cached_row = hydrated_row;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_load_relation(c_orm_db_t *db, void *obj,
                                                const c_orm_table_meta_t *meta,
                                                size_t target_relation) {
-  return c_orm_load_relation_ext(db, obj, meta, target_relation, 0, 0);
+  int rc;
+
+  {
+    rc = c_orm_load_relation_ext(db, obj, meta, target_relation, 0, 0);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
     c_orm_db_t *db, void *obj, const c_orm_table_meta_t *meta,
     size_t target_relation, size_t limit, size_t offset) {
+  int rc;
+
   const c_orm_relation_meta_t *rel;
   void *context_ptr;
   c_orm_lazy_load_context_t *ctx;
@@ -3721,22 +4702,31 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
   c_orm_error_t err;
   void *target_data_ptr;
 
-  if (!db || !obj || !meta)
-    return C_ORM_ERROR_MEMORY;
-  if (target_relation >= meta->num_relations)
-    return C_ORM_ERROR_NOT_FOUND;
+  if (!db || !obj || !meta) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  if (target_relation >= meta->num_relations) {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
 
   rel = &meta->relations[target_relation];
   context_ptr = (char *)obj + rel->struct_offset;
   ctx = (c_orm_lazy_load_context_t *)context_ptr;
 
   if (ctx->is_loaded && limit == 0 && offset == 0) {
-    return C_ORM_OK; /* Already loaded */
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    } /* Already loaded */
   }
 
   target_meta = rel->target_meta;
-  if (!target_meta)
-    return 734;
+  if (!target_meta) {
+    rc = 734;
+    return (c_orm_error_t)rc;
+  }
 
   local_val_str[0] = '\0';
   for (i = 0; i < meta->num_columns; i++) {
@@ -3746,22 +4736,34 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
         int64_t val = 0;
         err = get_int_field(meta, obj, rel->local_key, &val);
         if (err == C_ORM_ERROR_NOT_FOUND) {
-          return C_ORM_OK; /* Nullable FK is null, relation is inherently empty
-                            */
+          {
+            rc = C_ORM_OK;
+            return (c_orm_error_t)rc;
+          } /* Nullable FK is null, relation is inherently empty
+             */
         } else if (err != C_ORM_OK) {
-          return err;
+          {
+            rc = err;
+            return (c_orm_error_t)rc;
+          }
         }
+#if defined(_MSC_VER)
+        sprintf_s(local_val_str, sizeof(local_val_str), "%d", (int)val);
+#else
 #if defined(_MSC_VER)
         sprintf_s(local_val_str, sizeof(local_val_str), "%d", (int)val);
 #else
         sprintf(local_val_str, "%d", (int)val);
 #endif
+#endif
       } else if (meta->columns[i].type == C_ORM_TYPE_STRING) {
         void *field_ptr = (char *)obj + meta->columns[i].offset;
         const char *s = *(const char **)field_ptr;
-        if (!s)
-          return C_ORM_OK; /* Nullable FK string is null, relation is inherently
-                              empty */
+        if (!s) {
+          rc = C_ORM_OK;
+          return (c_orm_error_t)rc;
+        } /* Nullable FK string is null, relation is inherently
+empty */
 #if defined(_MSC_VER)
         strcpy_s(local_val_str, sizeof(local_val_str), s);
 #else
@@ -3769,18 +4771,26 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
 #endif
         is_string = 1;
       } else {
-        return 735;
+        {
+          rc = 735;
+          return (c_orm_error_t)rc;
+        }
       }
       break;
     }
   }
 
   if (local_val_str[0] == '\0') {
-    return C_ORM_ERROR_NOT_FOUND;
+    {
+      rc = C_ORM_ERROR_NOT_FOUND;
+      return (c_orm_error_t)rc;
+    }
   }
 
-  if (c_orm_query_new(&q) != 0)
-    return C_ORM_ERROR_MEMORY;
+  if (c_orm_query_new(&q) != 0) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   if (rel->type == C_ORM_RELATION_MANY_TO_MANY ||
       rel->type == C_ORM_RELATION_HAS_MANY_THROUGH) {
@@ -3798,7 +4808,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
     if (!target_pk || !rel->join_table || !rel->join_local_key ||
         !rel->join_foreign_key) {
       c_orm_query_free(q);
-      return 736;
+      {
+        rc = 736;
+        return (c_orm_error_t)rc;
+      }
     }
 
 #if defined(_MSC_VER)
@@ -3813,13 +4826,29 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
                 rel->join_foreign_key);
     }
 #else
+#if defined(_MSC_VER)
+    sprintf_s(select_str, sizeof(select_str), "%s.*", target_meta->name);
+#else
     sprintf(select_str, "%s.*", target_meta->name);
+#endif
     if (rel->type == C_ORM_RELATION_HAS_MANY_THROUGH) {
+#if defined(_MSC_VER)
+      sprintf_s(join_cond, sizeof(join_cond), "%s.%s = %s.%s",
+                target_meta->name, rel->foreign_key, rel->join_table,
+                rel->join_foreign_key);
+#else
       sprintf(join_cond, "%s.%s = %s.%s", target_meta->name, rel->foreign_key,
               rel->join_table, rel->join_foreign_key);
+#endif
     } else {
+#if defined(_MSC_VER)
+      sprintf_s(join_cond, sizeof(join_cond), "%s.%s = %s.%s",
+                target_meta->name, target_pk, rel->join_table,
+                rel->join_foreign_key);
+#else
       sprintf(join_cond, "%s.%s = %s.%s", target_meta->name, target_pk,
               rel->join_table, rel->join_foreign_key);
+#endif
     }
 #endif
 
@@ -3843,7 +4872,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
     sprintf_s(soft_delete_cond, sizeof(soft_delete_cond),
               "%s.deleted_at IS NULL", target_meta->name);
 #else
+#if defined(_MSC_VER)
+    sprintf_s(soft_delete_cond, sizeof(soft_delete_cond),
+              "%s.deleted_at IS NULL", target_meta->name);
+#else
     sprintf(soft_delete_cond, "%s.deleted_at IS NULL", target_meta->name);
+#endif
 #endif
     q->and_where(q, q->raw(q, soft_delete_cond));
   }
@@ -3898,7 +4932,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
     new_struct = calloc(1, target_meta->struct_size);
     if (!new_struct) {
       c_orm_query_free(q);
-      return C_ORM_ERROR_MEMORY;
+      {
+        rc = C_ORM_ERROR_MEMORY;
+        return (c_orm_error_t)rc;
+      }
     }
     *(void **)target_data_ptr = new_struct;
 
@@ -3926,14 +4963,21 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
       ctx->is_loaded = 1;
   }
   c_orm_query_free(q);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
                                                 void *obj) {
+  int rc;
+
   size_t i;
-  if (!meta || !obj)
-    return C_ORM_ERROR_MEMORY;
+  if (!meta || !obj) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < meta->num_relations; i++) {
     const c_orm_relation_meta_t *rel = &meta->relations[i];
@@ -3994,28 +5038,52 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
       ctx->is_loaded = 0;
     }
   }
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_config_sqlite_pragma(c_orm_db_t *db, const char *pragma_string) {
-  if (!db || !pragma_string)
-    return C_ORM_ERROR_MEMORY;
-  return c_orm_execute_raw(db, pragma_string);
+  int rc;
+
+  if (!db || !pragma_string) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  {
+    rc = c_orm_execute_raw(db, pragma_string);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_config_postgres_set(c_orm_db_t *db,
                                                      const char *set_string) {
-  if (!db || !set_string)
-    return C_ORM_ERROR_MEMORY;
-  return c_orm_execute_raw(db, set_string);
+  int rc;
+
+  if (!db || !set_string) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  {
+    rc = c_orm_execute_raw(db, set_string);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_config_mysql_session(c_orm_db_t *db, const char *session_var_string) {
-  if (!db || !session_var_string)
-    return C_ORM_ERROR_MEMORY;
-  return c_orm_execute_raw(db, session_var_string);
+  int rc;
+
+  if (!db || !session_var_string) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  {
+    rc = c_orm_execute_raw(db, session_var_string);
+    return (c_orm_error_t)rc;
+  }
 }
 
 struct c_orm_shard_manager {
@@ -4025,22 +5093,31 @@ struct c_orm_shard_manager {
 
 C_ORM_EXPORT c_orm_error_t c_orm_shard_manager_init(
     size_t num_shards, c_orm_shard_manager_t **out_manager) {
+  int rc;
+
   c_orm_shard_manager_t *manager;
   size_t i;
 
-  if (num_shards == 0 || !out_manager)
-    return C_ORM_ERROR_MEMORY;
+  if (num_shards == 0 || !out_manager) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   manager = (c_orm_shard_manager_t *)malloc(sizeof(c_orm_shard_manager_t));
-  if (!manager)
-    return C_ORM_ERROR_MEMORY;
+  if (!manager) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   manager->num_shards = num_shards;
   manager->nodes = (c_orm_db_t **)malloc(num_shards * sizeof(c_orm_db_t *));
 
   if (!manager->nodes) {
     free(manager);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   for (i = 0; i < num_shards; i++) {
@@ -4048,25 +5125,39 @@ C_ORM_EXPORT c_orm_error_t c_orm_shard_manager_init(
   }
 
   *out_manager = manager;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_shard_manager_add_node(
     c_orm_shard_manager_t *manager, size_t index, c_orm_db_t *node) {
-  if (!manager || !node || index >= manager->num_shards)
-    return C_ORM_ERROR_VALIDATION;
+  int rc;
+
+  if (!manager || !node || index >= manager->num_shards) {
+    rc = C_ORM_ERROR_VALIDATION;
+    return (c_orm_error_t)rc;
+  }
   manager->nodes[index] = node;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_shard_route_hash(c_orm_shard_manager_t *manager, const char *routing_key,
                        c_orm_db_t **out_node) {
+  int rc;
+
   size_t hash_index = 0;
   const char *p;
 
-  if (!manager || !routing_key || !out_node)
-    return C_ORM_ERROR_MEMORY;
+  if (!manager || !routing_key || !out_node) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   /* djb2 string hash algorithm to deterministically route key across nodes */
   for (p = routing_key; *p; p++) {
@@ -4076,10 +5167,15 @@ c_orm_shard_route_hash(c_orm_shard_manager_t *manager, const char *routing_key,
   hash_index = hash_index % manager->num_shards;
 
   *out_node = manager->nodes[hash_index];
-  if (!*out_node)
-    return C_ORM_ERROR_NOT_FOUND; /* Node isn't initialized yet */
+  if (!*out_node) {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  } /* Node isn't initialized yet */
 
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT void c_orm_shard_manager_free(c_orm_shard_manager_t *manager) {
@@ -4094,18 +5190,24 @@ C_ORM_EXPORT void c_orm_shard_manager_free(c_orm_shard_manager_t *manager) {
 C_ORM_EXPORT c_orm_error_t c_orm_scatter_gather_generic(
     c_orm_shard_manager_t *manager, const c_orm_table_meta_t *meta,
     void **out_array, size_t *out_count) {
+  int rc;
+
   size_t total_count = 0;
   size_t total_cap = 16;
   void *total_data = NULL;
   size_t i;
   c_orm_error_t last_err = C_ORM_OK;
 
-  if (!manager || !meta || !out_array || !out_count)
-    return C_ORM_ERROR_MEMORY;
+  if (!manager || !meta || !out_array || !out_count) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   total_data = malloc(total_cap * meta->struct_size);
-  if (!total_data)
-    return C_ORM_ERROR_MEMORY;
+  if (!total_data) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   /* Execute sequentially across shards for now.
      A true MODALITY_THREAD_POOL scatter-gather would dispatch to thread queues.
@@ -4131,7 +5233,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_scatter_gather_generic(
         if (!new_data) {
           free(total_data);
           free(shard_array);
-          return C_ORM_ERROR_MEMORY;
+          {
+            rc = C_ORM_ERROR_MEMORY;
+            return (c_orm_error_t)rc;
+          }
         }
         total_data = new_data;
       }
@@ -4154,17 +5259,25 @@ C_ORM_EXPORT c_orm_error_t c_orm_scatter_gather_generic(
 
   if (last_err != C_ORM_OK && total_count == 0) {
     free(total_data);
-    return last_err;
+    {
+      rc = last_err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   *out_array = total_data;
   *out_count = total_count;
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_escape_string(c_orm_db_t *db,
                                                const char *input, char *output,
                                                size_t output_size) {
+  int rc;
+
   /*
    * Step 241: Conduct security audit of SQL injection vectors
    * Step 242: Fix identified vulnerabilities in query builder string escaping
@@ -4173,15 +5286,21 @@ C_ORM_EXPORT c_orm_error_t c_orm_escape_string(c_orm_db_t *db,
    * callbacks will replace this logic eventually.
    */
   size_t i = 0, j = 0;
-  if (!db || !input || !output || output_size == 0)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !input || !output || output_size == 0) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   while (input[i] != '\0') {
-    if (j >= output_size - 1)
-      return C_ORM_ERROR_MEMORY;
+    if (j >= output_size - 1) {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
     if (input[i] == '\'') {
-      if (j >= output_size - 2)
-        return C_ORM_ERROR_MEMORY;
+      if (j >= output_size - 2) {
+        rc = C_ORM_ERROR_MEMORY;
+        return (c_orm_error_t)rc;
+      }
       output[j++] = '\''; /* SQL standard escape */
       output[j++] = '\'';
     } else {
@@ -4190,23 +5309,40 @@ C_ORM_EXPORT c_orm_error_t c_orm_escape_string(c_orm_db_t *db,
     i++;
   }
   output[j] = '\0';
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_register_timestamp_hooks(c_orm_table_meta_t *meta) {
-  if (!meta)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!meta) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   /* Step 201: Generic timestamp hooks handled by cdd-c code generator */
-  return 737;
+  {
+    rc = 737;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_register_soft_delete_hook(c_orm_table_meta_t *meta) {
-  if (!meta)
-    return C_ORM_ERROR_MEMORY;
+  int rc;
+
+  if (!meta) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   /* Step 202: Generic soft-delete hooks handled by cdd-c code generator */
-  return 738;
+  {
+    rc = 738;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
@@ -4214,6 +5350,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
                                                 const void *obj,
                                                 const char **fields,
                                                 size_t num_fields) {
+  int rc;
+
   c_orm_query_t *query;
   c_orm_error_t err;
   int has_row;
@@ -4222,10 +5360,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
   const c_orm_column_meta_t *pk_col = NULL;
   c_orm_string_builder_t *sb;
 
-  if (!db || !meta || !obj || !fields || num_fields == 0)
-    return C_ORM_ERROR_MEMORY;
-  if (c_orm_string_builder_init(&sb) != 0)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !obj || !fields || num_fields == 0) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  if (c_orm_string_builder_init(&sb) != 0) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
   c_orm_string_builder_append(sb, "UPDATE ");
   c_orm_string_builder_append(sb, meta->name);
   c_orm_string_builder_append(sb, " SET ");
@@ -4246,7 +5388,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
 
   if (!pk_col) {
     c_orm_string_builder_free(sb);
-    return 739;
+    {
+      rc = 739;
+      return (c_orm_error_t)rc;
+    }
   }
 
   c_orm_string_builder_append(sb, " WHERE ");
@@ -4257,13 +5402,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
     const char *sql_str;
     if (c_orm_string_builder_get(sb, &sql_str) != 0) {
       c_orm_string_builder_free(sb);
-      return C_ORM_ERROR_MEMORY;
+      {
+        rc = C_ORM_ERROR_MEMORY;
+        return (c_orm_error_t)rc;
+      }
     }
     err = c_orm_prepare_cached(db, sql_str, &query);
   }
   c_orm_string_builder_free(sb);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   /* Bind SET fields */
   for (i = 0; i < num_fields; i++) {
@@ -4283,7 +5433,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
         }
         if (err != C_ORM_OK) {
           c_orm_finalize_cached(db, query);
-          return err;
+          {
+            rc = err;
+            return (c_orm_error_t)rc;
+          }
         }
         bind_idx++;
         break;
@@ -4301,18 +5454,26 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
     }
     if (err != C_ORM_OK) {
       c_orm_finalize_cached(db, query);
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
   }
 
   err = db->vtable->step(query, &has_row);
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_exists_int32(c_orm_db_t *db,
                                               const c_orm_table_meta_t *meta,
                                               int32_t id, int *out_exists) {
+  int rc;
+
   char sql[256];
   c_orm_query_t *query;
   c_orm_error_t err;
@@ -4320,16 +5481,24 @@ C_ORM_EXPORT c_orm_error_t c_orm_exists_int32(c_orm_db_t *db,
 
   if (out_exists)
     *out_exists = 0;
-  if (!meta->query_select_by_pk)
-    return 740;
+  if (!meta->query_select_by_pk) {
+    rc = 740;
+    return (c_orm_error_t)rc;
+  }
+#if defined(_MSC_VER)
+  sprintf_s(sql, sizeof(sql), "SELECT 1 FROM %s WHERE id = ?", meta->name);
+#else
 #if defined(_MSC_VER)
   sprintf_s(sql, sizeof(sql), "SELECT 1 FROM %s WHERE id = ?", meta->name);
 #else
   sprintf(sql, "SELECT 1 FROM %s WHERE id = ?", meta->name);
 #endif
+#endif
   err = c_orm_prepare_cached(db, sql, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
   err = db->vtable->bind_int32(query, 1, id);
   if (err == C_ORM_OK) {
     err = db->vtable->step(query, &has_row);
@@ -4337,13 +5506,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_exists_int32(c_orm_db_t *db,
       *out_exists = has_row;
   }
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_exists_string(c_orm_db_t *db,
                                                const c_orm_table_meta_t *meta,
                                                const char *id,
                                                int *out_exists) {
+  int rc;
+
   char sql[256];
   c_orm_query_t *query;
   c_orm_error_t err;
@@ -4353,25 +5527,36 @@ C_ORM_EXPORT c_orm_error_t c_orm_exists_string(c_orm_db_t *db,
 
   if (out_exists)
     *out_exists = 0;
-  if (!meta->query_select_by_pk)
-    return 741;
+  if (!meta->query_select_by_pk) {
+    rc = 741;
+    return (c_orm_error_t)rc;
+  }
   for (i = 0; i < meta->num_columns; i++) {
     if (meta->columns[i].is_pk) {
       pk_col = &meta->columns[i];
       break;
     }
   }
-  if (!pk_col)
-    return 742;
+  if (!pk_col) {
+    rc = 742;
+    return (c_orm_error_t)rc;
+  }
+#if defined(_MSC_VER)
+  sprintf_s(sql, sizeof(sql), "SELECT 1 FROM %s WHERE %s = ?", meta->name,
+            pk_col->name);
+#else
 #if defined(_MSC_VER)
   sprintf_s(sql, sizeof(sql), "SELECT 1 FROM %s WHERE %s = ?", meta->name,
             pk_col->name);
 #else
   sprintf(sql, "SELECT 1 FROM %s WHERE %s = ?", meta->name, pk_col->name);
 #endif
+#endif
   err = c_orm_prepare_cached(db, sql, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
   err = db->vtable->bind_string(query, 1, id);
   if (err == C_ORM_OK) {
     err = db->vtable->step(query, &has_row);
@@ -4379,18 +5564,25 @@ C_ORM_EXPORT c_orm_error_t c_orm_exists_string(c_orm_db_t *db,
       *out_exists = has_row;
   }
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_all_paginated(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                          void *out_array, size_t limit, size_t offset) {
+  int rc;
+
   char sql[256];
   c_orm_query_t *query;
   c_orm_error_t err;
 
-  if (!db || !meta || !out_array)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !out_array) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 #if defined(_MSC_VER)
   sprintf_s(sql, sizeof(sql), "SELECT * FROM %s LIMIT %u OFFSET %u", meta->name,
             (unsigned int)limit, (unsigned int)offset);
@@ -4399,36 +5591,56 @@ c_orm_find_all_paginated(c_orm_db_t *db, const c_orm_table_meta_t *meta,
           (unsigned int)limit, (unsigned int)offset);
 #endif
   err = c_orm_prepare_cached(db, sql, &query);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = c_orm_hydrate_all(db, query, meta, out_array);
   c_orm_finalize_cached(db, query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_lazy_load_paginated(
     c_orm_db_t *db, const c_orm_table_meta_t *parent_meta, void *parent_obj,
     const char *relation_name, size_t limit, size_t offset) {
+  int rc;
+
   size_t i;
-  if (!db || !parent_meta || !parent_obj || !relation_name)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !parent_meta || !parent_obj || !relation_name) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < parent_meta->num_relations; ++i) {
     if (strcmp(parent_meta->relations[i].field_name, relation_name) == 0) {
-      return c_orm_load_relation_ext(db, parent_obj, parent_meta, i, limit,
+      {
+        rc = c_orm_load_relation_ext(db, parent_obj, parent_meta, i, limit,
                                      offset);
+        return (c_orm_error_t)rc;
+      }
     }
   }
 
-  return C_ORM_ERROR_NOT_FOUND;
+  {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_lazy_load(c_orm_db_t *db, const c_orm_table_meta_t *parent_meta,
                 void *parent_obj, const char *relation_name) {
-  return c_orm_lazy_load_paginated(db, parent_meta, parent_obj, relation_name,
+  int rc;
+
+  {
+    rc = c_orm_lazy_load_paginated(db, parent_meta, parent_obj, relation_name,
                                    0, 0);
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_attach(c_orm_db_t *db,
@@ -4436,12 +5648,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_attach(c_orm_db_t *db,
                                         void *parent_obj,
                                         const char *relation_name,
                                         void *child_obj) {
+  int rc;
+
   size_t i;
   const c_orm_relation_meta_t *rel = NULL;
   c_orm_error_t err;
 
-  if (!db || !parent_meta || !parent_obj || !relation_name || !child_obj)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !parent_meta || !parent_obj || !relation_name || !child_obj) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < parent_meta->num_relations; ++i) {
     if (strcmp(parent_meta->relations[i].field_name, relation_name) == 0) {
@@ -4450,27 +5666,39 @@ C_ORM_EXPORT c_orm_error_t c_orm_attach(c_orm_db_t *db,
     }
   }
 
-  if (!rel || !rel->target_meta)
-    return C_ORM_ERROR_NOT_FOUND;
+  if (!rel || !rel->target_meta) {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
 
   if (rel->on_attach) {
     if (rel->on_attach(parent_obj, child_obj, db) != 0) {
-      return C_ORM_ERROR_UNKNOWN;
+      {
+        rc = C_ORM_ERROR_UNKNOWN;
+        return (c_orm_error_t)rc;
+      }
     }
   }
 
   if (rel->type == C_ORM_RELATION_ONE_TO_MANY) {
     int64_t parent_pk = 0;
     err = get_int_field(parent_meta, parent_obj, rel->local_key, &parent_pk);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     err =
         set_int_field(rel->target_meta, child_obj, rel->foreign_key, parent_pk);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
-    return c_orm_save(db, rel->target_meta, child_obj);
+    {
+      rc = c_orm_save(db, rel->target_meta, child_obj);
+      return (c_orm_error_t)rc;
+    }
   } else if (rel->type == C_ORM_RELATION_MANY_TO_MANY) {
     char sql[512];
     c_orm_query_t *q;
@@ -4478,17 +5706,23 @@ C_ORM_EXPORT c_orm_error_t c_orm_attach(c_orm_db_t *db,
     int64_t child_pk = 0;
     int has_row;
 
-    if (!rel->join_table || !rel->join_local_key || !rel->join_foreign_key)
-      return 743;
+    if (!rel->join_table || !rel->join_local_key || !rel->join_foreign_key) {
+      rc = 743;
+      return (c_orm_error_t)rc;
+    }
 
     err = get_int_field(parent_meta, parent_obj, rel->local_key, &parent_pk);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     err =
         get_int_field(rel->target_meta, child_obj, rel->foreign_key, &child_pk);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
 #if defined(_MSC_VER)
     sprintf_s(sql, sizeof(sql), "INSERT INTO %s (%s, %s) VALUES (?, ?)",
@@ -4498,18 +5732,26 @@ C_ORM_EXPORT c_orm_error_t c_orm_attach(c_orm_db_t *db,
             rel->join_local_key, rel->join_foreign_key);
 #endif
     err = c_orm_prepare_cached(db, sql, &q);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     db->vtable->bind_int64(q, 1, parent_pk);
     db->vtable->bind_int64(q, 2, child_pk);
 
     err = db->vtable->step(q, &has_row);
     c_orm_finalize_cached(db, q);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
-  return 744;
+  {
+    rc = 744;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_detach(c_orm_db_t *db,
@@ -4517,12 +5759,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_detach(c_orm_db_t *db,
                                         void *parent_obj,
                                         const char *relation_name,
                                         void *child_obj) {
+  int rc;
+
   size_t i;
   const c_orm_relation_meta_t *rel = NULL;
   c_orm_error_t err;
 
-  if (!db || !parent_meta || !parent_obj || !relation_name || !child_obj)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !parent_meta || !parent_obj || !relation_name || !child_obj) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < parent_meta->num_relations; ++i) {
     if (strcmp(parent_meta->relations[i].field_name, relation_name) == 0) {
@@ -4531,22 +5777,32 @@ C_ORM_EXPORT c_orm_error_t c_orm_detach(c_orm_db_t *db,
     }
   }
 
-  if (!rel || !rel->target_meta)
-    return C_ORM_ERROR_NOT_FOUND;
+  if (!rel || !rel->target_meta) {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
 
   if (rel->on_detach) {
     if (rel->on_detach(parent_obj, child_obj, db) != 0) {
-      return C_ORM_ERROR_UNKNOWN;
+      {
+        rc = C_ORM_ERROR_UNKNOWN;
+        return (c_orm_error_t)rc;
+      }
     }
   }
 
   if (rel->type == C_ORM_RELATION_ONE_TO_MANY) {
     /* To detach a ONE_TO_MANY, we set the child's FK to 0/NULL and save it */
     err = set_null_field(rel->target_meta, child_obj, rel->foreign_key);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
-    return c_orm_save(db, rel->target_meta, child_obj);
+    {
+      rc = c_orm_save(db, rel->target_meta, child_obj);
+      return (c_orm_error_t)rc;
+    }
   } else if (rel->type == C_ORM_RELATION_MANY_TO_MANY) {
     char sql[512];
     c_orm_query_t *q;
@@ -4554,17 +5810,23 @@ C_ORM_EXPORT c_orm_error_t c_orm_detach(c_orm_db_t *db,
     int64_t child_pk = 0;
     int has_row;
 
-    if (!rel->join_table || !rel->join_local_key || !rel->join_foreign_key)
-      return 745;
+    if (!rel->join_table || !rel->join_local_key || !rel->join_foreign_key) {
+      rc = 745;
+      return (c_orm_error_t)rc;
+    }
 
     err = get_int_field(parent_meta, parent_obj, rel->local_key, &parent_pk);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     err =
         get_int_field(rel->target_meta, child_obj, rel->foreign_key, &child_pk);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
 #if defined(_MSC_VER)
     sprintf_s(sql, sizeof(sql), "DELETE FROM %s WHERE %s = ? AND %s = ?",
@@ -4574,30 +5836,42 @@ C_ORM_EXPORT c_orm_error_t c_orm_detach(c_orm_db_t *db,
             rel->join_local_key, rel->join_foreign_key);
 #endif
     err = c_orm_prepare_cached(db, sql, &q);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     db->vtable->bind_int64(q, 1, parent_pk);
     db->vtable->bind_int64(q, 2, child_pk);
 
     err = db->vtable->step(q, &has_row);
     c_orm_finalize_cached(db, q);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
-  return 746;
+  {
+    rc = 746;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_sync(
     c_orm_db_t *db, const c_orm_table_meta_t *parent_meta, void *parent_obj,
     const char *relation_name, void *children_array, size_t num_children) {
+  int rc;
+
   size_t i;
   const c_orm_relation_meta_t *rel = NULL;
   c_orm_error_t err;
 
   if (!db || !parent_meta || !parent_obj || !relation_name ||
-      (!children_array && num_children > 0))
-    return C_ORM_ERROR_MEMORY;
+      (!children_array && num_children > 0)) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < parent_meta->num_relations; ++i) {
     if (strcmp(parent_meta->relations[i].field_name, relation_name) == 0) {
@@ -4606,8 +5880,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_sync(
     }
   }
 
-  if (!rel || !rel->target_meta)
-    return C_ORM_ERROR_NOT_FOUND;
+  if (!rel || !rel->target_meta) {
+    rc = C_ORM_ERROR_NOT_FOUND;
+    return (c_orm_error_t)rc;
+  }
 
   if (rel->type == C_ORM_RELATION_ONE_TO_MANY) {
     char sql[512];
@@ -4616,8 +5892,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_sync(
     int has_row;
 
     err = get_int_field(parent_meta, parent_obj, rel->local_key, &parent_pk);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     /* Unset all existing children's foreign keys */
 #if defined(_MSC_VER)
@@ -4628,14 +5906,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_sync(
             rel->foreign_key, rel->foreign_key);
 #endif
     err = c_orm_prepare_cached(db, sql, &q);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     db->vtable->bind_int64(q, 1, parent_pk);
     err = db->vtable->step(q, &has_row);
     c_orm_finalize_cached(db, q);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     /* Now set the new children's foreign keys */
     for (i = 0; i < num_children; i++) {
@@ -4643,25 +5925,36 @@ C_ORM_EXPORT c_orm_error_t c_orm_sync(
           (char *)children_array + (i * rel->target_meta->struct_size);
       err = set_int_field(rel->target_meta, child_obj, rel->foreign_key,
                           parent_pk);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
       err = c_orm_save(db, rel->target_meta, child_obj);
-      if (err != C_ORM_OK)
-        return err;
+      if (err != C_ORM_OK) {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   } else if (rel->type == C_ORM_RELATION_MANY_TO_MANY) {
     char sql[512];
     c_orm_query_t *q;
     int64_t parent_pk = 0;
     int has_row;
 
-    if (!rel->join_table || !rel->join_local_key || !rel->join_foreign_key)
-      return 747;
+    if (!rel->join_table || !rel->join_local_key || !rel->join_foreign_key) {
+      rc = 747;
+      return (c_orm_error_t)rc;
+    }
 
     err = get_int_field(parent_meta, parent_obj, rel->local_key, &parent_pk);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     /* Delete all existing links */
 #if defined(_MSC_VER)
@@ -4672,14 +5965,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_sync(
             rel->join_local_key);
 #endif
     err = c_orm_prepare_cached(db, sql, &q);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     db->vtable->bind_int64(q, 1, parent_pk);
     err = db->vtable->step(q, &has_row);
     c_orm_finalize_cached(db, q);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     /* Insert new links */
 #if defined(_MSC_VER)
@@ -4690,8 +5987,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_sync(
             rel->join_local_key, rel->join_foreign_key);
 #endif
     err = c_orm_prepare_cached(db, sql, &q);
-    if (err != C_ORM_OK)
-      return err;
+    if (err != C_ORM_OK) {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
 
     for (i = 0; i < num_children; i++) {
       int64_t child_pk = 0;
@@ -4702,7 +6001,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_sync(
                           &child_pk);
       if (err != C_ORM_OK) {
         c_orm_finalize_cached(db, q);
-        return err;
+        {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
 
       db->vtable->bind_int64(q, 1, parent_pk);
@@ -4711,31 +6013,53 @@ C_ORM_EXPORT c_orm_error_t c_orm_sync(
       db->vtable->reset(q);
       if (err != C_ORM_OK) {
         c_orm_finalize_cached(db, q);
-        return err;
+        {
+          rc = err;
+          return (c_orm_error_t)rc;
+        }
       }
     }
     c_orm_finalize_cached(db, q);
-    return C_ORM_OK;
+    {
+      rc = C_ORM_OK;
+      return (c_orm_error_t)rc;
+    }
   }
 
-  return 748;
+  {
+    rc = 748;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_delete_all(c_orm_db_t *db,
                                             const c_orm_table_meta_t *meta) {
+  int rc;
+
   char sql[256];
-  if (!db || !meta)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+#if defined(_MSC_VER)
+  sprintf_s(sql, sizeof(sql), "DELETE FROM %s", meta->name);
+#else
 #if defined(_MSC_VER)
   sprintf_s(sql, sizeof(sql), "DELETE FROM %s", meta->name);
 #else
   sprintf(sql, "DELETE FROM %s", meta->name);
 #endif
-  return c_orm_execute_raw(db, sql);
+#endif
+  {
+    rc = c_orm_execute_raw(db, sql);
+    return (c_orm_error_t)rc;
+  }
 }
 C_ORM_EXPORT c_orm_error_t c_orm_insert_generic(c_orm_db_t *db,
                                                 const c_orm_table_meta_t *meta,
                                                 const void *ptr) {
+  int rc;
+
   c_orm_string_builder_t *sb;
   const char *sql_str;
   c_orm_query_t *query;
@@ -4744,13 +6068,19 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_generic(c_orm_db_t *db,
   int bind_idx = 1;
   int has_row = 0;
 
-  if (!db || !meta || !ptr)
-    return C_ORM_ERROR_MEMORY;
-  if (meta->is_view)
-    return C_ORM_ERROR_READ_ONLY;
+  if (!db || !meta || !ptr) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
+  if (meta->is_view) {
+    rc = C_ORM_ERROR_READ_ONLY;
+    return (c_orm_error_t)rc;
+  }
 
-  if (c_orm_string_builder_init(&sb) != 0)
-    return C_ORM_ERROR_MEMORY;
+  if (c_orm_string_builder_init(&sb) != 0) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   c_orm_string_builder_append(sb, "INSERT INTO ");
   c_orm_string_builder_append(sb, meta->name);
@@ -4773,33 +6103,49 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_generic(c_orm_db_t *db,
 
   if (c_orm_string_builder_get(sb, &sql_str) != 0) {
     c_orm_string_builder_free(sb);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->prepare(db, sql_str, &query);
   c_orm_string_builder_free(sb);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = bind_row(db, query, meta, ptr, 0, 0, &bind_idx);
   if (err != C_ORM_OK) {
     db->vtable->finalize(query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
   if (err != C_ORM_OK && err != C_ORM_ERROR_NOT_FOUND) {
     db->vtable->finalize(query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   db->vtable->finalize(query);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_get_generic(c_orm_db_t *db,
                                              const c_orm_table_meta_t *meta,
                                              int32_t pk_val, void *out_struct) {
+  int rc;
+
   c_orm_string_builder_t *sb;
   const char *sql_str;
   c_orm_query_t *query;
@@ -4808,8 +6154,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_get_generic(c_orm_db_t *db,
   size_t i;
   int has_row;
 
-  if (!db || !meta || !out_struct)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !out_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < meta->num_columns; i++) {
     if (meta->columns[i].is_pk) {
@@ -4818,11 +6166,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_get_generic(c_orm_db_t *db,
     }
   }
 
-  if (!pk_col)
-    return C_ORM_ERROR_VALIDATION;
+  if (!pk_col) {
+    rc = C_ORM_ERROR_VALIDATION;
+    return (c_orm_error_t)rc;
+  }
 
-  if (c_orm_string_builder_init(&sb) != 0)
-    return C_ORM_ERROR_MEMORY;
+  if (c_orm_string_builder_init(&sb) != 0) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   c_orm_string_builder_append(sb, "SELECT * FROM ");
   c_orm_string_builder_append(sb, meta->name);
@@ -4832,39 +6184,58 @@ C_ORM_EXPORT c_orm_error_t c_orm_get_generic(c_orm_db_t *db,
 
   if (c_orm_string_builder_get(sb, &sql_str) != 0) {
     c_orm_string_builder_free(sb);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->prepare(db, sql_str, &query);
   c_orm_string_builder_free(sb);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = db->vtable->bind_int32(query, 1, pk_val);
   if (err != C_ORM_OK) {
     db->vtable->finalize(query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
   if (err != C_ORM_OK) {
     db->vtable->finalize(query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (!has_row) {
     db->vtable->finalize(query);
-    return C_ORM_ERROR_NOT_FOUND;
+    {
+      rc = C_ORM_ERROR_NOT_FOUND;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_hydrate_row(db, query, meta, out_struct);
   db->vtable->finalize(query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                        void **out_array, size_t *out_count) {
+  int rc;
+
   c_orm_string_builder_t *sb;
   const char *sql_str;
   c_orm_query_t *query;
@@ -4874,29 +6245,41 @@ c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   size_t cap = 16;
   void *data;
 
-  if (!db || !meta || !out_array || !out_count)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !out_array || !out_count) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
-  if (c_orm_string_builder_init(&sb) != 0)
-    return C_ORM_ERROR_MEMORY;
+  if (c_orm_string_builder_init(&sb) != 0) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   c_orm_string_builder_append(sb, "SELECT * FROM ");
   c_orm_string_builder_append(sb, meta->name);
 
   if (c_orm_string_builder_get(sb, &sql_str) != 0) {
     c_orm_string_builder_free(sb);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->prepare(db, sql_str, &query);
   c_orm_string_builder_free(sb);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   data = malloc(cap * meta->struct_size);
   if (!data) {
     db->vtable->finalize(query);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   while ((err = db->vtable->step(query, &has_row)) == C_ORM_OK && has_row) {
@@ -4907,7 +6290,10 @@ c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
       if (!new_data) {
         free(data);
         db->vtable->finalize(query);
-        return C_ORM_ERROR_MEMORY;
+        {
+          rc = C_ORM_ERROR_MEMORY;
+          return (c_orm_error_t)rc;
+        }
       }
       data = new_data;
     }
@@ -4922,24 +6308,35 @@ c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     } else {
       free(data);
       db->vtable->finalize(query);
-      return err;
+      {
+        rc = err;
+        return (c_orm_error_t)rc;
+      }
     }
   }
 
   if (err != C_ORM_OK && err != C_ORM_ERROR_NOT_FOUND) {
     free(data);
     db->vtable->finalize(query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   *out_array = data;
   *out_count = count;
   db->vtable->finalize(query);
-  return C_ORM_OK;
+  {
+    rc = C_ORM_OK;
+    return (c_orm_error_t)rc;
+  }
 }
 C_ORM_EXPORT c_orm_error_t
 c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                          const char *pk_val, void *out_struct) {
+  int rc;
+
   c_orm_string_builder_t *sb;
   const char *sql_str;
   c_orm_query_t *query;
@@ -4948,8 +6345,10 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   size_t i;
   int has_row;
 
-  if (!db || !meta || !pk_val || !out_struct)
-    return C_ORM_ERROR_MEMORY;
+  if (!db || !meta || !pk_val || !out_struct) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   for (i = 0; i < meta->num_columns; i++) {
     if (meta->columns[i].is_pk) {
@@ -4958,11 +6357,15 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     }
   }
 
-  if (!pk_col)
-    return C_ORM_ERROR_VALIDATION;
+  if (!pk_col) {
+    rc = C_ORM_ERROR_VALIDATION;
+    return (c_orm_error_t)rc;
+  }
 
-  if (c_orm_string_builder_init(&sb) != 0)
-    return C_ORM_ERROR_MEMORY;
+  if (c_orm_string_builder_init(&sb) != 0) {
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   c_orm_string_builder_append(sb, "SELECT * FROM ");
   c_orm_string_builder_append(sb, meta->name);
@@ -4972,32 +6375,49 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 
   if (c_orm_string_builder_get(sb, &sql_str) != 0) {
     c_orm_string_builder_free(sb);
-    return C_ORM_ERROR_MEMORY;
+    {
+      rc = C_ORM_ERROR_MEMORY;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->prepare(db, sql_str, &query);
   c_orm_string_builder_free(sb);
-  if (err != C_ORM_OK)
-    return err;
+  if (err != C_ORM_OK) {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 
   err = db->vtable->bind_string(query, 1, pk_val);
   if (err != C_ORM_OK) {
     db->vtable->finalize(query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = db->vtable->step(query, &has_row);
   if (err != C_ORM_OK) {
     db->vtable->finalize(query);
-    return err;
+    {
+      rc = err;
+      return (c_orm_error_t)rc;
+    }
   }
 
   if (!has_row) {
     db->vtable->finalize(query);
-    return C_ORM_ERROR_NOT_FOUND;
+    {
+      rc = C_ORM_ERROR_NOT_FOUND;
+      return (c_orm_error_t)rc;
+    }
   }
 
   err = c_orm_hydrate_row(db, query, meta, out_struct);
   db->vtable->finalize(query);
-  return err;
+  {
+    rc = err;
+    return (c_orm_error_t)rc;
+  }
 }

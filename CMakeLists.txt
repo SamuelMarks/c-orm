@@ -14,7 +14,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 if(MSVC)
-  add_compile_options(/wd4715 /wd4013 /wd4701 /wd4047)
+  add_compile_options(/wd4715 /wd4013 /wd4701 /wd4047 /wd4018 /wd4146 /wd4244 /wd4267)
 endif()
 
 # Step 278: Static Analysis Integration
@@ -32,6 +32,8 @@ endif()
 # Strict warnings
 if(MSVC)
     set(C_ORM_STRICT_OPTIONS /W4 /sdl)
+elseif(CMAKE_C_COMPILER_ID MATCHES "Watcom")
+    set(C_ORM_STRICT_OPTIONS -w4)
 else()
     set(C_ORM_STRICT_OPTIONS -Wall -Wextra  -Wpedantic -std=c90)
 endif()
@@ -42,7 +44,7 @@ include(FetchContent)
 
 if(TARGET c_str_span)
     # Target already populated natively
-elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-str-span/CMakeLists.txt")
+elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-str-span/CMakeLists.txt")
     FetchContent_Declare(c_str_span SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-str-span")
     FetchContent_MakeAvailable(c_str_span)
 else()
@@ -57,7 +59,7 @@ endif()
 
 if(TARGET c89stringutils)
     # Target already populated natively
-elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c89stringutils/CMakeLists.txt")
+elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c89stringutils/CMakeLists.txt")
     FetchContent_Declare(c89stringutils SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c89stringutils")
     FetchContent_MakeAvailable(c89stringutils)
 else()
@@ -77,7 +79,7 @@ set(C_REST_FRAMEWORK_FETCH_CDD_C OFF CACHE BOOL "Disable cdd_c fetch in c_rest_f
 
 if(TARGET cfs)
     # Target already populated natively
-elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-fs/CMakeLists.txt")
+elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-fs/CMakeLists.txt")
     FetchContent_Declare(cfs SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-fs")
     FetchContent_MakeAvailable(cfs)
 else()
@@ -92,7 +94,7 @@ endif()
 
 if(TARGET c-abstract-http)
     # Target already populated natively
-elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http/CMakeLists.txt")
+elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http/CMakeLists.txt")
     FetchContent_Declare(c_abstract_http SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http")
     FetchContent_MakeAvailable(c_abstract_http)
 else()
@@ -109,7 +111,7 @@ endif()
 
 if(TARGET c_cdd)
     # Target already populated natively
-elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../cdd-c/CMakeLists.txt")
+elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../cdd-c/CMakeLists.txt")
     FetchContent_Declare(cdd_c SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cdd-c")
     set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
     FetchContent_MakeAvailable(cdd_c)
@@ -119,15 +121,21 @@ else()
     endif()
     if(NOT cdd_c_FOUND AND NOT TARGET c_cdd)
         FetchContent_Declare(cdd_c GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git GIT_TAG master UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master COMMAND git clean -fdx)
-    set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
+        set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
         FetchContent_MakeAvailable(cdd_c)
     endif()
+endif()
+
+if(TARGET c_cdd AND NOT TARGET cdd-c)
+    add_executable(cdd-c "${CMAKE_BINARY_DIR}/_deps/cdd_c-src/src/bin_cdd.c")
+    target_link_libraries(cdd-c PRIVATE c_cdd)
 endif()
 
 
 
 add_library(c-orm
     src/c_orm_db.c
+    src/c_orm_log.c
     src/c_orm_string_builder.c
     src/c_orm_query_builder.c
     src/c_orm_arena.c

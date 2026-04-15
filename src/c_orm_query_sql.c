@@ -32,15 +32,20 @@ C_ORM_EXPORT void c_orm_query_params_cleanup(c_orm_query_params_t *params) {
 
 C_ORM_EXPORT int c_orm_query_params_add(c_orm_query_params_t *params,
                                         const char *value, int is_string) {
-  if (!params)
-    return 1;
+  int rc;
+  if (!params) {
+    rc = 1;
+    return rc;
+  }
 
   if (params->count >= params->capacity) {
     size_t new_cap = params->capacity == 0 ? 8 : params->capacity * 2;
     c_orm_query_param_t *new_arr = (c_orm_query_param_t *)realloc(
         params->params, sizeof(c_orm_query_param_t) * new_cap);
-    if (!new_arr)
-      return 1;
+    if (!new_arr) {
+      rc = 1;
+      return rc;
+    }
     params->params = new_arr;
     params->capacity = new_cap;
   }
@@ -48,7 +53,8 @@ C_ORM_EXPORT int c_orm_query_params_add(c_orm_query_params_t *params,
   params->params[params->count].value = value;
   params->params[params->count].is_string = is_string;
   params->count++;
-  return 0;
+  rc = 0;
+  return rc;
 }
 
 static c_orm_error_t render_node(c_orm_ast_node_t *node,
@@ -76,7 +82,11 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
 #if defined(_MSC_VER)
         sprintf_s(ph, sizeof(ph), "$%u", (unsigned int)params->count);
 #else
+#if defined(_MSC_VER)
+        sprintf_s(ph, sizeof(ph), "$%u", (unsigned int)params->count);
+#else
         sprintf(ph, "$%u", (unsigned int)params->count);
+#endif
 #endif
         c_orm_string_builder_append(sb, ph);
       } else {
@@ -153,7 +163,11 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
 #if defined(_MSC_VER)
         sprintf_s(ph, sizeof(ph), "$%u", (unsigned int)params->count);
 #else
+#if defined(_MSC_VER)
+        sprintf_s(ph, sizeof(ph), "$%u", (unsigned int)params->count);
+#else
         sprintf(ph, "$%u", (unsigned int)params->count);
+#endif
 #endif
         c_orm_string_builder_append(sb, ph);
       } else {
@@ -167,7 +181,11 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
 #if defined(_MSC_VER)
         sprintf_s(ph, sizeof(ph), "$%u", (unsigned int)params->count);
 #else
+#if defined(_MSC_VER)
+        sprintf_s(ph, sizeof(ph), "$%u", (unsigned int)params->count);
+#else
         sprintf(ph, "$%u", (unsigned int)params->count);
+#endif
 #endif
         c_orm_string_builder_append(sb, ph);
       } else {
@@ -265,12 +283,17 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
   c_orm_ast_join_t *joins[32];
   size_t join_count = 0;
   size_t i;
+  int rc;
 
-  if (!q || !out_sql)
-    return 1;
+  if (!q || !out_sql) {
+    rc = 1;
+    return rc;
+  }
 
-  if (c_orm_string_builder_init(&sb) != 0)
-    return 1;
+  rc = c_orm_string_builder_init(&sb);
+  if (rc != 0) {
+    return rc;
+  }
 
   node = q->ast_head;
   while (node) {
@@ -320,9 +343,10 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
     c_orm_string_builder_append(sb, "WITH ");
     c_orm_string_builder_append(sb, wth->alias);
     c_orm_string_builder_append(sb, " AS (");
-    if (c_orm_query_to_sql(wth->query, dialect, &subsql, out_params) != 0) {
+    rc = c_orm_query_to_sql(wth->query, dialect, &subsql, out_params);
+    if (rc != 0) {
       c_orm_string_builder_free(sb);
-      return 1;
+      return rc;
     }
     c_orm_string_builder_append(sb, subsql);
     free(subsql);
@@ -354,7 +378,8 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
     c_orm_string_builder_append(sb, " ON ");
     if (render_node(jn->on_condition, dialect, sb, out_params) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
-      return 1;
+      rc = 1;
+      return rc;
     }
   }
 
@@ -362,7 +387,8 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
     c_orm_string_builder_append(sb, " WHERE ");
     if (render_node(whr->condition, dialect, sb, out_params) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
-      return 1;
+      rc = 1;
+      return rc;
     }
   }
 
@@ -375,16 +401,18 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
     c_orm_string_builder_append(sb, " HAVING ");
     if (render_node(hav->condition, dialect, sb, out_params) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
-      return 1;
+      rc = 1;
+      return rc;
     }
   }
 
   if (uni) {
     char *subsql = NULL;
     c_orm_string_builder_append(sb, uni->is_all ? " UNION ALL " : " UNION ");
-    if (c_orm_query_to_sql(uni->query, dialect, &subsql, out_params) != 0) {
+    rc = c_orm_query_to_sql(uni->query, dialect, &subsql, out_params);
+    if (rc != 0) {
       c_orm_string_builder_free(sb);
-      return 1;
+      return rc;
     }
     c_orm_string_builder_append(sb, subsql);
     free(subsql);
@@ -401,7 +429,11 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
 #if defined(_MSC_VER)
     sprintf_s(num_buf, sizeof(num_buf), " LIMIT %u", (unsigned int)lim->limit);
 #else
+#if defined(_MSC_VER)
+    sprintf_s(num_buf, sizeof(num_buf), " LIMIT %u", (unsigned int)lim->limit);
+#else
     sprintf(num_buf, " LIMIT %u", (unsigned int)lim->limit);
+#endif
 #endif
     c_orm_string_builder_append(sb, num_buf);
   }
@@ -412,7 +444,12 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
     sprintf_s(num_buf, sizeof(num_buf), " OFFSET %u",
               (unsigned int)off->offset);
 #else
+#if defined(_MSC_VER)
+    sprintf_s(num_buf, sizeof(num_buf), " OFFSET %u",
+              (unsigned int)off->offset);
+#else
     sprintf(num_buf, " OFFSET %u", (unsigned int)off->offset);
+#endif
 #endif
     c_orm_string_builder_append(sb, num_buf);
   }
@@ -434,7 +471,8 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
   }
 
   c_orm_string_builder_free(sb);
-  return *out_sql ? 0 : 1;
+  rc = *out_sql ? 0 : 1;
+  return rc;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
