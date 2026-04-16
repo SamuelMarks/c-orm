@@ -1,10 +1,12 @@
-﻿#include "c_orm_api.h"
+﻿/* clang-format off */
+#include "c_orm_api.h"
 #include "c_orm_migrations.h"
 #include "c_orm_sqlite.h"
 #include "classes/emit/c_to_sql.h"
 #include "greatest.h"
 #include <stdlib.h>
 #include <string.h>
+/* clang-format on */
 
 SUITE(migrations_suite);
 

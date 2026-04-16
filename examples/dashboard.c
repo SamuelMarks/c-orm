@@ -3,12 +3,14 @@
  * Demonstrates using the dynamic abstract fallback router API.
  */
 
+/* clang-format off */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
+/* clang-format on */
 /* #include "classes/parse/abstract_struct.h" */
 
 int main(void) {

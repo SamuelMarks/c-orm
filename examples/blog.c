@@ -4,12 +4,14 @@
  * Requires: cdd-c generated Models.h linked.
  */
 
+/* clang-format off */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
+/* clang-format on */
 /* Assuming Models.h is available via cdd-c code generation in actual project */
 
 /* STUB STRUCTS to represent generated output */

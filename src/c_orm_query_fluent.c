@@ -921,7 +921,7 @@ C_ORM_EXPORT int c_orm_query_new(c_orm_query_t **out_query) {
   q->order_by = c_orm_query_order_by_impl;
   q->limit = c_orm_query_limit_impl;
   q->offset = c_orm_query_offset_impl;
-  q->clone = c_orm_query_clone_impl;
+  q->clone = c_orm_query_clone;
 
   q->join = c_orm_query_join_impl;
   q->left_join = c_orm_query_left_join_impl;

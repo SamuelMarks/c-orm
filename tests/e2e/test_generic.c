@@ -1,7 +1,9 @@
+/* clang-format off */
 #include "Models.h"
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
 #include "greatest.h"
+/* clang-format on */
 
 TEST test_c_orm_generic_crud(void) {
   struct Users u;
