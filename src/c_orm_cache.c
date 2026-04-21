@@ -1,4 +1,4 @@
-﻿/* clang-format off */
+/* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include <stdlib.h>

@@ -1,4 +1,4 @@
-﻿/* clang-format off */
+/* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_migrations.h"
 #include "c_orm_sqlite.h"

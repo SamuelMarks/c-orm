@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file c_orm_migrations.h
  * @brief Schema migration system for c-orm.
  */
