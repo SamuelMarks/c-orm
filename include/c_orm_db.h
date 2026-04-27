@@ -202,6 +202,7 @@ typedef enum {
 struct c_orm_db {
   const c_orm_driver_vtable_t *vtable;
   void *driver_data;
+  const char *driver_name; /* e.g. sqlite, postgres, mysql */
   c_orm_log_cb log_cb;
   void *log_user_data;
   c_orm_expire_cb expire_cb;

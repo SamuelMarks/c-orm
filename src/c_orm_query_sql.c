@@ -22,7 +22,7 @@ C_ORM_EXPORT void c_orm_query_params_init(c_orm_query_params_t *params) {
 C_ORM_EXPORT void c_orm_query_params_cleanup(c_orm_query_params_t *params) {
   if (params) {
     if (params->params) {
-      free(params->params);
+      C_ORM_FREE(params->params);
     }
     params->params = NULL;
     params->count = 0;
@@ -40,7 +40,7 @@ C_ORM_EXPORT int c_orm_query_params_add(c_orm_query_params_t *params,
 
   if (params->count >= params->capacity) {
     size_t new_cap = params->capacity == 0 ? 8 : params->capacity * 2;
-    c_orm_query_param_t *new_arr = (c_orm_query_param_t *)realloc(
+    c_orm_query_param_t *new_arr = (c_orm_query_param_t *)C_ORM_REALLOC(
         params->params, sizeof(c_orm_query_param_t) * new_cap);
     if (!new_arr) {
       rc = 1;
@@ -217,7 +217,7 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       return C_ORM_ERROR_SQL;
     c_orm_string_builder_append(sb, subsql);
     c_orm_string_builder_append(sb, ")");
-    free(subsql);
+    C_ORM_FREE(subsql);
     break;
   }
   case C_ORM_AST_NODE_SUBQUERY: {
@@ -233,7 +233,7 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       c_orm_string_builder_append(sb, " AS ");
       c_orm_string_builder_append(sb, sq->alias);
     }
-    free(subsql);
+    C_ORM_FREE(subsql);
     break;
   }
   case C_ORM_AST_NODE_WINDOW: {
@@ -349,7 +349,7 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
       return rc;
     }
     c_orm_string_builder_append(sb, subsql);
-    free(subsql);
+    C_ORM_FREE(subsql);
     c_orm_string_builder_append(sb, ") ");
   }
 
@@ -415,7 +415,7 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
       return rc;
     }
     c_orm_string_builder_append(sb, subsql);
-    free(subsql);
+    C_ORM_FREE(subsql);
   }
 
   if (ord) {
@@ -458,15 +458,13 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
     const char *sql_str;
     if (c_orm_string_builder_get(sb, &sql_str) == 0) {
       size_t len = strlen(sql_str);
-      *out_sql = (char *)malloc(len + 1);
+      *out_sql = (char *)C_ORM_MALLOC(len + 1);
       if (*out_sql)
 #if defined(_MSC_VER)
         strcpy_s(*out_sql, len + 1, sql_str);
 #else
         strcpy(*out_sql, sql_str);
 #endif
-    } else {
-      *out_sql = NULL;
     }
   }
 
@@ -494,7 +492,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
   }
 
   err = c_orm_prepare_cached(db, sql, &stmt);
-  free(sql);
+  C_ORM_FREE(sql);
   if (err != C_ORM_OK) {
     c_orm_query_params_cleanup(&params);
     return err;
@@ -536,7 +534,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
   }
 
   err = c_orm_prepare_cached(db, sql, &stmt);
-  free(sql);
+  C_ORM_FREE(sql);
   if (err != C_ORM_OK) {
     c_orm_query_params_cleanup(&params);
     return err;
@@ -583,7 +581,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
   }
 
   err = c_orm_prepare_cached(db, sql, &stmt);
-  free(sql);
+  C_ORM_FREE(sql);
   if (err != C_ORM_OK) {
     c_orm_query_params_cleanup(&params);
     return err;

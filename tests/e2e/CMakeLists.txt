@@ -47,6 +47,7 @@ add_executable(c_orm_e2e_tests
     test_e2e.c
     test_inline_macros.c
     test_ast.c
+    test_query_coverage.c
     test_migrations.c
     test_relations.c
     test_generic.c

@@ -614,7 +614,8 @@ static c_orm_query_t *c_orm_query_distinct_impl(c_orm_query_t *q) {
     curr = curr->next;
   }
   q->select_(q, "*");
-  ((c_orm_ast_select_t *)q->ast_head)->is_distinct = 1;
+  if (q->ast_head && q->ast_head->type == C_ORM_AST_NODE_SELECT)
+    ((c_orm_ast_select_t *)q->ast_head)->is_distinct = 1;
   return q;
 }
 
@@ -661,7 +662,7 @@ c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
     return q;
   }
 
-  on_cond = (char *)malloc(128);
+  on_cond = (char *)C_ORM_MALLOC(128);
   if (!on_cond) {
     q->error = 1;
     return q;
@@ -675,7 +676,7 @@ c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
 #endif
 
   q->left_join(q, rel->target_meta->name, q->raw(q, on_cond));
-  free(on_cond);
+  C_ORM_FREE(on_cond);
 
   /* Expand SELECT columns dynamically to add child columns with prefix
    * `relation_name_` */
@@ -898,14 +899,14 @@ C_ORM_EXPORT int c_orm_query_new(c_orm_query_t **out_query) {
     return rc;
   }
 
-  q = (c_orm_query_t *)malloc(sizeof(c_orm_query_t));
+  q = (c_orm_query_t *)C_ORM_MALLOC(sizeof(c_orm_query_t));
   if (!q) {
     rc = 1;
     return rc;
   }
 
   if (c_orm_arena_new(&q->arena) != 0) {
-    free(q);
+    C_ORM_FREE(q);
     rc = 1;
     return rc;
   }
@@ -961,6 +962,6 @@ C_ORM_EXPORT int c_orm_query_new(c_orm_query_t **out_query) {
 C_ORM_EXPORT void c_orm_query_free(c_orm_query_t *query) {
   if (query) {
     c_orm_arena_free(query->arena);
-    free(query);
+    C_ORM_FREE(query);
   }
 }

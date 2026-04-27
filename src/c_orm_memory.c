@@ -76,6 +76,7 @@ static c_orm_error_t mem_connect(const char *url, c_orm_db_t **out_db) {
   c_orm_memory_get_vtable(&vt);
   db->vtable = vt;
   db->driver_data = ctx;
+  db->driver_name = "memory";
   db->log_cb = NULL;
   db->log_user_data = NULL;
   db->expire_cb = NULL;

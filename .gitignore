@@ -63,3 +63,52 @@ build*/
 out/
 *.log
 Testing/
+
+# -------------------------------------------------------------------------
+# Comprehensive Wildcards for Careless `git add .`
+# -------------------------------------------------------------------------
+
+# Patch & diff artifacts
+*.patch
+*.orig
+*.rej
+*.bak
+*.tmp
+*.temp
+*~
+
+# Debug & output logs
+debug_*.txt
+mallocs.txt
+lldb_out.txt
+lldb.log
+*.log
+*.out
+a.out
+
+# macOS / Windows OS artifacts
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+$RECYCLE.BIN/
+
+# Databases & local state
+*.db
+*.sqlite
+*.sqlite3
+c_orm_token.dat
+test_cli.db
+
+# Extra Build / Coverage / IDE
+*.dSYM/
+.clangd/
+.cache/
+vcpkg_installed/
+test_migrations_dir/
+trace.sh

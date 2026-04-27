@@ -48,11 +48,11 @@ C_ORM_EXPORT void c_orm_migration_free_array(c_orm_migration_t *migrations,
     return;
   for (i = 0; i < count; i++) {
     if (migrations[i].up_sql)
-      free(migrations[i].up_sql);
+      C_ORM_FREE(migrations[i].up_sql);
     if (migrations[i].down_sql)
-      free(migrations[i].down_sql);
+      C_ORM_FREE(migrations[i].down_sql);
   }
-  free(migrations);
+  C_ORM_FREE(migrations);
 }
 
 C_ORM_EXPORT c_orm_error_t
@@ -276,7 +276,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
   }
 
   if (applied)
-    free(applied);
+    C_ORM_FREE(applied);
 
   c_orm_migration_unlock(db);
   {
@@ -319,7 +319,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
     } /* SQLite fallback for now */
   }
 
-  meta = (cdd_c_meta_t *)malloc(sizeof(cdd_c_meta_t));
+  meta = (cdd_c_meta_t *)C_ORM_MALLOC(sizeof(cdd_c_meta_t));
   if (!meta) {
     c_orm_finalize_cached(db, q);
     {
@@ -327,17 +327,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
       return (c_orm_error_t)rc;
     }
   }
-  meta->name = (char *)malloc(strlen(table_name) + 1);
+  meta->name = (char *)C_ORM_MALLOC(strlen(table_name) + 1);
   if (meta->name)
     strcpy((char *)meta->name, table_name);
   meta->size = 0;
   meta->num_props = 0;
   meta->driver_ctx = NULL;
-  meta->props = (cdd_c_prop_meta_t *)malloc(sizeof(cdd_c_prop_meta_t) * cap);
+  meta->props =
+      (cdd_c_prop_meta_t *)C_ORM_MALLOC(sizeof(cdd_c_prop_meta_t) * cap);
   if (!meta->props) {
     if (meta->name)
-      free((void *)meta->name);
-    free(meta);
+      C_ORM_FREE((void *)meta->name);
+    C_ORM_FREE(meta);
     c_orm_finalize_cached(db, q);
     {
       rc = C_ORM_ERROR_MEMORY;
@@ -358,18 +359,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
 
     if (meta->num_props >= cap) {
       cap *= 2;
-      meta->props = (cdd_c_prop_meta_t *)realloc(
+      meta->props = (cdd_c_prop_meta_t *)C_ORM_REALLOC(
           (void *)meta->props, sizeof(cdd_c_prop_meta_t) * cap);
     }
 
     prop = (cdd_c_prop_meta_t *)&meta->props[meta->num_props++];
     memset(prop, 0, sizeof(cdd_c_prop_meta_t));
 
-    prop->name = (char *)malloc(strlen(col_name) + 1);
+    prop->name = (char *)C_ORM_MALLOC(strlen(col_name) + 1);
     if (prop->name)
       strcpy((char *)prop->name, col_name);
 
-    prop->type = (char *)malloc(strlen(col_type) + 1);
+    prop->type = (char *)C_ORM_MALLOC(strlen(col_type) + 1);
     if (prop->type)
       strcpy((char *)prop->type, col_type);
     prop->offset = 0;
@@ -388,17 +389,17 @@ C_ORM_EXPORT void c_orm_migration_free_table_schema(cdd_c_meta_t *schema) {
   if (!schema)
     return;
   if (schema->name)
-    free((void *)schema->name);
+    C_ORM_FREE((void *)schema->name);
   if (schema->props) {
     for (i = 0; i < schema->num_props; i++) {
       if (schema->props[i].name)
-        free((void *)schema->props[i].name);
+        C_ORM_FREE((void *)schema->props[i].name);
       if (schema->props[i].type)
-        free((void *)schema->props[i].type);
+        C_ORM_FREE((void *)schema->props[i].type);
     }
-    free((void *)schema->props);
+    C_ORM_FREE((void *)schema->props);
   }
-  free(schema);
+  C_ORM_FREE(schema);
 }
 C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
     c_orm_db_t *db, c_orm_migration_t **out_migrations, size_t *out_count) {
@@ -424,7 +425,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
     return (c_orm_error_t)rc;
   }
 
-  migs = (c_orm_migration_t *)malloc(cap * sizeof(c_orm_migration_t));
+  migs = (c_orm_migration_t *)C_ORM_MALLOC(cap * sizeof(c_orm_migration_t));
   if (!migs) {
     c_orm_finalize_cached(db, q);
     {
@@ -444,8 +445,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
 
     if (count >= cap) {
       cap *= 2;
-      migs =
-          (c_orm_migration_t *)realloc(migs, cap * sizeof(c_orm_migration_t));
+      migs = (c_orm_migration_t *)C_ORM_REALLOC(
+          migs, cap * sizeof(c_orm_migration_t));
     }
 
     memset(&migs[count], 0, sizeof(c_orm_migration_t));
@@ -566,26 +567,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_lock(c_orm_db_t *db) {
 
 C_ORM_EXPORT c_orm_error_t c_orm_migration_unlock(c_orm_db_t *db) {
   int rc;
-
-  c_orm_error_t err;
-  /* Attempt SQLite */
-  err = c_orm_execute_raw(db, "COMMIT");
-  if (err == C_ORM_OK) {
-    rc = C_ORM_OK;
+  c_orm_error_t err = C_ORM_ERROR_NOT_IMPLEMENTED;
+  if (!db || !db->driver_name) {
+    rc = C_ORM_ERROR_VALIDATION;
     return (c_orm_error_t)rc;
   }
-
-  /* Attempt Postgres */
-  err = c_orm_execute_raw(db, "SELECT pg_advisory_unlock(723821)");
-  if (err == C_ORM_OK) {
-    rc = C_ORM_OK;
-    return (c_orm_error_t)rc;
-  }
-
-  /* Attempt MySQL */
-  err = c_orm_execute_raw(db, "SELECT RELEASE_LOCK('c_orm_migration')");
-  {
-    rc = err;
-    return (c_orm_error_t)rc;
-  }
+  if (strcmp(db->driver_name, "sqlite") == 0 ||
+      strcmp(db->driver_name, "memory") == 0)
+    err = c_orm_execute_raw(db, "COMMIT");
+  else if (strcmp(db->driver_name, "postgres") == 0)
+    err = c_orm_execute_raw(db, "SELECT pg_advisory_unlock(723821)");
+  else if (strcmp(db->driver_name, "mysql") == 0)
+    err = c_orm_execute_raw(db, "SELECT RELEASE_LOCK('c_orm_migration')");
+  rc = err;
+  return (c_orm_error_t)rc;
 }

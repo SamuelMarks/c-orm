@@ -29,7 +29,7 @@ C_ORM_EXPORT int c_orm_arena_new(c_orm_arena_t **out_arena) {
     return rc;
   }
 
-  arena = (c_orm_arena_t *)malloc(sizeof(c_orm_arena_t));
+  arena = (c_orm_arena_t *)C_ORM_MALLOC(sizeof(c_orm_arena_t));
   if (!arena) {
     rc = 1;
     return rc;
@@ -63,7 +63,7 @@ C_ORM_EXPORT int c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
       alloc_size = sizeof(c_orm_arena_block_t) - C_ORM_ARENA_BLOCK_SIZE + size;
     }
 
-    block = (c_orm_arena_block_t *)malloc(alloc_size);
+    block = (c_orm_arena_block_t *)C_ORM_MALLOC(alloc_size);
     if (!block) {
       rc = 1;
       return rc;
@@ -91,9 +91,9 @@ C_ORM_EXPORT void c_orm_arena_free(c_orm_arena_t *arena) {
   block = arena->head;
   while (block) {
     next = block->next;
-    free(block);
+    C_ORM_FREE(block);
     block = next;
   }
 
-  free(arena);
+  C_ORM_FREE(arena);
 }

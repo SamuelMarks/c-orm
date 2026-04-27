@@ -40,6 +40,8 @@ typedef size_t bool;
 
 /* clang-format on */
 
+#include <stdlib.h>
+
 #if !defined(_MSC_VER) || _MSC_VER >= 1800
 
 #else
@@ -88,6 +90,19 @@ extern "C" {
 #endif
 
 #define CMP_SECURE_FIELD true
+
+#ifndef C_ORM_TEST_ALLOCATOR
+#define C_ORM_MALLOC malloc
+#define C_ORM_FREE free
+#define C_ORM_REALLOC realloc
+#else
+C_ORM_EXPORT extern void *(*c_orm_malloc)(size_t size);
+C_ORM_EXPORT extern void (*c_orm_free)(void *ptr);
+C_ORM_EXPORT extern void *(*c_orm_realloc)(void *ptr, size_t size);
+#define C_ORM_MALLOC c_orm_malloc
+#define C_ORM_FREE c_orm_free
+#define C_ORM_REALLOC c_orm_realloc
+#endif
 
 /**
  * @brief Data types supported by c-orm.

@@ -33,9 +33,9 @@ __declspec(dllimport) int __stdcall QueryPerformanceFrequency(LARGE_INTEGER *lpF
 #ifdef C_ORM_ENABLE_SQLITE
 #if defined(_MSC_VER)
 #pragma warning(push)
-#pragma warning(                                                               \
-    disable : 4306) /* 'type cast' : conversion from 'int' to                  \
-                       'sqlite3_destructor_type' of greater size */
+#pragma warning(disable                                                        \
+                : 4306) /* 'type cast' : conversion from 'int' to              \
+                           'sqlite3_destructor_type' of greater size */
 #endif
 #endif
 
@@ -123,6 +123,7 @@ static c_orm_error_t sqlite_connect(const char *url, c_orm_db_t **out_db) {
     }
   }
   db->driver_data = data;
+  db->driver_name = "sqlite";
   *out_db = db;
 
   {

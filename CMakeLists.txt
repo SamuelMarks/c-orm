@@ -8,6 +8,7 @@ if(POLICY CMP0077)
 endif()
 
 project(c-orm VERSION 0.1.0 LANGUAGES C)
+add_compile_definitions(C_ORM_TEST_ALLOCATOR)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -136,6 +137,7 @@ endif()
 add_library(c-orm
     src/c_orm_db.c
     src/c_orm_log.c
+    src/c_orm_alloc.c
     src/c_orm_string_builder.c
     src/c_orm_query_builder.c
     src/c_orm_arena.c
