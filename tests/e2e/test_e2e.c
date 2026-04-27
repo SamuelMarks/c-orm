@@ -1137,7 +1137,6 @@ int main(int argc, char **argv) {
   RUN_SUITE(inline_macros_suite);
   RUN_SUITE(ast_suite);
   RUN_SUITE(query_fluent_coverage_suite);
-  SUITE(query_fluent_coverage_suite);
   RUN_SUITE(migrations_suite);
   RUN_SUITE(relations_suite);
   RUN_SUITE(generic_suite);

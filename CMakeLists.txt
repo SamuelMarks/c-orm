@@ -8,6 +8,7 @@ if(POLICY CMP0077)
 endif()
 
 project(c-orm VERSION 0.1.0 LANGUAGES C)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 add_compile_definitions(C_ORM_TEST_ALLOCATOR)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -15,7 +16,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 if(MSVC)
-  add_compile_options(/wd4715 /wd4013 /wd4701 /wd4047 /wd4018 /wd4146 /wd4244 /wd4267)
+  add_compile_options(/wd4715 /wd4013 /wd4701 /wd4047 /wd4018 /wd4146 /wd4244 /wd4267 /wd4101 /wd4090 /wd4232 /wd4189)
 endif()
 
 # Step 278: Static Analysis Integration
@@ -95,17 +96,6 @@ endif()
 
 if(TARGET c-abstract-http)
     # Target already populated natively
-elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http/CMakeLists.txt")
-    FetchContent_Declare(c_abstract_http SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http")
-    FetchContent_MakeAvailable(c_abstract_http)
-else()
-    if(CDD_DEPS STREQUAL "VCPKG")
-        find_package(c_abstract_http CONFIG QUIET)
-    endif()
-    if(NOT c_abstract_http_FOUND AND NOT TARGET c-abstract-http)
-        FetchContent_Declare(c_abstract_http GIT_REPOSITORY https://github.com/SamuelMarks/c-abstract-http.git GIT_TAG master UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master COMMAND git clean -fdx)
-        FetchContent_MakeAvailable(c_abstract_http)
-    endif()
 endif()
 
 

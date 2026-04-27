@@ -7,10 +7,6 @@
 #include <string.h>
 /* clang-format on */
 
-extern void *(*c_orm_malloc)(size_t size);
-extern void (*c_orm_free)(void *ptr);
-extern void *(*c_orm_realloc)(void *ptr, size_t size);
-
 #if !defined(_WIN32) && !defined(_WIN64)
 #include <pthread.h>
 extern int (*c_orm_mutex_init_ptr)(pthread_mutex_t *,

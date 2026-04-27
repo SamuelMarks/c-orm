@@ -8,8 +8,6 @@
 /* clang-format on */
 
 #ifdef C_ORM_TEST_ALLOCATOR
-extern void *(*c_orm_malloc)(size_t size);
-extern void *(*c_orm_realloc)(void *ptr, size_t size);
 
 static int malloc_fail_countdown = -1;
 static void *my_test_malloc(size_t size) {

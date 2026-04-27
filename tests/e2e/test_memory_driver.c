@@ -5,9 +5,6 @@
 #include <string.h>
 /* clang-format on */
 
-extern void *(*c_orm_malloc)(size_t size);
-extern void (*c_orm_free)(void *ptr);
-
 static int oom_countdown = -1;
 static int oom_active = 0;
 

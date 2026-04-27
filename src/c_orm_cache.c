@@ -11,8 +11,8 @@
 struct _RTL_CRITICAL_SECTION;
 typedef struct _RTL_CRITICAL_SECTION CRITICAL_SECTION;
 #endif
-__declspec(dllimport) void __stdcall
-InitializeCriticalSection(CRITICAL_SECTION *);
+__declspec(dllimport) void __stdcall InitializeCriticalSection(
+    CRITICAL_SECTION *);
 __declspec(dllimport) void __stdcall EnterCriticalSection(CRITICAL_SECTION *);
 __declspec(dllimport) void __stdcall LeaveCriticalSection(CRITICAL_SECTION *);
 __declspec(dllimport) void __stdcall DeleteCriticalSection(CRITICAL_SECTION *);
