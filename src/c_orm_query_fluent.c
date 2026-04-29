@@ -316,7 +316,7 @@ static c_orm_ast_node_t *c_orm_ast_clone_node(c_orm_arena_t *arena,
   return new_node;
 }
 
-C_ORM_EXPORT int c_orm_query_clone(c_orm_query_t *q, c_orm_query_t **out_q) {
+static int c_orm_query_clone(c_orm_query_t *q, c_orm_query_t **out_q) {
   int rc;
   c_orm_ast_node_t *curr;
   c_orm_ast_node_t *tail = NULL;

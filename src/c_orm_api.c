@@ -395,9 +395,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
 
   if (meta->has_ttl) {
     int64_t created_at =
-        *(int64_t *)((char *)out_struct + meta->created_at_offset);
+        *(int64_t *)(void *)((char *)out_struct + meta->created_at_offset);
     int32_t expires_in =
-        *(int32_t *)((char *)out_struct + meta->expires_in_offset);
+        *(int32_t *)(void *)((char *)out_struct + meta->expires_in_offset);
     int64_t current_time = (int64_t)time(NULL);
     if (created_at + (int64_t)expires_in < current_time) {
       if (db->expire_cb) {
@@ -1262,7 +1262,8 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
       for (i = 0; i < actual_chunk; i++) {
         void *parent_ptr =
             (char *)parents_data + ((start_idx + i) * meta->struct_size);
-        int32_t pk_val = *(int32_t *)((char *)parent_ptr + pk_col->offset);
+        int32_t pk_val =
+            *(int32_t *)(void *)((char *)parent_ptr + pk_col->offset);
         err = db->vtable->bind_int32(query, (int)(i + 1), pk_val);
         if (err != C_ORM_OK) {
           c_orm_finalize_cached(db, query);
@@ -1316,7 +1317,7 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
         /* Find parent */
         for (i = 0; i < parents_count; i++) {
           void *p_ptr = (char *)parents_data + (i * meta->struct_size);
-          int32_t p_id = *(int32_t *)((char *)p_ptr + pk_col->offset);
+          int32_t p_id = *(int32_t *)(void *)((char *)p_ptr + pk_col->offset);
           if (p_id == parent_id) {
             parent_ptr = p_ptr;
             break;
@@ -4999,7 +5000,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
           for (c = 0; c < rel->target_meta->num_columns; c++) {
             if (rel->target_meta->columns[c].type == C_ORM_TYPE_STRING) {
               char **str_ptr =
-                  (char **)((char *)ptr + rel->target_meta->columns[c].offset);
+                  (char **)(void *)((char *)ptr +
+                                    rel->target_meta->columns[c].offset);
               if (*str_ptr) {
                 free(*str_ptr);
                 *str_ptr = NULL;
@@ -5020,8 +5022,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
             c_orm_free_relations(rel->target_meta, child);
             for (c = 0; c < rel->target_meta->num_columns; c++) {
               if (rel->target_meta->columns[c].type == C_ORM_TYPE_STRING) {
-                char **str_ptr = (char **)((char *)child +
-                                           rel->target_meta->columns[c].offset);
+                char **str_ptr =
+                    (char **)(void *)((char *)child +
+                                      rel->target_meta->columns[c].offset);
                 if (*str_ptr) {
                   free(*str_ptr);
                   *str_ptr = NULL;

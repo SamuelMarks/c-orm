@@ -5,7 +5,7 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     age INT,
     score FLOAT,
-    is_active BOOLEAN,
+    is_active INT,
     created_at TIMESTAMP
 );
 
