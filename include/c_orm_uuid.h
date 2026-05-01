@@ -1,3 +1,8 @@
+/**
+ * @file c_orm_uuid.h
+ * @brief UUID generation utilities for c-orm.
+ */
+
 #ifndef C_ORM_UUID_H
 #define C_ORM_UUID_H
 

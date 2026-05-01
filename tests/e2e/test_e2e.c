@@ -1123,6 +1123,7 @@ SUITE(e2e_suite) {
 GREATEST_MAIN_DEFS();
 
 extern SUITE(inline_macros_suite);
+extern SUITE(oom_coverage_suite);
 extern SUITE(ast_suite);
 SUITE(query_fluent_coverage_suite);
 extern SUITE(migrations_suite);
@@ -1134,6 +1135,7 @@ int main(int argc, char **argv) {
   (void)rc;
   GREATEST_MAIN_BEGIN();
   RUN_SUITE(e2e_suite);
+  RUN_SUITE(oom_coverage_suite);
   RUN_SUITE(inline_macros_suite);
   RUN_SUITE(ast_suite);
   RUN_SUITE(query_fluent_coverage_suite);

@@ -193,6 +193,14 @@ C_ORM_EXPORT int
 c_orm_insert_builder_init(const c_orm_table_meta_t *meta,
                           c_orm_insert_builder_t **out_builder);
 C_ORM_EXPORT void c_orm_insert_builder_free(c_orm_insert_builder_t *builder);
+
+/**
+ * @brief Compile the insert builder into a final string.
+ *
+ * @param builder The insert builder to compile.
+ * @param out_sql Pointer to receive the compiled SQL string.
+ * @return 0 on success.
+ */
 C_ORM_EXPORT int c_orm_insert_builder_compile(c_orm_insert_builder_t *builder,
                                               char **out_sql);
 
@@ -201,10 +209,34 @@ C_ORM_EXPORT int
 c_orm_update_builder_init(const c_orm_table_meta_t *meta,
                           c_orm_update_builder_t **out_builder);
 C_ORM_EXPORT void c_orm_update_builder_free(c_orm_update_builder_t *builder);
+
+/**
+ * @brief Add a SET clause to the update builder.
+ *
+ * @param builder The update builder.
+ * @param column The column to set.
+ * @return 0 on success.
+ */
 C_ORM_EXPORT int c_orm_update_set(c_orm_update_builder_t *builder,
                                   const char *column);
+
+/**
+ * @brief Add a WHERE equal clause to the update builder.
+ *
+ * @param builder The update builder.
+ * @param column The column to compare.
+ * @return 0 on success.
+ */
 C_ORM_EXPORT int c_orm_update_where_eq(c_orm_update_builder_t *builder,
                                        const char *column);
+
+/**
+ * @brief Compile the update builder into a final string.
+ *
+ * @param builder The update builder to compile.
+ * @param out_sql Pointer to receive the compiled SQL string.
+ * @return 0 on success.
+ */
 C_ORM_EXPORT int c_orm_update_builder_compile(c_orm_update_builder_t *builder,
                                               char **out_sql);
 

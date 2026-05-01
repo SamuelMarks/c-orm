@@ -1,7 +1,13 @@
+/**
+ * @file c_orm_cli.c
+ * @brief Command line interface for C-ORM migrations and tools.
+ */
+
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_migrations.h"
 #include "c_orm_sqlite.h"
+#include "c_orm_log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,7 +21,12 @@
 #endif
 /* clang-format on */
 
+/**
+ * @brief Prints the usage information.
+ * @param prog The program name.
+ */
 static void print_usage(const char *prog) {
+  LOG_DEBUG("print_usage: entry");
   printf("Usage: %s <command> [options]\n\n", prog);
   printf("Commands:\n");
   printf("  init                      Setup the migrations directory\n");
@@ -30,27 +41,43 @@ static void print_usage(const char *prog) {
   printf("  --db <conn_str>           Database connection string\n");
   printf("  --dir <path>              Migrations directory (default: "
          "./migrations)\n");
+  LOG_DEBUG("print_usage: exit");
 }
 
-static void log_cb(const char *msg) { printf("[Migration] %s\n", msg); }
+/**
+ * @brief Callback for migration logging.
+ * @param msg The message to log.
+ */
+static void log_cb(const char *msg) {
+  LOG_DEBUG("log_cb: entry");
+  printf("[Migration] %s\n", msg);
+  LOG_DEBUG("log_cb: exit");
+}
 
+/**
+ * @brief Main entry point for the CLI.
+ * @param argc The argument count.
+ * @param argv The argument values.
+ * @return 0 on success, non-zero on failure.
+ */
 int main(int argc, char **argv) {
   int rc;
-
   const char *command = NULL;
-  const char *db_str = getenv("C_ORM_DB_URL");
+  const char *db_str;
   const char *dir_path = "./migrations";
   const char *arg_name = NULL;
   int i;
 
+  LOG_DEBUG("main: entry");
+
+  db_str = getenv("C_ORM_DB_URL");
+
   if (argc < 2) {
     print_usage(argv[0]);
-    {
-      rc = 1;
-      {
-        return rc;
-      }
-    }
+    rc = 1;
+    LOG_DEBUG("main: missing command");
+    LOG_DEBUG("main: exit");
+    return rc;
   }
 
   command = argv[1];
@@ -80,12 +107,10 @@ int main(int argc, char **argv) {
 
     if (!arg_name) {
       printf("Error: 'create' requires a migration name.\n");
-      {
-        rc = 1;
-        {
-          return rc;
-        }
-      }
+      rc = 1;
+      LOG_DEBUG("main: create requires migration name");
+      LOG_DEBUG("main: exit");
+      return rc;
     }
 
 #if defined(_MSC_VER)
@@ -93,28 +118,24 @@ int main(int argc, char **argv) {
     sprintf_s(down_file, sizeof(down_file), "%s/%s.down.sql", dir_path,
               arg_name);
 #else
-#if defined(_MSC_VER)
-    sprintf_s(up_file, sizeof(up_file), "%s/%s.up.sql", dir_path, arg_name);
-#else
     sprintf(up_file, "%s/%s.up.sql", dir_path, arg_name);
-#endif
-#if defined(_MSC_VER)
-    sprintf_s(down_file, sizeof(down_file), "%s/%s.down.sql", dir_path,
-              arg_name);
-#else
     sprintf(down_file, "%s/%s.down.sql", dir_path, arg_name);
-#endif
 #endif
 
     fp = fopen(up_file, "w");
     if (fp) {
       fclose(fp);
       printf("Created %s\n", up_file);
+    } else {
+      LOG_DEBUG("main: OOM or IO error opening up_file");
     }
+
     fp = fopen(down_file, "w");
     if (fp) {
       fclose(fp);
       printf("Created %s\n", down_file);
+    } else {
+      LOG_DEBUG("main: OOM or IO error opening down_file");
     }
 
   } else if (strcmp(command, "generate") == 0) {
@@ -132,23 +153,19 @@ int main(int argc, char **argv) {
     if (!db_str) {
       printf("Error: Database connection string required (--db or C_ORM_DB_URL "
              "env)\n");
-      {
-        rc = 1;
-        {
-          return rc;
-        }
-      }
+      rc = 1;
+      LOG_DEBUG("main: DB string required for migrate");
+      LOG_DEBUG("main: exit");
+      return rc;
     }
 
     err = c_orm_sqlite_connect(db_str, &db);
     if (err != C_ORM_OK) {
       printf("Error connecting to database.\n");
-      {
-        rc = 1;
-        {
-          return rc;
-        }
-      }
+      rc = 1;
+      LOG_DEBUG("main: failed connecting to db in migrate");
+      LOG_DEBUG("main: exit");
+      return rc;
     }
 
     memset(&opts, 0, sizeof(opts));
@@ -174,23 +191,19 @@ int main(int argc, char **argv) {
     if (!db_str) {
       printf("Error: Database connection string required (--db or C_ORM_DB_URL "
              "env)\n");
-      {
-        rc = 1;
-        {
-          return rc;
-        }
-      }
+      rc = 1;
+      LOG_DEBUG("main: DB string required for status");
+      LOG_DEBUG("main: exit");
+      return rc;
     }
 
     err = c_orm_sqlite_connect(db_str, &db);
     if (err != C_ORM_OK) {
       printf("Error connecting to database.\n");
-      {
-        rc = 1;
-        {
-          return rc;
-        }
-      }
+      rc = 1;
+      LOG_DEBUG("main: failed connecting to db in status");
+      LOG_DEBUG("main: exit");
+      return rc;
     }
 
     err = c_orm_migration_get_applied(db, &applied, &count);
@@ -203,7 +216,7 @@ int main(int argc, char **argv) {
         for (j = 0; j < count; j++) {
           /* Not fully allocated like full array but version/name in struct */
         }
-        free(applied);
+        C_ORM_FREE(applied);
       }
     } else {
       printf("Failed to fetch migration status or no migrations applied.\n");
@@ -212,18 +225,13 @@ int main(int argc, char **argv) {
   } else {
     printf("Unknown command: %s\n", command);
     print_usage(argv[0]);
-    {
-      rc = 1;
-      {
-        return rc;
-      }
-    }
+    rc = 1;
+    LOG_DEBUG("main: unknown command");
+    LOG_DEBUG("main: exit");
+    return rc;
   }
 
-  {
-    rc = 0;
-    {
-      return rc;
-    }
-  }
+  rc = 0;
+  LOG_DEBUG("main: exit");
+  return rc;
 }

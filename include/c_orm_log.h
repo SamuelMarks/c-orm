@@ -1,3 +1,8 @@
+/**
+ * @file c_orm_log.h
+ * @brief Logging utilities and debug macros for c-orm.
+ */
+
 #ifndef C_ORM_LOG_H
 #define C_ORM_LOG_H
 
@@ -12,6 +17,12 @@ extern "C" {
 #endif
 
 #ifndef LOG_DEBUG
+/**
+ * @brief Logs a debug message to standard error.
+ *
+ * @param fmt The format string.
+ * @param ... The format arguments.
+ */
 #ifdef DEBUG
 C_ORM_EXPORT void c_orm_log_debug(const char *fmt, ...);
 #define LOG_DEBUG c_orm_log_debug

@@ -68,6 +68,12 @@ Testing/
 # Comprehensive Wildcards for Careless `git add .`
 # -------------------------------------------------------------------------
 
+# Any root level files ending in common script extensions you didn't commit
+/*.sh
+/*.ps1
+/*.bat
+/*.cmd
+
 # Patch & diff artifacts
 *.patch
 *.orig
@@ -112,3 +118,4 @@ test_cli.db
 vcpkg_installed/
 test_migrations_dir/
 trace.sh
+

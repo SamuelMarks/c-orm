@@ -1,6 +1,12 @@
+/**
+ * @file c_orm_cache.c
+ * @brief Implementation of statement caching for c-orm.
+ */
+
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_db.h"
+#include "c_orm_log.h"
 #include <stdlib.h>
 #include <string.h>
 /* clang-format on */
@@ -8,80 +14,116 @@
 #if defined(_WIN32) || defined(_WIN64)
 #ifndef _CRITICAL_SECTION_DEFINED
 #define _CRITICAL_SECTION_DEFINED
+/** @brief Opaque critical section struct */
 struct _RTL_CRITICAL_SECTION;
+/** @brief Type definition for Windows CRITICAL_SECTION */
 typedef struct _RTL_CRITICAL_SECTION CRITICAL_SECTION;
 #endif
-__declspec(dllimport) void __stdcall
-InitializeCriticalSection(CRITICAL_SECTION *);
+__declspec(dllimport) void __stdcall InitializeCriticalSection(
+    CRITICAL_SECTION *);
 __declspec(dllimport) void __stdcall EnterCriticalSection(CRITICAL_SECTION *);
 __declspec(dllimport) void __stdcall LeaveCriticalSection(CRITICAL_SECTION *);
 __declspec(dllimport) void __stdcall DeleteCriticalSection(CRITICAL_SECTION *);
 
+/** @brief Macro to initialize a mutex on Windows */
 #define C_ORM_MUTEX_INIT(m)                                                    \
   do {                                                                         \
-    (m) = malloc(64);                                                          \
-    InitializeCriticalSection((CRITICAL_SECTION *)(m));                        \
+    (m) = C_ORM_MALLOC(64);                                                    \
+    if (m) {                                                                   \
+      InitializeCriticalSection((CRITICAL_SECTION *)(m));                      \
+    }                                                                          \
   } while (0)
+/** @brief Macro to lock a mutex on Windows */
 #define C_ORM_MUTEX_LOCK(m) EnterCriticalSection((CRITICAL_SECTION *)(m))
+/** @brief Macro to unlock a mutex on Windows */
 #define C_ORM_MUTEX_UNLOCK(m) LeaveCriticalSection((CRITICAL_SECTION *)(m))
+/** @brief Macro to destroy a mutex on Windows */
 #define C_ORM_MUTEX_DESTROY(m)                                                 \
   do {                                                                         \
     DeleteCriticalSection((CRITICAL_SECTION *)(m));                            \
-    free((m));                                                                 \
+    C_ORM_FREE((m));                                                           \
   } while (0)
 #else
 #include <pthread.h>
+/** @brief Macro to initialize a mutex on POSIX */
 #define C_ORM_MUTEX_INIT(m)                                                    \
   do {                                                                         \
-    (m) = malloc(sizeof(pthread_mutex_t));                                     \
-    pthread_mutex_init((pthread_mutex_t *)(m), NULL);                          \
+    (m) = C_ORM_MALLOC(sizeof(pthread_mutex_t));                               \
+    if (m) {                                                                   \
+      pthread_mutex_init((pthread_mutex_t *)(m), NULL);                        \
+    }                                                                          \
   } while (0)
+/** @brief Macro to lock a mutex on POSIX */
 #define C_ORM_MUTEX_LOCK(m) pthread_mutex_lock((pthread_mutex_t *)(m))
+/** @brief Macro to unlock a mutex on POSIX */
 #define C_ORM_MUTEX_UNLOCK(m) pthread_mutex_unlock((pthread_mutex_t *)(m))
+/** @brief Macro to destroy a mutex on POSIX */
 #define C_ORM_MUTEX_DESTROY(m)                                                 \
   do {                                                                         \
     pthread_mutex_destroy((pthread_mutex_t *)(m));                             \
-    free((m));                                                                 \
+    C_ORM_FREE((m));                                                           \
   } while (0)
 #endif
 
+/**
+ * @brief Structure representing a cached statement entry.
+ */
 typedef struct c_orm_stmt_entry {
-  char *sql;
-  c_orm_query_t *query;
-  struct c_orm_stmt_entry *next;
-  struct c_orm_stmt_entry *prev;
-  int in_use;
+  char *sql;            /**< @brief The SQL string associated with this query */
+  c_orm_query_t *query; /**< @brief The prepared query object */
+  struct c_orm_stmt_entry
+      *next; /**< @brief Pointer to the next entry in the LRU list */
+  struct c_orm_stmt_entry
+      *prev;  /**< @brief Pointer to the previous entry in the LRU list */
+  int in_use; /**< @brief Flag indicating if the entry is currently in use */
 } c_orm_stmt_entry_t;
 
+/**
+ * @brief Structure representing the statement cache.
+ */
 typedef struct {
-  size_t capacity;
-  size_t count;
-  c_orm_stmt_entry_t *head;
-  c_orm_stmt_entry_t *tail;
-  void *lock;
+  size_t capacity; /**< @brief Maximum number of entries allowed in the cache */
+  size_t count;    /**< @brief Current number of entries in the cache */
+  c_orm_stmt_entry_t
+      *head; /**< @brief Pointer to the most recently used entry */
+  c_orm_stmt_entry_t
+      *tail;  /**< @brief Pointer to the least recently used entry */
+  void *lock; /**< @brief Mutex lock for thread safety */
 } c_orm_stmt_cache_t;
 
+/**
+ * @brief Enables statement caching for the specified database connection.
+ *
+ * @param db The database connection.
+ * @param cache_size The maximum number of statements to cache.
+ * @return c_orm_error_t result code.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_enable_statement_caching(c_orm_db_t *db,
                                                           size_t cache_size) {
-  int rc;
-
   c_orm_stmt_cache_t *cache;
+  c_orm_error_t rc;
+
+  LOG_DEBUG("c_orm_enable_statement_caching: entry");
 
   if (!db) {
+    LOG_DEBUG("c_orm_enable_statement_caching: invalid arguments");
     rc = C_ORM_ERROR_MEMORY;
-    return (c_orm_error_t)rc;
+    return rc;
   }
   if (db->stmt_cache) {
+    LOG_DEBUG("c_orm_enable_statement_caching: already enabled");
     rc = C_ORM_OK;
-    return (c_orm_error_t)rc;
-  } /* Already enabled */
-  if (cache_size == 0)
+    return rc;
+  }
+  if (cache_size == 0) {
     cache_size = 128;
+  }
 
-  cache = (c_orm_stmt_cache_t *)malloc(sizeof(c_orm_stmt_cache_t));
+  cache = (c_orm_stmt_cache_t *)C_ORM_MALLOC(sizeof(c_orm_stmt_cache_t));
   if (!cache) {
+    LOG_DEBUG("c_orm_enable_statement_caching: OOM for cache");
     rc = C_ORM_ERROR_MEMORY;
-    return (c_orm_error_t)rc;
+    return rc;
   }
 
   cache->capacity = cache_size;
@@ -90,22 +132,36 @@ C_ORM_EXPORT c_orm_error_t c_orm_enable_statement_caching(c_orm_db_t *db,
   cache->tail = NULL;
 
   C_ORM_MUTEX_INIT(cache->lock);
-  db->stmt_cache = cache;
-  {
-    rc = C_ORM_OK;
-    return (c_orm_error_t)rc;
+  if (!cache->lock) {
+    LOG_DEBUG("c_orm_enable_statement_caching: OOM for lock");
+    C_ORM_FREE(cache);
+    rc = C_ORM_ERROR_MEMORY;
+    return rc;
   }
+
+  db->stmt_cache = cache;
+  rc = C_ORM_OK;
+  LOG_DEBUG("c_orm_enable_statement_caching: exit");
+  return rc;
 }
 
+/**
+ * @brief Disables statement caching for the specified database connection.
+ *
+ * @param db The database connection.
+ * @return c_orm_error_t result code.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_disable_statement_caching(c_orm_db_t *db) {
-  int rc;
-
   c_orm_stmt_cache_t *cache;
   c_orm_stmt_entry_t *entry, *next;
+  c_orm_error_t rc;
+
+  LOG_DEBUG("c_orm_disable_statement_caching: entry");
 
   if (!db || !db->stmt_cache) {
     rc = C_ORM_OK;
-    return (c_orm_error_t)rc;
+    LOG_DEBUG("c_orm_disable_statement_caching: not enabled or invalid args");
+    return rc;
   }
   cache = (c_orm_stmt_cache_t *)db->stmt_cache;
 
@@ -114,38 +170,47 @@ C_ORM_EXPORT c_orm_error_t c_orm_disable_statement_caching(c_orm_db_t *db) {
   while (entry) {
     next = entry->next;
     db->vtable->finalize(entry->query);
-    free(entry->sql);
-    free(entry);
+    C_ORM_FREE(entry->sql);
+    C_ORM_FREE(entry);
     entry = next;
   }
   C_ORM_MUTEX_UNLOCK(cache->lock);
   C_ORM_MUTEX_DESTROY(cache->lock);
-  free(cache);
+  C_ORM_FREE(cache);
   db->stmt_cache = NULL;
-  {
-    rc = C_ORM_OK;
-    return (c_orm_error_t)rc;
-  }
+  rc = C_ORM_OK;
+  LOG_DEBUG("c_orm_disable_statement_caching: exit");
+  return rc;
 }
 
+/**
+ * @brief Prepares a statement, utilizing the cache if enabled.
+ *
+ * @param db The database connection.
+ * @param sql The SQL statement to prepare.
+ * @param out_query Pointer to store the prepared query object.
+ * @return c_orm_error_t result code.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
                                                 c_orm_query_t **out_query) {
-  int rc;
-
   c_orm_stmt_cache_t *cache;
   c_orm_stmt_entry_t *entry;
+  c_orm_stmt_entry_t *evict;
   c_orm_error_t err;
+  c_orm_error_t rc;
+
+  LOG_DEBUG("c_orm_prepare_cached: entry");
 
   if (!db || !sql || !out_query) {
+    LOG_DEBUG("c_orm_prepare_cached: invalid arguments");
     rc = C_ORM_ERROR_MEMORY;
-    return (c_orm_error_t)rc;
+    return rc;
   }
 
   if (!db->stmt_cache) {
-    {
-      rc = db->vtable->prepare(db, sql, out_query);
-      return (c_orm_error_t)rc;
-    }
+    rc = db->vtable->prepare(db, sql, out_query);
+    LOG_DEBUG("c_orm_prepare_cached: cache not enabled, direct prepare exit");
+    return rc;
   }
 
   cache = (c_orm_stmt_cache_t *)db->stmt_cache;
@@ -159,28 +224,31 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
 
       if (entry != cache->head) {
         /* Unlink */
-        if (entry->prev)
+        if (entry->prev) {
           entry->prev->next = entry->next;
-        if (entry->next)
+        }
+        if (entry->next) {
           entry->next->prev = entry->prev;
-        if (entry == cache->tail)
+        }
+        if (entry == cache->tail) {
           cache->tail = entry->prev;
+        }
 
         /* Re-insert at head */
         entry->next = cache->head;
         entry->prev = NULL;
-        if (cache->head)
+        if (cache->head) {
           cache->head->prev = entry;
+        }
         cache->head = entry;
       }
 
       *out_query = entry->query;
       C_ORM_MUTEX_UNLOCK(cache->lock);
       db->vtable->reset(*out_query);
-      {
-        rc = C_ORM_OK;
-        return (c_orm_error_t)rc;
-      }
+      rc = C_ORM_OK;
+      LOG_DEBUG("c_orm_prepare_cached: found in cache exit");
+      return rc;
     }
     entry = entry->next;
   }
@@ -189,29 +257,28 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
   err = db->vtable->prepare(db, sql, out_query);
   if (err != C_ORM_OK) {
     C_ORM_MUTEX_UNLOCK(cache->lock);
-    {
-      rc = err;
-      return (c_orm_error_t)rc;
-    }
+    rc = err;
+    LOG_DEBUG("c_orm_prepare_cached: prepare failed exit");
+    return rc;
   }
 
   /* Create cache entry */
-  entry = (c_orm_stmt_entry_t *)malloc(sizeof(c_orm_stmt_entry_t));
+  entry = (c_orm_stmt_entry_t *)C_ORM_MALLOC(sizeof(c_orm_stmt_entry_t));
   if (!entry) {
     /* Cache allocation failed, just return query to caller normally */
+    LOG_DEBUG("c_orm_prepare_cached: OOM for cache entry");
     C_ORM_MUTEX_UNLOCK(cache->lock);
     rc = C_ORM_OK;
-    return (c_orm_error_t)rc;
+    return rc;
   }
 
-  entry->sql = (char *)malloc(strlen(sql) + 1);
+  entry->sql = (char *)C_ORM_MALLOC(strlen(sql) + 1);
   if (!entry->sql) {
-    free(entry);
+    LOG_DEBUG("c_orm_prepare_cached: OOM for cache entry sql");
+    C_ORM_FREE(entry);
     C_ORM_MUTEX_UNLOCK(cache->lock);
-    {
-      rc = C_ORM_OK;
-      return (c_orm_error_t)rc;
-    }
+    rc = C_ORM_OK;
+    return rc;
   }
 #if defined(_MSC_VER)
   strcpy_s(entry->sql, strlen(sql) + 1, sql);
@@ -235,21 +302,25 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
 
   /* Evict if capacity exceeded. Only evict items NOT in use! */
   if (cache->count > cache->capacity) {
-    c_orm_stmt_entry_t *evict = cache->tail;
+    evict = cache->tail;
     while (evict) {
       if (!evict->in_use) {
-        if (evict->prev)
+        if (evict->prev) {
           evict->prev->next = evict->next;
-        if (evict->next)
+        }
+        if (evict->next) {
           evict->next->prev = evict->prev;
-        if (evict == cache->head)
+        }
+        if (evict == cache->head) {
           cache->head = evict->next;
-        if (evict == cache->tail)
+        }
+        if (evict == cache->tail) {
           cache->tail = evict->prev;
+        }
 
         db->vtable->finalize(evict->query);
-        free(evict->sql);
-        free(evict);
+        C_ORM_FREE(evict->sql);
+        C_ORM_FREE(evict);
         cache->count--;
         break;
       }
@@ -258,29 +329,36 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
   }
 
   C_ORM_MUTEX_UNLOCK(cache->lock);
-  {
-    rc = C_ORM_OK;
-    return (c_orm_error_t)rc;
-  }
+  rc = C_ORM_OK;
+  LOG_DEBUG("c_orm_prepare_cached: added to cache exit");
+  return rc;
 }
 
+/**
+ * @brief Finalizes a cached statement, releasing it back to the cache pool.
+ *
+ * @param db The database connection.
+ * @param query The prepared query object to finalize.
+ * @return c_orm_error_t result code.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
                                                  c_orm_query_t *query) {
-  int rc;
-
   c_orm_stmt_cache_t *cache;
   c_orm_stmt_entry_t *entry;
+  c_orm_error_t rc;
+
+  LOG_DEBUG("c_orm_finalize_cached: entry");
 
   if (!db || !query) {
+    LOG_DEBUG("c_orm_finalize_cached: invalid arguments");
     rc = C_ORM_ERROR_MEMORY;
-    return (c_orm_error_t)rc;
+    return rc;
   }
 
   if (!db->stmt_cache) {
-    {
-      rc = db->vtable->finalize(query);
-      return (c_orm_error_t)rc;
-    }
+    rc = db->vtable->finalize(query);
+    LOG_DEBUG("c_orm_finalize_cached: cache not enabled, direct finalize exit");
+    return rc;
   }
 
   cache = (c_orm_stmt_cache_t *)db->stmt_cache;
@@ -291,18 +369,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
     if (entry->query == query) {
       entry->in_use = 0; /* Release back to pool */
       C_ORM_MUTEX_UNLOCK(cache->lock);
-      {
-        rc = C_ORM_OK;
-        return (c_orm_error_t)rc;
-      }
+      rc = C_ORM_OK;
+      LOG_DEBUG("c_orm_finalize_cached: released to cache exit");
+      return rc;
     }
     entry = entry->next;
   }
   C_ORM_MUTEX_UNLOCK(cache->lock);
 
   /* Query not managed by cache, finalize normally */
-  {
-    rc = db->vtable->finalize(query);
-    return (c_orm_error_t)rc;
-  }
+  rc = db->vtable->finalize(query);
+  LOG_DEBUG("c_orm_finalize_cached: direct finalize exit");
+  return rc;
 }

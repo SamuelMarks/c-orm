@@ -1,3 +1,8 @@
+/**
+ * @file c_orm_safe_crt.h
+ * @brief Safe CRT wrappers and fallback macros.
+ */
+
 #ifndef C_ORM_SAFE_CRT_H
 #define C_ORM_SAFE_CRT_H
 

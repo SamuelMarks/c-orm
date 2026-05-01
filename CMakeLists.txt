@@ -16,7 +16,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 if(MSVC)
-  add_compile_options(/wd4715 /wd4013 /wd4701 /wd4047 /wd4018 /wd4146 /wd4244 /wd4267 /wd4101 /wd4090 /wd4232 /wd4189)
+  add_compile_options(/wd4715 /wd4013 /wd4701 /wd4047 /wd4018 /wd4146 /wd4244 /wd4267 /wd4101 /wd4090 /wd4232 /wd4189 /wd4703)
 endif()
 
 # Step 278: Static Analysis Integration
@@ -118,13 +118,14 @@ else()
 endif()
 
 if(TARGET c_cdd AND NOT TARGET cdd-c)
-    add_executable(cdd-c "${CMAKE_BINARY_DIR}/_deps/cdd_c-src/src/bin_cdd.c")
+    add_executable(cdd-c "C:/Users/samue/repos/cdd-c/src/bin_cdd.c" "src/cdd_c_compat.c")
     target_link_libraries(cdd-c PRIVATE c_cdd)
 endif()
 
 
 
 add_library(c-orm
+    src/cdd_c_compat.c
     src/c_orm_db.c
     src/c_orm_log.c
     src/c_orm_alloc.c

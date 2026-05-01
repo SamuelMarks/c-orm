@@ -1,7 +1,13 @@
 
 
+/**
+ * @file c_orm_uuid.c
+ * @brief Implementation of UUID generation.
+ */
+
 /* clang-format off */
 #include "c_orm_uuid.h"
+#include "c_orm_log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -13,22 +19,26 @@
 #endif
 #endif
 
+/**
+ * @brief Flag indicating if the PRNG has been seeded.
+ */
 static int c_orm_uuid_seeded = 0;
 
 C_ORM_EXPORT c_orm_error_t c_orm_uuid_v4(char out_uuid[37]) {
   int rc;
-
   int i;
   unsigned char bytes[16];
 
+  LOG_DEBUG("c_orm_uuid_v4: entry");
+
   if (!out_uuid) {
-    {
-      rc = C_ORM_ERROR_MEMORY;
-      return (c_orm_error_t)rc;
-    }
+    LOG_DEBUG("c_orm_uuid_v4: out_uuid is NULL, returning C_ORM_ERROR_MEMORY");
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
   }
 
   if (!c_orm_uuid_seeded) {
+    LOG_DEBUG("c_orm_uuid_v4: seeding PRNG");
     srand((unsigned int)time(NULL));
     c_orm_uuid_seeded = 1;
   }
@@ -58,8 +68,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_uuid_v4(char out_uuid[37]) {
       bytes[14], bytes[15]);
 #endif
 
-  {
-    rc = C_ORM_OK;
-    return (c_orm_error_t)rc;
-  }
+  LOG_DEBUG("c_orm_uuid_v4: exit with C_ORM_OK. uuid=%s", out_uuid);
+  rc = C_ORM_OK;
+  return (c_orm_error_t)rc;
 }
