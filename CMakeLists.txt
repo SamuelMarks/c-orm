@@ -145,13 +145,30 @@ add_library(c-orm
     src/c_orm_uuid.c
     src/c_orm_migrations.c
     src/c_orm_modality.c
+      src/abstract_struct.c
+      src/cdd_c_ir.c
+            src/c_to_sql.c
+      src/hydrate_router.c
+      src/migration.c
+      src/migration_runner.c
+      src/orm_gen.c
+      src/query_projection.c
+      src/sql.c
+      src/sql_to_c.c
+
 )
 set_target_properties(c-orm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 target_compile_options(c-orm PRIVATE ${C_ORM_STRICT_OPTIONS})
 
 target_include_directories(c-orm SYSTEM PUBLIC include)
-target_link_libraries(c-orm PUBLIC c_cdd cfs)
+target_link_libraries(c-orm PUBLIC c_cdd cfs parson c89stringutils)
+  target_include_directories(c-orm PUBLIC )
+  target_include_directories(c-orm PUBLIC )
+  
+
+    
+
 
 
 target_compile_definitions(c-orm PUBLIC $<$<BOOL:${BUILD_SHARED_LIBS}>:C_ORM_SHARED>)

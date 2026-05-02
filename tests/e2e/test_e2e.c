@@ -11,12 +11,12 @@
 #include "c_orm_query_builder.h"
 #include "c_orm_sqlite.h"
 #include "c_orm_uuid.h"
-#include "classes/parse/sql.h"
+#include "sql.h"
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-/* #include "classes/parse/abstract_struct.h" */
+/* #include "abstract_struct.h" */
 /* clang-format on */
 
 static c_orm_db_t *db = NULL;

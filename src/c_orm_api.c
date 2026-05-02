@@ -9,13 +9,13 @@
 #include "c_orm_ast.h"
 #include "c_orm_query_builder.h"
 #include "c_orm_uuid.h"
-#include "classes/parse/sql.h"
+#include "sql.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
-/* #include "classes/parse/abstract_struct.h" */
+/* #include "abstract_struct.h" */
 /* clang-format on */
 
 /**

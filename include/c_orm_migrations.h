@@ -152,7 +152,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_lock(c_orm_db_t *db);
  */
 C_ORM_EXPORT c_orm_error_t c_orm_migration_unlock(c_orm_db_t *db);
 
-#include "classes/emit/cdd_c_orm_meta.h"
+#include "cdd_c_orm_meta.h"
 
 /**
  * @brief Fetch the current schema of a table directly from the database.
