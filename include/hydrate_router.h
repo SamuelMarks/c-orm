@@ -17,7 +17,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include "c_cdd_export.h"
+#include "c_orm_db.h"
 #include "abstract_struct.h"
 #include "cdd_c_orm_meta.h"
 /* clang-format on */
@@ -66,19 +66,19 @@ typedef struct CddCHydrateRouter {
  * @param router The router instance.
  * @return 0 on success.
  */
-C_CDD_EXPORT int cdd_c_hydrate_router_init(cdd_c_hydrate_router_t *router);
+C_ORM_EXPORT int cdd_c_hydrate_router_init(cdd_c_hydrate_router_t *router);
 
 /**
  * @brief Get the last routing error message for the current thread.
  * @return Null-terminated error message string, or NULL if no error.
  */
-C_CDD_EXPORT int cdd_c_hydrate_router_get_last_error(const char **out_msg);
+C_ORM_EXPORT int cdd_c_hydrate_router_get_last_error(const char **out_msg);
 
 /**
  * @brief Set the last routing error message for the current thread.
  * @param msg The error message to set.
  */
-C_CDD_EXPORT void cdd_c_hydrate_router_set_last_error(const char *msg);
+C_ORM_EXPORT void cdd_c_hydrate_router_set_last_error(const char *msg);
 
 /**
  * @brief Register a specific generated struct mapping into the router.
@@ -89,7 +89,7 @@ C_CDD_EXPORT void cdd_c_hydrate_router_set_last_error(const char *msg);
  * `StructName_hydrate`).
  * @return 0 on success.
  */
-C_CDD_EXPORT int
+C_ORM_EXPORT int
 cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
                               unsigned long long query_id_hash,
                               const struct cdd_c_meta *struct_meta,
@@ -105,7 +105,7 @@ cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
  * @return 0 on successful exact route and hydration. -1 if fallback is
  * necessary or mapping failed.
  */
-C_CDD_EXPORT int cdd_c_hydrate_router_dispatch(
+C_ORM_EXPORT int cdd_c_hydrate_router_dispatch(
     const cdd_c_hydrate_router_t *router, unsigned long long query_id_hash,
     const cdd_c_abstract_struct_t *row, void *out_struct);
 
@@ -114,7 +114,7 @@ C_CDD_EXPORT int cdd_c_hydrate_router_dispatch(
  * @param router The router instance.
  * @return 0 on success.
  */
-C_CDD_EXPORT int cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router);
+C_ORM_EXPORT int cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router);
 
 #ifdef __cplusplus
 }

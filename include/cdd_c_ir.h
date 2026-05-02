@@ -14,7 +14,7 @@ extern "C" {
 
 /* clang-format off */
 #include <stddef.h>
-#include "c_cdd_export.h"
+#include "c_orm_db.h"
 #include "sql.h"
 #include "query_projection.h"
 /* clang-format on */
@@ -33,7 +33,7 @@ typedef struct CddCIr {
   size_t capacity_projections; /**< Capacity of the projections array */
 } cdd_c_ir_t;
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Initialize a new IR structure.
                      * @param ir The IR structure to initialize.
                      * @return 0 on success.
@@ -41,7 +41,7 @@ extern C_CDD_EXPORT /**
     int
     cdd_c_ir_init(cdd_c_ir_t *ir);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Add a table to the IR.
                      * @param ir The IR structure.
                      * @param table The table to add. Note: shallow copy or
@@ -52,7 +52,7 @@ extern C_CDD_EXPORT /**
     int
     cdd_c_ir_add_table(cdd_c_ir_t *ir, const struct sql_table_t *table);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Add a projection to the IR.
                      * @param ir The IR structure.
                      * @param proj The projection to add.
@@ -62,7 +62,7 @@ extern C_CDD_EXPORT /**
     cdd_c_ir_add_projection(cdd_c_ir_t *ir,
                             const cdd_c_query_projection_t *proj);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Free all contents inside the IR.
                      * @param ir The IR to free.
                      * @return 0 on success.
@@ -70,7 +70,7 @@ extern C_CDD_EXPORT /**
     int
     cdd_c_ir_free(cdd_c_ir_t *ir);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Parse SQL data into the IR.
                      * @param sql_data The SQL source text.
                      * @param out_ir The IR structure to populate.

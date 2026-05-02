@@ -49,7 +49,7 @@ static int map_c_type_to_sql(const char *c_type, c_to_sql_dialect_t dialect,
   return 0;
 }
 
-C_CDD_EXPORT int write_struct_to_sql_create_table(FILE *fp,
+C_ORM_EXPORT int write_struct_to_sql_create_table(FILE *fp,
                                                   const char *table_name,
                                                   const struct StructFields *sf,
                                                   c_to_sql_dialect_t dialect) {
@@ -124,7 +124,7 @@ C_CDD_EXPORT int write_struct_to_sql_create_table(FILE *fp,
   return 0;
 }
 
-C_CDD_EXPORT int cdd_c_meta_to_sql_create_table(const cdd_c_meta_t *meta,
+C_ORM_EXPORT int cdd_c_meta_to_sql_create_table(const cdd_c_meta_t *meta,
                                                 c_to_sql_dialect_t dialect,
                                                 char **out_sql) {
   char buffer[4096];
@@ -171,7 +171,7 @@ C_CDD_EXPORT int cdd_c_meta_to_sql_create_table(const cdd_c_meta_t *meta,
   return 0;
 }
 
-C_CDD_EXPORT int cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
+C_ORM_EXPORT int cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
                                  const cdd_c_meta_t *new_schema,
                                  cdd_c_meta_diff_t *out_diff) {
   size_t i, j;
@@ -226,7 +226,7 @@ C_CDD_EXPORT int cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
   return 0;
 }
 
-C_CDD_EXPORT int cdd_c_meta_diff_to_sql(const char *table_name,
+C_ORM_EXPORT int cdd_c_meta_diff_to_sql(const char *table_name,
                                         const cdd_c_meta_diff_t *diff,
                                         c_to_sql_dialect_t dialect,
                                         char **up_sql, char **down_sql) {
@@ -289,7 +289,7 @@ C_CDD_EXPORT int cdd_c_meta_diff_to_sql(const char *table_name,
   return 0;
 }
 
-C_CDD_EXPORT void cdd_c_meta_diff_free(cdd_c_meta_diff_t *diff) {
+C_ORM_EXPORT void cdd_c_meta_diff_free(cdd_c_meta_diff_t *diff) {
   if (!diff)
     return;
   if (diff->added_props)
@@ -301,7 +301,7 @@ C_CDD_EXPORT void cdd_c_meta_diff_free(cdd_c_meta_diff_t *diff) {
   memset(diff, 0, sizeof(cdd_c_meta_diff_t));
 }
 
-C_CDD_EXPORT int cdd_c_get_schema_inspection_query(c_to_sql_dialect_t dialect,
+C_ORM_EXPORT int cdd_c_get_schema_inspection_query(c_to_sql_dialect_t dialect,
                                                    const char *table_name,
                                                    char **out_query) {
   char buf[512];
@@ -325,7 +325,7 @@ C_CDD_EXPORT int cdd_c_get_schema_inspection_query(c_to_sql_dialect_t dialect,
   return 0;
 }
 
-C_CDD_EXPORT int cdd_c_emit_create_index(const char *table_name,
+C_ORM_EXPORT int cdd_c_emit_create_index(const char *table_name,
                                          const char *index_name,
                                          const char *column_name, int is_unique,
                                          char **out_sql) {
@@ -338,7 +338,7 @@ C_CDD_EXPORT int cdd_c_emit_create_index(const char *table_name,
   return 0;
 }
 
-C_CDD_EXPORT int cdd_c_emit_drop_index(const char *index_name, char **out_sql) {
+C_ORM_EXPORT int cdd_c_emit_drop_index(const char *index_name, char **out_sql) {
   char buf[256];
   if (!index_name || !out_sql)
     return 1;
@@ -347,7 +347,7 @@ C_CDD_EXPORT int cdd_c_emit_drop_index(const char *index_name, char **out_sql) {
   return 0;
 }
 
-C_CDD_EXPORT int cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas,
+C_ORM_EXPORT int cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas,
                                              size_t num_schemas,
                                              const cdd_c_meta_t **out_schemas) {
   size_t i, j, k;

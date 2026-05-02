@@ -39,10 +39,11 @@ static void q_mock_free(void *ptr) { free(ptr); }
 
 TEST test_query_fluent_coverage(void) {
   c_orm_query_t *q = NULL;
+  c_orm_ast_node_t *n_lit;
+  c_orm_query_t *q_sub = NULL;
   c_orm_query_new(&q);
 
   /* Execute and create all nodes for coverage */
-  c_orm_ast_node_t *n_lit;
   n_lit = q->lit(q, "1", 0);
   ASSERT(n_lit != NULL);
   ASSERT(q->col(q, "id") != NULL);
@@ -59,7 +60,6 @@ TEST test_query_fluent_coverage(void) {
   ASSERT(q->cast_(q, "id", "TEXT") != NULL);
   ASSERT(q->window(q, "ROW_NUMBER", "id", "id DESC", "rn") != NULL);
 
-  c_orm_query_t *q_sub = NULL;
   c_orm_query_new(&q_sub);
   q_sub->select_(q_sub, "1");
   ASSERT(q->subquery(q, q_sub, "s") != NULL);
@@ -228,14 +228,14 @@ static c_orm_error_t my_mock_prep(c_orm_db_t *db, const char *sql,
 }
 
 TEST test_fluent_oom(void) {
-  int rc1, rc2;
+  int rc2;
   int pad, i, j;
   /* Test c_orm_query_new OOMs */
   {
     c_orm_query_t *oq = NULL;
     oom_active = 1;
     oom_countdown = 0;
-    rc1 = c_orm_query_new(&oq);
+    c_orm_query_new(&oq);
     oom_countdown = 1;
     rc2 = c_orm_query_new(&oq);
     oom_active = 0;
@@ -266,10 +266,11 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_ast_node_t *n;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_ast_node_t *n = oq->raw(oq, "1");
+      n = oq->raw(oq, "1");
       oom_active = 1;
       oom_countdown = 0;
       oq->where(oq, n);
@@ -278,10 +279,11 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_ast_node_t *n;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_ast_node_t *n = oq->raw(oq, "1");
+      n = oq->raw(oq, "1");
       oq->where(oq, n);
       oom_active = 1;
       oom_countdown = 0;
@@ -291,10 +293,11 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_ast_node_t *n;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_ast_node_t *n = oq->raw(oq, "1");
+      n = oq->raw(oq, "1");
       oq->where(oq, n);
       oom_active = 1;
       oom_countdown = 0;
@@ -326,10 +329,11 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_ast_node_t *n;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_ast_node_t *n = oq->raw(oq, "1");
+      n = oq->raw(oq, "1");
       oom_active = 1;
       oom_countdown = 0;
       oq->having(oq, n);
@@ -338,10 +342,11 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_ast_node_t *n;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_ast_node_t *n = oq->raw(oq, "1");
+      n = oq->raw(oq, "1");
       oom_active = 1;
       oom_countdown = 0;
       oq->join(oq, "1", "2", n);
@@ -350,10 +355,11 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_ast_node_t *n;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_ast_node_t *n = oq->raw(oq, "1");
+      n = oq->raw(oq, "1");
       oom_active = 1;
       oom_countdown = 0;
       oq->left_join(oq, "1", n);
@@ -362,10 +368,11 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_ast_node_t *n;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_ast_node_t *n = oq->raw(oq, "1");
+      n = oq->raw(oq, "1");
       oom_active = 1;
       oom_countdown = 0;
       oq->right_join(oq, "1", n);
@@ -374,10 +381,10 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_query_t *sq = NULL;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_query_t *sq = NULL;
       c_orm_query_new(&sq);
       oom_active = 1;
       oom_countdown = 0;
@@ -388,10 +395,10 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_query_t *sq = NULL;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_query_t *sq = NULL;
       c_orm_query_new(&sq);
       oom_active = 1;
       oom_countdown = 0;
@@ -501,10 +508,11 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_ast_node_t *n;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_ast_node_t *n = oq->raw(oq, "1");
+      n = oq->raw(oq, "1");
       oom_active = 1;
       oom_countdown = 0;
       oq->op(oq, "=", n, n);
@@ -513,10 +521,11 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_ast_node_t *n;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_ast_node_t *n = oq->raw(oq, "1");
+      n = oq->raw(oq, "1");
       oom_active = 1;
       oom_countdown = 0;
       oq->group(oq, n);
@@ -525,10 +534,10 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_query_t *sq = NULL;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_query_t *sq = NULL;
       c_orm_query_new(&sq);
       oom_active = 1;
       oom_countdown = 0;
@@ -572,10 +581,10 @@ TEST test_fluent_oom(void) {
     }
     {
       c_orm_query_t *oq = NULL;
+      c_orm_query_t *sq = NULL;
       c_orm_query_new(&oq);
       for (j = 0; j < pad; j++)
         oq->raw(oq, "1");
-      c_orm_query_t *sq = NULL;
       c_orm_query_new(&sq);
       oom_active = 1;
       oom_countdown = 0;
@@ -611,19 +620,33 @@ TEST test_fluent_oom(void) {
   /* Test clone OOM */
   {
     c_orm_query_t *qc = NULL;
-    c_orm_query_new(&qc);
-    c_orm_ast_node_t *n_raw = qc->raw(qc, "1");
-    c_orm_ast_node_t *n_group = qc->group(qc, qc->lit(qc, "2", 0));
+    c_orm_ast_node_t *n_raw;
+    c_orm_ast_node_t *n_group;
     c_orm_query_t *sq2 = NULL;
+    c_orm_ast_node_t *n_sq;
+    c_orm_ast_node_t *n_func;
+    c_orm_ast_node_t *n_cast;
+    c_orm_ast_node_t *n_exists;
+    c_orm_ast_node_t *n_between;
+    c_orm_ast_node_t *n_window;
+    c_orm_ast_node_t *n_in;
+    c_orm_ast_node_t *n_like;
+    c_orm_query_t *w_sq = NULL;
+    c_orm_query_t *u = NULL;
+    c_orm_query_t *q_cloned = NULL;
+
+    c_orm_query_new(&qc);
+    n_raw = qc->raw(qc, "1");
+    n_group = qc->group(qc, qc->lit(qc, "2", 0));
     c_orm_query_new(&sq2);
-    c_orm_ast_node_t *n_sq = qc->subquery(qc, sq2, "sq_alias");
-    c_orm_ast_node_t *n_func = qc->func(qc, "COUNT", "id", "c");
-    c_orm_ast_node_t *n_cast = qc->cast_(qc, "id", "TEXT");
-    c_orm_ast_node_t *n_exists = qc->exists(qc, sq2, 0);
-    c_orm_ast_node_t *n_between = qc->between(qc, "age", "10", "20", 0);
-    c_orm_ast_node_t *n_window = qc->window(qc, "RANK", "id", "id", "r");
-    c_orm_ast_node_t *n_in = qc->in(qc, "id", "1,2");
-    c_orm_ast_node_t *n_like = qc->like(qc, "name", "sam%");
+    n_sq = qc->subquery(qc, sq2, "sq_alias");
+    n_func = qc->func(qc, "COUNT", "id", "c");
+    n_cast = qc->cast_(qc, "id", "TEXT");
+    n_exists = qc->exists(qc, sq2, 0);
+    n_between = qc->between(qc, "age", "10", "20", 0);
+    n_window = qc->window(qc, "RANK", "id", "id", "r");
+    n_in = qc->in(qc, "id", "1,2");
+    n_like = qc->like(qc, "name", "sam%");
 
     qc->and_where(qc, n_raw);
     qc->and_where(qc, n_group);
@@ -639,17 +662,13 @@ TEST test_fluent_oom(void) {
     qc->group_by(qc, "id");
     qc->having(qc, n_raw);
     qc->join(qc, "users", "INNER", qc->eq(qc, "a", "b", 0));
-    c_orm_query_t *w_sq = NULL;
     c_orm_query_new(&w_sq);
     w_sq->select_(w_sq, "1");
     qc->with(qc, "w", w_sq);
 
-    c_orm_query_t *u = NULL;
     c_orm_query_new(&u);
     u->select_(u, "1");
     qc->union_(qc, u, 1);
-
-    c_orm_query_t *q_cloned = NULL;
     for (i = 0; i < 40; i++) {
       q_cloned = NULL;
       oom_active = 1;
@@ -766,10 +785,31 @@ TEST test_query_sql_coverage(void) {
   size_t res_count = 0;
 
   c_orm_query_t *q = NULL;
-  c_orm_query_new(&q);
   char *sql = NULL;
-
   c_orm_query_params_t p;
+  c_orm_ast_node_t *f;
+  c_orm_ast_node_t *c;
+  c_orm_ast_node_t *w;
+  c_orm_ast_node_t *r;
+  c_orm_query_t *sq = NULL;
+  c_orm_query_t *u = NULL;
+  c_orm_query_t *q_sq = NULL;
+  c_orm_ast_node_t *r_exists;
+  c_orm_ast_node_t *r_not_exists;
+  c_orm_ast_node_t *r_sub;
+  char *pg_sql = NULL;
+  c_orm_query_params_t pg_p;
+  c_orm_query_t *pg_q = NULL;
+  c_orm_table_meta_t meta;
+  c_orm_db_t *exec_db = NULL;
+  c_orm_query_t *qe = NULL;
+  c_orm_query_t *q_bad = NULL;
+  c_orm_driver_vtable_t orig_vt;
+  c_orm_driver_vtable_t mock_vt;
+  c_orm_query_t *q_emp = NULL;
+  c_orm_query_t *q_inv = NULL;
+
+  c_orm_query_new(&q);
   c_orm_query_params_init(&p);
 
   /* Complex Select to hit all SQL generation paths */
@@ -789,13 +829,9 @@ TEST test_query_sql_coverage(void) {
       ->offset(q, 5);
 
   /* Add functions, window, cast, raw */
-  c_orm_ast_node_t *f;
   f = q->func(q, "MAX", "age", "max_age");
-  c_orm_ast_node_t *c;
   c = q->cast_(q, "id", "TEXT");
-  c_orm_ast_node_t *w;
   w = q->window(q, "RANK", "id", "id DESC", "rn");
-  c_orm_ast_node_t *r;
   r = q->raw(q, "1=1");
 
   /* We append them to where so they get compiled */
@@ -805,24 +841,21 @@ TEST test_query_sql_coverage(void) {
   q->and_where(q, r);
 
   /* Subquery and UNION */
-  c_orm_query_t *sq = NULL;
   c_orm_query_new(&sq);
   sq->select_(sq, "id")->from(sq, "other");
   q->with(q, "cte", sq);
 
-  c_orm_query_t *u = NULL;
   c_orm_query_new(&u);
   u->select_(u, "1");
   q->union_(q, u, 1); /* UNION ALL */
 
   /* Test EXISTS and SUBQUERY rendering */
-  c_orm_query_t *q_sq = NULL;
   c_orm_query_new(&q_sq);
   q_sq->select_(q_sq, "1");
 
-  c_orm_ast_node_t *r_exists = q->exists(q, q_sq, 0);
-  c_orm_ast_node_t *r_not_exists = q->exists(q, q_sq, 1);
-  c_orm_ast_node_t *r_sub = q->subquery(q, q_sq, "my_sq");
+  r_exists = q->exists(q, q_sq, 0);
+  r_not_exists = q->exists(q, q_sq, 1);
+  r_sub = q->subquery(q, q_sq, "my_sq");
 
   q->and_where(q, r_exists);
   q->and_where(q, r_not_exists);
@@ -842,6 +875,7 @@ TEST test_query_sql_coverage(void) {
   /* Test inline rendering without params */
   {
     c_orm_query_t *q_inline = NULL;
+    char *sql_inline = NULL;
     c_orm_query_new(&q_inline);
     q_inline->select_(q_inline, "1")
         ->from(q_inline, "t")
@@ -851,7 +885,6 @@ TEST test_query_sql_coverage(void) {
         ->and_where(q_inline,
                     q_inline->group(q_inline, q_inline->lit(q_inline, "6", 1)));
 
-    char *sql_inline = NULL;
     c_orm_query_to_sql(q_inline, C_ORM_DIALECT_POSTGRES, &sql_inline, NULL);
     if (sql_inline)
       free(sql_inline);
@@ -864,10 +897,7 @@ TEST test_query_sql_coverage(void) {
   }
 
   /* Render Postgres params manually */
-  char *pg_sql = NULL;
-  c_orm_query_params_t pg_p;
   c_orm_query_params_init(&pg_p);
-  c_orm_query_t *pg_q = NULL;
   c_orm_query_new(&pg_q);
   pg_q->select_(pg_q, "1")
       ->from(pg_q, "t")
@@ -895,17 +925,14 @@ TEST test_query_sql_coverage(void) {
   c_orm_query_free(q);
 
   /* Execute, fetch_one, fetch_all tests */
-  c_orm_table_meta_t meta;
   memset(&meta, 0, sizeof(meta));
   meta.name = "t_exec";
   meta.struct_size = 8;
 
-  c_orm_db_t *exec_db = NULL;
   c_orm_sqlite_connect(":memory:", &exec_db);
   c_orm_execute_raw(exec_db, "CREATE TABLE t_exec (id INT);");
   c_orm_execute_raw(exec_db, "INSERT INTO t_exec VALUES (1);");
 
-  c_orm_query_t *qe = NULL;
   c_orm_query_new(&qe);
   qe->select_(qe, "id")
       ->from(qe, "t_exec")
@@ -914,15 +941,14 @@ TEST test_query_sql_coverage(void) {
   c_orm_query_execute(exec_db, qe);
 
   /* Mock prepare fail */
-  c_orm_query_t *q_bad = NULL;
   c_orm_query_new(&q_bad);
   q_bad->select_(q_bad, "id")->from(q_bad, "bad_table");
   c_orm_query_execute(exec_db, q_bad);
   c_orm_query_free(q_bad);
 
   /* Mock bind_string fail */
-  c_orm_driver_vtable_t orig_vt = *exec_db->vtable;
-  c_orm_driver_vtable_t mock_vt = *exec_db->vtable;
+  orig_vt = *exec_db->vtable;
+  mock_vt = *exec_db->vtable;
   orig_bind_string = mock_vt.bind_string;
 
   mock_vt.bind_string = my_mock_bind_string;
@@ -950,7 +976,6 @@ TEST test_query_sql_coverage(void) {
   c_orm_query_fetch_one(exec_db, qe, &meta, &res_obj);
 
   /* fetch_one empty */
-  c_orm_query_t *q_emp = NULL;
   c_orm_query_new(&q_emp);
   q_emp->select_(q_emp, "id")
       ->from(q_emp, "t_exec")
@@ -963,7 +988,6 @@ TEST test_query_sql_coverage(void) {
   c_orm_query_fetch_all(exec_db, qe, &meta, &my_arr);
 
   /* Missing from / select for failure */
-  c_orm_query_t *q_inv = NULL;
   c_orm_query_new(&q_inv);
   c_orm_query_execute(exec_db, q_inv);
   c_orm_query_fetch_one(exec_db, q_inv, &meta, &res_obj);

@@ -1,12 +1,15 @@
 /**
  * @file c_orm_codegen.c
- * @brief Implementation of the cdd-c code generation wrapper.
+ * @brief Implementation of the c_orm code generation.
  */
 
 /* clang-format off */
 #include "c_orm_codegen.h"
 #include "c_orm_log.h"
-#include <routes/parse/cli.h>
+#include "sql.h"
+#include "sql_to_c.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 /* clang-format on */
 
@@ -19,36 +22,153 @@
 c_orm_error_t c_orm_codegen_generate(const char *schema_file,
                                      const char *output_dir) {
   int rc;
-  int argc;
-  char *argv[3];
-  int res;
+  char *sql_data = NULL;
+  long sql_size;
+  struct sql_table_t *tables = NULL;
+  size_t n_tables = 0;
+  size_t i, j;
+  char *h_path = NULL;
+  char *c_path = NULL;
+  FILE *fp = NULL;
 
   LOG_DEBUG("c_orm_codegen_generate: entry");
 
   if (!schema_file || !output_dir) {
     LOG_DEBUG("c_orm_codegen_generate: missing schema_file or output_dir");
     rc = C_ORM_ERROR_UNKNOWN;
-    LOG_DEBUG("c_orm_codegen_generate: exit");
-    return (c_orm_error_t)rc;
+    goto cleanup;
   }
 
-  /* We expect a .sql file, so we use sql2c_main.
-   * sql2c_main expects argv[0] = schema_file, argv[1] = out_dir.
-   */
-  argc = 2;
-  argv[0] = (char *)schema_file;
-  argv[1] = (char *)output_dir;
-  argv[2] = NULL;
-
-  res = sql2c_main(argc, argv);
-  if (res != 0) {
-    LOG_DEBUG("c_orm_codegen_generate: sql2c_main failed");
+#if defined(_MSC_VER)
+  fopen_s(&fp, schema_file, "rb");
+#else
+  fp = fopen(schema_file, "rb");
+#endif
+  if (!fp) {
+    LOG_DEBUG("c_orm_codegen_generate: failed to open schema_file");
     rc = C_ORM_ERROR_UNKNOWN;
-    LOG_DEBUG("c_orm_codegen_generate: exit");
-    return (c_orm_error_t)rc;
+    goto cleanup;
+  }
+
+  fseek(fp, 0, SEEK_END);
+  sql_size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+
+  if (sql_size > 0) {
+    sql_data = (char *)malloc((size_t)sql_size + 1);
+    if (!sql_data) {
+      LOG_DEBUG("c_orm_codegen_generate: OOM");
+      fclose(fp);
+      rc = C_ORM_ERROR_MEMORY;
+      goto cleanup;
+    }
+    if (fread(sql_data, 1, (size_t)sql_size, fp) != (size_t)sql_size) {
+      LOG_DEBUG("c_orm_codegen_generate: fread failed");
+      free(sql_data);
+      sql_data = NULL;
+      fclose(fp);
+      rc = C_ORM_ERROR_UNKNOWN;
+      goto cleanup;
+    }
+    sql_data[sql_size] = '\0';
+  }
+  fclose(fp);
+  fp = NULL;
+
+  if (sql_data) {
+    if (parse_sql_ddl(sql_data, &tables, &n_tables) != 0) {
+      LOG_DEBUG("c_orm_codegen_generate: parse_sql_ddl failed");
+      rc = C_ORM_ERROR_UNKNOWN;
+      goto cleanup;
+    }
+  }
+
+  h_path = (char *)malloc(strlen(output_dir) + 32);
+  c_path = (char *)malloc(strlen(output_dir) + 32);
+  if (!h_path || !c_path) {
+    LOG_DEBUG("c_orm_codegen_generate: OOM for paths");
+    rc = C_ORM_ERROR_MEMORY;
+    goto cleanup;
+  }
+
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
+    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
+  sprintf_s(h_path, strlen(output_dir) + 32, "%s/Models.h", output_dir);
+  sprintf_s(c_path, strlen(output_dir) + 32, "%s/Models.c", output_dir);
+#else
+  sprintf(h_path, "%s/Models.h", output_dir);
+  sprintf(c_path, "%s/Models.c", output_dir);
+#endif
+
+#if defined(_MSC_VER)
+  fopen_s(&fp, h_path, "wb");
+#else
+  fp = fopen(h_path, "wb");
+#endif
+  if (fp) {
+    fprintf(fp, "#ifndef MODELS_H\n#define MODELS_H\n\n");
+    fprintf(fp, "#include \"c_orm_meta.h\"\n\n");
+    for (i = 0; i < n_tables; ++i) {
+      sql_to_c_header_emit(fp, &tables[i]);
+    }
+    fprintf(fp, "#endif\n");
+    fclose(fp);
+    fp = NULL;
+  } else {
+    LOG_DEBUG("c_orm_codegen_generate: failed to write header");
+    rc = C_ORM_ERROR_UNKNOWN;
+    goto cleanup;
+  }
+
+#if defined(_MSC_VER)
+  fopen_s(&fp, c_path, "wb");
+#else
+  fp = fopen(c_path, "wb");
+#endif
+  if (fp) {
+    for (i = 0; i < n_tables; ++i) {
+      sql_to_c_source_emit(fp, &tables[i], "Models.h");
+    }
+    fclose(fp);
+    fp = NULL;
+  } else {
+    LOG_DEBUG("c_orm_codegen_generate: failed to write source");
+    rc = C_ORM_ERROR_UNKNOWN;
+    goto cleanup;
   }
 
   rc = C_ORM_OK;
+
+cleanup:
+  if (sql_data) {
+    free(sql_data);
+  }
+  if (h_path) {
+    free(h_path);
+  }
+  if (c_path) {
+    free(c_path);
+  }
+  if (tables) {
+    for (i = 0; i < n_tables; ++i) {
+      for (j = 0; j < tables[i].n_columns; ++j) {
+        if (tables[i].columns[j].name) {
+          free(tables[i].columns[j].name);
+        }
+        if (tables[i].columns[j].constraints) {
+          free(tables[i].columns[j].constraints);
+        }
+      }
+      if (tables[i].columns) {
+        free(tables[i].columns);
+      }
+      if (tables[i].name) {
+        free(tables[i].name);
+      }
+    }
+    free(tables);
+  }
+
   LOG_DEBUG("c_orm_codegen_generate: exit");
   return (c_orm_error_t)rc;
 }

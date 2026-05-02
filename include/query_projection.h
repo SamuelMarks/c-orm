@@ -16,7 +16,7 @@ extern "C" {
 
 /* clang-format off */
 #include <stddef.h>
-#include "c_cdd_export.h"
+#include "c_orm_db.h"
 #include "sql.h"
 /* clang-format on */
 
@@ -65,7 +65,7 @@ typedef struct CddCQueryProjection {
   cdd_c_mapping_metadata_t mapping_meta; /**< Mapping metadata for codegen */
 } cdd_c_query_projection_t;
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Initialize a query projection.
                      * @param proj The projection to initialize.
                      * @return 0 on success, non-zero on error.
@@ -73,7 +73,7 @@ extern C_CDD_EXPORT /**
     int
     cdd_c_query_projection_init(cdd_c_query_projection_t *proj);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Add a field to a query projection.
                      * @param proj The projection.
                      * @param field The field to add.
@@ -84,7 +84,7 @@ extern C_CDD_EXPORT /**
         cdd_c_query_projection_t *proj,
         const cdd_c_query_projection_field_t *field);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Free a query projection.
                      * @param proj The projection to free.
                      * @return 0 on success, non-zero on error.

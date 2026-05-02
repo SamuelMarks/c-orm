@@ -9,6 +9,7 @@
 /* clang-format off */
 #include "c_orm_meta.h"
 #include <stddef.h>
+#include "c_orm_db.h"
 /* clang-format on */
 
 #ifdef __cplusplus

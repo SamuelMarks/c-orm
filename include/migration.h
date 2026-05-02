@@ -13,7 +13,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include "c_cdd_export.h"
+#include "c_orm_db.h"
 #include <stddef.h>
 /* clang-format on */
 
@@ -29,7 +29,7 @@ struct MigrationStatements {
  * @brief Initialize a migration statements structure.
  * @param[out] out The structure to zero.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Executes the migration statements init operation.
                      */
     void
@@ -39,7 +39,7 @@ extern C_CDD_EXPORT /**
  * @brief Free resources in a migration statements structure.
  * @param[in] out The structure to clean.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Executes the migration statements free operation.
                      */
     void
@@ -57,7 +57,7 @@ extern C_CDD_EXPORT /**
  * @return 0 on success, ENOMEM on allocation failure, or a standard I/O error
  * code.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Parses migration file from the given input.
                      */
     int

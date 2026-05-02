@@ -743,7 +743,7 @@ int sql_to_c_projection_struct_emit(FILE *fp,
 
   /* Generate deep free decl */
 
-  fprintf(fp, "extern C_CDD_EXPORT void %s_free(%s *obj);\n\n", struct_name,
+  fprintf(fp, "extern C_ORM_EXPORT void %s_free(%s *obj);\n\n", struct_name,
           struct_name);
 
   return 0;
@@ -1147,7 +1147,7 @@ int sql_to_c_projection_nested_array_emit(FILE *fp,
 
   /* Array Deep Free handler */
 
-  fprintf(fp, "extern C_CDD_EXPORT void %s_free(%s *arr);\n\n", array_name,
+  fprintf(fp, "extern C_ORM_EXPORT void %s_free(%s *arr);\n\n", array_name,
           array_name);
 
   fprintf(fp, "void %s_free(%s *arr) {\n", array_name, array_name);
@@ -1325,7 +1325,7 @@ int sql_to_c_projection_union_struct_emit(FILE *fp,
 
   /* Auto free */
 
-  fprintf(fp, "extern C_CDD_EXPORT void %s_free(%s *obj);\n\n", struct_name,
+  fprintf(fp, "extern C_ORM_EXPORT void %s_free(%s *obj);\n\n", struct_name,
           struct_name);
 
   return 0;

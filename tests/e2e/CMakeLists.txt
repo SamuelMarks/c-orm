@@ -26,16 +26,16 @@ if(WIN32 AND BUILD_SHARED_LIBS)
 
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-        COMMAND ${CMAKE_COMMAND} -E env "PATH=${CDD_C_PATH_ENV}" $<TARGET_FILE:cdd-c> sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
-        DEPENDS cdd-c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
-        COMMENT "Generating C Models from schema.sql using cdd-c..."
+        COMMAND ${CMAKE_COMMAND} -E env "PATH=${CDD_C_PATH_ENV}" $<TARGET_FILE:c-orm-cli> sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+        DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
+        COMMENT "Generating C Models from schema.sql using c-orm-cli..."
     )
 else()
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-        COMMAND $<TARGET_FILE:cdd-c> sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
-        DEPENDS cdd-c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
-        COMMENT "Generating C Models from schema.sql using cdd-c..."
+        COMMAND $<TARGET_FILE:c-orm-cli> sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+        DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
+        COMMENT "Generating C Models from schema.sql using c-orm-cli..."
     )
 endif()
 
@@ -65,7 +65,7 @@ if(MSVC)
     target_compile_definitions(c_orm_e2e_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
-target_link_libraries(c_orm_e2e_tests PRIVATE c-orm)
+target_link_libraries(c_orm_e2e_tests PRIVATE c-orm c_cdd)
 
 add_test(NAME e2e_test COMMAND c_orm_e2e_tests)
 if(WIN32 AND BUILD_SHARED_LIBS AND DEFINED CDD_C_PATH_ENV)

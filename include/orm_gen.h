@@ -6,6 +6,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include "c_orm_db.h"
 #include "openapi/parse/openapi.h"
 #include "routes/emit/client_gen.h" /* For config */
 /* clang-format on */
@@ -17,7 +18,7 @@ extern "C" {
  * @param[in] config Configuration options.
  * @return 0 on success, error code on failure.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Executes the openapi orm generate operation.
                      */
     int

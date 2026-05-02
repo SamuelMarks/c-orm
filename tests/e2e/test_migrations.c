@@ -279,10 +279,22 @@ TEST test_c_orm_fetch_table_schema(void) {
 
 TEST test_migrations_oom(void) {
   c_orm_db_t *db = NULL;
-  c_orm_sqlite_connect(":memory:", &db);
-
   c_orm_migration_t *out_migs = NULL;
   size_t out_count;
+  c_orm_migration_options_t opts;
+  c_orm_migration_t m_fail[2];
+  c_orm_migration_t m_good;
+  c_orm_driver_vtable_t orig_vt;
+  c_orm_driver_vtable_t mock_vt;
+  c_orm_db_t db_pg;
+  c_orm_db_t db_my;
+  cdd_c_meta_t *step_meta = NULL;
+  cdd_c_meta_t *s_meta = NULL;
+  c_orm_migration_t *a_migs = NULL;
+  size_t a_count = 0;
+
+  c_orm_sqlite_connect(":memory:", &db);
+
   c_orm_migration_load_dir(NULL, NULL, &out_count);
   c_orm_migration_load_dir("some", &out_migs, &out_count);
 
@@ -297,7 +309,6 @@ TEST test_migrations_oom(void) {
     c_orm_migration_free_array(m, 1);
   }
 
-  c_orm_migration_options_t opts;
   memset(&opts, 0, sizeof(opts));
 
   /* migrate all NULLs */
@@ -313,7 +324,6 @@ TEST test_migrations_oom(void) {
   opts.pre_migrate = my_pre_migrate;
   opts.post_migrate = my_post_migrate;
 
-  c_orm_migration_t m_fail[2];
   memset(m_fail, 0, sizeof(m_fail));
 #if defined(_MSC_VER)
   strcpy_s(m_fail[0].version, sizeof(m_fail[0].version), "1");
@@ -332,7 +342,6 @@ TEST test_migrations_oom(void) {
   c_orm_migrate_all(db, &m_fail[0], 1, &opts);
   c_orm_migrate_all(db, &m_fail[1], 1, &opts);
 
-  c_orm_migration_t m_good;
   memset(&m_good, 0, sizeof(m_good));
 #if defined(_MSC_VER)
   strcpy_s(m_good.version, sizeof(m_good.version), "3");
@@ -360,6 +369,7 @@ TEST test_migrations_oom(void) {
   c_orm_execute_raw(db, "CREATE TABLE schema_test (id INT, v TEXT);");
   {
     int i;
+    cdd_c_meta_t *null_name_meta;
     for (i = 0; i < 25; i++) {
       cdd_c_meta_t *out_s = NULL;
       oom_active = 1;
@@ -382,15 +392,14 @@ TEST test_migrations_oom(void) {
 
     c_orm_migration_free_table_schema(NULL);
 
-    cdd_c_meta_t *null_name_meta;
     null_name_meta = malloc(sizeof(cdd_c_meta_t));
     memset(null_name_meta, 0, sizeof(*null_name_meta));
     c_orm_migration_free_table_schema(null_name_meta);
   }
 
   /* Mock vtable for failures */
-  c_orm_driver_vtable_t orig_vt = *(c_orm_driver_vtable_t *)db->vtable;
-  c_orm_driver_vtable_t mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
+  orig_vt = *(c_orm_driver_vtable_t *)db->vtable;
+  mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
   orig_prep = mock_vt.prepare;
   mock_vt.prepare = my_mig_prep;
   orig_step = mock_vt.step;
@@ -425,7 +434,7 @@ TEST test_migrations_oom(void) {
   fail_delete = 0;
 
   fail_step = 1;
-  cdd_c_meta_t *step_meta = NULL;
+  step_meta = NULL;
   c_orm_migration_fetch_table_schema(db, "schema_test", &step_meta);
   if (step_meta)
     c_orm_migration_free_table_schema(step_meta);
@@ -451,15 +460,15 @@ TEST test_migrations_oom(void) {
   c_orm_migrate_rollback(db, &m_good, 1, 0, &opts); /* steps == 0 */
 
   fail_prep_schema = 1;
-  cdd_c_meta_t *s_meta = NULL;
+  s_meta = NULL;
   c_orm_migration_fetch_table_schema(db, "schema_test", &s_meta);
   if (s_meta)
     c_orm_migration_free_table_schema(s_meta);
   fail_prep_schema = 0;
 
   fail_prep_applied = 1;
-  c_orm_migration_t *a_migs = NULL;
-  size_t a_count = 0;
+  a_migs = NULL;
+  a_count = 0;
   c_orm_migration_get_applied(db, &a_migs, &a_count);
   if (a_migs)
     c_orm_migration_free_array(a_migs, a_count);
@@ -467,7 +476,6 @@ TEST test_migrations_oom(void) {
 
   db->vtable = (const c_orm_driver_vtable_t *)&orig_vt;
 
-  c_orm_db_t db_pg;
   memset(&db_pg, 0, sizeof(db_pg));
   db_pg.vtable = (const c_orm_driver_vtable_t *)&orig_vt;
   db_pg.driver_name = "postgres";
@@ -475,7 +483,6 @@ TEST test_migrations_oom(void) {
   c_orm_migration_lock(&db_pg);
   c_orm_migration_unlock(&db_pg);
 
-  c_orm_db_t db_my;
   memset(&db_my, 0, sizeof(db_my));
   db_my.vtable = (const c_orm_driver_vtable_t *)&orig_vt;
   db_my.driver_name = "mysql";

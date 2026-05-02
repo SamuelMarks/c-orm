@@ -61,7 +61,7 @@ static void *mock_realloc_oom(void *ptr, size_t size) {
     }                                                                          \
   } while (0)
 
-static void do_uuid() {
+static void do_uuid(void) {
   char uuid_buf[37];
   c_orm_uuid_v4(uuid_buf);
 }
@@ -71,7 +71,7 @@ TEST test_uuid_oom(void) {
   PASS();
 }
 
-static void do_string_builder() {
+static void do_string_builder(void) {
   c_orm_string_builder_t *sb = NULL;
   if (c_orm_string_builder_init(&sb) == 0 && sb) {
     c_orm_string_builder_append(sb, "test");

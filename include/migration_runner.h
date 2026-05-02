@@ -13,7 +13,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include "c_cdd_export.h"
+#include "c_orm_db.h"
 #include <stddef.h>
 /* clang-format on */
 
@@ -26,7 +26,7 @@ extern "C" {
  * @param[in] filepath Path to the migration file.
  * @return 0 on success, non-zero on failure.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Applies migration.
                      */
     int
@@ -41,7 +41,7 @@ extern C_CDD_EXPORT /**
  * @param[in] filepath Path to the migration file.
  * @return 0 on success, non-zero on failure.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Executes the rollback migration operation.
                      */
     int
@@ -57,7 +57,7 @@ extern C_CDD_EXPORT /**
  * @param[in] migrations_dir Path to the directory containing `.sql` files.
  * @return 0 on success, non-zero on failure.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Executes the run pending migrations operation.
                      */
     int
@@ -73,7 +73,7 @@ extern C_CDD_EXPORT /**
  * @param[in] migrations_dir Path to the directory containing `.sql` files.
  * @return 0 on success, non-zero on failure.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Executes the rollback last migration operation.
                      */
     int
@@ -86,7 +86,7 @@ extern C_CDD_EXPORT /**
  * @param[in] name The name suffix for the migration file.
  * @return 0 on success, non-zero on failure.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Executes the create migration file operation.
                      */
     int
@@ -99,7 +99,7 @@ extern C_CDD_EXPORT /**
  * @param[in] migrations_dir Directory containing `.sql` files.
  * @return 0 on success, non-zero on failure.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Executes the reset database operation.
                      */
     int
@@ -116,7 +116,7 @@ extern C_CDD_EXPORT /**
  * @param[in] migrations_dir Directory containing `.sql` migrations.
  * @return 0 on success, non-zero on failure.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Executes the setup test database operation.
                      */
     int
@@ -128,7 +128,7 @@ extern C_CDD_EXPORT /**
  * @param[in] seed_filepath Path to the `.sql` seed file.
  * @return 0 on success, non-zero on failure.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Executes the seed database operation.
                      */
     int
@@ -140,7 +140,7 @@ extern C_CDD_EXPORT /**
  * @param[in] out_filepath Path to the output file (e.g. `schema.sql`).
  * @return 0 on success, non-zero on failure.
  */
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Executes the dump schema operation.
                      */
     int

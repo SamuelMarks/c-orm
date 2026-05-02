@@ -17,8 +17,7 @@ extern "C" {
 
 /* clang-format off */
 #include <stddef.h>
-#include "c_cdd_export.h"
-#include "mocks/c_cdd_stdbool.h"
+#include "c_orm_db.h"
 /* clang-format on */
 
 /**
@@ -75,7 +74,7 @@ typedef struct CddCAbstractStructArray {
   size_t capacity;
 } cdd_c_abstract_struct_array_t;
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Initialize an abstract struct array.
                      * @param arr The array to initialize.
                      * @param capacity Initial capacity.
@@ -85,7 +84,7 @@ extern C_CDD_EXPORT /**
     cdd_c_abstract_struct_array_init(cdd_c_abstract_struct_array_t *arr,
                                      size_t capacity);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Add a populated abstract struct to the array
                      * (takes ownership).
                      * @param arr The array.
@@ -96,7 +95,7 @@ extern C_CDD_EXPORT /**
     cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
                                        cdd_c_abstract_struct_t *astruct);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Free an abstract struct array and all nested
                      * items.
                      * @param arr The array to free.
@@ -105,11 +104,11 @@ extern C_CDD_EXPORT /**
     int
     cdd_c_abstract_struct_array_free(cdd_c_abstract_struct_array_t *arr);
 
-extern C_CDD_EXPORT int
+extern C_ORM_EXPORT int
 cdd_c_abstract_struct_array_to_json(const cdd_c_abstract_struct_array_t *arr,
                                     char **out_json);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Initialize an abstract struct.
                      * @param astruct The abstract struct to initialize.
                      * @return 0 on success, non-zero on error.
@@ -117,7 +116,7 @@ extern C_CDD_EXPORT /**
     int
     cdd_c_abstract_struct_init(cdd_c_abstract_struct_t *astruct);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Initialize an abstract struct with a specific
                      * initial capacity.
                      * @param astruct The abstract struct.
@@ -128,7 +127,7 @@ extern C_CDD_EXPORT /**
     cdd_c_abstract_struct_init_with_capacity(cdd_c_abstract_struct_t *astruct,
                                              size_t capacity);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Set a value in the abstract struct.
                      * @param astruct The abstract struct.
                      * @param key The key to set.
@@ -139,7 +138,7 @@ extern C_CDD_EXPORT /**
     cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct, const char *key,
                        const cdd_c_variant_t *value);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Get a value from the abstract struct.
                      * @param astruct The abstract struct.
                      * @param key The key to look up.
@@ -150,7 +149,7 @@ extern C_CDD_EXPORT /**
     cdd_c_abstract_get(const cdd_c_abstract_struct_t *astruct, const char *key,
                        cdd_c_variant_t **out_value);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Deep copy an abstract struct.
                      * @param dest The destination abstract struct.
                      * @param src The source abstract struct.
@@ -160,7 +159,7 @@ extern C_CDD_EXPORT /**
     cdd_c_abstract_struct_deep_copy(cdd_c_abstract_struct_t *dest,
                                     const cdd_c_abstract_struct_t *src);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Free an abstract struct's contents.
                      * @param astruct The abstract struct to free.
                      * @return 0 on success, non-zero on error.
@@ -168,7 +167,7 @@ extern C_CDD_EXPORT /**
     int
     cdd_c_abstract_struct_free(cdd_c_abstract_struct_t *astruct);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Free a variant's contents.
                      * @param variant The variant to free.
                      * @return 0 on success, non-zero on error.
@@ -176,7 +175,7 @@ extern C_CDD_EXPORT /**
     int
     cdd_c_variant_free(cdd_c_variant_t *variant);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Serialize an abstract struct to a JSON string.
                      * @param astruct The abstract struct.
                      * @param out_json Pointer to receive the allocated JSON
@@ -187,7 +186,7 @@ extern C_CDD_EXPORT /**
     cdd_c_abstract_struct_to_json(const cdd_c_abstract_struct_t *astruct,
                                   char **out_json);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Deserialize a JSON string to an abstract struct.
                      * @param json The JSON string.
                      * @param out_astruct Pointer to the initialized abstract
@@ -198,7 +197,7 @@ extern C_CDD_EXPORT /**
     cdd_c_abstract_struct_from_json(const char *json,
                                     cdd_c_abstract_struct_t *out_astruct);
 
-extern C_CDD_EXPORT /**
+extern C_ORM_EXPORT /**
                      * @brief Print an abstract struct for debugging.
                      * @param astruct The abstract struct.
                      */
@@ -210,14 +209,14 @@ extern C_CDD_EXPORT /**
  * globally.
  * @return Byte count.
  */
-C_CDD_EXPORT int cdd_c_get_allocated_bytes(size_t *out_bytes);
+C_ORM_EXPORT int cdd_c_get_allocated_bytes(size_t *out_bytes);
 
 /**
  * @brief Retrieves the total number of free calls for abstract structs
  * globally.
  * @return Free count.
  */
-C_CDD_EXPORT int cdd_c_get_freed_calls(size_t *out_calls);
+C_ORM_EXPORT int cdd_c_get_freed_calls(size_t *out_calls);
 
 /**
  * @brief Represents a driver-agnostic column definition.
@@ -239,7 +238,7 @@ typedef struct CddCColumnMeta {
  * @param n_cols Number of columns.
  * @return 0 on success, non-zero on failure.
  */
-C_CDD_EXPORT int cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
+C_ORM_EXPORT int cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
                                         void **row_data,
                                         const cdd_c_column_meta_t *cols,
                                         size_t n_cols);
@@ -253,7 +252,7 @@ C_CDD_EXPORT int cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
  * @param stmt Opaque pointer to `sqlite3_stmt`.
  * @return 0 on success, non-zero on failure.
  */
-C_CDD_EXPORT int
+C_ORM_EXPORT int
 cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
                                void *stmt);
 
@@ -268,7 +267,7 @@ cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
  * to decode.
  * @return 0 on success, non-zero on failure.
  */
-C_CDD_EXPORT int
+C_ORM_EXPORT int
 cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct, void *res,
                              int row_index);
 
@@ -284,7 +283,7 @@ cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct, void *res,
  * @param num_fields The integer boundary size.
  * @return 0 on success, non-zero on failure.
  */
-C_CDD_EXPORT int
+C_ORM_EXPORT int
 cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct, void *row,
                              void *fields, unsigned int num_fields);
 
@@ -296,7 +295,7 @@ cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct, void *row,
  * @param out_schema Pointer to an initialized abstract struct array.
  * @return 0 on success, non-zero on failure.
  */
-C_CDD_EXPORT int
+C_ORM_EXPORT int
 cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
                              cdd_c_abstract_struct_array_t *out_schema);
 
@@ -308,7 +307,7 @@ cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
  * @param out_schema Pointer to an initialized abstract struct array.
  * @return 0 on success, non-zero on failure.
  */
-C_CDD_EXPORT int
+C_ORM_EXPORT int
 cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
                            cdd_c_abstract_struct_array_t *out_schema);
 
@@ -320,7 +319,7 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
  * @param out_schema Pointer to an initialized abstract struct array.
  * @return 0 on success, non-zero on failure.
  */
-C_CDD_EXPORT int
+C_ORM_EXPORT int
 cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
                            cdd_c_abstract_struct_array_t *out_schema);
 
@@ -333,7 +332,7 @@ struct cdd_c_meta;
  * @param field The field name to look up.
  * @return The offset in bytes, or (size_t)-1 if not found.
  */
-C_CDD_EXPORT int cdd_c_meta_offsetof(const struct cdd_c_meta *meta,
+C_ORM_EXPORT int cdd_c_meta_offsetof(const struct cdd_c_meta *meta,
                                      const char *field, size_t *out_offset);
 
 /**
@@ -360,7 +359,7 @@ C_CDD_EXPORT int cdd_c_meta_offsetof(const struct cdd_c_meta *meta,
  * offsets.
  * @return 0 on success.
  */
-C_CDD_EXPORT int
+C_ORM_EXPORT int
 cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
                            const void *in_struct,
                            const struct cdd_c_meta *struct_meta);
@@ -375,7 +374,7 @@ cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
  * @param strict_mapping If 1, fails if any field is missing or extraneous.
  * @return 0 on success.
  */
-C_CDD_EXPORT int cdd_c_abstract_to_specific(
+C_ORM_EXPORT int cdd_c_abstract_to_specific(
     void *out_struct, const cdd_c_abstract_struct_t *in_astruct,
     const struct cdd_c_meta *struct_meta, int strict_mapping);
 

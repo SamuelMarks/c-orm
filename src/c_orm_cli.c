@@ -34,6 +34,8 @@ static void print_usage(const char *prog) {
          "scripts\n");
   printf("  generate <table_name>     Auto-generate migrations based on schema "
          "diff\n");
+  printf("  sql2c <schema.sql> <out_dir> Generate C code (c-orm compatible) "
+         "from SQL DDL\n");
   printf("  migrate                   Apply pending migrations\n");
   printf("  rollback [steps]          Rollback applied migrations\n");
   printf("  status                    Show pending and applied migrations\n\n");
@@ -142,6 +144,20 @@ int main(int argc, char **argv) {
     printf("Schema diff auto-generation is not implemented dynamically via CLI "
            "yet.\n");
     printf("Please use cdd-c code generation or manual SQL creation.\n");
+  } else if (strcmp(command, "sql2c") == 0) {
+    if (argc < 4) {
+      printf("Error: 'sql2c' requires <schema.sql> and <out_dir>.\n");
+      rc = 1;
+      LOG_DEBUG("main: sql2c requires arguments");
+      LOG_DEBUG("main: exit");
+      return rc;
+    }
+    rc = c_orm_codegen_generate(argv[2], argv[3]);
+    if (rc != 0) {
+      printf("Failed to generate code from schema.\n");
+    } else {
+      printf("Code generation successful.\n");
+    }
   } else if (strcmp(command, "migrate") == 0) {
     c_orm_db_t *db = NULL;
     c_orm_error_t err;

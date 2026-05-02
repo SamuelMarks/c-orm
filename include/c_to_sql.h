@@ -12,7 +12,7 @@ extern "C" {
 
 /* clang-format off */
 #include <stdio.h>
-#include "c_cdd_export.h"
+#include "c_orm_db.h"
 #include "classes/emit/struct.h"
 #include "cdd_c_orm_meta.h"
 /* clang-format on */
@@ -52,7 +52,7 @@ typedef struct {
  * @param dialect The SQL dialect to generate for.
  * @return 0 on success, non-zero on failure.
  */
-C_CDD_EXPORT int write_struct_to_sql_create_table(FILE *fp,
+C_ORM_EXPORT int write_struct_to_sql_create_table(FILE *fp,
                                                   const char *table_name,
                                                   const struct StructFields *sf,
                                                   c_to_sql_dialect_t dialect);
@@ -66,7 +66,7 @@ C_CDD_EXPORT int write_struct_to_sql_create_table(FILE *fp,
  * generated SQL.
  * @return 0 on success, non-zero on failure.
  */
-C_CDD_EXPORT int cdd_c_meta_to_sql_create_table(const cdd_c_meta_t *meta,
+C_ORM_EXPORT int cdd_c_meta_to_sql_create_table(const cdd_c_meta_t *meta,
                                                 c_to_sql_dialect_t dialect,
                                                 char **out_sql);
 
@@ -78,7 +78,7 @@ C_CDD_EXPORT int cdd_c_meta_to_sql_create_table(const cdd_c_meta_t *meta,
  * @param out_diff Pointer to a diff structure to populate.
  * @return 0 on success, non-zero on failure.
  */
-C_CDD_EXPORT int cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
+C_ORM_EXPORT int cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
                                  const cdd_c_meta_t *new_schema,
                                  cdd_c_meta_diff_t *out_diff);
 
@@ -94,7 +94,7 @@ C_CDD_EXPORT int cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
  * DOWN migration SQL.
  * @return 0 on success, non-zero on failure.
  */
-C_CDD_EXPORT int cdd_c_meta_diff_to_sql(const char *table_name,
+C_ORM_EXPORT int cdd_c_meta_diff_to_sql(const char *table_name,
                                         const cdd_c_meta_diff_t *diff,
                                         c_to_sql_dialect_t dialect,
                                         char **up_sql, char **down_sql);
@@ -104,7 +104,7 @@ C_CDD_EXPORT int cdd_c_meta_diff_to_sql(const char *table_name,
  *
  * @param diff The diff structure to free.
  */
-C_CDD_EXPORT void cdd_c_meta_diff_free(cdd_c_meta_diff_t *diff);
+C_ORM_EXPORT void cdd_c_meta_diff_free(cdd_c_meta_diff_t *diff);
 
 /**
  * @brief Get the SQL query to inspect the live database schema.
@@ -114,7 +114,7 @@ C_CDD_EXPORT void cdd_c_meta_diff_free(cdd_c_meta_diff_t *diff);
  * @param out_query Pointer to an allocated string with the query.
  * @return 0 on success.
  */
-C_CDD_EXPORT int cdd_c_get_schema_inspection_query(c_to_sql_dialect_t dialect,
+C_ORM_EXPORT int cdd_c_get_schema_inspection_query(c_to_sql_dialect_t dialect,
                                                    const char *table_name,
                                                    char **out_query);
 
@@ -128,7 +128,7 @@ C_CDD_EXPORT int cdd_c_get_schema_inspection_query(c_to_sql_dialect_t dialect,
  * @param out_sql Pointer to an allocated string with the query.
  * @return 0 on success.
  */
-C_CDD_EXPORT int cdd_c_emit_create_index(const char *table_name,
+C_ORM_EXPORT int cdd_c_emit_create_index(const char *table_name,
                                          const char *index_name,
                                          const char *column_name, int is_unique,
                                          char **out_sql);
@@ -140,7 +140,7 @@ C_CDD_EXPORT int cdd_c_emit_create_index(const char *table_name,
  * @param out_sql Pointer to an allocated string with the query.
  * @return 0 on success.
  */
-C_CDD_EXPORT int cdd_c_emit_drop_index(const char *index_name, char **out_sql);
+C_ORM_EXPORT int cdd_c_emit_drop_index(const char *index_name, char **out_sql);
 
 /**
  * @brief Reorder an array of C-ORM metadata schemas based on foreign key
@@ -151,7 +151,7 @@ C_CDD_EXPORT int cdd_c_emit_drop_index(const char *index_name, char **out_sql);
  * @param out_schemas Array of metadata pointers sorted by dependency.
  * @return 0 on success, non-zero if a cycle is detected.
  */
-C_CDD_EXPORT int cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas,
+C_ORM_EXPORT int cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas,
                                              size_t num_schemas,
                                              const cdd_c_meta_t **out_schemas);
 

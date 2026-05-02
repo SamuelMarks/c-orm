@@ -11,7 +11,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include "c_cdd_export.h"
+#include "c_orm_db.h"
 #include <stddef.h>
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -180,7 +180,7 @@ struct sql_parse_error_t {
  * @param out_list Pointer to pointer of list to allocate and populate.
  * @return 0 on success, non-zero on error.
  */
-C_CDD_EXPORT int sql_lex(az_span source, struct sql_token_list_t **out_list);
+C_ORM_EXPORT int sql_lex(az_span source, struct sql_token_list_t **out_list);
 
 /**
  * @brief Parse a SQL CREATE TABLE statement.
@@ -190,7 +190,7 @@ C_CDD_EXPORT int sql_lex(az_span source, struct sql_token_list_t **out_list);
  * @param out_error Pointer to populate with error info on failure.
  * @return 0 on success, non-zero on error.
  */
-C_CDD_EXPORT int sql_parse_table(const struct sql_token_list_t *list,
+C_ORM_EXPORT int sql_parse_table(const struct sql_token_list_t *list,
                                  struct sql_table_t **out_table,
                                  struct sql_parse_error_t *out_error);
 
@@ -200,7 +200,7 @@ C_CDD_EXPORT int sql_parse_table(const struct sql_token_list_t *list,
  * @param list The list to free.
  * @return 0 on success.
  */
-C_CDD_EXPORT int sql_token_list_free(struct sql_token_list_t *list);
+C_ORM_EXPORT int sql_token_list_free(struct sql_token_list_t *list);
 
 /**
  * @brief Free a SQL table AST node.
@@ -208,7 +208,7 @@ C_CDD_EXPORT int sql_token_list_free(struct sql_token_list_t *list);
  * @param table The table to free.
  * @return 0 on success.
  */
-C_CDD_EXPORT int sql_table_free(struct sql_table_t *table);
+C_ORM_EXPORT int sql_table_free(struct sql_table_t *table);
 
 /**
  * @brief Parse full SQL DDL file returning all tables.
@@ -218,7 +218,7 @@ C_CDD_EXPORT int sql_table_free(struct sql_table_t *table);
  * @param out_n_tables Pointer to receive count
  * @return 0 on success
  */
-C_CDD_EXPORT int parse_sql_ddl(const char *sql_data,
+C_ORM_EXPORT int parse_sql_ddl(const char *sql_data,
                                struct sql_table_t **out_tables,
                                size_t *out_n_tables);
 
@@ -233,7 +233,7 @@ struct CddCQueryProjection;
  * @param out_error Pointer to populate with error info on failure.
  * @return 0 on success, non-zero on error.
  */
-C_CDD_EXPORT int sql_parse_select(const struct sql_token_list_t *list,
+C_ORM_EXPORT int sql_parse_select(const struct sql_token_list_t *list,
                                   struct CddCQueryProjection **out_proj,
                                   struct sql_parse_error_t *out_error);
 
@@ -245,7 +245,7 @@ C_CDD_EXPORT int sql_parse_select(const struct sql_token_list_t *list,
  * @param out_error Pointer to populate with error info on failure.
  * @return 0 on success, non-zero on error.
  */
-C_CDD_EXPORT int sql_parse_returning(const struct sql_token_list_t *list,
+C_ORM_EXPORT int sql_parse_returning(const struct sql_token_list_t *list,
                                      struct CddCQueryProjection **out_proj,
                                      struct sql_parse_error_t *out_error);
 
