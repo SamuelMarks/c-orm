@@ -485,8 +485,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
                                              void *out_array);
 
 /**
- /**
-  * @brief Hydrate a struct from a row in a query, starting at a specific column
+ * @brief Hydrate a struct from a row in a query, starting at a specific column
  index.
   *
   * @param db Database connection.

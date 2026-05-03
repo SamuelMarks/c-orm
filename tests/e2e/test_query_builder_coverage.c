@@ -11,8 +11,13 @@ TEST test_query_builder_coverage(void) {
   c_orm_select_builder_t *b = NULL;
   c_orm_insert_builder_t *ib = NULL;
   c_orm_update_builder_t *ub = NULL;
-
   c_orm_relation_meta_t rels[3];
+  c_orm_column_meta_t target_col;
+  c_orm_table_meta_t target_meta;
+  c_orm_column_meta_t no_pk_col;
+  c_orm_table_meta_t no_pk_meta;
+  c_orm_table_meta_t meta;
+
   memset(rels, 0, sizeof(rels));
 
   rels[0].field_name = "my_rel";
@@ -29,12 +34,10 @@ TEST test_query_builder_coverage(void) {
   rels[2].target_table = "target_tbl";
   rels[2].type = (c_orm_relation_type_t)99;
 
-  c_orm_column_meta_t target_col;
   memset(&target_col, 0, sizeof(target_col));
   target_col.name = "id";
   target_col.is_pk = 1;
 
-  c_orm_table_meta_t target_meta;
   memset(&target_meta, 0, sizeof(target_meta));
   target_meta.name = "target_tbl";
   target_meta.columns = &target_col;
@@ -42,12 +45,10 @@ TEST test_query_builder_coverage(void) {
 
   rels[0].target_meta = &target_meta;
 
-  c_orm_column_meta_t no_pk_col;
   memset(&no_pk_col, 0, sizeof(no_pk_col));
   no_pk_col.name = "not_id";
   no_pk_col.is_pk = 0;
 
-  c_orm_table_meta_t no_pk_meta;
   memset(&no_pk_meta, 0, sizeof(no_pk_meta));
   no_pk_meta.name = "no_pk_tbl";
   no_pk_meta.columns = &no_pk_col;
@@ -55,7 +56,6 @@ TEST test_query_builder_coverage(void) {
 
   rels[1].target_meta = &no_pk_meta;
 
-  c_orm_table_meta_t meta;
   memset(&meta, 0, sizeof(meta));
   meta.name = "test_table";
   meta.relations = rels;

@@ -98,6 +98,8 @@ TEST test_c_orm_db_coverage(void) {
   c_orm_driver_vtable_t vt;
   const char *msg = NULL;
   int rc;
+  c_orm_pool_telemetry_t tel;
+  c_orm_timezone_t tz;
 
   /* call the hooks */
   test_hook(NULL, NULL, NULL);
@@ -105,8 +107,6 @@ TEST test_c_orm_db_coverage(void) {
   if (crypto_dec_hook(NULL, 0, NULL, NULL, NULL)) {}
   test_log_cb(NULL, NULL);
   test_expire_cb(NULL, NULL, NULL, NULL);
-  c_orm_pool_telemetry_t tel;
-  c_orm_timezone_t tz;
 
   memset(&db, 0, sizeof(db));
   memset(&vt, 0, sizeof(vt));

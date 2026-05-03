@@ -126,13 +126,13 @@ TEST test_sql_lexer_strings_unknown(void) {
   ASSERT_EQ(0, err);
   ASSERT(list != NULL);
 
-  // DEFAULT
-  // space
-  // 'some_string' -> SQL_TOKEN_STRING
-  // space
-  // ^ -> SQL_TOKEN_UNKNOWN
-  // space
-  // ~ -> SQL_TOKEN_UNKNOWN
+  /* DEFAULT */
+  /* space */
+  /* 'some_string' -> SQL_TOKEN_STRING */
+  /* space */
+  /* ^ -> SQL_TOKEN_UNKNOWN */
+  /* space */
+  /* ~ -> SQL_TOKEN_UNKNOWN */
 
   int has_str = 0;
   int has_unknown = 0;
@@ -149,7 +149,7 @@ TEST test_sql_lexer_strings_unknown(void) {
 
   sql_token_list_free(list);
 
-  // also unclosed string
+  /* also unclosed string */
   sql = "'unclosed";
   span = az_span_create_from_str((char *)sql);
   err = sql_lex(span, &list);
@@ -177,7 +177,7 @@ TEST test_sql_parser_foreign_keys_defaults(void) {
   }
   ASSERT_EQ(0, err);
 
-  // Add a test for parser error (e.g. invalid syntax)
+  /* Add a test for parser error (e.g. invalid syntax) */
   const char *sql_err = "CREATE TABLE t2 (";
   struct sql_table_t *tables_err = NULL;
   size_t n_tables_err = 0;
