@@ -147,7 +147,6 @@ add_library(c-orm
     src/c_orm_modality.c
       src/abstract_struct.c
       src/cdd_c_ir.c
-            src/c_to_sql.c
       src/hydrate_router.c
       src/migration.c
       src/migration_runner.c

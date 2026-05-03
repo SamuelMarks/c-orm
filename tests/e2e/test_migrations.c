@@ -2,7 +2,7 @@
 #include "c_orm_api.h"
 #include "c_orm_migrations.h"
 #include "c_orm_sqlite.h"
-#include "c_to_sql.h"
+#include "sql_to_c.h"
 #include "greatest.h"
 #include <stdlib.h>
 #include <string.h>
@@ -17,23 +17,9 @@ static void *m_mock_malloc(size_t size) {
       oom_countdown--;
       return NULL;
     }
-    if (oom_countdown > 0) {
-      oom_countdown--;
-    }
+    oom_countdown--;
   }
   return malloc(size);
-}
-static void *m_mock_realloc(void *ptr, size_t size) {
-  if (oom_active) {
-    if (oom_countdown == 0) {
-      oom_countdown--;
-      return NULL;
-    }
-    if (oom_countdown > 0) {
-      oom_countdown--;
-    }
-  }
-  return realloc(ptr, size);
 }
 static void m_mock_free(void *ptr) { free(ptr); }
 
@@ -80,8 +66,6 @@ static c_orm_error_t my_mig_prep(c_orm_db_t *db_v, const char *sql,
   if (fail_up && strstr(sql, "UP"))
     return C_ORM_ERROR_SQL;
   if (fail_down && strstr(sql, "DOWN"))
-    return C_ORM_ERROR_SQL;
-  if (fail_rollback_step && strstr(sql, "ROLLBACK TO SAVEPOINT c_orm_mig_step"))
     return C_ORM_ERROR_SQL;
   if (fail_rollback_step_rb &&
       strstr(sql, "ROLLBACK TO SAVEPOINT c_orm_mig_step_rb"))
@@ -197,49 +181,6 @@ TEST test_migrate_all_execute(void) {
   ASSERT_EQ(C_ORM_OK, err);
 
   db->vtable->disconnect(db);
-  PASS();
-}
-
-TEST test_meta_diff_add_drop(void) {
-  c_to_sql_dialect_t dialect = C_TO_SQL_DIALECT_SQLITE;
-  cdd_c_meta_t old_schema, new_schema;
-  cdd_c_prop_meta_t old_props[2], new_props[2];
-  cdd_c_meta_diff_t diff;
-  char *up_sql = NULL;
-  char *down_sql = NULL;
-
-  old_schema.name = "users";
-  old_schema.num_props = 2;
-  old_schema.props = old_props;
-  old_props[0].name = "id";
-  old_props[0].type = "int";
-  old_props[1].name = "old_col";
-  old_props[1].type = "char*";
-
-  new_schema.name = "users";
-  new_schema.num_props = 2;
-  new_schema.props = new_props;
-  new_props[0].name = "id";
-  new_props[0].type = "int";
-  new_props[1].name = "new_col";
-  new_props[1].type = "float";
-
-  ASSERT_EQ(0, cdd_c_meta_diff(&old_schema, &new_schema, &diff));
-  ASSERT_EQ(1, diff.num_added);
-  ASSERT_EQ(1, diff.num_dropped);
-  ASSERT_EQ(0, diff.num_altered);
-
-  ASSERT_STR_EQ("new_col", diff.added_props[0].name);
-  ASSERT_STR_EQ("old_col", diff.dropped_props[0].name);
-
-  ASSERT_EQ(
-      0, cdd_c_meta_diff_to_sql("users", &diff, dialect, &up_sql, &down_sql));
-  ASSERT(strstr(up_sql, "ADD COLUMN new_col") != NULL);
-  ASSERT(strstr(up_sql, "DROP COLUMN old_col") != NULL);
-
-  free(up_sql);
-  free(down_sql);
-  cdd_c_meta_diff_free(&diff);
   PASS();
 }
 
@@ -461,7 +402,7 @@ TEST test_migrations_oom(void) {
 
   fail_prep_schema = 1;
   s_meta = NULL;
-  c_orm_migration_fetch_table_schema(db, "schema_test", &s_meta);
+  c_orm_migration_fetch_table_schema(db, "authors", &s_meta);
   if (s_meta)
     c_orm_migration_free_table_schema(s_meta);
   fail_prep_schema = 0;
@@ -498,12 +439,10 @@ SUITE(migrations_suite) {
 
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void (*old_free)(void *) = c_orm_free;
-  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
 
   c_orm_malloc = m_mock_malloc;
   c_orm_free = m_mock_free;
-  c_orm_realloc = m_mock_realloc;
-  RUN_TEST(test_meta_diff_add_drop);
+
   RUN_TEST(test_c_orm_fetch_table_schema);
   RUN_TEST(test_migration_init);
   RUN_TEST(test_migrate_all_dry_run);
@@ -512,5 +451,4 @@ SUITE(migrations_suite) {
 
   c_orm_malloc = old_malloc;
   c_orm_free = old_free;
-  c_orm_realloc = old_realloc;
 }

@@ -131,6 +131,8 @@ extern "C" {
    foreign_key,                                                                \
    local_key,                                                                  \
    offsetof(struct struct_name, name),                                         \
+   offsetof(struct struct_name, name.data),                                    \
+   offsetof(struct struct_name, name.lazy_ctx),                                \
    C_ORM_RELATION_META_OFFSET_##rel_type(struct_name, name),                   \
    NULL,                                                                       \
    &target_type##_meta,                                                        \
@@ -165,6 +167,8 @@ extern "C" {
    foreign_key,                                                                \
    local_key,                                                                  \
    offsetof(struct struct_name, name),                                         \
+   offsetof(struct struct_name, name.data),                                    \
+   offsetof(struct struct_name, name.lazy_ctx),                                \
    C_ORM_RELATION_META_OFFSET_##rel_type(struct_name, name),                   \
    NULL,                                                                       \
    &target_type##_meta,                                                        \
@@ -232,6 +236,8 @@ extern "C" {
    foreign_key,                                                                \
    local_key,                                                                  \
    offsetof(struct struct_name, name),                                         \
+   offsetof(struct struct_name, name.data),                                    \
+   offsetof(struct struct_name, name.lazy_ctx),                                \
    C_ORM_RELATION_META_OFFSET_##rel_type(struct_name, name),                   \
    NULL,                                                                       \
    &target_type##_meta,                                                        \

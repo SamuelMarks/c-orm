@@ -44,16 +44,25 @@ add_custom_target(generate_e2e_models
 )
 
 add_executable(c_orm_e2e_tests
-    test_e2e.c
-    test_oom_coverage.c
-    test_inline_macros.c
+    test_arena_uuid.c
     test_ast.c
-    test_query_coverage.c
-    test_migrations.c
-    test_relations.c
+    test_cache_coverage.c
+    test_cli.c
+    test_cli_exec.c
+    test_db_stubs.c
+    test_e2e.c
     test_generic.c
+    test_inline_macros.c
+    test_memory_driver.c
+    test_migrations.c
+    test_oom_coverage.c
+    test_query_builder_coverage.c
+    test_query_coverage.c
+    test_relations.c
+    test_sqlite_driver.c
+    test_string_builder.c
     "${CMAKE_CURRENT_BINARY_DIR}/Models.c"
-    )
+)
 add_dependencies(c_orm_e2e_tests generate_e2e_models)
 
 target_include_directories(c_orm_e2e_tests PRIVATE
@@ -65,7 +74,12 @@ if(MSVC)
     target_compile_definitions(c_orm_e2e_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
-target_link_libraries(c_orm_e2e_tests PRIVATE c-orm c_cdd)
+# Pass the c-orm-cli executable path to the tests
+# We need to escape backslashes so the C compiler sees it as a valid string literal.
+# $<TARGET_FILE:c-orm-cli> usually gives forward slashes in CMake, which is safe for C strings.
+target_compile_definitions(c_orm_e2e_tests PRIVATE C_ORM_CLI_EXECUTABLE="$<TARGET_FILE:c-orm-cli>")
+
+target_link_libraries(c_orm_e2e_tests PRIVATE c-orm c-orm-async c_cdd sqlite3)
 
 add_test(NAME e2e_test COMMAND c_orm_e2e_tests)
 if(WIN32 AND BUILD_SHARED_LIBS AND DEFINED CDD_C_PATH_ENV)

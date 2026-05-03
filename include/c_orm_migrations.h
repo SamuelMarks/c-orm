@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #endif
+#include "cdd_c_orm_meta.h"
 /* clang-format on */
 
 #ifdef __cplusplus
@@ -151,8 +152,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_lock(c_orm_db_t *db);
  * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_migration_unlock(c_orm_db_t *db);
-
-#include "cdd_c_orm_meta.h"
 
 /**
  * @brief Fetch the current schema of a table directly from the database.

@@ -14,9 +14,7 @@ static void *mock_malloc(size_t size) {
       oom_countdown--;
       return NULL;
     }
-    if (oom_countdown > 0) {
-      oom_countdown--;
-    }
+    oom_countdown--;
   }
   return malloc(size);
 }

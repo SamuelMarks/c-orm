@@ -1122,25 +1122,43 @@ SUITE(e2e_suite) {
 
 GREATEST_MAIN_DEFS();
 
+extern SUITE(arena_uuid_suite);
+extern SUITE(ast_suite);
+extern SUITE(cache_coverage_suite);
+extern SUITE(cli_suite);
+extern SUITE(cli_exec_suite);
+extern SUITE(db_stubs_suite);
 extern SUITE(inline_macros_suite);
 extern SUITE(oom_coverage_suite);
-extern SUITE(ast_suite);
-SUITE(query_fluent_coverage_suite);
+extern SUITE(query_fluent_coverage_suite);
 extern SUITE(migrations_suite);
 extern SUITE(relations_suite);
 extern SUITE(generic_suite);
+extern SUITE(memory_driver_suite);
+extern SUITE(query_builder_coverage_suite);
+extern SUITE(sqlite_driver_suite);
+extern SUITE(string_builder_suite);
 
 int main(int argc, char **argv) {
   int rc;
   (void)rc;
   GREATEST_MAIN_BEGIN();
   RUN_SUITE(e2e_suite);
-  RUN_SUITE(oom_coverage_suite);
-  RUN_SUITE(inline_macros_suite);
+  RUN_SUITE(arena_uuid_suite);
   RUN_SUITE(ast_suite);
+  RUN_SUITE(cache_coverage_suite);
+  RUN_SUITE(cli_suite);
+  RUN_SUITE(cli_exec_suite);
+  RUN_SUITE(db_stubs_suite);
+  RUN_SUITE(inline_macros_suite);
+  RUN_SUITE(oom_coverage_suite);
   RUN_SUITE(query_fluent_coverage_suite);
   RUN_SUITE(migrations_suite);
   RUN_SUITE(relations_suite);
   RUN_SUITE(generic_suite);
+  RUN_SUITE(memory_driver_suite);
+  RUN_SUITE(query_builder_coverage_suite);
+  RUN_SUITE(sqlite_driver_suite);
+  RUN_SUITE(string_builder_suite);
   GREATEST_MAIN_END();
 }

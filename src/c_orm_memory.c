@@ -187,7 +187,7 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
     return (c_orm_error_t)rc;
   }
 
-  q->bound_params = (void **)calloc(32, sizeof(void *));
+  q->bound_params = (void **)C_ORM_MALLOC(32 * sizeof(void *));
   if (!q->bound_params) {
     LOG_DEBUG("mem_prepare: OOM");
     C_ORM_FREE(q);
@@ -195,6 +195,7 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
     LOG_DEBUG("mem_prepare: exit");
     return (c_orm_error_t)rc;
   }
+  memset(q->bound_params, 0, 32 * sizeof(void *));
 
   q->num_bound = 0;
   q->current_row = NULL;
@@ -467,6 +468,12 @@ static int mem_get_last_error(c_orm_db_t *db, const char **out_message) {
   int rc;
   c_orm_memory_db_t *ctx;
   LOG_DEBUG("mem_get_last_error: entry");
+  if (!db || !db->driver_data) {
+    if (out_message) {
+      *out_message = "";
+    }
+    return 1;
+  }
   ctx = (c_orm_memory_db_t *)db->driver_data;
   if (out_message) {
     *out_message = ctx->last_error;
@@ -566,4 +573,9 @@ c_orm_memory_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   rc = 1;
   LOG_DEBUG("c_orm_memory_get_vtable: exit");
   return rc;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_memory_connect(const char *url,
+                                                c_orm_db_t **out_db) {
+  return mem_connect(url, out_db);
 }

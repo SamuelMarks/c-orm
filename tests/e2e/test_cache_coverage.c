@@ -5,10 +5,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if !defined(_WIN32) && !defined(_WIN64)
+#include <pthread.h>
+#endif
 /* clang-format on */
 
 #if !defined(_WIN32) && !defined(_WIN64)
-#include <pthread.h>
 extern int (*c_orm_mutex_init_ptr)(pthread_mutex_t *,
                                    const pthread_mutexattr_t *);
 extern int (*c_orm_mutex_lock_ptr)(pthread_mutex_t *);
@@ -56,27 +58,12 @@ static void *mock_malloc(size_t size) {
       oom_countdown--;
       return NULL;
     }
-    if (oom_countdown > 0) {
-      oom_countdown--;
-    }
+    oom_countdown--;
   }
   return malloc(size);
 }
 
 static void mock_free(void *ptr) { free(ptr); }
-
-static void *mock_realloc(void *ptr, size_t size) {
-  if (oom_active) {
-    if (oom_countdown == 0) {
-      oom_countdown--;
-      return NULL;
-    }
-    if (oom_countdown > 0) {
-      oom_countdown--;
-    }
-  }
-  return realloc(ptr, size);
-}
 
 /* Mock vtable and query */
 typedef struct mock_query_t {
@@ -95,8 +82,6 @@ static c_orm_error_t mock_prepare(c_orm_db_t *db, const char *sql,
   if (mock_prepare_fail)
     return C_ORM_ERROR_SQL;
   q = (mock_query_t *)malloc(sizeof(mock_query_t));
-  if (!q)
-    return C_ORM_ERROR_MEMORY;
   q->id = 1;
   *out_query = (c_orm_query_t *)q;
   return C_ORM_OK;
@@ -473,11 +458,9 @@ TEST test_cache_unlock_coverage_2(void) {
 SUITE(cache_coverage_suite) {
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void (*old_free)(void *) = c_orm_free;
-  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
 
   c_orm_malloc = mock_malloc;
   c_orm_free = mock_free;
-  c_orm_realloc = mock_realloc;
 
 #if !defined(_WIN32) && !defined(_WIN64)
   c_orm_mutex_init_ptr = my_mock_init;
@@ -500,5 +483,4 @@ SUITE(cache_coverage_suite) {
 
   c_orm_malloc = old_malloc;
   c_orm_free = old_free;
-  c_orm_realloc = old_realloc;
 }

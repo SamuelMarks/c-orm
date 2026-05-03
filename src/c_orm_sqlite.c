@@ -116,20 +116,22 @@ static c_orm_error_t sqlite_connect(const char *url, c_orm_db_t **out_db) {
     return (c_orm_error_t)rc;
   }
 
-  db = (c_orm_db_t *)calloc(1, sizeof(c_orm_db_t));
+  db = (c_orm_db_t *)C_ORM_MALLOC(sizeof(c_orm_db_t));
   if (!db) {
     LOG_DEBUG("sqlite_connect: OOM db");
     rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
+  memset(db, 0, sizeof(c_orm_db_t));
 
-  data = (struct sqlite_db_data *)calloc(1, sizeof(struct sqlite_db_data));
+  data = (struct sqlite_db_data *)C_ORM_MALLOC(sizeof(struct sqlite_db_data));
   if (!data) {
     C_ORM_FREE(db);
     LOG_DEBUG("sqlite_connect: OOM data");
     rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
+  memset(data, 0, sizeof(struct sqlite_db_data));
 
   rc = sqlite3_open(url, &data->db);
   if (rc != SQLITE_OK) {
@@ -224,15 +226,23 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
     db->log_cb(sql, db->log_user_data);
   }
 
-  query = (c_orm_query_t *)calloc(1, sizeof(c_orm_query_t));
+  printf("sqlite_prepare: before malloc query\n");
+  fflush(stdout);
+  query = (c_orm_query_t *)C_ORM_MALLOC(sizeof(c_orm_query_t));
+  if (query)
+    memset(query, 0, sizeof(c_orm_query_t));
   if (!query) {
     LOG_DEBUG("sqlite_prepare: OOM query");
     rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
 
-  q_data =
-      (struct sqlite_query_data *)calloc(1, sizeof(struct sqlite_query_data));
+  printf("sqlite_prepare: before malloc data\n");
+  fflush(stdout);
+  q_data = (struct sqlite_query_data *)C_ORM_MALLOC(
+      sizeof(struct sqlite_query_data));
+  if (q_data)
+    memset(q_data, 0, sizeof(struct sqlite_query_data));
   if (!q_data) {
     C_ORM_FREE(query);
     LOG_DEBUG("sqlite_prepare: OOM query data");
@@ -240,10 +250,18 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
     return (c_orm_error_t)rc;
   }
 
+  printf("sqlite_prepare: before prepare_v2\n");
+  fflush(stdout);
   rc = sqlite3_prepare_v2(db_data->db, sql, -1, &q_data->stmt, NULL);
   if (rc != SQLITE_OK) {
+    printf("sqlite_prepare: prepare failed, setting error\n");
+    fflush(stdout);
     set_error(db, NULL);
+    printf("sqlite_prepare: freeing data\n");
+    fflush(stdout);
     C_ORM_FREE(q_data);
+    printf("sqlite_prepare: freeing query\n");
+    fflush(stdout);
     C_ORM_FREE(query);
     LOG_DEBUG("sqlite_prepare: prepare failed");
     rc = C_ORM_ERROR_SQL;
@@ -271,15 +289,23 @@ static c_orm_error_t sqlite_bind_int32(c_orm_query_t *query, int index,
                                        int32_t val) {
   int rc;
   LOG_DEBUG("sqlite_bind_int32: entry");
+  printf("sqlite_bind_int32: start index=%d val=%d\n", index, val);
+  fflush(stdout);
   if (!query || !query->data || !query->data->stmt) {
-    LOG_DEBUG("sqlite_bind_int32: invalid state");
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
+  printf("sqlite_bind_int32: calling sqlite3_bind_int\n");
+  fflush(stdout);
   rc = sqlite3_bind_int(query->data->stmt, index, val);
+  printf("sqlite_bind_int32: rc=%d\n", rc);
+  fflush(stdout);
   if (rc != SQLITE_OK) {
+    printf("sqlite_bind_int32: failed, calling set_error\n");
+    fflush(stdout);
     set_error(query->data->db, NULL);
-    LOG_DEBUG("sqlite_bind_int32: bind failed");
+    printf("sqlite_bind_int32: set_error returned\n");
+    fflush(stdout);
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
@@ -307,8 +333,11 @@ static c_orm_error_t sqlite_bind_int64(c_orm_query_t *query, int index,
   }
   rc = sqlite3_bind_int64(query->data->stmt, index, val);
   if (rc != SQLITE_OK) {
+    printf("sqlite_bind_int64: failed, calling set_error\n");
+    fflush(stdout);
     set_error(query->data->db, NULL);
-    LOG_DEBUG("sqlite_bind_int64: bind failed");
+    printf("sqlite_bind_int64: set_error returned\n");
+    fflush(stdout);
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
@@ -983,9 +1012,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_open(
     rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
-  rc = sqlite3_blob_open((sqlite3 *)db->driver_data, db_name ? db_name : "main",
-                         table, column, row_id, is_read_write,
-                         (sqlite3_blob **)out_blob_handle);
+  rc = sqlite3_blob_open(((struct sqlite_db_data *)db->driver_data)->db,
+                         db_name ? db_name : "main", table, column, row_id,
+                         is_read_write, (sqlite3_blob **)out_blob_handle);
   if (rc != SQLITE_OK) {
     LOG_DEBUG("c_orm_sqlite_blob_open: open failed");
     rc = C_ORM_ERROR_UNKNOWN;

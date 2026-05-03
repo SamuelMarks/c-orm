@@ -195,9 +195,7 @@ static void *qb_mock_malloc(size_t size) {
       oom_countdown--;
       return NULL;
     }
-    if (oom_countdown > 0) {
-      oom_countdown--;
-    }
+    oom_countdown--;
   }
   return malloc(size);
 }
@@ -208,65 +206,87 @@ TEST test_query_builder_oom(void) {
   c_orm_select_builder_t *b = NULL;
   c_orm_update_builder_t *ub = NULL;
 
+  int rc1, rc2, rc3, rc4, rc_sel_compile, rc_upd_compile;
+  int rc_agg1, rc_agg2, rc_agg_extra1;
+  int rc_agg3, rc_agg4, rc_agg_extra2;
+  int rc_agg5, rc_agg6, rc_agg7;
+  char *sql = NULL;
+  void *(*old_malloc)(size_t) = c_orm_malloc;
+  void (*old_free)(void *) = c_orm_free;
+
   c_orm_table_meta_t meta;
   memset(&meta, 0, sizeof(meta));
   meta.name = "test_table";
 
-  void *(*old_malloc)(size_t) = c_orm_malloc;
-  void (*old_free)(void *) = c_orm_free;
+  old_malloc = c_orm_malloc;
+  old_free = c_orm_free;
   c_orm_malloc = qb_mock_malloc;
   c_orm_free = qb_mock_free;
 
   /* Select init OOM */
   oom_active = 1;
   oom_countdown = 0;
-  int rc1 = c_orm_select_builder_init(&meta, &b);
+  rc1 = c_orm_select_builder_init(&meta, &b);
   oom_countdown = 1;
-  int rc2 = c_orm_select_builder_init(&meta, &b);
+  rc2 = c_orm_select_builder_init(&meta, &b);
   oom_active = 0;
   ASSERT_EQ(1, rc1);
   ASSERT_EQ(1, rc2);
 
+  /* Select compile OOM */
+  c_orm_select_builder_init(&meta, &b);
+  oom_active = 1;
+  oom_countdown = 0;
+  rc_sel_compile = c_orm_select_builder_compile(b, &sql);
+  oom_active = 0;
+  ASSERT_EQ(1, rc_sel_compile);
+  c_orm_select_builder_free(b);
+
   /* Update init OOM */
   oom_active = 1;
   oom_countdown = 0;
-  int rc3 = c_orm_update_builder_init(&meta, &ub);
+  rc3 = c_orm_update_builder_init(&meta, &ub);
   oom_countdown = 1;
-  int rc4 = c_orm_update_builder_init(&meta, &ub);
+  rc4 = c_orm_update_builder_init(&meta, &ub);
   oom_active = 0;
   ASSERT_EQ(1, rc3);
   ASSERT_EQ(1, rc4);
+
+  /* Update compile OOM */
+  c_orm_update_builder_init(&meta, &ub);
+  oom_active = 1;
+  oom_countdown = 0;
+  rc_upd_compile = c_orm_update_builder_compile(ub, &sql);
+  oom_active = 0;
+  ASSERT_EQ(1, rc_upd_compile);
+  c_orm_update_builder_free(ub);
 
   /* Aggregate OOMs */
   c_orm_select_builder_init(&meta, &b);
   oom_active = 1;
   oom_countdown = 0;
-  int rc_agg1 = c_orm_select_aggregate(b, "AVG", "x", "a");
+  rc_agg1 = c_orm_select_aggregate(b, "AVG", "x", "a");
   oom_countdown = 1;
-  int rc_agg2 = c_orm_select_aggregate(b, "AVG", "x", "a");
+  rc_agg2 = c_orm_select_aggregate(b, "AVG", "x", "a");
+  oom_countdown = 2;
+  rc_agg_extra1 = c_orm_select_aggregate(b, "AVG", "x", "a");
   oom_active = 0;
   ASSERT_EQ(1, rc_agg1);
   ASSERT_EQ(1, rc_agg2);
-
-  oom_countdown = 2;
-  int rc_agg_extra1 = c_orm_select_aggregate(b, "AVG", "x", "a");
-
   ASSERT_EQ(1, rc_agg_extra1);
 
   /* Aggregate OOMs (else branch) */
   c_orm_select_where_eq(b, "id");
   oom_active = 1;
   oom_countdown = 0;
-  int rc_agg3 = c_orm_select_aggregate(b, "AVG", "x", "a");
+  rc_agg3 = c_orm_select_aggregate(b, "AVG", "x", "a");
   oom_countdown = 1;
-  int rc_agg4 = c_orm_select_aggregate(b, "AVG", "x", "a");
+  rc_agg4 = c_orm_select_aggregate(b, "AVG", "x", "a");
+  oom_countdown = 2;
+  rc_agg_extra2 = c_orm_select_aggregate(b, "AVG", "x", "a");
   oom_active = 0;
   ASSERT_EQ(1, rc_agg3);
   ASSERT_EQ(1, rc_agg4);
-
-  oom_countdown = 2;
-  int rc_agg_extra2 = c_orm_select_aggregate(b, "AVG", "x", "a");
-
   ASSERT_EQ(1, rc_agg_extra2);
 
   /* OOM for second aggregate */
@@ -279,11 +299,11 @@ TEST test_query_builder_oom(void) {
 
   oom_active = 1;
   oom_countdown = 0;
-  int rc_agg5 = c_orm_select_aggregate(b, "AVG", "y", "b");
+  rc_agg5 = c_orm_select_aggregate(b, "AVG", "y", "b");
   oom_countdown = 1;
-  int rc_agg6 = c_orm_select_aggregate(b, "AVG", "y", "b");
+  rc_agg6 = c_orm_select_aggregate(b, "AVG", "y", "b");
   oom_countdown = 2;
-  int rc_agg7 = c_orm_select_aggregate(b, "AVG", "y", "b");
+  rc_agg7 = c_orm_select_aggregate(b, "AVG", "y", "b");
   oom_active = 0;
   ASSERT_EQ(1, rc_agg5);
   ASSERT_EQ(1, rc_agg6);

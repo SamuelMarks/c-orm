@@ -98,6 +98,13 @@ TEST test_c_orm_db_coverage(void) {
   c_orm_driver_vtable_t vt;
   const char *msg = NULL;
   int rc;
+
+  /* call the hooks */
+  test_hook(NULL, NULL, NULL);
+  if (crypto_enc_hook(NULL, 0, NULL, NULL, NULL)) {}
+  if (crypto_dec_hook(NULL, 0, NULL, NULL, NULL)) {}
+  test_log_cb(NULL, NULL);
+  test_expire_cb(NULL, NULL, NULL, NULL);
   c_orm_pool_telemetry_t tel;
   c_orm_timezone_t tz;
 
@@ -190,17 +197,6 @@ TEST test_c_orm_db_coverage(void) {
 
   PASS();
 }
-
-extern c_orm_error_t c_orm_insert_async(c_orm_db_t *db,
-                                        const c_orm_table_meta_t *meta,
-                                        const void *in_struct,
-                                        void (*cb)(c_orm_error_t, void *),
-                                        void *ctx);
-extern c_orm_error_t c_orm_find_all_async(c_orm_db_t *db,
-                                          const c_orm_table_meta_t *meta,
-                                          void *out_array,
-                                          void (*cb)(c_orm_error_t, void *),
-                                          void *ctx);
 
 static void async_cb(c_orm_error_t err, void *ctx) {
   (void)err;

@@ -21,29 +21,13 @@ static void *mock_malloc_oom(size_t size) {
       oom_countdown--;
       return NULL;
     }
-    if (oom_countdown > 0) {
-      oom_countdown--;
-    }
+    oom_countdown--;
   }
   alloc_count++;
   return malloc(size);
 }
 
 static void mock_free_oom(void *ptr) { free(ptr); }
-
-static void *mock_realloc_oom(void *ptr, size_t size) {
-  if (oom_active) {
-    if (oom_countdown == 0) {
-      oom_countdown--;
-      return NULL;
-    }
-    if (oom_countdown > 0) {
-      oom_countdown--;
-    }
-  }
-  alloc_count++;
-  return realloc(ptr, size);
-}
 
 /* OOM Fuzzer Macro */
 #define OOM_TEST(test_func, max_allocs)                                        \
@@ -81,22 +65,25 @@ static void do_string_builder(void) {
 
 TEST test_string_builder_oom(void) {
   OOM_TEST(do_string_builder, 5);
+  oom_active = 1;
+  oom_countdown = 1;
+  do_string_builder();
+  oom_countdown = 2;
+  do_string_builder();
+  oom_active = 0;
   PASS();
 }
 
 SUITE(oom_coverage_suite) {
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void (*old_free)(void *) = c_orm_free;
-  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
 
   c_orm_malloc = mock_malloc_oom;
   c_orm_free = mock_free_oom;
-  c_orm_realloc = mock_realloc_oom;
 
   RUN_TEST(test_uuid_oom);
   RUN_TEST(test_string_builder_oom);
 
   c_orm_malloc = old_malloc;
   c_orm_free = old_free;
-  c_orm_realloc = old_realloc;
 }

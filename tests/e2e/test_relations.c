@@ -11,7 +11,8 @@
 
 #define TEAM_FIELDS(X, S)                                                      \
   X(S, C_ORM_TYPE_INT32, int32_t, id)                                          \
-  X(S, C_ORM_TYPE_STRING, char *, name)
+  X(S, C_ORM_TYPE_STRING, char *, name)                                        \
+  X(S, C_ORM_TYPE_BOOL, bool, is_active)
 
 C_ORM_STRUCT(Team, TEAM_FIELDS)
 
@@ -36,8 +37,8 @@ TEST test_c_orm_cascade_delete_and_update(void) {
   struct Team new_team;
   int exists = 0;
 
-  c_orm_column_meta_t team_cols[2];
-  c_orm_column_meta_t user_cols[2];
+  c_orm_column_meta_t team_cols[3];
+  c_orm_column_meta_t user_cols[3];
   c_orm_relation_meta_t user_rels[1];
   c_orm_table_meta_t team_m;
   c_orm_table_meta_t user_m;
@@ -47,6 +48,7 @@ TEST test_c_orm_cascade_delete_and_update(void) {
   memcpy(user_rels, UserCascade_relations, sizeof(UserCascade_relations));
   team_cols[0].is_pk = true;
   user_cols[0].is_pk = true;
+  user_cols[2].is_nullable = true;
 
   team_m = Team_meta;
   user_m = UserCascade_meta;
@@ -57,8 +59,10 @@ TEST test_c_orm_cascade_delete_and_update(void) {
   user_m.relations = user_rels;
   user_m.num_relations = 1;
 
-  team_m.query_insert = "INSERT INTO Team (id, name) VALUES (NULLIF(?, 0), ?)";
-  team_m.query_update = "UPDATE Team SET id = ?, name = ? WHERE id = ?";
+  team_m.query_insert =
+      "INSERT INTO Team (id, name, is_active) VALUES (NULLIF(?, 0), ?, ?)";
+  team_m.query_update =
+      "UPDATE Team SET id = ?, name = ?, is_active = ? WHERE id = ?";
   team_m.query_select_by_pk = "SELECT * FROM Team WHERE id = ?";
   team_m.query_delete_by_pk = "DELETE FROM Team WHERE id = ?";
 
@@ -72,9 +76,8 @@ TEST test_c_orm_cascade_delete_and_update(void) {
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  err = c_orm_execute_raw(
-      db,
-      "CREATE TABLE Team (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)");
+  err = c_orm_execute_raw(db, "CREATE TABLE Team (id INTEGER PRIMARY KEY "
+                              "AUTOINCREMENT, name TEXT, is_active INTEGER)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   err = c_orm_execute_raw(db, "CREATE TABLE User (id INTEGER PRIMARY KEY "
                               "AUTOINCREMENT, team_id INTEGER)");
@@ -118,8 +121,8 @@ TEST test_c_orm_lazy_load_relations(void) {
   c_orm_error_t err;
   struct User user;
 
-  c_orm_column_meta_t team_cols[2];
-  c_orm_column_meta_t user_cols[2];
+  c_orm_column_meta_t team_cols[3];
+  c_orm_column_meta_t user_cols[3];
   c_orm_table_meta_t team_m;
   c_orm_table_meta_t user_m;
 
@@ -127,6 +130,7 @@ TEST test_c_orm_lazy_load_relations(void) {
   memcpy(user_cols, User_columns, sizeof(User_columns));
   team_cols[0].is_pk = true;
   user_cols[0].is_pk = true;
+  user_cols[2].is_nullable = true;
 
   team_m = Team_meta;
   user_m = User_meta;
@@ -137,16 +141,18 @@ TEST test_c_orm_lazy_load_relations(void) {
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  err = c_orm_execute_raw(
-      db, "CREATE TABLE Team (id INTEGER PRIMARY KEY, name TEXT)");
+  err = c_orm_execute_raw(db, "CREATE TABLE Team (id INTEGER PRIMARY KEY, name "
+                              "TEXT, is_active INTEGER)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   err = c_orm_execute_raw(
-      db, "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER)");
+      db,
+      "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER, data BLOB)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   /* Setup mock data */
   err = c_orm_execute_raw(
-      db, "INSERT INTO Team (id, name) VALUES (10, 'Engineering')");
+      db,
+      "INSERT INTO Team (id, name, is_active) VALUES (10, 'Engineering', 1)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   err = c_orm_execute_raw(db, "INSERT INTO User (id, team_id) VALUES (1, 10)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -178,8 +184,8 @@ TEST test_c_orm_eager_load_relations(void) {
   c_orm_error_t err;
   struct User user;
 
-  c_orm_column_meta_t team_cols[2];
-  c_orm_column_meta_t user_cols[2];
+  c_orm_column_meta_t team_cols[3];
+  c_orm_column_meta_t user_cols[3];
   c_orm_table_meta_t team_m;
   c_orm_table_meta_t user_m;
 
@@ -187,6 +193,7 @@ TEST test_c_orm_eager_load_relations(void) {
   memcpy(user_cols, User_columns, sizeof(User_columns));
   team_cols[0].is_pk = true;
   user_cols[0].is_pk = true;
+  user_cols[2].is_nullable = true;
 
   team_m = Team_meta;
   user_m = User_meta;
@@ -197,31 +204,50 @@ TEST test_c_orm_eager_load_relations(void) {
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  err = c_orm_execute_raw(
-      db, "CREATE TABLE Team (id INTEGER PRIMARY KEY, name TEXT)");
+  err = c_orm_execute_raw(db, "CREATE TABLE Team (id INTEGER PRIMARY KEY, name "
+                              "TEXT, is_active INTEGER)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   err = c_orm_execute_raw(
-      db, "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER)");
+      db,
+      "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER, data BLOB)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   /* Setup mock data */
-  err =
-      c_orm_execute_raw(db, "INSERT INTO Team (id, name) VALUES (20, 'Sales')");
+  err = c_orm_execute_raw(
+      db, "INSERT INTO Team (id, name, is_active) VALUES (20, 'Sales', 1)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   err = c_orm_execute_raw(db, "INSERT INTO User (id, team_id) VALUES (2, 20)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  /* Eager load Team from User via JOIN */
+  printf("EAGER LOAD REL OFFSETS: struct=%zu data=%zu lazy=%zu\n",
+         user_m.relations[0].struct_offset, user_m.relations[0].data_offset,
+         user_m.relations[0].lazy_ctx_offset);
+  fflush(stdout);
+  /* EAGER load Team from User via JOIN */
   err = c_orm_find_with_relation_int32(db, &user_m, 2, "team", &user);
+  printf("err = %d\n", err);
+  fflush(stdout);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  printf("ASSERT 1\n");
+  fflush(stdout);
   ASSERT_EQ_FMT(1, user.team.lazy_ctx.is_loaded, "%d");
+  printf("ASSERT 2\n");
+  fflush(stdout);
   ASSERT(user.team.data != NULL);
+  printf("ASSERT 3\n");
+  fflush(stdout);
   ASSERT_EQ_FMT(20, user.team.data->id, "%d");
+  printf("ASSERT 4\n");
+  fflush(stdout);
   ASSERT_STR_EQ("Sales", user.team.data->name);
+  printf("ASSERT 5\n");
+  fflush(stdout);
 
   if (user.team.data->name)
     free(user.team.data->name);
   free(user.team.data);
+  printf("FREED\n");
+  fflush(stdout);
 
   if (db)
     db->vtable->disconnect(db);
@@ -234,8 +260,8 @@ TEST test_c_orm_nested_insert_relations(void) {
   struct User user;
   struct Team new_team;
 
-  c_orm_column_meta_t team_cols[2];
-  c_orm_column_meta_t user_cols[2];
+  c_orm_column_meta_t team_cols[3];
+  c_orm_column_meta_t user_cols[3];
   c_orm_relation_meta_t user_rels[1];
   c_orm_table_meta_t team_m;
   c_orm_table_meta_t user_m;
@@ -245,6 +271,7 @@ TEST test_c_orm_nested_insert_relations(void) {
   memcpy(user_rels, User_relations, sizeof(User_relations));
   team_cols[0].is_pk = true;
   user_cols[0].is_pk = true;
+  user_cols[2].is_nullable = true;
 
   team_m = Team_meta;
   user_m = User_meta;
@@ -256,16 +283,16 @@ TEST test_c_orm_nested_insert_relations(void) {
   user_m.relations = user_rels;
   user_m.num_relations = 1;
 
-  team_m.query_insert = "INSERT INTO Team (id, name) VALUES (NULLIF(?, 0), ?)";
+  team_m.query_insert =
+      "INSERT INTO Team (id, name, is_active) VALUES (NULLIF(?, 0), ?, ?)";
   user_m.query_insert =
       "INSERT INTO User (id, team_id) VALUES (NULLIF(?, 0), ?)";
 
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  err = c_orm_execute_raw(
-      db,
-      "CREATE TABLE Team (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)");
+  err = c_orm_execute_raw(db, "CREATE TABLE Team (id INTEGER PRIMARY KEY "
+                              "AUTOINCREMENT, name TEXT, is_active INTEGER)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   err = c_orm_execute_raw(db, "CREATE TABLE User (id INTEGER PRIMARY KEY "
                               "AUTOINCREMENT, team_id INTEGER)");
@@ -317,7 +344,7 @@ TEST test_c_orm_one_to_many_lazy_load(void) {
   struct UserWithPosts user;
 
   c_orm_column_meta_t post_cols[3];
-  c_orm_column_meta_t user_cols[2];
+  c_orm_column_meta_t user_cols[3];
   c_orm_relation_meta_t user_rels[1];
   c_orm_table_meta_t post_m;
   c_orm_table_meta_t user_m;
@@ -344,7 +371,8 @@ TEST test_c_orm_one_to_many_lazy_load(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   err = c_orm_execute_raw(
-      db, "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER)");
+      db,
+      "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER, data BLOB)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   err = c_orm_execute_raw(db, "CREATE TABLE Post (id INTEGER PRIMARY KEY, "
                               "title TEXT, author_id INTEGER)");
@@ -371,9 +399,6 @@ TEST test_c_orm_one_to_many_lazy_load(void) {
 
   /* Let's try lazy loading Posts from User */
   err = c_orm_lazy_load(db, &user_m, &user, "posts");
-  if (err != C_ORM_OK) {
-    printf("c_orm_lazy_load err: %d\n", err);
-  }
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ_FMT(1, user.posts.lazy_ctx.is_loaded, "%d");
   ASSERT_EQ_FMT(2, (int)user.posts.data.length, "%d");
@@ -387,8 +412,9 @@ TEST test_c_orm_one_to_many_lazy_load(void) {
   if (user.posts.data.data[0].title)
     free(user.posts.data.data[0].title);
   if (user.posts.data.data[1].title)
-    if (user.posts.data.data)
-      free(user.posts.data.data);
+    free(user.posts.data.data[1].title);
+  if (user.posts.data.data)
+    free(user.posts.data.data);
 
   if (db)
     db->vtable->disconnect(db);
@@ -401,7 +427,7 @@ TEST test_c_orm_lazy_load_paginated(void) {
   struct UserWithPosts user;
 
   c_orm_column_meta_t post_cols[3];
-  c_orm_column_meta_t user_cols[2];
+  c_orm_column_meta_t user_cols[3];
   c_orm_relation_meta_t user_rels[1];
   c_orm_table_meta_t post_m;
   c_orm_table_meta_t user_m;
@@ -427,7 +453,8 @@ TEST test_c_orm_lazy_load_paginated(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   err = c_orm_execute_raw(
-      db, "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER)");
+      db,
+      "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER, data BLOB)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   err = c_orm_execute_raw(db, "CREATE TABLE Post (id INTEGER PRIMARY KEY, "
                               "title TEXT, author_id INTEGER)");
@@ -493,7 +520,7 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
   struct UserWithRoles user;
 
   c_orm_column_meta_t role_cols[2];
-  c_orm_column_meta_t user_cols[2];
+  c_orm_column_meta_t user_cols[3];
   c_orm_relation_meta_t user_rels[1];
   c_orm_table_meta_t role_m;
   c_orm_table_meta_t user_m;
@@ -523,7 +550,8 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   err = c_orm_execute_raw(
-      db, "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER)");
+      db,
+      "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER, data BLOB)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   err = c_orm_execute_raw(
       db, "CREATE TABLE Role (id INTEGER PRIMARY KEY, name TEXT)");
@@ -617,7 +645,7 @@ TEST test_c_orm_deeply_nested_eager_loads(void) {
 
   c_orm_column_meta_t comment_cols[3];
   c_orm_column_meta_t post_cols[3];
-  c_orm_column_meta_t user_cols[2];
+  c_orm_column_meta_t user_cols[3];
   c_orm_relation_meta_t post_rels[1];
   c_orm_relation_meta_t user_rels[1];
   c_orm_table_meta_t comment_m;
@@ -636,6 +664,7 @@ TEST test_c_orm_deeply_nested_eager_loads(void) {
   comment_cols[0].is_pk = true;
   post_cols[0].is_pk = true;
   user_cols[0].is_pk = true;
+  user_cols[2].is_nullable = true;
 
   comment_m = Comment_meta;
   post_m = PostWithComments_meta;
@@ -663,7 +692,8 @@ TEST test_c_orm_deeply_nested_eager_loads(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   err = c_orm_execute_raw(
-      db, "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER)");
+      db,
+      "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER, data BLOB)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   err = c_orm_execute_raw(db, "CREATE TABLE Post (id INTEGER PRIMARY KEY, "
                               "title TEXT, author_id INTEGER)");
@@ -758,7 +788,7 @@ TEST test_c_orm_query_builder_relation_filtering(void) {
   char *sql = NULL;
 
   c_orm_column_meta_t post_cols[3];
-  c_orm_column_meta_t user_cols[2];
+  c_orm_column_meta_t user_cols[3];
   c_orm_relation_meta_t user_rels[1];
   c_orm_table_meta_t post_m;
   c_orm_table_meta_t user_m;
@@ -784,7 +814,8 @@ TEST test_c_orm_query_builder_relation_filtering(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   err = c_orm_execute_raw(
-      db, "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER)");
+      db,
+      "CREATE TABLE User (id INTEGER PRIMARY KEY, team_id INTEGER, data BLOB)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   err = c_orm_execute_raw(db, "CREATE TABLE Post (id INTEGER PRIMARY KEY, "
                               "title TEXT, author_id INTEGER)");
@@ -905,9 +936,6 @@ TEST test_c_orm_self_referencing_tree(void) {
 
   /* Lazy Load Children */
   err = c_orm_lazy_load(db, &node_m, &root, "children");
-  if (err != C_ORM_OK) {
-    printf("\nDEBUG: c_orm_lazy_load returned %d\n", err);
-  }
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ_FMT(1, root.children.lazy_ctx.is_loaded, "%d");
   ASSERT_EQ_FMT(2, (int)root.children.data.length, "%d");

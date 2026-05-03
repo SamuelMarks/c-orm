@@ -9,6 +9,9 @@
 #include "c_orm_log.h"
 #include <stdlib.h>
 #include <string.h>
+#if !defined(_WIN32) && !defined(_WIN64)
+#include <pthread.h>
+#endif
 /* clang-format on */
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -44,7 +47,6 @@ __declspec(dllimport) void __stdcall DeleteCriticalSection(CRITICAL_SECTION *);
     C_ORM_FREE((m));                                                           \
   } while (0)
 #else
-#include <pthread.h>
 /** @brief Macro to initialize a mutex on POSIX */
 #define C_ORM_MUTEX_INIT(m)                                                    \
   do {                                                                         \
@@ -245,7 +247,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
 
       *out_query = entry->query;
       C_ORM_MUTEX_UNLOCK(cache->lock);
-      db->vtable->reset(*out_query);
+      rc = db->vtable->reset(*out_query);
+      if (rc != C_ORM_OK) {
+        LOG_DEBUG("c_orm_prepare_cached: reset failed");
+        return rc;
+      }
       rc = C_ORM_OK;
       LOG_DEBUG("c_orm_prepare_cached: found in cache exit");
       return rc;

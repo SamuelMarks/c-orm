@@ -39,7 +39,9 @@ extern "C" {
 
 #define PARSON_VERSION_STRING "1.5.3"
 
+/* clang-format off */
 #include <stddef.h> /* size_t */
+/* clang-format on */
 
 /* Types and enums */
 typedef struct json_object_t JSON_Object;

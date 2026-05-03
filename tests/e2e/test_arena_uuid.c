@@ -11,11 +11,10 @@
 static int malloc_fail_countdown = -1;
 static void *my_test_malloc(size_t size) {
   if (malloc_fail_countdown == 0) {
+    malloc_fail_countdown--;
     return NULL;
   }
-  if (malloc_fail_countdown > 0) {
-    malloc_fail_countdown--;
-  }
+  malloc_fail_countdown--;
   return malloc(size);
 }
 #endif

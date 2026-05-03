@@ -17,9 +17,7 @@ static void *q_mock_malloc(size_t size) {
       oom_countdown--;
       return NULL;
     }
-    if (oom_countdown > 0) {
-      oom_countdown--;
-    }
+    oom_countdown--;
   }
   return malloc(size);
 }
@@ -29,9 +27,7 @@ static void *q_mock_realloc(void *ptr, size_t size) {
       oom_countdown--;
       return NULL;
     }
-    if (oom_countdown > 0) {
-      oom_countdown--;
-    }
+    oom_countdown--;
   }
   return realloc(ptr, size);
 }
@@ -228,7 +224,6 @@ static c_orm_error_t my_mock_prep(c_orm_db_t *db, const char *sql,
 }
 
 TEST test_fluent_oom(void) {
-  int rc2;
   int pad, i, j;
   /* Test c_orm_query_new OOMs */
   {
@@ -237,7 +232,7 @@ TEST test_fluent_oom(void) {
     oom_countdown = 0;
     c_orm_query_new(&oq);
     oom_countdown = 1;
-    rc2 = c_orm_query_new(&oq);
+    (void)c_orm_query_new(&oq);
     oom_active = 0;
   }
 
@@ -960,6 +955,9 @@ TEST test_query_sql_coverage(void) {
   c_orm_query_fetch_all(exec_db, qe, &meta, &my_arr);
   fail_bind = 0;
 
+  /* Fallback call */
+  my_mock_bind_string(NULL, 1, "test");
+
   /* Mock prepare fail properly to hit the lines */
   orig_prep = mock_vt.prepare;
   mock_vt.prepare = my_mock_prep;
@@ -968,6 +966,9 @@ TEST test_query_sql_coverage(void) {
   c_orm_query_fetch_one(exec_db, qe, &meta, &res_obj);
   c_orm_query_fetch_all(exec_db, qe, &meta, &my_arr);
   fail_prep = 0;
+
+  /* Fallback call */
+  my_mock_prep(exec_db, "SELECT 1", &q_bad);
 
   exec_db->vtable = (const c_orm_driver_vtable_t *)&orig_vt;
 

@@ -14,6 +14,10 @@ struct SpatialModel {
   int32_t id;
   c_orm_point_t point;
   c_orm_polygon_t polygon;
+  double dval;
+  float fval;
+  double *ndval;
+  c_orm_blob_t data;
 };
 
 static const c_orm_column_meta_t SpatialModel_cols[] = {
@@ -25,13 +29,27 @@ static const c_orm_column_meta_t SpatialModel_cols[] = {
                         NULL, false, false),
     C_ORM_DEFINE_COLUMN("polygon", C_ORM_TYPE_POLYGON,
                         offsetof(struct SpatialModel, polygon), false, false,
-                        NULL, false, false)};
+                        NULL, false, false),
+    C_ORM_DEFINE_COLUMN("dval", C_ORM_TYPE_DOUBLE,
+                        offsetof(struct SpatialModel, dval), false, false, NULL,
+                        false, false),
+    C_ORM_DEFINE_COLUMN("fval", C_ORM_TYPE_FLOAT,
+                        offsetof(struct SpatialModel, fval), false, false, NULL,
+                        false, false),
+    C_ORM_DEFINE_COLUMN("ndval", C_ORM_TYPE_DOUBLE,
+                        offsetof(struct SpatialModel, ndval), false, true, NULL,
+                        false, false),
+    C_ORM_DEFINE_COLUMN("data", C_ORM_TYPE_BLOB,
+                        offsetof(struct SpatialModel, data), false, false, NULL,
+                        false, false)};
 
 static const c_orm_table_meta_t SpatialModel_meta = C_ORM_DEFINE_MODEL(
-    "spatial_models", SpatialModel_cols, 3, sizeof(struct SpatialModel),
+    "spatial_models", SpatialModel_cols, 7, sizeof(struct SpatialModel),
     "SELECT * FROM spatial_models", "SELECT * FROM spatial_models WHERE id = ?",
-    "INSERT INTO spatial_models (id, point, polygon) VALUES (?, ?, ?)",
-    "UPDATE spatial_models SET id = ?, point = ?, polygon = ? WHERE id = ?",
+    "INSERT INTO spatial_models (id, point, polygon, dval, fval, ndval, data) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "UPDATE spatial_models SET id = ?, point = ?, polygon = ?, dval = ?, fval "
+    "= ?, ndval = ?, data = ? WHERE id = ?",
     "DELETE FROM spatial_models WHERE id = ?", NULL, false, 0, 0, NULL, 0);
 
 TEST test_spatial_crud(void) {
@@ -45,13 +63,21 @@ TEST test_spatial_crud(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   err = c_orm_execute_raw(db, "CREATE TABLE spatial_models (id INTEGER PRIMARY "
-                              "KEY, point BLOB, polygon BLOB);");
+                              "KEY, point BLOB, polygon BLOB, dval REAL, fval "
+                              "REAL, ndval REAL, data BLOB);");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   memset(&sm, 0, sizeof(sm));
   sm.id = 1;
   sm.point.x = 42.5;
   sm.point.y = -71.2;
+  sm.dval = 3.14159;
+  sm.fval = 1.234f;
+  sm.ndval = malloc(sizeof(double));
+  *sm.ndval = 5.5;
+  sm.data.data = malloc(5);
+  memcpy(sm.data.data, "abcd", 5);
+  sm.data.size = 5;
 
   sm.polygon.num_points = 3;
   sm.polygon.points = (c_orm_point_t *)malloc(3 * sizeof(c_orm_point_t));
@@ -74,6 +100,10 @@ TEST test_spatial_crud(void) {
    */
   ASSERT_EQ_FMT(42.5, fetched.point.x, "%f");
   ASSERT_EQ_FMT(-71.2, fetched.point.y, "%f");
+  ASSERT_EQ_FMT(3.14159, fetched.dval, "%f");
+  ASSERT(fetched.data.data != NULL);
+  ASSERT_EQ_FMT((unsigned long)5, (unsigned long)fetched.data.size, "%lu");
+  ASSERT_STR_EQ("abcd", fetched.data.data);
 
   /* Assert Polygon */
   ASSERT_EQ_FMT((unsigned long)3, (unsigned long)fetched.polygon.num_points,
@@ -81,16 +111,25 @@ TEST test_spatial_crud(void) {
   ASSERT(fetched.polygon.points != NULL);
   ASSERT_EQ_FMT(1.0, fetched.polygon.points[1].x, "%f");
 
+  /* Assert floats */
+  /* Cast or assert correctly for float */
+  ASSERT(fetched.fval > 1.233f && fetched.fval < 1.235f);
+  ASSERT(fetched.ndval != NULL);
+  ASSERT_EQ_FMT(5.5, *fetched.ndval, "%f");
+
   /* Test Update */
   sm.point.x = 99.9;
   err = c_orm_update(db, &SpatialModel_meta, &sm);
-  if (err != C_ORM_OK) {
-    const char *msg;
-    c_orm_get_last_error_message(db, &msg);
-    printf("DEBUG: c_orm_update failed with %d. msg=%s\n", err,
-           msg ? msg : "none");
-  }
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  /* Trigger error on update */
+  {
+    c_orm_table_meta_t bad_meta = SpatialModel_meta;
+    bad_meta.query_update = "UPDATE non_existent_table SET id = ?";
+    err = c_orm_update(db, &bad_meta, &sm);
+    printf("DEBUG: bad_meta update err=%d\n", err);
+    ASSERT_EQ_FMT(C_ORM_ERROR_SQL, err, "%d");
+  }
 
   memset(&fetched, 0,
          sizeof(fetched)); /* leaks the old points intentionally in test to keep
@@ -103,6 +142,10 @@ TEST test_spatial_crud(void) {
   /* Free */
   free(sm.polygon.points);
   free(fetched.polygon.points);
+  free(sm.data.data);
+  free(fetched.data.data);
+  free(sm.ndval);
+  free(fetched.ndval);
 
   PASS();
 }

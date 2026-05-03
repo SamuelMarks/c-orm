@@ -11,19 +11,23 @@
 
 static int malloc_fail_countdown = -1;
 static void *my_test_malloc(size_t size) {
-  if (malloc_fail_countdown == 0)
-    return NULL;
-  if (malloc_fail_countdown > 0)
+  if (malloc_fail_countdown == 0) {
     malloc_fail_countdown--;
+    return NULL;
+  }
+  malloc_fail_countdown--;
   return malloc(size);
 }
 
 static int realloc_fail_countdown = -1;
 static void *my_test_realloc(void *ptr, size_t size) {
-  if (realloc_fail_countdown == 0)
-    return NULL;
-  if (realloc_fail_countdown > 0)
+  if (realloc_fail_countdown == 0) {
     realloc_fail_countdown--;
+    return NULL;
+  }
+  if (realloc_fail_countdown > 0) {
+    realloc_fail_countdown--;
+  }
   return realloc(ptr, size);
 }
 #endif
@@ -42,11 +46,11 @@ TEST test_c_orm_string_builder(void) {
 
   malloc_fail_countdown = 0;
   rc = c_orm_string_builder_init(&sb);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
   malloc_fail_countdown = 1;
   rc = c_orm_string_builder_init(&sb);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
   malloc_fail_countdown = -1;
   realloc_fail_countdown = -1;
@@ -65,7 +69,7 @@ TEST test_c_orm_string_builder(void) {
       sb, " This is a very long string that should definitely force a "
           "reallocation of the underlying buffer because it exceeds the "
           "initial capacity of 64 bytes.");
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
   realloc_fail_countdown = -1;
 #endif
 

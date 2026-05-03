@@ -38,9 +38,8 @@ typedef size_t bool;
 #include <stdbool.h>
 #endif
 
-/* clang-format on */
-
 #include <stdlib.h>
+/* clang-format on */
 
 #if !defined(_MSC_VER) || _MSC_VER >= 1800
 
@@ -208,6 +207,8 @@ typedef struct c_orm_relation_meta {
   const char *local_key;      /**< Local key column name (usually PK). */
   size_t struct_offset; /**< Offset of the relation pointer or array within the
                            struct. */
+  size_t data_offset;
+  size_t lazy_ctx_offset;
   size_t target_array_len_offset; /**< Offset for the length field of a
                                      C_ORM_RELATION_ONE_TO_MANY array. */
   const struct cdd_c_meta

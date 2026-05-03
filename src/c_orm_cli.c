@@ -222,6 +222,8 @@ int main(int argc, char **argv) {
       return rc;
     }
 
+    c_orm_migration_init_table(db);
+
     err = c_orm_migration_get_applied(db, &applied, &count);
     if (err == C_ORM_OK) {
       printf("Applied Migrations (%d):\n", (int)count);
@@ -229,13 +231,15 @@ int main(int argc, char **argv) {
         printf("  [%s] %s\n", applied[j].version, applied[j].name);
       }
       if (applied) {
-        for (j = 0; j < count; j++) {
-          /* Not fully allocated like full array but version/name in struct */
-        }
         C_ORM_FREE(applied);
       }
     } else {
       printf("Failed to fetch migration status or no migrations applied.\n");
+      db->vtable->disconnect(db);
+      rc = 3;
+      LOG_DEBUG("main: failed to fetch migration status");
+      LOG_DEBUG("main: exit");
+      return rc;
     }
     db->vtable->disconnect(db);
   } else {

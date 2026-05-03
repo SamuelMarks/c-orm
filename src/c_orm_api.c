@@ -500,9 +500,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row(c_orm_db_t *db,
                   /* We found a match! Initialize proxy if needed and hydrate */
                   void *context_ptr = (char *)out_struct + rel->struct_offset;
                   c_orm_lazy_load_context_t *ctx =
-                      (c_orm_lazy_load_context_t *)context_ptr;
+                      (c_orm_lazy_load_context_t *)((char *)context_ptr +
+                                                    (rel->lazy_ctx_offset -
+                                                     rel->struct_offset));
                   void *target_data_ptr =
-                      (char *)context_ptr + sizeof(c_orm_lazy_load_context_t);
+                      (char *)context_ptr +
+                      (rel->data_offset - rel->struct_offset);
 
                   if (rel->type == C_ORM_RELATION_ONE_TO_ONE ||
                       rel->type == C_ORM_RELATION_BELONGS_TO) {
@@ -1097,8 +1100,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
   }
 
   context_ptr = (char *)out_struct + rel->struct_offset;
-  ctx = (c_orm_lazy_load_context_t *)context_ptr;
-  target_data_ptr = (char *)context_ptr + sizeof(c_orm_lazy_load_context_t);
+  ctx = (c_orm_lazy_load_context_t *)((char *)context_ptr +
+                                      (rel->lazy_ctx_offset -
+                                       rel->struct_offset));
+  target_data_ptr =
+      (char *)context_ptr + (rel->data_offset - rel->struct_offset);
 
   if (rel->type == C_ORM_RELATION_ONE_TO_ONE ||
       rel->type == C_ORM_RELATION_BELONGS_TO) {
@@ -1291,9 +1297,12 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   for (i = 0; i < parents_count; ++i) {
     void *parent_ptr = (char *)parents_data + (i * meta->struct_size);
     void *context_ptr = (char *)parent_ptr + rel->struct_offset;
-    c_orm_lazy_load_context_t *ctx = (c_orm_lazy_load_context_t *)context_ptr;
+    c_orm_lazy_load_context_t *ctx =
+        (c_orm_lazy_load_context_t *)((char *)context_ptr +
+                                      (rel->lazy_ctx_offset -
+                                       rel->struct_offset));
     void *target_data_ptr =
-        (char *)context_ptr + sizeof(c_orm_lazy_load_context_t);
+        (char *)context_ptr + (rel->data_offset - rel->struct_offset);
 
     ctx->is_loaded = 1;
     if (rel->type == C_ORM_RELATION_ONE_TO_ONE ||
@@ -1470,7 +1479,7 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
         if (parent_ptr) {
           void *context_ptr = (char *)parent_ptr + rel->struct_offset;
           void *target_data_ptr =
-              (char *)context_ptr + sizeof(c_orm_lazy_load_context_t);
+              (char *)context_ptr + (rel->data_offset - rel->struct_offset);
 
           if (rel->type == C_ORM_RELATION_ONE_TO_ONE ||
               rel->type == C_ORM_RELATION_BELONGS_TO) {
@@ -1696,7 +1705,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relations_int32(
       if (rel) {
         void *context_ptr = (char *)out_struct + rel->struct_offset;
         void *target_data_ptr =
-            (char *)context_ptr + sizeof(c_orm_lazy_load_context_t);
+            (char *)context_ptr + (rel->data_offset - rel->struct_offset);
 
         if (rel->type == C_ORM_RELATION_ONE_TO_ONE ||
             rel->type == C_ORM_RELATION_BELONGS_TO) {
@@ -1808,7 +1817,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_with_relations(
         if (rel) {
           void *context_ptr = (char *)parent_obj + rel->struct_offset;
           void *target_data_ptr =
-              (char *)context_ptr + sizeof(c_orm_lazy_load_context_t);
+              (char *)context_ptr + (rel->data_offset - rel->struct_offset);
 
           if (rel->type == C_ORM_RELATION_ONE_TO_ONE ||
               rel->type == C_ORM_RELATION_BELONGS_TO) {
@@ -2723,7 +2732,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
     if (rel->target_meta && rel->type == C_ORM_RELATION_BELONGS_TO) {
       void *context_ptr = (char *)in_struct + rel->struct_offset;
       void *target_data_ptr =
-          (char *)context_ptr + sizeof(c_orm_lazy_load_context_t);
+          (char *)context_ptr + (rel->data_offset - rel->struct_offset);
       void *nested_ptr = *(void **)target_data_ptr;
       if (nested_ptr) {
         err = c_orm_insert(db, rel->target_meta, nested_ptr);
@@ -2835,7 +2844,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
     if (rel->target_meta && rel->type == C_ORM_RELATION_ONE_TO_ONE) {
       void *context_ptr = (char *)in_struct + rel->struct_offset;
       void *target_data_ptr =
-          (char *)context_ptr + sizeof(c_orm_lazy_load_context_t);
+          (char *)context_ptr + (rel->data_offset - rel->struct_offset);
       void *nested_ptr = *(void **)target_data_ptr;
       if (nested_ptr) {
         int64_t parent_id = 0;
@@ -2921,7 +2930,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
     if (rel->target_meta && rel->type == C_ORM_RELATION_BELONGS_TO) {
       void *context_ptr = (char *)in_struct + rel->struct_offset;
       void *target_data_ptr =
-          (char *)context_ptr + sizeof(c_orm_lazy_load_context_t);
+          (char *)context_ptr + (rel->data_offset - rel->struct_offset);
       void *nested_ptr = *(void **)target_data_ptr;
       if (nested_ptr && rel->on_update == C_ORM_CASCADE_UPDATE) {
         err = c_orm_save(db, rel->target_meta, nested_ptr);
@@ -4480,7 +4489,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_validate(const c_orm_table_meta_t *meta,
             int64_t fk_val = 0;
             void *rel_ptr = (char *)obj + rel->struct_offset;
             void *target_data_ptr =
-                (char *)rel_ptr + sizeof(c_orm_lazy_load_context_t);
+                (char *)rel_ptr + (rel->data_offset - rel->struct_offset);
             void *data = *(void **)target_data_ptr;
 
             c_orm_error_t err =
@@ -5409,7 +5418,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
 
   rel = &meta->relations[target_relation];
   context_ptr = (char *)obj + rel->struct_offset;
-  ctx = (c_orm_lazy_load_context_t *)context_ptr;
+  ctx = (c_orm_lazy_load_context_t *)((char *)context_ptr +
+                                      (rel->lazy_ctx_offset -
+                                       rel->struct_offset));
 
   if (ctx->is_loaded && limit == 0 && offset == 0) {
     {
@@ -5627,7 +5638,8 @@ empty */
     q->offset(q, offset);
   }
 
-  target_data_ptr = (char *)context_ptr + sizeof(c_orm_lazy_load_context_t);
+  target_data_ptr =
+      (char *)context_ptr + (rel->data_offset - rel->struct_offset);
 
   if (rel->type == C_ORM_RELATION_ONE_TO_ONE ||
       rel->type == C_ORM_RELATION_BELONGS_TO) {
@@ -5698,8 +5710,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
     const c_orm_relation_meta_t *rel = &meta->relations[i];
     void *context_ptr = (char *)obj + rel->struct_offset;
     void *target_data_ptr =
-        (char *)context_ptr + sizeof(c_orm_lazy_load_context_t);
-    c_orm_lazy_load_context_t *ctx = (c_orm_lazy_load_context_t *)context_ptr;
+        (char *)context_ptr + (rel->data_offset - rel->struct_offset);
+    c_orm_lazy_load_context_t *ctx =
+        (c_orm_lazy_load_context_t *)((char *)context_ptr +
+                                      (rel->lazy_ctx_offset -
+                                       rel->struct_offset));
 
     if (ctx->is_loaded) {
       if (rel->type == C_ORM_RELATION_ONE_TO_ONE ||

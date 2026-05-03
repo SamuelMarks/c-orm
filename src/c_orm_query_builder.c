@@ -520,6 +520,7 @@ C_ORM_EXPORT int c_orm_select_aggregate(c_orm_select_builder_t *builder,
 #endif
 
     c_orm_string_builder_free(builder->sb);
+    builder->sb = NULL;
     if (c_orm_string_builder_init(&builder->sb) != 0) {
       LOG_DEBUG("c_orm_select_aggregate: reinit fail 1");
       C_ORM_FREE(new_sql);
@@ -558,6 +559,7 @@ C_ORM_EXPORT int c_orm_select_aggregate(c_orm_select_builder_t *builder,
 #endif
 
       c_orm_string_builder_free(builder->sb);
+      builder->sb = NULL;
       if (c_orm_string_builder_init(&builder->sb) != 0) {
         LOG_DEBUG("c_orm_select_aggregate: reinit fail 2");
         C_ORM_FREE(new_sql);

@@ -28,18 +28,24 @@ TEST test_c_orm_generic_crud(void) {
                                    ");");
   ASSERT_EQ(C_ORM_OK, err);
 
+  bool active = true;
   memset(&u, 0, sizeof(u));
   u.id = 1;
   u.username = "generic_user";
   u.email = "gen@example.com";
+  u.is_active = &active;
+  u.created_at = "2026-03-30 01:00:00";
 
   err = c_orm_insert_generic(test_db, &Users_meta, &u);
+  ASSERT_EQ(C_ORM_OK, err);
+  err =
+      c_orm_insert_generic(test_db, &Users_meta, &u); /* Duplicate constraint */
   if (err != C_ORM_OK) {
     const char *msg;
     test_db->vtable->get_last_error(test_db, &msg);
     fprintf(stderr, "INSERT ERR: %d - %s\n", err, msg);
   }
-  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT_EQ(C_ORM_ERROR_STEP, err);
 
   memset(&out_u, 0, sizeof(out_u));
   err = c_orm_get_generic(test_db, &Users_meta, 1, &out_u);
@@ -65,6 +71,42 @@ TEST test_c_orm_generic_crud(void) {
         free(users_arr[i].email);
     }
     free(arr);
+  }
+
+  /* Get generic string */
+  err = c_orm_execute_raw(
+      test_db,
+      "CREATE TABLE str_table (id VARCHAR(255) PRIMARY KEY, val INT);");
+  ASSERT_EQ(C_ORM_OK, err);
+  err = c_orm_execute_raw(
+      test_db, "INSERT INTO str_table (id, val) VALUES ('my_id', 42);");
+  ASSERT_EQ(C_ORM_OK, err);
+
+  /* Can't easily use inline macros for str_table without declaring it, but we
+   * can test bad table meta */
+  {
+    c_orm_table_meta_t bad_meta = Users_meta;
+    c_orm_column_meta_t cols[1];
+    struct {
+      char *id;
+      int32_t val;
+    } my_struct;
+
+    bad_meta.name = "str_table";
+    memset(&cols[0], 0, sizeof(c_orm_column_meta_t));
+    cols[0].name = "id";
+    cols[0].type = C_ORM_TYPE_STRING;
+    cols[0].is_pk = 1;
+    bad_meta.columns = cols;
+    bad_meta.num_columns = 1;
+    bad_meta.query_select_by_pk = "SELECT * FROM str_table WHERE id = ?";
+
+    err = c_orm_get_generic_string(test_db, &bad_meta, "my_id", &my_struct);
+    ASSERT_EQ(C_ORM_OK, err);
+
+    err =
+        c_orm_get_generic_string(test_db, &bad_meta, "missing_id", &my_struct);
+    ASSERT_EQ(C_ORM_ERROR_NOT_FOUND, err);
   }
 
   test_db->vtable->disconnect(test_db);
