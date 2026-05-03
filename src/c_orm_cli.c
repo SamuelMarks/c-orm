@@ -8,6 +8,7 @@
 #include "c_orm_migrations.h"
 #include "c_orm_sqlite.h"
 #include "c_orm_log.h"
+#include "c_orm_codegen.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

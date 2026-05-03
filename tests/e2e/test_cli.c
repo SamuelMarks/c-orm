@@ -81,6 +81,7 @@ static c_orm_error_t mock_get_applied(c_orm_db_t *db,
 #define c_orm_migration_load_dir mock_load_dir
 #define c_orm_migrate_all mock_migrate_all
 
+int c_orm_cli_main(int argc, char **argv);
 #define main c_orm_cli_main
 #include "../../src/c_orm_cli.c"
 /* clang-format on */

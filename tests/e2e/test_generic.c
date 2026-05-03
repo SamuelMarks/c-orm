@@ -12,6 +12,7 @@ TEST test_c_orm_generic_crud(void) {
   size_t count = 0;
   c_orm_error_t err;
   c_orm_db_t *test_db = NULL;
+  bool active = true;
 
   err = c_orm_sqlite_connect(":memory:", &test_db);
   ASSERT_EQ(C_ORM_OK, err);
@@ -28,7 +29,6 @@ TEST test_c_orm_generic_crud(void) {
                                    ");");
   ASSERT_EQ(C_ORM_OK, err);
 
-  bool active = true;
   memset(&u, 0, sizeof(u));
   u.id = 1;
   u.username = "generic_user";

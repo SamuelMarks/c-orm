@@ -219,9 +219,10 @@ TEST test_c_orm_eager_load_relations(void) {
   err = c_orm_execute_raw(db, "INSERT INTO User (id, team_id) VALUES (2, 20)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  printf("EAGER LOAD REL OFFSETS: struct=%zu data=%zu lazy=%zu\n",
-         user_m.relations[0].struct_offset, user_m.relations[0].data_offset,
-         user_m.relations[0].lazy_ctx_offset);
+  printf("EAGER LOAD REL OFFSETS: struct=%lu data=%lu lazy=%lu\n",
+         (unsigned long)user_m.relations[0].struct_offset,
+         (unsigned long)user_m.relations[0].data_offset,
+         (unsigned long)user_m.relations[0].lazy_ctx_offset);
   fflush(stdout);
   /* EAGER load Team from User via JOIN */
   err = c_orm_find_with_relation_int32(db, &user_m, 2, "team", &user);

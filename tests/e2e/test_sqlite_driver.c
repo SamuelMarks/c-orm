@@ -161,26 +161,27 @@ TEST test_sqlite_edge_cases(void) {
   vt->prepare(db, "SELECT * FROM t", &q);
   {
     int has_row;
+    int32_t my_i32;
+    int64_t my_i64;
+    double my_d;
+    const char *my_s;
+    const void *my_b;
+    size_t my_sz;
+    const char *my_cname;
+
     vt->step(q, &has_row);
 
     /* Type mismatch tests */
 
-    int32_t my_i32;
     ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
               vt->get_int32(q, 1, &my_i32)); /* col 1 is text */
-    int64_t my_i64;
     ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH, vt->get_int64(q, 1, &my_i64));
-    double my_d;
     ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH, vt->get_double(q, 1, &my_d));
-    const char *my_s;
     ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
               vt->get_string(q, 0, &my_s)); /* col 0 is int */
-    const void *my_b;
-    size_t my_sz;
     ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH, vt->get_blob(q, 0, &my_b, &my_sz));
 
     /* Get column name coverage */
-    const char *my_cname;
     vt->get_column_name(q, 0, &my_cname);
   }
   vt->finalize(q);
@@ -212,21 +213,27 @@ TEST test_sqlite_edge_cases(void) {
     ASSERT_EQ(C_ORM_ERROR_BIND, vt->bind_null((c_orm_query_t *)&fake_q, 1));
     ASSERT_EQ(C_ORM_ERROR_STEP, vt->step((c_orm_query_t *)&fake_q, NULL));
 
-    struct {
-      void *stmt;
-      c_orm_db_t *db;
-    } fake_data = {NULL, db};
-    fake_q.data = &fake_data;
-    ASSERT_EQ(C_ORM_ERROR_BIND, vt->bind_int32((c_orm_query_t *)&fake_q, 1, 1));
-    ASSERT_EQ(C_ORM_ERROR_BIND, vt->bind_int64((c_orm_query_t *)&fake_q, 1, 1));
-    ASSERT_EQ(C_ORM_ERROR_BIND,
-              vt->bind_double((c_orm_query_t *)&fake_q, 1, 1.0));
-    ASSERT_EQ(C_ORM_ERROR_BIND,
-              vt->bind_string((c_orm_query_t *)&fake_q, 1, "t"));
-    ASSERT_EQ(C_ORM_ERROR_BIND,
-              vt->bind_blob((c_orm_query_t *)&fake_q, 1, "t", 1));
-    ASSERT_EQ(C_ORM_ERROR_BIND, vt->bind_null((c_orm_query_t *)&fake_q, 1));
-    ASSERT_EQ(C_ORM_ERROR_STEP, vt->step((c_orm_query_t *)&fake_q, NULL));
+    {
+      struct fake_data_s {
+        void *stmt;
+        c_orm_db_t *db;
+      } fake_data;
+      fake_data.stmt = NULL;
+      fake_data.db = db;
+      fake_q.data = &fake_data;
+      ASSERT_EQ(C_ORM_ERROR_BIND,
+                vt->bind_int32((c_orm_query_t *)&fake_q, 1, 1));
+      ASSERT_EQ(C_ORM_ERROR_BIND,
+                vt->bind_int64((c_orm_query_t *)&fake_q, 1, 1));
+      ASSERT_EQ(C_ORM_ERROR_BIND,
+                vt->bind_double((c_orm_query_t *)&fake_q, 1, 1.0));
+      ASSERT_EQ(C_ORM_ERROR_BIND,
+                vt->bind_string((c_orm_query_t *)&fake_q, 1, "t"));
+      ASSERT_EQ(C_ORM_ERROR_BIND,
+                vt->bind_blob((c_orm_query_t *)&fake_q, 1, "t", 1));
+      ASSERT_EQ(C_ORM_ERROR_BIND, vt->bind_null((c_orm_query_t *)&fake_q, 1));
+      ASSERT_EQ(C_ORM_ERROR_STEP, vt->step((c_orm_query_t *)&fake_q, NULL));
+    }
   }
 
   /* Test binds out of bounds */
@@ -288,8 +295,8 @@ TEST test_sqlite_edge_cases(void) {
 
   /* Trigger sqlite_step error (constraint violation) */
   {
-    vt->prepare(db, "CREATE TABLE err_test (id INTEGER PRIMARY KEY)", &q);
     int has_row;
+    vt->prepare(db, "CREATE TABLE err_test (id INTEGER PRIMARY KEY)", &q);
     vt->step(q, &has_row);
     vt->finalize(q);
 
@@ -307,6 +314,7 @@ TEST test_sqlite_edge_cases(void) {
      available. But no sleep in standard C. We can trigger by setting
      db->slow_query_threshold_ms to a very low value and doing a loop query. */
   {
+    int has_row;
     db->slow_query_threshold_ms =
         1; /* actually > 0. Since it's integer, let's check its type. If it's
               double we are good. Wait, it's integer. So we set to 1 and do
@@ -317,7 +325,6 @@ TEST test_sqlite_edge_cases(void) {
                 "WITH RECURSIVE cnt(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM "
                 "cnt WHERE x<5000000) SELECT count(*) FROM cnt;",
                 &q);
-    int has_row;
     vt->step(q, &has_row);
     vt->finalize(q);
   }
@@ -325,8 +332,9 @@ TEST test_sqlite_edge_cases(void) {
   /* Blob API success/read fail */
   {
     void *blob = NULL;
-    vt->prepare(db, "CREATE TABLE btest (id INTEGER, b BLOB)", &q);
     int has_row;
+    c_orm_error_t open_err;
+    vt->prepare(db, "CREATE TABLE btest (id INTEGER, b BLOB)", &q);
     vt->step(q, &has_row);
     vt->finalize(q);
 
@@ -335,8 +343,7 @@ TEST test_sqlite_edge_cases(void) {
     vt->step(q, &has_row);
     vt->finalize(q);
 
-    c_orm_error_t open_err =
-        c_orm_sqlite_blob_open(db, "main", "btest", "b", 1, 1, &blob);
+    open_err = c_orm_sqlite_blob_open(db, "main", "btest", "b", 1, 1, &blob);
     if (open_err == C_ORM_OK) {
       char buf[4];
       /* Read out of bounds */

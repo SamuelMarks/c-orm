@@ -55,12 +55,13 @@ TEST test_cli_generate(void) {
 }
 
 TEST test_cli_migrate(void) {
+  int rc;
 #ifdef _WIN32
   _putenv("C_ORM_DB_URL=");
 #else
   unsetenv("C_ORM_DB_URL");
 #endif
-  int rc = system(CLI_CMD " migrate" DEV_NULL);
+  rc = system(CLI_CMD " migrate" DEV_NULL);
   ASSERT_NEQ(0, rc);
   rc = system(CLI_CMD
               " migrate --db :memory: --dir test_migrations_dir" DEV_NULL);
@@ -76,12 +77,13 @@ TEST test_cli_rollback(void) {
 }
 
 TEST test_cli_status(void) {
+  int rc;
 #ifdef _WIN32
   _putenv("C_ORM_DB_URL=");
 #else
   unsetenv("C_ORM_DB_URL");
 #endif
-  int rc = system(CLI_CMD " status" DEV_NULL);
+  rc = system(CLI_CMD " status" DEV_NULL);
   ASSERT_NEQ(0, rc);
   rc = system(CLI_CMD " status --db :memory:" DEV_NULL);
   ASSERT_EQ(0, rc);
