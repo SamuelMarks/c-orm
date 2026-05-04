@@ -11,17 +11,11 @@
 #include "cdd_c_orm_meta.h"
 #include <errno.h>
 #include <stdio.h>
+#include "c_orm_safe_crt.h"
 #include <stdlib.h>
 #include <string.h>
 #include "c_cdd/log.h"
 /* clang-format on */
-
-#if defined(_MSC_VER)
-#define SNPRINTF _snprintf
-#else
-/** @brief SNPRINTF macro */
-#define SNPRINTF snprintf
-#endif
 
 /**
  * @brief Parses the database schema extension from the OpenAPI struct field.
@@ -207,7 +201,7 @@ static const char *openapi_type_to_c_type(const struct StructField *field) {
     /* Assuming ref contains the type name */
     static char buf[128];
     if (field->ref[0]) {
-      SNPRINTF(buf, sizeof(buf), "struct %s*", field->ref);
+      C_ORM_SPRINTF(buf, sizeof(buf), "struct %s*", field->ref);
       return buf;
     }
   }
@@ -262,9 +256,9 @@ int openapi_orm_generate(const struct OpenAPI_Spec *spec,
     return ENOMEM;
   }
 
-  SNPRINTF(path_h, sizeof(path_h), "%s", model_h);
-  SNPRINTF(path_c, sizeof(path_c), "%.*s.c", (int)(strlen(model_h) - 2),
-           model_h);
+  C_ORM_SPRINTF(path_h, sizeof(path_h), "%s", model_h);
+  C_ORM_SPRINTF(path_c, sizeof(path_c), "%.*s.c", (int)(strlen(model_h) - 2),
+                model_h);
 
 #if defined(_MSC_VER)
   if (fopen_s(&fp_h, path_h, "w") != 0)
@@ -336,6 +330,7 @@ int openapi_orm_generate(const struct OpenAPI_Spec *spec,
   /* Source */
   fprintf(fp_c, "/* Generated ORM Models Implementation */\n\n");
   fprintf(fp_c, "#include \"%s\"\n", model_h);
+  fprintf(fp_c, "#include <errno.h>\n");
   fprintf(fp_c, "#include <stdlib.h>\n");
   fprintf(fp_c, "#include <string.h>\n\n");
 
@@ -645,8 +640,8 @@ int openapi_orm_generate(const struct OpenAPI_Spec *spec,
   {
     char test_path[1024];
     FILE *fp_test = NULL;
-    SNPRINTF(test_path, sizeof(test_path), "test_%s_models.c",
-             config->filename_base);
+    C_ORM_SPRINTF(test_path, sizeof(test_path), "test_%s_models.c",
+                  config->filename_base);
 #if defined(_MSC_VER)
     if (fopen_s(&fp_test, test_path, "w") != 0)
       fp_test = NULL;

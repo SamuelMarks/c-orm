@@ -47,22 +47,44 @@ __declspec(dllimport) void __stdcall DeleteCriticalSection(CRITICAL_SECTION *);
     C_ORM_FREE((m));                                                           \
   } while (0)
 #else
+#ifdef C_ORM_TEST_ALLOCATOR
+int (*c_orm_mutex_init_ptr)(pthread_mutex_t *,
+                            const pthread_mutexattr_t *) = pthread_mutex_init;
+int (*c_orm_mutex_lock_ptr)(pthread_mutex_t *) = pthread_mutex_lock;
+int (*c_orm_mutex_unlock_ptr)(pthread_mutex_t *) = pthread_mutex_unlock;
+int (*c_orm_mutex_destroy_ptr)(pthread_mutex_t *) = pthread_mutex_destroy;
+#define C_ORM_MUTEX_INIT_IMPL(m)                                               \
+  c_orm_mutex_init_ptr((pthread_mutex_t *)(m), NULL)
+#define C_ORM_MUTEX_LOCK_IMPL(m) c_orm_mutex_lock_ptr((pthread_mutex_t *)(m))
+#define C_ORM_MUTEX_UNLOCK_IMPL(m)                                             \
+  c_orm_mutex_unlock_ptr((pthread_mutex_t *)(m))
+#define C_ORM_MUTEX_DESTROY_IMPL(m)                                            \
+  c_orm_mutex_destroy_ptr((pthread_mutex_t *)(m))
+#else
+#define C_ORM_MUTEX_INIT_IMPL(m)                                               \
+  pthread_mutex_init((pthread_mutex_t *)(m), NULL)
+#define C_ORM_MUTEX_LOCK_IMPL(m) pthread_mutex_lock((pthread_mutex_t *)(m))
+#define C_ORM_MUTEX_UNLOCK_IMPL(m) pthread_mutex_unlock((pthread_mutex_t *)(m))
+#define C_ORM_MUTEX_DESTROY_IMPL(m)                                            \
+  pthread_mutex_destroy((pthread_mutex_t *)(m))
+#endif
+
 /** @brief Macro to initialize a mutex on POSIX */
 #define C_ORM_MUTEX_INIT(m)                                                    \
   do {                                                                         \
     (m) = C_ORM_MALLOC(sizeof(pthread_mutex_t));                               \
     if (m) {                                                                   \
-      pthread_mutex_init((pthread_mutex_t *)(m), NULL);                        \
+      C_ORM_MUTEX_INIT_IMPL(m);                                                \
     }                                                                          \
   } while (0)
 /** @brief Macro to lock a mutex on POSIX */
-#define C_ORM_MUTEX_LOCK(m) pthread_mutex_lock((pthread_mutex_t *)(m))
+#define C_ORM_MUTEX_LOCK(m) C_ORM_MUTEX_LOCK_IMPL(m)
 /** @brief Macro to unlock a mutex on POSIX */
-#define C_ORM_MUTEX_UNLOCK(m) pthread_mutex_unlock((pthread_mutex_t *)(m))
+#define C_ORM_MUTEX_UNLOCK(m) C_ORM_MUTEX_UNLOCK_IMPL(m)
 /** @brief Macro to destroy a mutex on POSIX */
 #define C_ORM_MUTEX_DESTROY(m)                                                 \
   do {                                                                         \
-    pthread_mutex_destroy((pthread_mutex_t *)(m));                             \
+    C_ORM_MUTEX_DESTROY_IMPL(m);                                               \
     C_ORM_FREE((m));                                                           \
   } while (0)
 #endif

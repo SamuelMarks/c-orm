@@ -245,8 +245,8 @@ TEST test_migrations_oom(void) {
   {
     c_orm_migration_t *m = malloc(sizeof(c_orm_migration_t));
     memset(m, 0, sizeof(*m));
-    m->up_sql = strdup("UP");
-    m->down_sql = strdup("DOWN");
+    m->up_sql = C_ORM_STRDUP("UP");
+    m->down_sql = C_ORM_STRDUP("DOWN");
     c_orm_migration_free_array(m, 1);
   }
 

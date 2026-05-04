@@ -104,6 +104,14 @@ C_ORM_EXPORT extern void *(*c_orm_realloc)(void *ptr, size_t size);
 #endif
 
 /**
+ * @brief Duplicates a string using c_orm_malloc.
+ * @param s String to duplicate.
+ * @return Duplicated string, or NULL on failure.
+ */
+C_ORM_EXPORT char *c_orm_strdup(const char *s);
+#define C_ORM_STRDUP c_orm_strdup
+
+/**
  * @brief Data types supported by c-orm.
  */
 typedef enum {

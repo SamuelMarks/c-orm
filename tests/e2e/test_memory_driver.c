@@ -193,7 +193,7 @@ TEST test_memory_edge_cases(void) {
     mem_table_t *t = (mem_table_t *)malloc(sizeof(mem_table_t));
     mem_row_t *r = (mem_row_t *)malloc(sizeof(mem_row_t));
 
-    t->name = strdup("mock_table");
+    t->name = C_ORM_STRDUP("mock_table");
     t->next = NULL;
     t->head = r;
 

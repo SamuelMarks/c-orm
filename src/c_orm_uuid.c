@@ -13,12 +13,6 @@
 #include <time.h>
 /* clang-format on */
 
-#ifdef _MSC_VER
-#ifndef snprintf
-#define snprintf _snprintf
-#endif
-#endif
-
 /**
  * @brief Flag indicating if the PRNG has been seeded.
  */

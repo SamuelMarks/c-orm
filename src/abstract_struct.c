@@ -923,7 +923,7 @@ int cdd_c_abstract_to_specific(void *out_struct,
           ((char *)out_struct + prop->offset)[prop->length - 1] = '\0';
         } else {
           {
-            char *_v = strdup(val->value.s_val);
+            char *_v = C_ORM_STRDUP(val->value.s_val);
             memcpy((char *)out_struct + prop->offset, &_v, sizeof(char *));
           }
         }
@@ -946,7 +946,7 @@ cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
   if (!db || !table_name || !out_schema)
     return EINVAL;
 
-  snprintf(query, sizeof(query), "PRAGMA table_info('%s')", table_name);
+  C_ORM_SPRINTF(query, sizeof(query), "PRAGMA table_info('%s')", table_name);
   if (sqlite3_prepare_v2(sql_db, query, -1, &stmt, NULL) != SQLITE_OK) {
     return EINVAL;
   }
@@ -998,7 +998,7 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
   if (!conn || !table_name || !out_schema)
     return EINVAL;
 
-  snprintf(query, sizeof(query),
+  C_ORM_SPRINTF(query, sizeof(query),
            "SELECT column_name, data_type, is_nullable FROM "
            "information_schema.columns WHERE table_name = '%s';",
            table_name);
@@ -1058,7 +1058,7 @@ cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
   if (!conn || !table_name || !out_schema)
     return EINVAL;
 
-  snprintf(query, sizeof(query), "SHOW COLUMNS FROM `%s`", table_name);
+  C_ORM_SPRINTF(query, sizeof(query), "SHOW COLUMNS FROM `%s`", table_name);
   if (mysql_query(mysql_conn, query)) {
     return EINVAL;
   }

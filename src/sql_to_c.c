@@ -271,6 +271,7 @@ int sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
 
   fprintf(fp, "\n");
   fprintf(fp, "#include \"%s\"\n", header_name);
+  fprintf(fp, "#include <errno.h>\n");
   fprintf(fp, "#include <stdlib.h>\n");
   fprintf(fp, "#include <string.h>\n");
   fprintf(fp, "\n\n");
@@ -951,8 +952,10 @@ int sql_to_c_projection_hydrate_emit(FILE *fp,
 
         /* Dynamic alloc */
 
-        fprintf(fp, "            out_struct->%s = strdup(val->value.s_val);\n",
-                field->name);
+        fprintf(
+            fp,
+            "            out_struct->%s = C_ORM_STRDUP(val->value.s_val);\n",
+            field->name);
       }
 
       fprintf(fp, "        }\n");

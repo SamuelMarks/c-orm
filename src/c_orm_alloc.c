@@ -24,3 +24,21 @@ void (*c_orm_free)(void *ptr) = free;
  */
 void *(*c_orm_realloc)(void *ptr, size_t size) = realloc;
 #endif
+
+/* clang-format off */
+#include <string.h>
+/* clang-format on */
+
+C_ORM_EXPORT char *c_orm_strdup(const char *s) {
+  size_t len;
+  char *dup;
+  if (!s) {
+    return NULL;
+  }
+  len = strlen(s);
+  dup = (char *)C_ORM_MALLOC(len + 1);
+  if (dup) {
+    memcpy(dup, s, len + 1);
+  }
+  return dup;
+}
