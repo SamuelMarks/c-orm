@@ -98,6 +98,21 @@ if(TARGET c-abstract-http)
     # Target already populated natively
 endif()
 
+if(TARGET parson)
+    # Target already populated natively
+elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../parson/CMakeLists.txt")
+    FetchContent_Declare(parson SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../parson")
+    FetchContent_MakeAvailable(parson)
+else()
+    if(CDD_DEPS STREQUAL "VCPKG")
+        find_package(parson CONFIG QUIET)
+    endif()
+    if(NOT parson_FOUND AND NOT TARGET parson)
+        FetchContent_Declare(parson GIT_REPOSITORY https://github.com/SamuelMarks/parson.git GIT_TAG master UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master COMMAND git clean -fdx)
+        FetchContent_MakeAvailable(parson)
+    endif()
+endif()
+
 
 
 if(TARGET c_cdd)
