@@ -18,7 +18,7 @@ endif()
 
 if(WIN32 AND BUILD_SHARED_LIBS)
     set(CDD_C_PATH_ENV "$ENV{PATH}")
-    foreach(tgt c89stringutils cfs c_cdd c-abstract-http sqlite3 c-orm c_str_span)
+    foreach(tgt c89stringutils cfs c_cdd c-abstract-http ${C_ORM_SQLITE_TARGET} c-orm c_str_span)
         if(TARGET ${tgt})
             set(CDD_C_PATH_ENV "$<TARGET_FILE_DIR:${tgt}>;${CDD_C_PATH_ENV}")
         endif()
@@ -79,7 +79,7 @@ endif()
 # $<TARGET_FILE:c-orm-cli> usually gives forward slashes in CMake, which is safe for C strings.
 target_compile_definitions(c_orm_e2e_tests PRIVATE C_ORM_CLI_EXECUTABLE="$<TARGET_FILE:c-orm-cli>")
 
-target_link_libraries(c_orm_e2e_tests PRIVATE c-orm c-orm-async c_cdd sqlite3)
+  target_link_libraries(c_orm_e2e_tests PRIVATE c-orm c-orm-async c_cdd ${C_ORM_SQLITE_TARGET})
 
 add_test(NAME e2e_test COMMAND c_orm_e2e_tests)
 if(WIN32 AND BUILD_SHARED_LIBS AND DEFINED CDD_C_PATH_ENV)
