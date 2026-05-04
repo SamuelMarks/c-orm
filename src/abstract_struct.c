@@ -999,9 +999,9 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
     return EINVAL;
 
   C_ORM_SPRINTF(query, sizeof(query),
-           "SELECT column_name, data_type, is_nullable FROM "
-           "information_schema.columns WHERE table_name = '%s';",
-           table_name);
+                "SELECT column_name, data_type, is_nullable FROM "
+                "information_schema.columns WHERE table_name = '%s';",
+                table_name);
   res = PQexec(pq_conn, query);
   if (PQresultStatus(res) != PGRES_TUPLES_OK) {
     PQclear(res);

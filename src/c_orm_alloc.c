@@ -6,6 +6,7 @@
 /* clang-format off */
 #include "c_orm_meta.h"
 #include <stdlib.h>
+#include <string.h>
 /* clang-format on */
 
 #ifdef C_ORM_TEST_ALLOCATOR
@@ -24,10 +25,6 @@ void (*c_orm_free)(void *ptr) = free;
  */
 void *(*c_orm_realloc)(void *ptr, size_t size) = realloc;
 #endif
-
-/* clang-format off */
-#include <string.h>
-/* clang-format on */
 
 C_ORM_EXPORT char *c_orm_strdup(const char *s) {
   size_t len;
