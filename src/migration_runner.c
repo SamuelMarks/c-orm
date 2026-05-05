@@ -6,6 +6,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "migration_runner.h"
 
 #include <stdio.h>
@@ -753,8 +754,8 @@ int create_migration_file(const char *migrations_dir, const char *name) {
   sprintf_s(filepath, filepath_len, "%s%c%s_%s.sql", migrations_dir, PATH_SEP_C,
             timestamp, safe_name);
 #else
-  sprintf(filepath, "%s%c%s_%s.sql", migrations_dir, PATH_SEP_C, timestamp,
-          safe_name);
+  C_ORM_SPRINTF(filepath, 1024, "%s%c%s_%s.sql", migrations_dir, PATH_SEP_C,
+                timestamp, safe_name);
 #endif
 
   template_str = "-- UP\n"
@@ -848,7 +849,8 @@ int dump_schema(const char *out_filepath) {
   sprintf_s(cmd, cmd_len, "pg_dump -s -O -x \"%s\" > \"%s\"", db_url,
             out_filepath);
 #else
-  sprintf(cmd, "pg_dump -s -O -x \"%s\" > \"%s\"", db_url, out_filepath);
+  C_ORM_SPRINTF(cmd, 1024, "pg_dump -s -O -x \"%s\" > \"%s\"", db_url,
+                out_filepath);
 #endif
 
   rc = system(cmd);
@@ -901,7 +903,7 @@ int setup_test_database(const char *db_name, const char *migrations_dir) {
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
   sprintf_s(create_db_query, query_len, "CREATE DATABASE \"%s\"", db_name);
 #else
-  sprintf(create_db_query, "CREATE DATABASE \"%s\"", db_name);
+  C_ORM_SPRINTF(create_db_query, 512, "CREATE DATABASE \"%s\"", db_name);
 #endif
 
   res = PQexec(conn, create_db_query);
@@ -1024,4 +1026,3 @@ int seed_database(const char *seed_filepath) {
   return ENOSYS;
 }
 #endif /* !defined(USE_LIBPQ_LINKED) && !defined(USE_LIBPQ_DYNAMIC) */
-

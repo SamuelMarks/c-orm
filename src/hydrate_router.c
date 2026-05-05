@@ -7,6 +7,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "hydrate_router.h"
 #include <stdlib.h>
 #include <string.h>
@@ -37,7 +38,8 @@ void cdd_c_hydrate_router_set_last_error(const char *msg) {
   if (!msg) {
     cdd_c_hydrate_error_msg[0] = '\0';
   } else {
-    strncpy(cdd_c_hydrate_error_msg, msg, sizeof(cdd_c_hydrate_error_msg) - 1);
+    C_ORM_STRNCPY(cdd_c_hydrate_error_msg, sizeof(cdd_c_hydrate_error_msg), msg,
+                  sizeof(cdd_c_hydrate_error_msg) - 1);
     cdd_c_hydrate_error_msg[sizeof(cdd_c_hydrate_error_msg) - 1] = '\0';
   }
 }
@@ -130,4 +132,3 @@ int cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router) {
   router->capacity = 0;
   return 0;
 }
-

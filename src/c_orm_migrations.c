@@ -4,6 +4,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_migrations.h"
 #include "c_orm_log.h"
 #include <stdio.h>
@@ -134,14 +135,9 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
     c_orm_query_t *q = NULL;
 
     /* Check if applied */
-#if defined(_MSC_VER)
-    sprintf_s(query, sizeof(query),
-              "SELECT id FROM _c_orm_migrations WHERE version = '%s'",
-              mig->version);
-#else
-    sprintf(query, "SELECT id FROM _c_orm_migrations WHERE version = '%s'",
-            mig->version);
-#endif
+    C_ORM_SPRINTF(query, sizeof(query),
+                  "SELECT id FROM _c_orm_migrations WHERE version = '%s'",
+                  mig->version);
 
     if (db->vtable->prepare(db, query, &q) == C_ORM_OK) {
       db->vtable->step(q, &has_row);
@@ -154,12 +150,8 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
 
     if (options && options->log_cb) {
       char log_msg[1024];
-#if defined(_MSC_VER)
-      sprintf_s(log_msg, sizeof(log_msg), "Applying migration %s: %s",
-                mig->version, mig->name);
-#else
-      sprintf(log_msg, "Applying migration %s: %s", mig->version, mig->name);
-#endif
+      C_ORM_SPRINTF(log_msg, sizeof(log_msg), "Applying migration %s: %s",
+                    mig->version, mig->name);
       options->log_cb(log_msg);
     }
 
@@ -190,17 +182,10 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
       }
     }
 
-#if defined(_MSC_VER)
-    sprintf_s(query, sizeof(query),
-              "INSERT INTO _c_orm_migrations (version, name, hash) VALUES "
-              "('%s', '%s', '%s')",
-              mig->version, mig->name, mig->hash[0] ? mig->hash : "none");
-#else
-    sprintf(query,
-            "INSERT INTO _c_orm_migrations (version, name, hash) VALUES ('%s', "
-            "'%s', '%s')",
-            mig->version, mig->name, mig->hash[0] ? mig->hash : "none");
-#endif
+    C_ORM_SPRINTF(query, sizeof(query),
+                  "INSERT INTO _c_orm_migrations (version, name, hash) VALUES "
+                  "('%s', '%s', '%s')",
+                  mig->version, mig->name, mig->hash[0] ? mig->hash : "none");
     err = c_orm_execute_raw(db, query);
     if (err != C_ORM_OK) {
       LOG_DEBUG("c_orm_migrate_all: insert migration error");
@@ -288,13 +273,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
 
     if (options && options->log_cb) {
       char log_msg[1024];
-#if defined(_MSC_VER)
-      sprintf_s(log_msg, sizeof(log_msg), "Rolling back migration %s: %s",
-                mig->version, mig->name);
-#else
-      sprintf(log_msg, "Rolling back migration %s: %s", mig->version,
-              mig->name);
-#endif
+      C_ORM_SPRINTF(log_msg, sizeof(log_msg), "Rolling back migration %s: %s",
+                    mig->version, mig->name);
       options->log_cb(log_msg);
     }
 
@@ -314,14 +294,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
       }
     }
 
-#if defined(_MSC_VER)
-    sprintf_s(query, sizeof(query),
-              "DELETE FROM _c_orm_migrations WHERE version = '%s'",
-              mig->version);
-#else
-    sprintf(query, "DELETE FROM _c_orm_migrations WHERE version = '%s'",
-            mig->version);
-#endif
+    C_ORM_SPRINTF(query, sizeof(query),
+                  "DELETE FROM _c_orm_migrations WHERE version = '%s'",
+                  mig->version);
 
     err = c_orm_execute_raw(db, query);
     if (err != C_ORM_OK) {
@@ -370,11 +345,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
   }
 
   /* Try SQLite first */
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "PRAGMA table_info('%s')", table_name);
-#else
-  sprintf(sql, "PRAGMA table_info('%s')", table_name);
-#endif
+  C_ORM_SPRINTF(sql, sizeof(sql), "PRAGMA table_info('%s')", table_name);
 
   err = c_orm_prepare_cached(db, sql, &q);
   if (err != C_ORM_OK) {
@@ -399,7 +370,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
     rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
-  strcpy((char *)meta->name, table_name);
+  C_ORM_STRCPY((char *)meta->name, strlen(table_name) + 1, table_name);
   meta->size = 0;
   meta->num_props = 0;
   meta->driver_ctx = NULL;
@@ -453,7 +424,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
       rc = C_ORM_ERROR_MEMORY;
       return (c_orm_error_t)rc;
     }
-    strcpy((char *)prop->name, col_name);
+    C_ORM_STRCPY((char *)prop->name, strlen(col_name) + 1, col_name);
 
     prop->type = (char *)C_ORM_MALLOC(strlen(col_type) + 1);
     if (!prop->type) {
@@ -462,7 +433,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
       rc = C_ORM_ERROR_MEMORY;
       return (c_orm_error_t)rc;
     }
-    strcpy((char *)prop->type, col_type);
+    C_ORM_STRCPY((char *)prop->type, strlen(col_type) + 1, col_type);
     prop->offset = 0;
   }
 
@@ -567,25 +538,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
 
     memset(&migs[count], 0, sizeof(c_orm_migration_t));
     if (version) {
-#if defined(_MSC_VER)
-      strcpy_s(migs[count].version, sizeof(migs[count].version), version);
-#else
-      strcpy(migs[count].version, version);
-#endif
+      C_ORM_STRCPY(migs[count].version, sizeof(migs[count].version), version);
     }
     if (name) {
-#if defined(_MSC_VER)
-      strcpy_s(migs[count].name, sizeof(migs[count].name), name);
-#else
-      strcpy(migs[count].name, name);
-#endif
+      C_ORM_STRCPY(migs[count].name, sizeof(migs[count].name), name);
     }
     if (hash) {
-#if defined(_MSC_VER)
-      strcpy_s(migs[count].hash, sizeof(migs[count].hash), hash);
-#else
-      strcpy(migs[count].hash, hash);
-#endif
+      C_ORM_STRCPY(migs[count].hash, sizeof(migs[count].hash), hash);
     }
     count++;
   }
@@ -743,4 +702,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_unlock(c_orm_db_t *db) {
   rc = err;
   return (c_orm_error_t)rc;
 }
-

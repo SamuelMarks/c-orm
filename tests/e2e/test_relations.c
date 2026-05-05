@@ -991,4 +991,3 @@ SUITE(relations_suite) {
   RUN_TEST(test_c_orm_deeply_nested_eager_loads);
   RUN_TEST(test_c_orm_self_referencing_tree);
 }
-

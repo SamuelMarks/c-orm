@@ -55,12 +55,8 @@ static void check_db_schema(const struct StructField *field, int *is_pk,
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
           strncpy_s(fk_buf, fk_buf_size, fk_start + 4, fk_end - fk_start - 4);
 #else
-#if defined(_MSC_VER)
-          strncpy_s(fk_buf, fk_end - fk_start - 4 + 1, fk_start + 4,
-                    fk_end - fk_start - 4);
-#else
-          strncpy(fk_buf, fk_start + 4, fk_end - fk_start - 4);
-#endif
+          C_ORM_STRNCPY(fk_buf, fk_end - fk_start - 4 + 1, fk_start + 4,
+                        fk_end - fk_start - 4);
 #endif
           fk_buf[fk_end - fk_start - 4] = '\0';
         }
@@ -91,11 +87,7 @@ static void check_db_schema(const struct StructField *field, int *is_pk,
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
               strncpy_s(fk_buf, fk_buf_size, fk, fk_buf_size - 1);
 #else
-#if defined(_MSC_VER)
-              strncpy_s(fk_buf, fk_buf_size - 1 + 1, fk, fk_buf_size - 1);
-#else
-              strncpy(fk_buf, fk, fk_buf_size - 1);
-#endif
+              C_ORM_STRNCPY(fk_buf, fk_buf_size - 1 + 1, fk, fk_buf_size - 1);
 #endif
               fk_buf[fk_buf_size - 1] = '\0';
             }
@@ -231,11 +223,7 @@ int openapi_orm_generate(const struct OpenAPI_Spec *spec,
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
       strcpy_s(model_h, header_len + 1, config->model_header);
 #else
-#if defined(_MSC_VER)
-      strcpy_s(model_h, sizeof(model_h), config->model_header);
-#else
-      strcpy(model_h, config->model_header);
-#endif
+      C_ORM_STRCPY(model_h, sizeof(model_h), config->model_header);
 #endif
     }
   } else {
@@ -246,7 +234,8 @@ int openapi_orm_generate(const struct OpenAPI_Spec *spec,
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
       sprintf_s(model_h, len + 1, "%s_models.h", config->filename_base);
 #else
-      sprintf(model_h, "%s_models.h", config->filename_base);
+      C_ORM_SPRINTF(model_h, sizeof(model_h), "%s_models.h",
+                    config->filename_base);
 #endif
     }
   }
@@ -686,4 +675,3 @@ int openapi_orm_generate(const struct OpenAPI_Spec *spec,
 
   return 0;
 }
-

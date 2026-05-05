@@ -136,4 +136,3 @@ C_ORM_EXPORT int sql_to_c_projection_polymorphic_struct_emit(
 #endif /* __cplusplus */
 
 #endif /* C_CDD_SQL_TO_C_H */
-

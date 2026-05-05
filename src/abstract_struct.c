@@ -6,6 +6,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "abstract_struct.h"
 #include <stdlib.h>
 #include <errno.h>
@@ -913,13 +914,8 @@ int cdd_c_abstract_to_specific(void *out_struct,
     } else if (strcmp(prop->type, "C_ORM_TYPE_STRING") == 0) {
       if (val->type == CDD_C_VARIANT_TYPE_STRING) {
         if (prop->length > 0) {
-#if defined(_MSC_VER)
-          strncpy_s((char *)out_struct + prop->offset, prop->length + 1,
-                    val->value.s_val, prop->length);
-#else
-          strncpy((char *)out_struct + prop->offset, val->value.s_val,
-                  prop->length);
-#endif
+          C_ORM_STRNCPY((char *)out_struct + prop->offset, prop->length + 1,
+                        val->value.s_val, prop->length);
           ((char *)out_struct + prop->offset)[prop->length - 1] = '\0';
         } else {
           {
@@ -1106,4 +1102,3 @@ cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
   return EINVAL;
 #endif
 }
-

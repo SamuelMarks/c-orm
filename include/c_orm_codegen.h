@@ -32,4 +32,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 #endif /* __cplusplus */
 
 #endif /* C_ORM_CODEGEN_H */
-

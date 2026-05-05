@@ -942,8 +942,11 @@ int sql_to_c_projection_hydrate_emit(FILE *fp,
         /* Fixed buffer */
 
         fprintf(fp,
-                "            strncpy(out_struct->%s, val->value.s_val, %u);\n",
-                field->name, (unsigned int)field->length);
+                "#if defined(_MSC_VER)\n            strncpy_s(out_struct->%s, "
+                "%u, val->value.s_val, _TRUNCATE);\n#else\n            "
+                "strncpy(out_struct->%s, val->value.s_val, %u);\n#endif\n",
+                field->name, (unsigned int)field->length, field->name,
+                (unsigned int)field->length);
 
         fprintf(fp, "            out_struct->%s[%u - 1] = '\\0';\n",
                 field->name, (unsigned int)field->length);
@@ -1413,4 +1416,3 @@ int sql_to_c_projection_polymorphic_struct_emit(
 
   return 0;
 }
-

@@ -84,4 +84,3 @@ extern C_ORM_EXPORT /**
 #endif /* __cplusplus */
 
 #endif /* C_CDD_CLASSES_PARSE_CDD_C_IR_H */
-

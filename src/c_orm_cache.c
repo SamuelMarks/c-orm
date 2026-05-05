@@ -4,6 +4,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include "c_orm_log.h"
@@ -308,11 +309,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
     rc = C_ORM_OK;
     return rc;
   }
-#if defined(_MSC_VER)
-  strcpy_s(entry->sql, strlen(sql) + 1, sql);
-#else
-  strcpy(entry->sql, sql);
-#endif
+  C_ORM_STRCPY(entry->sql, strlen(sql) + 1, sql);
 
   entry->query = *out_query;
   entry->in_use = 1;
@@ -410,4 +407,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
   LOG_DEBUG("c_orm_finalize_cached: direct finalize exit");
   return rc;
 }
-

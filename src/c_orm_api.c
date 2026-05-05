@@ -4,6 +4,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_log.h"
 #include "c_orm_ast.h"
@@ -226,27 +227,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
             tm_val.tm_min += db->timezone.offset_minutes;
             mktime(&tm_val);
 
-#if defined(_MSC_VER)
-            sprintf_s(tz_buffer, sizeof(tz_buffer),
-                      "%04d-%02d-%02d %02d:%02d:%02d", tm_val.tm_year + 1900,
-                      tm_val.tm_mon + 1, tm_val.tm_mday, tm_val.tm_hour,
-                      tm_val.tm_min, tm_val.tm_sec);
-#else
-            sprintf(tz_buffer, "%04d-%02d-%02d %02d:%02d:%02d",
-                    tm_val.tm_year + 1900, tm_val.tm_mon + 1, tm_val.tm_mday,
-                    tm_val.tm_hour, tm_val.tm_min, tm_val.tm_sec);
-#endif
+            C_ORM_SPRINTF(
+                tz_buffer, sizeof(tz_buffer), "%04d-%02d-%02d %02d:%02d:%02d",
+                tm_val.tm_year + 1900, tm_val.tm_mon + 1, tm_val.tm_mday,
+                tm_val.tm_hour, tm_val.tm_min, tm_val.tm_sec);
 
             /* We need to re-copy tz_buffer since val is read-only */
             {
               size_t len = strlen(tz_buffer);
               *(char **)field_ptr = (char *)C_ORM_MALLOC(len + 1);
               if (*(char **)field_ptr) {
-#if defined(_MSC_VER)
-                strcpy_s(*(char **)field_ptr, len + 1, tz_buffer);
-#else
-                strcpy(*(char **)field_ptr, tz_buffer);
-#endif
+                C_ORM_STRCPY(*(char **)field_ptr, len + 1, tz_buffer);
               }
             }
             if (!*(char **)field_ptr) {
@@ -290,11 +281,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
           size_t len = strlen(val);
           *(char **)field_ptr = (char *)C_ORM_MALLOC(len + 1);
           if (*(char **)field_ptr) {
-#if defined(_MSC_VER)
-            strcpy_s(*(char **)field_ptr, len + 1, val);
-#else
-            strcpy(*(char **)field_ptr, val);
-#endif
+            C_ORM_STRCPY(*(char **)field_ptr, len + 1, val);
           }
           if (!*(char **)field_ptr) {
             LOG_DEBUG("c_orm_hydrate_row_from: OOM");
@@ -553,11 +540,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row(c_orm_db_t *db,
                             C_ORM_FREE(*dst);
                           *dst = (char *)C_ORM_MALLOC(strlen(str_val) + 1);
                           if (*dst) {
-#if defined(_MSC_VER)
-                            strcpy_s(*dst, strlen(str_val) + 1, str_val);
-#else
-                            strcpy(*dst, str_val);
-#endif
+                            C_ORM_STRCPY(*dst, strlen(str_val) + 1, str_val);
                           }
                         }
                         break;
@@ -1676,14 +1659,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relations_int32(
       size_t len = dot - path;
       if (len >= sizeof(first_rel))
         len = sizeof(first_rel) - 1;
-      strncpy(first_rel, path, len);
+      C_ORM_STRNCPY(first_rel, sizeof(first_rel), path, len);
       first_rel[len] = '\0';
     } else {
-#if defined(_MSC_VER)
-      strcpy_s(first_rel, sizeof(first_rel), path);
-#else
-      strcpy(first_rel, path);
-#endif
+      C_ORM_STRCPY(first_rel, sizeof(first_rel), path);
     }
 
     err = c_orm_lazy_load(db, meta, out_struct, first_rel);
@@ -1787,14 +1766,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_with_relations(
         size_t len = dot - path;
         if (len >= sizeof(first_rel))
           len = sizeof(first_rel) - 1;
-        strncpy(first_rel, path, len);
+        C_ORM_STRNCPY(first_rel, sizeof(first_rel), path, len);
         first_rel[len] = '\0';
       } else {
-#if defined(_MSC_VER)
-        strcpy_s(first_rel, sizeof(first_rel), path);
-#else
-        strcpy(first_rel, path);
-#endif
+        C_ORM_STRCPY(first_rel, sizeof(first_rel), path);
       }
 
       err = c_orm_lazy_load(db, meta, parent_obj, first_rel);
@@ -2103,16 +2078,10 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
           tm_val.tm_min -= db->timezone.offset_minutes;
           mktime(&tm_val); /* Normalize overflow/underflow */
 
-#if defined(_MSC_VER)
-          sprintf_s(tz_buffer, sizeof(tz_buffer),
-                    "%04d-%02d-%02d %02d:%02d:%02d", tm_val.tm_year + 1900,
-                    tm_val.tm_mon + 1, tm_val.tm_mday, tm_val.tm_hour,
-                    tm_val.tm_min, tm_val.tm_sec);
-#else
-          sprintf(tz_buffer, "%04d-%02d-%02d %02d:%02d:%02d",
-                  tm_val.tm_year + 1900, tm_val.tm_mon + 1, tm_val.tm_mday,
-                  tm_val.tm_hour, tm_val.tm_min, tm_val.tm_sec);
-#endif
+          C_ORM_SPRINTF(tz_buffer, sizeof(tz_buffer),
+                        "%04d-%02d-%02d %02d:%02d:%02d", tm_val.tm_year + 1900,
+                        tm_val.tm_mon + 1, tm_val.tm_mday, tm_val.tm_hour,
+                        tm_val.tm_min, tm_val.tm_sec);
           str_val = tz_buffer;
         }
       }
@@ -3617,22 +3586,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
         if (pk_col) {
           const void *field_ptr = (const char *)in_struct + pk_col->offset;
           if (rel->on_delete == C_ORM_CASCADE_DELETE) {
-#if defined(_MSC_VER)
-            sprintf_s(sql, sizeof(sql), "DELETE FROM %s WHERE %s = ?",
-                      rel->target_meta->name, rel->foreign_key);
-#else
-            sprintf(sql, "DELETE FROM %s WHERE %s = ?", rel->target_meta->name,
-                    rel->foreign_key);
-#endif
+            C_ORM_SPRINTF(sql, sizeof(sql), "DELETE FROM %s WHERE %s = ?",
+                          rel->target_meta->name, rel->foreign_key);
           } else {
-#if defined(_MSC_VER)
-            sprintf_s(sql, sizeof(sql), "UPDATE %s SET %s = NULL WHERE %s = ?",
-                      rel->target_meta->name, rel->foreign_key,
-                      rel->foreign_key);
-#else
-            sprintf(sql, "UPDATE %s SET %s = NULL WHERE %s = ?",
-                    rel->target_meta->name, rel->foreign_key, rel->foreign_key);
-#endif
+            C_ORM_SPRINTF(
+                sql, sizeof(sql), "UPDATE %s SET %s = NULL WHERE %s = ?",
+                rel->target_meta->name, rel->foreign_key, rel->foreign_key);
           }
           if (c_orm_prepare_cached(db, sql, &casc_query) == C_ORM_OK) {
             if (pk_col->type == C_ORM_TYPE_INT32) {
@@ -3664,18 +3623,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
         const void *field_ptr = (const char *)in_struct + pk_col->offset;
         if (rel->on_delete == C_ORM_CASCADE_DELETE) {
           /* Delete target records first */
-#if defined(_MSC_VER)
-          sprintf_s(
+          C_ORM_SPRINTF(
               sql, sizeof(sql),
               "DELETE FROM %s WHERE %s IN (SELECT %s FROM %s WHERE %s = ?)",
               rel->target_meta->name, rel->foreign_key, rel->join_foreign_key,
               rel->join_table, rel->join_local_key);
-#else
-          sprintf(sql,
-                  "DELETE FROM %s WHERE %s IN (SELECT %s FROM %s WHERE %s = ?)",
-                  rel->target_meta->name, rel->foreign_key,
-                  rel->join_foreign_key, rel->join_table, rel->join_local_key);
-#endif
           if (c_orm_prepare_cached(db, sql, &casc_query) == C_ORM_OK) {
             if (pk_col->type == C_ORM_TYPE_INT32) {
               db->vtable->bind_int32(casc_query, 1,
@@ -3692,13 +3644,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
         }
         /* Always clean up the join table to avoid FK constraints preventing
          * deletion of parent */
-#if defined(_MSC_VER)
-        sprintf_s(sql, sizeof(sql), "DELETE FROM %s WHERE %s = ?",
-                  rel->join_table, rel->join_local_key);
-#else
-        sprintf(sql, "DELETE FROM %s WHERE %s = ?", rel->join_table,
-                rel->join_local_key);
-#endif
+        C_ORM_SPRINTF(sql, sizeof(sql), "DELETE FROM %s WHERE %s = ?",
+                      rel->join_table, rel->join_local_key);
         if (c_orm_prepare_cached(db, sql, &casc_query) == C_ORM_OK) {
           if (pk_col->type == C_ORM_TYPE_INT32) {
             db->vtable->bind_int32(casc_query, 1, *(const int32_t *)field_ptr);
@@ -3933,15 +3880,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_savepoint_create(c_orm_db_t *db,
     LOG_DEBUG("c_orm_savepoint_create: exit");
     return (c_orm_error_t)rc;
   }
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "SAVEPOINT %s", savepoint_name);
-#else
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "SAVEPOINT %s", savepoint_name);
-#else
-  sprintf(sql, "SAVEPOINT %s", savepoint_name);
-#endif
-#endif
+  C_ORM_SPRINTF(sql, sizeof(sql), "SAVEPOINT %s", savepoint_name);
   {
     rc = c_orm_execute_raw(db, sql);
     LOG_DEBUG("c_orm_savepoint_create: exit");
@@ -3964,15 +3903,7 @@ c_orm_savepoint_rollback(c_orm_db_t *db, const char *savepoint_name) {
     LOG_DEBUG("c_orm_savepoint_rollback: exit");
     return (c_orm_error_t)rc;
   }
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "ROLLBACK TO SAVEPOINT %s", savepoint_name);
-#else
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "ROLLBACK TO SAVEPOINT %s", savepoint_name);
-#else
-  sprintf(sql, "ROLLBACK TO SAVEPOINT %s", savepoint_name);
-#endif
-#endif
+  C_ORM_SPRINTF(sql, sizeof(sql), "ROLLBACK TO SAVEPOINT %s", savepoint_name);
   {
     rc = c_orm_execute_raw(db, sql);
     LOG_DEBUG("c_orm_savepoint_rollback: exit");
@@ -3995,15 +3926,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_savepoint_release(c_orm_db_t *db,
     LOG_DEBUG("c_orm_savepoint_release: exit");
     return (c_orm_error_t)rc;
   }
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "RELEASE SAVEPOINT %s", savepoint_name);
-#else
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "RELEASE SAVEPOINT %s", savepoint_name);
-#else
-  sprintf(sql, "RELEASE SAVEPOINT %s", savepoint_name);
-#endif
-#endif
+  C_ORM_SPRINTF(sql, sizeof(sql), "RELEASE SAVEPOINT %s", savepoint_name);
   {
     rc = c_orm_execute_raw(db, sql);
     LOG_DEBUG("c_orm_savepoint_release: exit");
@@ -5242,11 +5165,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_str(
       return (c_orm_error_t)rc;
     }
   }
-#if defined(_MSC_VER)
-  strcpy_s(entry->pk_str, strlen(pk_str) + 1, pk_str);
-#else
-  strcpy(entry->pk_str, pk_str);
-#endif
+  C_ORM_STRCPY(entry->pk_str, strlen(pk_str) + 1, pk_str);
 
   entry->next = bucket->entries[hash_index];
   bucket->entries[hash_index] = entry;
@@ -5458,15 +5377,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
             return (c_orm_error_t)rc;
           }
         }
-#if defined(_MSC_VER)
-        sprintf_s(local_val_str, sizeof(local_val_str), "%d", (int)val);
-#else
-#if defined(_MSC_VER)
-        sprintf_s(local_val_str, sizeof(local_val_str), "%d", (int)val);
-#else
-        sprintf(local_val_str, "%d", (int)val);
-#endif
-#endif
+        C_ORM_SPRINTF(local_val_str, sizeof(local_val_str), "%d", (int)val);
       } else if (meta->columns[i].type == C_ORM_TYPE_STRING) {
         void *field_ptr = (char *)obj + meta->columns[i].offset;
         const char *s = *(const char **)field_ptr;
@@ -5476,11 +5387,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
           return (c_orm_error_t)rc;
         } /* Nullable FK string is null, relation is inherently
 empty */
-#if defined(_MSC_VER)
-        strcpy_s(local_val_str, sizeof(local_val_str), s);
-#else
-        strcpy(local_val_str, s);
-#endif
+        C_ORM_STRCPY(local_val_str, sizeof(local_val_str), s);
         is_string = 1;
       } else {
         {
@@ -5531,43 +5438,16 @@ empty */
       }
     }
 
-#if defined(_MSC_VER)
-    sprintf_s(select_str, sizeof(select_str), "%s.*", target_meta->name);
+    C_ORM_SPRINTF(select_str, sizeof(select_str), "%s.*", target_meta->name);
     if (rel->type == C_ORM_RELATION_HAS_MANY_THROUGH) {
-      sprintf_s(join_cond, sizeof(join_cond), "%s.%s = %s.%s",
-                target_meta->name, rel->foreign_key, rel->join_table,
-                rel->join_foreign_key);
+      C_ORM_SPRINTF(join_cond, sizeof(join_cond), "%s.%s = %s.%s",
+                    target_meta->name, rel->foreign_key, rel->join_table,
+                    rel->join_foreign_key);
     } else {
-      sprintf_s(join_cond, sizeof(join_cond), "%s.%s = %s.%s",
-                target_meta->name, target_pk, rel->join_table,
-                rel->join_foreign_key);
+      C_ORM_SPRINTF(join_cond, sizeof(join_cond), "%s.%s = %s.%s",
+                    target_meta->name, target_pk, rel->join_table,
+                    rel->join_foreign_key);
     }
-#else
-#if defined(_MSC_VER)
-    sprintf_s(select_str, sizeof(select_str), "%s.*", target_meta->name);
-#else
-    sprintf(select_str, "%s.*", target_meta->name);
-#endif
-    if (rel->type == C_ORM_RELATION_HAS_MANY_THROUGH) {
-#if defined(_MSC_VER)
-      sprintf_s(join_cond, sizeof(join_cond), "%s.%s = %s.%s",
-                target_meta->name, rel->foreign_key, rel->join_table,
-                rel->join_foreign_key);
-#else
-      sprintf(join_cond, "%s.%s = %s.%s", target_meta->name, rel->foreign_key,
-              rel->join_table, rel->join_foreign_key);
-#endif
-    } else {
-#if defined(_MSC_VER)
-      sprintf_s(join_cond, sizeof(join_cond), "%s.%s = %s.%s",
-                target_meta->name, target_pk, rel->join_table,
-                rel->join_foreign_key);
-#else
-      sprintf(join_cond, "%s.%s = %s.%s", target_meta->name, target_pk,
-              rel->join_table, rel->join_foreign_key);
-#endif
-    }
-#endif
 
     q->select_(q, select_str)
         ->from(q, target_meta->name)
@@ -5585,17 +5465,8 @@ empty */
   }
   if (rel->soft_delete_aware) {
     char soft_delete_cond[64];
-#if defined(_MSC_VER)
-    sprintf_s(soft_delete_cond, sizeof(soft_delete_cond),
-              "%s.deleted_at IS NULL", target_meta->name);
-#else
-#if defined(_MSC_VER)
-    sprintf_s(soft_delete_cond, sizeof(soft_delete_cond),
-              "%s.deleted_at IS NULL", target_meta->name);
-#else
-    sprintf(soft_delete_cond, "%s.deleted_at IS NULL", target_meta->name);
-#endif
-#endif
+    C_ORM_SPRINTF(soft_delete_cond, sizeof(soft_delete_cond),
+                  "%s.deleted_at IS NULL", target_meta->name);
     q->and_where(q, q->raw(q, soft_delete_cond));
   }
   if (rel->order_by && rel->order_by[0]) {
@@ -5611,21 +5482,19 @@ empty */
       desc_pos = strstr(rel->order_by, " desc");
     if (desc_pos) {
       is_desc = 1;
-      strncpy(order_col, rel->order_by, desc_pos - rel->order_by);
+      C_ORM_STRNCPY(order_col, sizeof(order_col), rel->order_by,
+                    desc_pos - rel->order_by);
       order_col[desc_pos - rel->order_by] = '\0';
     } else {
       const char *asc_pos = strstr(rel->order_by, " ASC");
       if (!asc_pos)
         asc_pos = strstr(rel->order_by, " asc");
       if (asc_pos) {
-        strncpy(order_col, rel->order_by, asc_pos - rel->order_by);
+        C_ORM_STRNCPY(order_col, sizeof(order_col), rel->order_by,
+                      asc_pos - rel->order_by);
         order_col[asc_pos - rel->order_by] = '\0';
       } else {
-#if defined(_MSC_VER)
-        strcpy_s(order_col, sizeof(order_col), rel->order_by);
-#else
-        strcpy(order_col, rel->order_by);
-#endif
+        C_ORM_STRCPY(order_col, sizeof(order_col), rel->order_by);
       }
     }
     q->order_by(q, order_col, is_desc);
@@ -6327,15 +6196,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_exists_int32(c_orm_db_t *db,
     LOG_DEBUG("c_orm_exists_int32: exit");
     return (c_orm_error_t)rc;
   }
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "SELECT 1 FROM %s WHERE id = ?", meta->name);
-#else
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "SELECT 1 FROM %s WHERE id = ?", meta->name);
-#else
-  sprintf(sql, "SELECT 1 FROM %s WHERE id = ?", meta->name);
-#endif
-#endif
+  C_ORM_SPRINTF(sql, sizeof(sql), "SELECT 1 FROM %s WHERE id = ?", meta->name);
   err = c_orm_prepare_cached(db, sql, &query);
   if (err != C_ORM_OK) {
     rc = err;
@@ -6391,17 +6252,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_exists_string(c_orm_db_t *db,
     LOG_DEBUG("c_orm_exists_string: exit");
     return (c_orm_error_t)rc;
   }
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "SELECT 1 FROM %s WHERE %s = ?", meta->name,
-            pk_col->name);
-#else
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "SELECT 1 FROM %s WHERE %s = ?", meta->name,
-            pk_col->name);
-#else
-  sprintf(sql, "SELECT 1 FROM %s WHERE %s = ?", meta->name, pk_col->name);
-#endif
-#endif
+  C_ORM_SPRINTF(sql, sizeof(sql), "SELECT 1 FROM %s WHERE %s = ?", meta->name,
+                pk_col->name);
   err = c_orm_prepare_cached(db, sql, &query);
   if (err != C_ORM_OK) {
     rc = err;
@@ -6441,13 +6293,8 @@ c_orm_find_all_paginated(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     LOG_DEBUG("c_orm_find_all_paginated: exit");
     return (c_orm_error_t)rc;
   }
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "SELECT * FROM %s LIMIT %u OFFSET %u", meta->name,
-            (unsigned int)limit, (unsigned int)offset);
-#else
-  sprintf(sql, "SELECT * FROM %s LIMIT %u OFFSET %u", meta->name,
-          (unsigned int)limit, (unsigned int)offset);
-#endif
+  C_ORM_SPRINTF(sql, sizeof(sql), "SELECT * FROM %s LIMIT %u OFFSET %u",
+                meta->name, (unsigned int)limit, (unsigned int)offset);
   err = c_orm_prepare_cached(db, sql, &query);
   if (err != C_ORM_OK) {
     rc = err;
@@ -6611,13 +6458,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_attach(c_orm_db_t *db,
       return (c_orm_error_t)rc;
     }
 
-#if defined(_MSC_VER)
-    sprintf_s(sql, sizeof(sql), "INSERT INTO %s (%s, %s) VALUES (?, ?)",
-              rel->join_table, rel->join_local_key, rel->join_foreign_key);
-#else
-    sprintf(sql, "INSERT INTO %s (%s, %s) VALUES (?, ?)", rel->join_table,
-            rel->join_local_key, rel->join_foreign_key);
-#endif
+    C_ORM_SPRINTF(sql, sizeof(sql), "INSERT INTO %s (%s, %s) VALUES (?, ?)",
+                  rel->join_table, rel->join_local_key, rel->join_foreign_key);
     err = c_orm_prepare_cached(db, sql, &q);
     if (err != C_ORM_OK) {
       rc = err;
@@ -6731,13 +6573,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_detach(c_orm_db_t *db,
       return (c_orm_error_t)rc;
     }
 
-#if defined(_MSC_VER)
-    sprintf_s(sql, sizeof(sql), "DELETE FROM %s WHERE %s = ? AND %s = ?",
-              rel->join_table, rel->join_local_key, rel->join_foreign_key);
-#else
-    sprintf(sql, "DELETE FROM %s WHERE %s = ? AND %s = ?", rel->join_table,
-            rel->join_local_key, rel->join_foreign_key);
-#endif
+    C_ORM_SPRINTF(sql, sizeof(sql), "DELETE FROM %s WHERE %s = ? AND %s = ?",
+                  rel->join_table, rel->join_local_key, rel->join_foreign_key);
     err = c_orm_prepare_cached(db, sql, &q);
     if (err != C_ORM_OK) {
       rc = err;
@@ -6812,13 +6649,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_sync(
     }
 
     /* Unset all existing children's foreign keys */
-#if defined(_MSC_VER)
-    sprintf_s(sql, sizeof(sql), "UPDATE %s SET %s = NULL WHERE %s = ?",
-              rel->target_meta->name, rel->foreign_key, rel->foreign_key);
-#else
-    sprintf(sql, "UPDATE %s SET %s = NULL WHERE %s = ?", rel->target_meta->name,
-            rel->foreign_key, rel->foreign_key);
-#endif
+    C_ORM_SPRINTF(sql, sizeof(sql), "UPDATE %s SET %s = NULL WHERE %s = ?",
+                  rel->target_meta->name, rel->foreign_key, rel->foreign_key);
     err = c_orm_prepare_cached(db, sql, &q);
     if (err != C_ORM_OK) {
       rc = err;
@@ -6878,13 +6710,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_sync(
     }
 
     /* Delete all existing links */
-#if defined(_MSC_VER)
-    sprintf_s(sql, sizeof(sql), "DELETE FROM %s WHERE %s = ?", rel->join_table,
-              rel->join_local_key);
-#else
-    sprintf(sql, "DELETE FROM %s WHERE %s = ?", rel->join_table,
-            rel->join_local_key);
-#endif
+    C_ORM_SPRINTF(sql, sizeof(sql), "DELETE FROM %s WHERE %s = ?",
+                  rel->join_table, rel->join_local_key);
     err = c_orm_prepare_cached(db, sql, &q);
     if (err != C_ORM_OK) {
       rc = err;
@@ -6902,13 +6729,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_sync(
     }
 
     /* Insert new links */
-#if defined(_MSC_VER)
-    sprintf_s(sql, sizeof(sql), "INSERT INTO %s (%s, %s) VALUES (?, ?)",
-              rel->join_table, rel->join_local_key, rel->join_foreign_key);
-#else
-    sprintf(sql, "INSERT INTO %s (%s, %s) VALUES (?, ?)", rel->join_table,
-            rel->join_local_key, rel->join_foreign_key);
-#endif
+    C_ORM_SPRINTF(sql, sizeof(sql), "INSERT INTO %s (%s, %s) VALUES (?, ?)",
+                  rel->join_table, rel->join_local_key, rel->join_foreign_key);
     err = c_orm_prepare_cached(db, sql, &q);
     if (err != C_ORM_OK) {
       rc = err;
@@ -6975,15 +6797,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_all(c_orm_db_t *db,
     LOG_DEBUG("c_orm_delete_all: exit");
     return (c_orm_error_t)rc;
   }
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "DELETE FROM %s", meta->name);
-#else
-#if defined(_MSC_VER)
-  sprintf_s(sql, sizeof(sql), "DELETE FROM %s", meta->name);
-#else
-  sprintf(sql, "DELETE FROM %s", meta->name);
-#endif
-#endif
+  C_ORM_SPRINTF(sql, sizeof(sql), "DELETE FROM %s", meta->name);
   {
     rc = c_orm_execute_raw(db, sql);
     LOG_DEBUG("c_orm_delete_all: exit");
@@ -7421,4 +7235,3 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     return (c_orm_error_t)rc;
   }
 }
-

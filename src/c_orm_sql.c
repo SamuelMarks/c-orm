@@ -707,4 +707,3 @@ int sql_parse_returning(const struct sql_token_list_t *list,
   }
   return 1;
 }
-

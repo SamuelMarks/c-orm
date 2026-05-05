@@ -1019,4 +1019,3 @@ SUITE(query_fluent_coverage_suite) {
   c_orm_free = old_free;
   c_orm_realloc = old_realloc;
 }
-

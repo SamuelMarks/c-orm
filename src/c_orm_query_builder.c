@@ -4,6 +4,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_query_builder.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,11 +89,7 @@ C_ORM_EXPORT int c_orm_select_builder_compile(c_orm_select_builder_t *builder,
     size_t len = strlen(sql_str);
     *out_sql = (char *)C_ORM_MALLOC(len + 1);
     if (*out_sql) {
-#if defined(_MSC_VER)
-      strcpy_s(*out_sql, len + 1, sql_str);
-#else
-      strcpy(*out_sql, sql_str);
-#endif
+      C_ORM_STRCPY(*out_sql, len + 1, sql_str);
     } else {
       LOG_DEBUG("c_orm_select_builder_compile: OOM");
     }
@@ -325,7 +322,7 @@ static int build_exists_query(c_orm_string_builder_t *sb,
 
     if (len >= sizeof(rel_name))
       len = sizeof(rel_name) - 1;
-    strncpy(rel_name, path, len);
+    C_ORM_STRNCPY(rel_name, sizeof(rel_name), path, len);
     rel_name[len] = '\0';
 
     for (i = 0; i < meta->num_relations; i++) {
@@ -348,15 +345,7 @@ static int build_exists_query(c_orm_string_builder_t *sb,
       }
     }
 
-#if defined(_MSC_VER)
-    sprintf_s(target_alias, sizeof(target_alias), "t%d", depth);
-#else
-#if defined(_MSC_VER)
-    sprintf_s(target_alias, sizeof(target_alias), "t%d", depth);
-#else
-    sprintf(target_alias, "t%d", depth);
-#endif
-#endif
+    C_ORM_SPRINTF(target_alias, sizeof(target_alias), "t%d", depth);
 
     c_orm_string_builder_append(sb, "EXISTS (SELECT 1 FROM ");
     c_orm_string_builder_append(sb, rel->target_meta->name);
@@ -510,14 +499,9 @@ C_ORM_EXPORT int c_orm_select_aggregate(c_orm_select_builder_t *builder,
       return rc;
     }
 
-#if defined(_MSC_VER)
-    sprintf_s(new_sql, strlen(current_sql) + extra_len,
-              "SELECT %s(%s) AS %s FROM %s", func, column, alias,
-              current_sql + 14);
-#else
-    sprintf(new_sql, "SELECT %s(%s) AS %s FROM %s", func, column, alias,
-            current_sql + 14);
-#endif
+    C_ORM_SPRINTF(new_sql, strlen(current_sql) + extra_len,
+                  "SELECT %s(%s) AS %s FROM %s", func, column, alias,
+                  current_sql + 14);
 
     c_orm_string_builder_free(builder->sb);
     builder->sb = NULL;
@@ -541,22 +525,13 @@ C_ORM_EXPORT int c_orm_select_aggregate(c_orm_select_builder_t *builder,
         return rc;
       }
 
-#if defined(_MSC_VER)
-      strncpy_s(new_sql, strlen(current_sql) + extra_len, current_sql,
-                prefix_len);
-#else
-      strncpy(new_sql, current_sql, prefix_len);
-#endif
+      C_ORM_STRNCPY(new_sql, strlen(current_sql) + extra_len, current_sql,
+                    prefix_len);
       new_sql[prefix_len] = '\0';
 
-#if defined(_MSC_VER)
-      sprintf_s(new_sql + prefix_len,
-                strlen(current_sql) + extra_len - prefix_len,
-                ", %s(%s) AS %s%s", func, column, alias, from_pos);
-#else
-      sprintf(new_sql + prefix_len, ", %s(%s) AS %s%s", func, column, alias,
-              from_pos);
-#endif
+      C_ORM_SPRINTF(new_sql + prefix_len,
+                    strlen(current_sql) + extra_len - prefix_len,
+                    ", %s(%s) AS %s%s", func, column, alias, from_pos);
 
       c_orm_string_builder_free(builder->sb);
       builder->sb = NULL;
@@ -617,17 +592,8 @@ C_ORM_EXPORT int c_orm_select_limit(c_orm_select_builder_t *builder,
     rc = 1;
     return rc;
   }
-#if defined(_MSC_VER)
-  sprintf_s(buf, sizeof(buf), " LIMIT " C_ORM_FMT_SIZE_T,
-            C_ORM_CAST_SIZE_T(limit));
-#else
-#if defined(_MSC_VER)
-  sprintf_s(buf, sizeof(buf), " LIMIT " C_ORM_FMT_SIZE_T,
-            C_ORM_CAST_SIZE_T(limit));
-#else
-  sprintf(buf, " LIMIT " C_ORM_FMT_SIZE_T, C_ORM_CAST_SIZE_T(limit));
-#endif
-#endif
+  C_ORM_SPRINTF(buf, sizeof(buf), " LIMIT " C_ORM_FMT_SIZE_T,
+                C_ORM_CAST_SIZE_T(limit));
   c_orm_string_builder_append(builder->sb, buf);
 
   LOG_DEBUG("c_orm_select_limit: exit");
@@ -647,17 +613,8 @@ C_ORM_EXPORT int c_orm_select_offset(c_orm_select_builder_t *builder,
     rc = 1;
     return rc;
   }
-#if defined(_MSC_VER)
-  sprintf_s(buf, sizeof(buf), " OFFSET " C_ORM_FMT_SIZE_T,
-            C_ORM_CAST_SIZE_T(offset));
-#else
-#if defined(_MSC_VER)
-  sprintf_s(buf, sizeof(buf), " OFFSET " C_ORM_FMT_SIZE_T,
-            C_ORM_CAST_SIZE_T(offset));
-#else
-  sprintf(buf, " OFFSET " C_ORM_FMT_SIZE_T, C_ORM_CAST_SIZE_T(offset));
-#endif
-#endif
+  C_ORM_SPRINTF(buf, sizeof(buf), " OFFSET " C_ORM_FMT_SIZE_T,
+                C_ORM_CAST_SIZE_T(offset));
   c_orm_string_builder_append(builder->sb, buf);
 
   LOG_DEBUG("c_orm_select_offset: exit");
@@ -835,11 +792,7 @@ C_ORM_EXPORT int c_orm_update_builder_compile(c_orm_update_builder_t *builder,
     size_t len = strlen(sql_str);
     *out_sql = (char *)C_ORM_MALLOC(len + 1);
     if (*out_sql) {
-#if defined(_MSC_VER)
-      strcpy_s(*out_sql, len + 1, sql_str);
-#else
-      strcpy(*out_sql, sql_str);
-#endif
+      C_ORM_STRCPY(*out_sql, len + 1, sql_str);
     } else {
       LOG_DEBUG("c_orm_update_builder_compile: OOM");
     }
@@ -851,4 +804,3 @@ C_ORM_EXPORT int c_orm_update_builder_compile(c_orm_update_builder_t *builder,
   rc = *out_sql ? 0 : 1;
   return rc;
 }
-

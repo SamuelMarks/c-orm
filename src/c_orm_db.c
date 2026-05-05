@@ -251,4 +251,3 @@ C_ORM_EXPORT void c_orm_set_timezone(c_orm_db_t *db, c_orm_timezone_t tz) {
   }
   LOG_DEBUG("c_orm_set_timezone: exit");
 }
-

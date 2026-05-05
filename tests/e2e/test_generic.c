@@ -149,4 +149,3 @@ SUITE(generic_suite) {
   RUN_TEST(test_c_orm_generic_crud);
   RUN_TEST(test_c_orm_telemetry);
 }
-

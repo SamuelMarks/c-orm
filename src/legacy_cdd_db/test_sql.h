@@ -223,4 +223,3 @@ SUITE(sql_suite) {
 #endif /* __cplusplus */
 
 #endif /* C_CDD_TEST_SQL_H */
-

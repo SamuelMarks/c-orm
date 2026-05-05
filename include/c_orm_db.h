@@ -313,4 +313,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_set_modality(c_orm_db_t *db,
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_DB_H */
-

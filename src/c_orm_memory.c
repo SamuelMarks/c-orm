@@ -579,4 +579,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_memory_connect(const char *url,
                                                 c_orm_db_t **out_db) {
   return mem_connect(url, out_db);
 }
-

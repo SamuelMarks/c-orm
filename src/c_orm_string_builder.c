@@ -4,6 +4,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_string_builder.h"
 #include "c_orm_db.h"
 #include "c_orm_log.h"
@@ -125,12 +126,8 @@ C_ORM_EXPORT int c_orm_string_builder_append(c_orm_string_builder_t *builder,
     builder->capacity = new_capacity;
   }
 
-#if defined(_MSC_VER)
-  strcpy_s(builder->buffer + builder->length,
-           builder->capacity - builder->length, str);
-#else
-  strcpy(builder->buffer + builder->length, str);
-#endif
+  C_ORM_STRCPY(builder->buffer + builder->length,
+               builder->capacity - builder->length, str);
 
   builder->length += len;
   rc = 0;
@@ -185,4 +182,3 @@ C_ORM_EXPORT int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
   LOG_DEBUG("c_orm_string_builder_len: exit");
   return rc;
 }
-

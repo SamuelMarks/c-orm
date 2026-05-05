@@ -352,4 +352,3 @@ extern "C" {
 #endif /* __cplusplus */
 
 #endif /* C_ORM_STRUCT_H */
-

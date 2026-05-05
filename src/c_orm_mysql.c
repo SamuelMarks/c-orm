@@ -4,6 +4,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_mysql.h"
 #include "c_orm_log.h"
 #include <stdio.h>
@@ -424,11 +425,7 @@ static c_orm_error_t mysql_drv_bind_string(c_orm_query_t *query, int index,
     return (c_orm_error_t)rc;
   }
 
-#if defined(_MSC_VER)
-  strcpy_s((char *)b->buffer, strlen(val) + 1, val);
-#else
-  strcpy((char *)b->buffer, val);
-#endif
+  C_ORM_STRCPY((char *)b->buffer, strlen(val) + 1, val);
   b->buffer_length = (unsigned long)strlen(val);
   b->is_null = &query->data->param_is_null[i];
   *b->is_null = 0;
@@ -1093,4 +1090,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
 }
 
 #endif
-

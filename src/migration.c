@@ -145,4 +145,3 @@ int parse_migration_file(const char *filepath,
   free(file_data);
   return 0;
 }
-

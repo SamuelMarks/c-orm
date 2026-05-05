@@ -349,4 +349,3 @@ SUITE(cache_coverage_suite) {
   c_orm_malloc = old_malloc;
   c_orm_free = old_free;
 }
-

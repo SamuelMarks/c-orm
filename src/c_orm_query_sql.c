@@ -4,6 +4,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_ast.h"
 #include "c_orm_db.h"
 #include "c_orm_log.h"
@@ -138,11 +139,7 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       }
       if (dialect == C_ORM_DIALECT_POSTGRES) {
         char ph[32];
-#if defined(_MSC_VER)
-        sprintf_s(ph, sizeof(ph), "$%u", (unsigned int)params->count);
-#else
-        sprintf(ph, "$%u", (unsigned int)params->count);
-#endif
+        C_ORM_SPRINTF(ph, sizeof(ph), "$%u", (unsigned int)params->count);
         c_orm_string_builder_append(sb, ph);
       } else {
         c_orm_string_builder_append(sb, "?");
@@ -223,11 +220,7 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       }
       if (dialect == C_ORM_DIALECT_POSTGRES) {
         char ph[32];
-#if defined(_MSC_VER)
-        sprintf_s(ph, sizeof(ph), "$%u", (unsigned int)params->count);
-#else
-        sprintf(ph, "$%u", (unsigned int)params->count);
-#endif
+        C_ORM_SPRINTF(ph, sizeof(ph), "$%u", (unsigned int)params->count);
         c_orm_string_builder_append(sb, ph);
       } else {
         c_orm_string_builder_append(sb, "?");
@@ -239,11 +232,7 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       }
       if (dialect == C_ORM_DIALECT_POSTGRES) {
         char ph[32];
-#if defined(_MSC_VER)
-        sprintf_s(ph, sizeof(ph), "$%u", (unsigned int)params->count);
-#else
-        sprintf(ph, "$%u", (unsigned int)params->count);
-#endif
+        C_ORM_SPRINTF(ph, sizeof(ph), "$%u", (unsigned int)params->count);
         c_orm_string_builder_append(sb, ph);
       } else {
         c_orm_string_builder_append(sb, "?");
@@ -506,22 +495,15 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
 
   if (lim) {
     char num_buf[32];
-#if defined(_MSC_VER)
-    sprintf_s(num_buf, sizeof(num_buf), " LIMIT %u", (unsigned int)lim->limit);
-#else
-    sprintf(num_buf, " LIMIT %u", (unsigned int)lim->limit);
-#endif
+    C_ORM_SPRINTF(num_buf, sizeof(num_buf), " LIMIT %u",
+                  (unsigned int)lim->limit);
     c_orm_string_builder_append(sb, num_buf);
   }
 
   if (off) {
     char num_buf[32];
-#if defined(_MSC_VER)
-    sprintf_s(num_buf, sizeof(num_buf), " OFFSET %u",
-              (unsigned int)off->offset);
-#else
-    sprintf(num_buf, " OFFSET %u", (unsigned int)off->offset);
-#endif
+    C_ORM_SPRINTF(num_buf, sizeof(num_buf), " OFFSET %u",
+                  (unsigned int)off->offset);
     c_orm_string_builder_append(sb, num_buf);
   }
 
@@ -531,11 +513,7 @@ C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
       size_t len = strlen(sql_str);
       *out_sql = (char *)C_ORM_MALLOC(len + 1);
       if (*out_sql) {
-#if defined(_MSC_VER)
-        strcpy_s(*out_sql, len + 1, sql_str);
-#else
-        strcpy(*out_sql, sql_str);
-#endif
+        C_ORM_STRCPY(*out_sql, len + 1, sql_str);
       } else {
         c_orm_string_builder_free(sb);
         rc = 1;
@@ -728,4 +706,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
   LOG_DEBUG("c_orm_query_fetch_all: exit");
   return err;
 }
-

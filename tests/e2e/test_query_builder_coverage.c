@@ -320,4 +320,3 @@ SUITE(query_builder_coverage_suite) {
   RUN_TEST(test_query_builder_coverage);
   RUN_TEST(test_query_builder_oom);
 }
-

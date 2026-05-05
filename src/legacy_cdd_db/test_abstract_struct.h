@@ -609,4 +609,3 @@ SUITE(abstract_struct_suite) {
 #endif /* __cplusplus */
 
 #endif /* C_CDD_TEST_ABSTRACT_STRUCT_H */
-

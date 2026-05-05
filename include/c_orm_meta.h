@@ -391,4 +391,3 @@ typedef struct c_orm_identity_map {
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_META_H */
-

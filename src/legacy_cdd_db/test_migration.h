@@ -107,4 +107,3 @@ SUITE(migration_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_MIGRATION_H */
-

@@ -4,6 +4,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_migrations.h"
 #include "c_orm_sqlite.h"
@@ -116,14 +117,9 @@ int main(int argc, char **argv) {
       return rc;
     }
 
-#if defined(_MSC_VER)
-    sprintf_s(up_file, sizeof(up_file), "%s/%s.up.sql", dir_path, arg_name);
-    sprintf_s(down_file, sizeof(down_file), "%s/%s.down.sql", dir_path,
-              arg_name);
-#else
-    sprintf(up_file, "%s/%s.up.sql", dir_path, arg_name);
-    sprintf(down_file, "%s/%s.down.sql", dir_path, arg_name);
-#endif
+    C_ORM_SPRINTF(up_file, sizeof(up_file), "%s/%s.up.sql", dir_path, arg_name);
+    C_ORM_SPRINTF(down_file, sizeof(down_file), "%s/%s.down.sql", dir_path,
+                  arg_name);
 
     fp = fopen(up_file, "w");
     if (fp) {
@@ -256,4 +252,3 @@ int main(int argc, char **argv) {
   LOG_DEBUG("main: exit");
   return rc;
 }
-

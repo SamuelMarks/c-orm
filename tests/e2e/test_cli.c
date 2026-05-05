@@ -1,4 +1,5 @@
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include "c_orm_mysql.h"
@@ -38,8 +39,8 @@ static c_orm_error_t mock_load_dir(const char *dir_path,
   }
   if (1) {
     *out_migrations = (c_orm_migration_t *)malloc(sizeof(c_orm_migration_t));
-    strcpy((*out_migrations)[0].version, "123");
-    strcpy((*out_migrations)[0].name, "test");
+    C_ORM_STRCPY((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "123");
+    C_ORM_STRCPY((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
     (*out_migrations)[0].up_sql = NULL;
     (*out_migrations)[0].down_sql = NULL;
     *out_count = 1;
@@ -69,8 +70,8 @@ static c_orm_error_t mock_get_applied(c_orm_db_t *db,
   }
   *out_migrations =
       (c_orm_migration_t *)C_ORM_MALLOC(sizeof(c_orm_migration_t));
-  strcpy((*out_migrations)[0].version, "123");
-  strcpy((*out_migrations)[0].name, "test");
+  C_ORM_STRCPY((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "123");
+  C_ORM_STRCPY((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
   (*out_migrations)[0].up_sql = NULL;
   (*out_migrations)[0].down_sql = NULL;
   *out_count = 1;
@@ -297,4 +298,3 @@ SUITE(cli_suite) {
   RUN_TEST(test_cli_log);
   RUN_TEST(test_cli_unknown);
 }
-

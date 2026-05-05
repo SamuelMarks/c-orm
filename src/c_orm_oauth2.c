@@ -4,6 +4,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_oauth2.h"
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
@@ -288,11 +289,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
             return C_ORM_ERROR_MEMORY;
           }
           for (i = 0; i < out_blob.cbData; ++i) {
-#if defined(_MSC_VER)
-            sprintf_s(&hex_str[i * 2], 3, "%02x", out_blob.pbData[i]);
-#else
-            sprintf(&hex_str[i * 2], "%02x", out_blob.pbData[i]);
-#endif
+            C_ORM_SPRINTF(&hex_str[i * 2], 3, "%02x", out_blob.pbData[i]);
           }
           hex_str[out_blob.cbData * 2] = '\0';
           LocalFree(out_blob.pbData);
@@ -318,7 +315,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
     }
     for (i = 0; i < len; ++i) {
       unsigned char c = (unsigned char)(plain_token[i] ^ 0x42);
-      sprintf(&hex_str[i * 2], "%02x", c);
+      C_ORM_SPRINTF(&hex_str[i * 2], 3, "%02x", c);
     }
     hex_str[len * 2] = '\0';
     *out_encrypted_token = hex_str;
@@ -1269,4 +1266,3 @@ c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
   LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: exiting");
   return err;
 }
-

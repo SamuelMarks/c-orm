@@ -43,4 +43,3 @@ typedef struct cdd_c_meta {
 #endif /* __cplusplus */
 
 #endif /* C_CDD_C_ORM_META_H */
-

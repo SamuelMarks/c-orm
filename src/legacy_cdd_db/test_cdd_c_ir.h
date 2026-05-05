@@ -99,4 +99,3 @@ TEST test_cdd_c_ir_alloc(void) {
   cdd_c_ir_free(&ir);
   PASS();
 }
-

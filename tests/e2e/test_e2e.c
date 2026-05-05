@@ -3,6 +3,7 @@
 /* The generated models */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "Models.h"
 #include "c_orm_api.h"
 #include "c_orm_mysql.h"
@@ -694,8 +695,8 @@ TEST test_e2e_bulk_processing(void) {
     sprintf_s(username, sizeof(username), "bulk_%u", (unsigned int)i);
     sprintf_s(email, sizeof(email), "bulk_%u@example.com", (unsigned int)i);
 #else
-    sprintf(username, "bulk_%u", (unsigned int)i);
-    sprintf(email, "bulk_%u@example.com", (unsigned int)i);
+    C_ORM_SPRINTF(username, sizeof(username), "bulk_%u", (unsigned int)i);
+    C_ORM_SPRINTF(email, sizeof(email), "bulk_%u@example.com", (unsigned int)i);
 #endif
     user.id = (int32_t)i;
     user.username = username;
@@ -1162,4 +1163,3 @@ int main(int argc, char **argv) {
   RUN_SUITE(string_builder_suite);
   GREATEST_MAIN_END();
 }
-

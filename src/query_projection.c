@@ -99,4 +99,3 @@ int cdd_c_query_projection_free(cdd_c_query_projection_t *proj) {
   proj->mapping_meta.target_name = NULL;
   return 0;
 }
-

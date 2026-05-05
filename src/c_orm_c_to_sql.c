@@ -110,7 +110,7 @@ C_ORM_EXPORT int write_struct_to_sql_create_table(FILE *fp,
     if (is_fk) {
       /* Emit basic foreign key assuming table is prefix of _id */
       char target_table[64];
-      strncpy(target_table, f->name, len - 3);
+      C_ORM_STRNCPY(target_table, sizeof(target_table), f->name, len - 3);
       target_table[len - 3] = '\0';
       fprintf(fp, " REFERENCES %s(id)", target_table);
     }
@@ -136,7 +136,8 @@ C_ORM_EXPORT int cdd_c_meta_to_sql_create_table(const cdd_c_meta_t *meta,
   if (!meta || !out_sql)
     return 1;
 
-  offset += C_ORM_SPRINTF(buffer + offset, sizeof(buffer) - offset, "CREATE TABLE %s (\n", meta->name);
+  offset += C_ORM_SPRINTF(buffer + offset, sizeof(buffer) - offset,
+                          "CREATE TABLE %s (\n", meta->name);
 
   for (i = 0; i < meta->num_props; i++) {
     const cdd_c_prop_meta_t *prop = &meta->props[i];
@@ -144,21 +145,25 @@ C_ORM_EXPORT int cdd_c_meta_to_sql_create_table(const cdd_c_meta_t *meta,
     int is_fk = (len > 3 && strcmp(prop->name + len - 3, "_id") == 0);
     map_c_type_to_sql(prop->type, dialect, &sql_type);
 
-    offset += C_ORM_SPRINTF(buffer + offset, sizeof(buffer) - offset, "  %s %s", prop->name, sql_type);
+    offset += C_ORM_SPRINTF(buffer + offset, sizeof(buffer) - offset, "  %s %s",
+                            prop->name, sql_type);
 
     if (strcmp(prop->name, "id") == 0) {
-      offset += C_ORM_SPRINTF(buffer + offset, sizeof(buffer) - offset, " PRIMARY KEY");
+      offset += C_ORM_SPRINTF(buffer + offset, sizeof(buffer) - offset,
+                              " PRIMARY KEY");
       if (dialect == C_TO_SQL_DIALECT_SQLITE &&
           strcmp(sql_type, "INTEGER") == 0) {
-        offset += C_ORM_SPRINTF(buffer + offset, sizeof(buffer) - offset, " AUTOINCREMENT");
+        offset += C_ORM_SPRINTF(buffer + offset, sizeof(buffer) - offset,
+                                " AUTOINCREMENT");
       }
     }
 
     if (is_fk) {
       char target_table[64];
-      strncpy(target_table, prop->name, len - 3);
+      C_ORM_STRNCPY(target_table, sizeof(target_table), prop->name, len - 3);
       target_table[len - 3] = '\0';
-      offset += C_ORM_SPRINTF(buffer + offset, sizeof(buffer) - offset, " REFERENCES %s(id)", target_table);
+      offset += C_ORM_SPRINTF(buffer + offset, sizeof(buffer) - offset,
+                              " REFERENCES %s(id)", target_table);
     }
 
     if (i < meta->num_props - 1) {
@@ -168,7 +173,7 @@ C_ORM_EXPORT int cdd_c_meta_to_sql_create_table(const cdd_c_meta_t *meta,
   }
 
   offset += C_ORM_SPRINTF(buffer + offset, sizeof(buffer) - offset, ");\n");
-  *out_sql = strdup(buffer);
+  *out_sql = C_ORM_STRDUP(buffer);
   return 0;
 }
 
@@ -244,30 +249,34 @@ C_ORM_EXPORT int cdd_c_meta_diff_to_sql(const char *table_name,
   for (i = 0; i < diff->num_added; i++) {
     const char *sql_type = NULL;
     map_c_type_to_sql(diff->added_props[i].type, dialect, &sql_type);
-    up_offset +=
-        C_ORM_SPRINTF(up_buf + up_offset, sizeof(up_buf) - up_offset, "ALTER TABLE %s ADD COLUMN %s %s;\n",
-                table_name, diff->added_props[i].name, sql_type);
+    up_offset += C_ORM_SPRINTF(up_buf + up_offset, sizeof(up_buf) - up_offset,
+                               "ALTER TABLE %s ADD COLUMN %s %s;\n", table_name,
+                               diff->added_props[i].name, sql_type);
     /* Generate DOWN SQL equivalent */
     if (dialect == C_TO_SQL_DIALECT_SQLITE) {
       down_offset +=
-          C_ORM_SPRINTF(down_buf + down_offset, sizeof(down_buf) - down_offset, "ALTER TABLE %s DROP COLUMN %s;\n",
-                  table_name, diff->added_props[i].name);
+          C_ORM_SPRINTF(down_buf + down_offset, sizeof(down_buf) - down_offset,
+                        "ALTER TABLE %s DROP COLUMN %s;\n", table_name,
+                        diff->added_props[i].name);
     } else {
       down_offset +=
-          C_ORM_SPRINTF(down_buf + down_offset, sizeof(down_buf) - down_offset, "ALTER TABLE %s DROP COLUMN %s;\n",
-                  table_name, diff->added_props[i].name);
+          C_ORM_SPRINTF(down_buf + down_offset, sizeof(down_buf) - down_offset,
+                        "ALTER TABLE %s DROP COLUMN %s;\n", table_name,
+                        diff->added_props[i].name);
     }
   }
 
   for (i = 0; i < diff->num_dropped; i++) {
     const char *sql_type = NULL;
     map_c_type_to_sql(diff->dropped_props[i].type, dialect, &sql_type);
-    up_offset += C_ORM_SPRINTF(up_buf + up_offset, sizeof(up_buf) - up_offset, "ALTER TABLE %s DROP COLUMN %s;\n",
-                         table_name, diff->dropped_props[i].name);
+    up_offset += C_ORM_SPRINTF(up_buf + up_offset, sizeof(up_buf) - up_offset,
+                               "ALTER TABLE %s DROP COLUMN %s;\n", table_name,
+                               diff->dropped_props[i].name);
     /* Generate DOWN SQL equivalent */
     down_offset +=
-        C_ORM_SPRINTF(down_buf + down_offset, sizeof(down_buf) - down_offset, "ALTER TABLE %s ADD COLUMN %s %s;\n",
-                table_name, diff->dropped_props[i].name, sql_type);
+        C_ORM_SPRINTF(down_buf + down_offset, sizeof(down_buf) - down_offset,
+                      "ALTER TABLE %s ADD COLUMN %s %s;\n", table_name,
+                      diff->dropped_props[i].name, sql_type);
   }
 
   /* Handling altered props in SQLite usually requires table rebuilds,
@@ -276,16 +285,17 @@ C_ORM_EXPORT int cdd_c_meta_diff_to_sql(const char *table_name,
     const char *sql_type = NULL;
     map_c_type_to_sql(diff->altered_props[i].type, dialect, &sql_type);
     up_offset +=
-        C_ORM_SPRINTF(up_buf + up_offset, sizeof(up_buf) - up_offset, "ALTER TABLE %s ALTER COLUMN %s TYPE %s;\n",
-                table_name, diff->altered_props[i].name, sql_type);
-    down_offset +=
-        C_ORM_SPRINTF(down_buf + down_offset, sizeof(down_buf) - down_offset,
-                "-- Revert of ALTER COLUMN %s not automatically handled\n",
-                diff->altered_props[i].name);
+        C_ORM_SPRINTF(up_buf + up_offset, sizeof(up_buf) - up_offset,
+                      "ALTER TABLE %s ALTER COLUMN %s TYPE %s;\n", table_name,
+                      diff->altered_props[i].name, sql_type);
+    down_offset += C_ORM_SPRINTF(
+        down_buf + down_offset, sizeof(down_buf) - down_offset,
+        "-- Revert of ALTER COLUMN %s not automatically handled\n",
+        diff->altered_props[i].name);
   }
 
-  *up_sql = strdup(up_buf);
-  *down_sql = strdup(down_buf);
+  *up_sql = C_ORM_STRDUP(up_buf);
+  *down_sql = C_ORM_STRDUP(down_buf);
 
   return 0;
 }
@@ -312,7 +322,8 @@ C_ORM_EXPORT int cdd_c_get_schema_inspection_query(c_to_sql_dialect_t dialect,
   if (dialect == C_TO_SQL_DIALECT_SQLITE) {
     C_ORM_SPRINTF(buf, sizeof(buf), "PRAGMA table_info(%s);", table_name);
   } else if (dialect == C_TO_SQL_DIALECT_POSTGRESQL) {
-    C_ORM_SPRINTF(buf, sizeof(buf),
+    C_ORM_SPRINTF(
+        buf, sizeof(buf),
         "SELECT column_name, data_type, character_maximum_length, is_nullable "
         "FROM information_schema.columns WHERE table_name = '%s';",
         table_name);
@@ -321,7 +332,7 @@ C_ORM_EXPORT int cdd_c_get_schema_inspection_query(c_to_sql_dialect_t dialect,
   } else {
     return 1;
   }
-  *out_query = strdup(buf);
+  *out_query = C_ORM_STRDUP(buf);
   return 0;
 }
 
@@ -332,9 +343,10 @@ C_ORM_EXPORT int cdd_c_emit_create_index(const char *table_name,
   char buf[512];
   if (!table_name || !index_name || !column_name || !out_sql)
     return 1;
-  C_ORM_SPRINTF(buf, sizeof(buf), "CREATE %sINDEX %s ON %s (%s);", is_unique ? "UNIQUE " : "",
-          index_name, table_name, column_name);
-  *out_sql = strdup(buf);
+  C_ORM_SPRINTF(buf, sizeof(buf), "CREATE %sINDEX %s ON %s (%s);",
+                is_unique ? "UNIQUE " : "", index_name, table_name,
+                column_name);
+  *out_sql = C_ORM_STRDUP(buf);
   return 0;
 }
 
@@ -343,7 +355,7 @@ C_ORM_EXPORT int cdd_c_emit_drop_index(const char *index_name, char **out_sql) {
   if (!index_name || !out_sql)
     return 1;
   C_ORM_SPRINTF(buf, sizeof(buf), "DROP INDEX %s;", index_name);
-  *out_sql = strdup(buf);
+  *out_sql = C_ORM_STRDUP(buf);
   return 0;
 }
 
@@ -370,7 +382,8 @@ C_ORM_EXPORT int cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas,
       size_t len = strlen(schemas[i]->props[j].name);
       if (len > 3 && strcmp(schemas[i]->props[j].name + len - 3, "_id") == 0) {
         char target[64];
-        strncpy(target, schemas[i]->props[j].name, len - 3);
+        C_ORM_STRNCPY(target, sizeof(target), schemas[i]->props[j].name,
+                      len - 3);
         target[len - 3] = '\0';
         for (k = 0; k < num_schemas; k++) {
           if (strcmp(schemas[k]->name, target) == 0) {
@@ -400,7 +413,8 @@ C_ORM_EXPORT int cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas,
           if (len > 3 &&
               strcmp(schemas[i]->props[j].name + len - 3, "_id") == 0) {
             char target[64];
-            strncpy(target, schemas[i]->props[j].name, len - 3);
+            C_ORM_STRNCPY(target, sizeof(target), schemas[i]->props[j].name,
+                          len - 3);
             target[len - 3] = '\0';
             if (strcmp(schemas[curr]->name, target) == 0) {
               in_degree[i]--;
@@ -424,5 +438,3 @@ C_ORM_EXPORT int cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas,
 
   return 0;
 }
-
-

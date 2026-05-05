@@ -143,4 +143,3 @@ C_ORM_EXPORT void c_orm_arena_free(c_orm_arena_t *arena) {
   C_ORM_FREE(arena);
   LOG_DEBUG("c_orm_arena_free: exit");
 }
-

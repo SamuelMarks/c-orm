@@ -160,4 +160,3 @@ C_ORM_EXPORT int cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas,
 #endif
 
 #endif /* C_CDD_CODEGEN_C_TO_SQL_H */
-

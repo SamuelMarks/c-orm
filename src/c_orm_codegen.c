@@ -4,6 +4,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_codegen.h"
 #include "c_orm_log.h"
 #include "c_orm_sql.h"
@@ -96,8 +97,8 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
   sprintf_s(h_path, strlen(output_dir) + 32, "%s/Models.h", output_dir);
   sprintf_s(c_path, strlen(output_dir) + 32, "%s/Models.c", output_dir);
 #else
-  sprintf(h_path, "%s/Models.h", output_dir);
-  sprintf(c_path, "%s/Models.c", output_dir);
+  C_ORM_SPRINTF(h_path, sizeof(h_path), "%s/Models.h", output_dir);
+  C_ORM_SPRINTF(c_path, sizeof(c_path), "%s/Models.c", output_dir);
 #endif
 
 #if defined(_MSC_VER)
@@ -172,4 +173,3 @@ cleanup:
   LOG_DEBUG("c_orm_codegen_generate: exit");
   return (c_orm_error_t)rc;
 }
-
