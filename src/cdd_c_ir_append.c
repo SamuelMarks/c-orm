@@ -1,5 +1,8 @@
 /* To be appended to src/classes/parse/cdd_c_ir.c */
 
+/* clang-format off */
+/* clang-format on */
+
 int parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
   struct sql_token_list_t *list = NULL;
   struct sql_table_t *table = NULL;

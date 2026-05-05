@@ -18,10 +18,12 @@ extern "C" {
 #if defined(_MSC_VER)
 #define C_ORM_SPRINTF(buf, size, ...) sprintf_s(buf, size, __VA_ARGS__)
 #define C_ORM_STRCPY(dest, size, src) strcpy_s(dest, size, src)
+#define C_ORM_STRNCPY(dest, size, src, count) strncpy_s(dest, size, src, count)
 #define C_ORM_STRCAT(dest, size, src) strcat_s(dest, size, src)
 #else
 #define C_ORM_SPRINTF(buf, size, ...) sprintf(buf, __VA_ARGS__)
 #define C_ORM_STRCPY(dest, size, src) strcpy(dest, src)
+#define C_ORM_STRNCPY(dest, size, src, count) strncpy(dest, src, count)
 #define C_ORM_STRCAT(dest, size, src) strcat(dest, src)
 #endif
 

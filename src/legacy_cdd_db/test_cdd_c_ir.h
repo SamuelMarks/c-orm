@@ -84,13 +84,14 @@ TEST test_cdd_c_ir_projection(void) {
 TEST test_cdd_c_ir_alloc(void) {
   /* We hit the allocations by growing n_tables and n_projections */
   cdd_c_ir_t ir;
-  cdd_c_ir_init(&ir);
-
   struct sql_table_t tbl = {0};
   cdd_c_query_projection_t proj;
+  int i;
+
+  cdd_c_ir_init(&ir);
   cdd_c_query_projection_init(&proj);
 
-  for (int i = 0; i < 6; i++) {
+  for (i = 0; i < 6; i++) {
     cdd_c_ir_add_table(&ir, &tbl);
     cdd_c_ir_add_projection(&ir, &proj);
   }
