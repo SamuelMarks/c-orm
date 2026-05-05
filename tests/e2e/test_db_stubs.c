@@ -310,3 +310,4 @@ SUITE(db_stubs_suite) {
   RUN_TEST(test_codegen_coverage);
   RUN_TEST(test_modality_coverage);
 }
+

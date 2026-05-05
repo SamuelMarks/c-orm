@@ -12,7 +12,7 @@ extern "C" {
 
 /* clang-format off */
 #include "abstract_struct.h"
-#include "sql.h"
+#include "c_orm_sql.h"
 #include "cdd_c_orm_meta.h"
 #include "../../../include/cdd_c_backend_interface.h"
 #include <greatest.h>
@@ -609,3 +609,4 @@ SUITE(abstract_struct_suite) {
 #endif /* __cplusplus */
 
 #endif /* C_CDD_TEST_ABSTRACT_STRUCT_H */
+

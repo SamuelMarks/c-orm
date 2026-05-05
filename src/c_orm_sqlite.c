@@ -1224,3 +1224,4 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle) {
 #if defined(_MSC_VER)
 #pragma warning(pop)
 #endif
+

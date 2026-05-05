@@ -297,3 +297,4 @@ SUITE(cli_suite) {
   RUN_TEST(test_cli_log);
   RUN_TEST(test_cli_unknown);
 }
+

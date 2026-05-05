@@ -383,3 +383,4 @@ C_ORM_EXPORT int cdd_c_abstract_to_specific(
 #endif /* __cplusplus */
 
 #endif /* C_CDD_CLASSES_PARSE_ABSTRACT_STRUCT_H */
+

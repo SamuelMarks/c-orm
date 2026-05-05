@@ -135,3 +135,4 @@ extern "C" {
 #endif /* __cplusplus */
 
 #endif /* C_ORM_INLINE_MACROS_H */
+

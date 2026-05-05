@@ -11,7 +11,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include "c_to_sql.h"
+#include "c_orm_c_to_sql.h"
 #include <string.h>
 #include <stdlib.h>
 /* clang-format on */
@@ -223,3 +223,4 @@ SUITE(test_c_to_sql_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_C_TO_SQL_H */
+

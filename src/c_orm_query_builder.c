@@ -851,3 +851,4 @@ C_ORM_EXPORT int c_orm_update_builder_compile(c_orm_update_builder_t *builder,
   rc = *out_sql ? 0 : 1;
   return rc;
 }
+

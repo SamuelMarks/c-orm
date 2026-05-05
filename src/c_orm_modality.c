@@ -31,3 +31,4 @@ C_ORM_EXPORT c_orm_error_t c_orm_set_modality(c_orm_db_t *db,
   LOG_DEBUG("c_orm_set_modality: exit");
   return (c_orm_error_t)rc;
 }
+

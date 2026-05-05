@@ -743,3 +743,4 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_unlock(c_orm_db_t *db) {
   rc = err;
   return (c_orm_error_t)rc;
 }
+

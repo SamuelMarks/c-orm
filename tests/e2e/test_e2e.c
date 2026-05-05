@@ -11,7 +11,7 @@
 #include "c_orm_query_builder.h"
 #include "c_orm_sqlite.h"
 #include "c_orm_uuid.h"
-#include "sql.h"
+#include "c_orm_sql.h"
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -1162,3 +1162,4 @@ int main(int argc, char **argv) {
   RUN_SUITE(string_builder_suite);
   GREATEST_MAIN_END();
 }
+

@@ -6,8 +6,8 @@
 /* clang-format off */
 #include "c_orm_codegen.h"
 #include "c_orm_log.h"
-#include "sql.h"
-#include "sql_to_c.h"
+#include "c_orm_sql.h"
+#include "c_orm_sql_to_c.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -172,3 +172,4 @@ cleanup:
   LOG_DEBUG("c_orm_codegen_generate: exit");
   return (c_orm_error_t)rc;
 }
+

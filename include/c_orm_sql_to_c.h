@@ -12,7 +12,7 @@ extern "C" {
 
 /* clang-format off */
 #include "c_orm_db.h"
-#include "sql.h"
+#include "c_orm_sql.h"
 #include "cdd_c_orm_meta.h"
 #include "query_projection.h"
 #include "abstract_struct.h"
@@ -136,3 +136,4 @@ C_ORM_EXPORT int sql_to_c_projection_polymorphic_struct_emit(
 #endif /* __cplusplus */
 
 #endif /* C_CDD_SQL_TO_C_H */
+

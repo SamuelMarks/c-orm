@@ -1319,3 +1319,4 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 #endif /* __cplusplus */
 
 #endif /* C_ORM_API_H */
+

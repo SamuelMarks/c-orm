@@ -254,3 +254,4 @@ C_ORM_EXPORT int sql_parse_returning(const struct sql_token_list_t *list,
 #endif /* __cplusplus */
 
 #endif /* C_CDD_SQL_PARSER_H */
+

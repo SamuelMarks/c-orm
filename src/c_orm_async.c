@@ -84,3 +84,4 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(
   LOG_DEBUG("c_orm_find_all_async: exit");
   return rc;
 }
+

@@ -4,7 +4,7 @@
  */
 
 /* clang-format off */
-#include "sql.h"
+#include "c_orm_sql.h"
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -707,3 +707,4 @@ int sql_parse_returning(const struct sql_token_list_t *list,
   }
   return 1;
 }
+

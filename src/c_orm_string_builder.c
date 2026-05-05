@@ -185,3 +185,4 @@ C_ORM_EXPORT int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
   LOG_DEBUG("c_orm_string_builder_len: exit");
   return rc;
 }
+

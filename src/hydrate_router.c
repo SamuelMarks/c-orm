@@ -130,3 +130,4 @@ int cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router) {
   router->capacity = 0;
   return 0;
 }
+

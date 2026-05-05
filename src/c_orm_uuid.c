@@ -66,3 +66,4 @@ C_ORM_EXPORT c_orm_error_t c_orm_uuid_v4(char out_uuid[37]) {
   rc = C_ORM_OK;
   return (c_orm_error_t)rc;
 }
+

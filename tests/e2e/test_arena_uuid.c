@@ -95,3 +95,4 @@ SUITE(arena_uuid_suite) {
   RUN_TEST(test_arena_coverage);
   RUN_TEST(test_uuid_coverage);
 }
+

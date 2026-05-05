@@ -1269,3 +1269,4 @@ c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
   LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: exiting");
   return err;
 }
+

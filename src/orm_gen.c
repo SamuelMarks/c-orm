@@ -686,3 +686,4 @@ int openapi_orm_generate(const struct OpenAPI_Spec *spec,
 
   return 0;
 }
+

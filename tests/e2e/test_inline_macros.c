@@ -224,3 +224,4 @@ SUITE(inline_macros_suite) {
   RUN_TEST(test_inline_macros_crud);
   RUN_TEST(test_spatial_crud);
 }
+

@@ -32,3 +32,4 @@ extern "C" {
 #endif /* __cplusplus */
 
 #endif /* C_ORM_SAFE_CRT_H */
+

@@ -4,7 +4,7 @@
  */
 
 /* clang-format off */
-#include "sql_to_c.h"
+#include "c_orm_sql_to_c.h"
 #include <errno.h>
 
 #include <ctype.h>
@@ -1413,3 +1413,4 @@ int sql_to_c_projection_polymorphic_struct_emit(
 
   return 0;
 }
+

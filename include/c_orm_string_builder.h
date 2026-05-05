@@ -68,3 +68,4 @@ C_ORM_EXPORT int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_STRING_BUILDER_H */
+

@@ -130,3 +130,4 @@ TEST test_c_orm_string_builder(void) {
 }
 
 SUITE(string_builder_suite) { RUN_TEST(test_c_orm_string_builder); }
+

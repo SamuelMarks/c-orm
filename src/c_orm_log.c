@@ -24,3 +24,4 @@ C_ORM_EXPORT void c_orm_log_debug(const char *fmt, ...) {
   fprintf(stderr, "\n");
   va_end(args);
 }
+

@@ -13,7 +13,7 @@ extern "C" {
 /* clang-format off */
 #include <stdio.h>
 #include "c_orm_db.h"
-#include "struct.h"
+#include "classes/emit/struct.h"
 #include "cdd_c_orm_meta.h"
 /* clang-format on */
 
@@ -160,3 +160,4 @@ C_ORM_EXPORT int cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas,
 #endif
 
 #endif /* C_CDD_CODEGEN_C_TO_SQL_H */
+

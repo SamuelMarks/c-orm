@@ -1429,3 +1429,4 @@ C_ORM_EXPORT void c_orm_query_free(c_orm_query_t *query) {
   }
   LOG_DEBUG("c_orm_query_free: exit");
 }
+

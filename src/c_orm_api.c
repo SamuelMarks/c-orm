@@ -9,7 +9,7 @@
 #include "c_orm_ast.h"
 #include "c_orm_query_builder.h"
 #include "c_orm_uuid.h"
-#include "sql.h"
+#include "c_orm_sql.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7421,3 +7421,4 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     return (c_orm_error_t)rc;
   }
 }
+

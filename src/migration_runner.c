@@ -1024,3 +1024,4 @@ int seed_database(const char *seed_filepath) {
   return ENOSYS;
 }
 #endif /* !defined(USE_LIBPQ_LINKED) && !defined(USE_LIBPQ_DYNAMIC) */
+

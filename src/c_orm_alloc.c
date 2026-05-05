@@ -39,3 +39,4 @@ C_ORM_EXPORT char *c_orm_strdup(const char *s) {
   }
   return dup;
 }
+

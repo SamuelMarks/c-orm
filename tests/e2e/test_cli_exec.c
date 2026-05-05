@@ -107,3 +107,4 @@ SUITE(cli_exec_suite) {
   RUN_TEST(test_cli_status);
   RUN_TEST(test_cli_unknown);
 }
+

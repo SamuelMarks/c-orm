@@ -15,7 +15,7 @@ extern "C" {
 /* clang-format off */
 #include <stddef.h>
 #include "c_orm_db.h"
-#include "sql.h"
+#include "c_orm_sql.h"
 #include "query_projection.h"
 /* clang-format on */
 
@@ -84,3 +84,4 @@ extern C_ORM_EXPORT /**
 #endif /* __cplusplus */
 
 #endif /* C_CDD_CLASSES_PARSE_CDD_C_IR_H */
+

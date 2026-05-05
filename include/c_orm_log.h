@@ -37,3 +37,4 @@ C_ORM_EXPORT void c_orm_log_debug(const char *fmt, ...);
 #endif /* __cplusplus */
 
 #endif /* C_ORM_LOG_H */
+

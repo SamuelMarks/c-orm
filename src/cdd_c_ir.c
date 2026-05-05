@@ -210,3 +210,4 @@ int parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
   sql_token_list_free(list);
   return 0;
 }
+

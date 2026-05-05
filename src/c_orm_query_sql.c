@@ -728,3 +728,4 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
   LOG_DEBUG("c_orm_query_fetch_all: exit");
   return err;
 }
+

@@ -136,3 +136,4 @@ SUITE(ast_suite) {
   RUN_TEST(test_c_orm_ast_to_sql);
   RUN_TEST(test_c_orm_ast_to_sql_postgres);
 }
+

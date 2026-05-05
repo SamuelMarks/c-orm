@@ -33,7 +33,7 @@ endif()
 
 # Strict warnings
 if(MSVC)
-    set(C_ORM_STRICT_OPTIONS /W4 /sdl)
+    set(C_ORM_STRICT_OPTIONS /W4 /sdl /showIncludes)
 elseif(CMAKE_C_COMPILER_ID MATCHES "Watcom")
     set(C_ORM_STRICT_OPTIONS -w4)
 else()
@@ -177,8 +177,9 @@ add_library(c-orm
       src/migration_runner.c
       src/orm_gen.c
       src/query_projection.c
-      src/sql.c
-      src/sql_to_c.c
+      src/c_orm_c_to_sql.c
+      src/c_orm_sql.c
+      src/c_orm_sql_to_c.c
 
 )
 set_target_properties(c-orm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -371,6 +372,8 @@ set(CPACK_GENERATOR "DEB;RPM")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14)")
 set(CPACK_RPM_PACKAGE_REQUIRES "glibc >= 2.14")
 include(CPack)
+
+
 
 
 

@@ -12,7 +12,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <parson.h>
-#include "sql.h"
+#include "c_orm_sql.h"
 #include "cdd_c_orm_meta.h"
 #if defined(USE_SQLITE_LINKED)
 #include <sqlite3.h>
@@ -1106,3 +1106,4 @@ cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
   return EINVAL;
 #endif
 }
+

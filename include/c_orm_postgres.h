@@ -93,3 +93,4 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd);
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_POSTGRES_H */
+

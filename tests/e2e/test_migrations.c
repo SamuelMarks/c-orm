@@ -2,7 +2,7 @@
 #include "c_orm_api.h"
 #include "c_orm_migrations.h"
 #include "c_orm_sqlite.h"
-#include "sql_to_c.h"
+#include "c_orm_sql_to_c.h"
 #include "greatest.h"
 #include <stdlib.h>
 #include <string.h>
@@ -452,3 +452,4 @@ SUITE(migrations_suite) {
   c_orm_malloc = old_malloc;
   c_orm_free = old_free;
 }
+

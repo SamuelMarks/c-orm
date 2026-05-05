@@ -38,3 +38,4 @@ C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
 #endif /* __cplusplus */
 
 #endif /* C_ORM_MYSQL_H */
+
