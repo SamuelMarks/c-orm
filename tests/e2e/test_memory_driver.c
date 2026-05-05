@@ -190,14 +190,14 @@ TEST test_memory_edge_cases(void) {
     } c_orm_memory_db_t;
 
     c_orm_memory_db_t *ctx = (c_orm_memory_db_t *)db->driver_data;
-    mem_table_t *t = (mem_table_t *)malloc(sizeof(mem_table_t));
-    mem_row_t *r = (mem_row_t *)malloc(sizeof(mem_row_t));
+    mem_table_t *t = (mem_table_t *)C_ORM_MALLOC(sizeof(mem_table_t));
+    mem_row_t *r = (mem_row_t *)C_ORM_MALLOC(sizeof(mem_row_t));
 
     t->name = C_ORM_STRDUP("mock_table");
     t->next = NULL;
     t->head = r;
 
-    r->columns = (void **)malloc(sizeof(void *));
+    r->columns = (void **)C_ORM_MALLOC(sizeof(void *));
     r->num_cols = 1;
     r->next = NULL;
 
