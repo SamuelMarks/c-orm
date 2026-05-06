@@ -1031,13 +1031,8 @@ c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
         *p++ = ' ';
       }
       first = 0;
-#if defined(_MSC_VER)
-      w = sprintf_s(p, 4096 - (p - columns), "%s.%s", meta->name,
-                    meta->columns[col_i].name);
-#else
       w = C_ORM_SPRINTF(p, 4096 - (p - columns), "%s.%s", meta->name,
                         meta->columns[col_i].name);
-#endif
       p += w;
     }
 

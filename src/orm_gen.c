@@ -219,24 +219,13 @@ int openapi_orm_generate(const struct OpenAPI_Spec *spec,
     size_t header_len = strlen(config->model_header);
     model_h = malloc(header_len + 1);
     if (model_h) {
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
-    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-      strcpy_s(model_h, header_len + 1, config->model_header);
-#else
-      C_ORM_STRCPY(model_h, sizeof(model_h), config->model_header);
-#endif
+      C_ORM_STRCPY(model_h, header_len + 1, config->model_header);
     }
   } else {
     size_t len = strlen(config->filename_base) + 10;
     model_h = malloc(len + 1);
     if (model_h) {
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
-    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-      sprintf_s(model_h, len + 1, "%s_models.h", config->filename_base);
-#else
-      C_ORM_SPRINTF(model_h, sizeof(model_h), "%s_models.h",
-                    config->filename_base);
-#endif
+      C_ORM_SPRINTF(model_h, len + 1, "%s_models.h", config->filename_base);
     }
   }
 

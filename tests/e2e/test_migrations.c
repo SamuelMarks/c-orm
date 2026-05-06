@@ -116,22 +116,12 @@ TEST test_migrate_all_dry_run(void) {
   opts.log_cb = test_log_cb;
 
   memset(&migs, 0, sizeof(migs));
-#if defined(_MSC_VER)
-  strcpy_s(migs[0].version, sizeof(migs[0].version), "20260330010000");
-  strcpy_s(migs[0].name, sizeof(migs[0].name), "create_users");
-#else
-  C_ORM_STRCPY(migs[0].version, 256, "20260330010000");
-  C_ORM_STRCPY(migs[0].name, 256, "create_users");
-#endif
+C_ORM_STRCPY(migs[0].version, sizeof(migs[0].version), "20260330010000");
+  C_ORM_STRCPY(migs[0].name, sizeof(migs[0].name), "create_users");
   migs[0].up_sql = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);";
 
-#if defined(_MSC_VER)
-  strcpy_s(migs[1].version, sizeof(migs[1].version), "20260330010001");
-  strcpy_s(migs[1].name, sizeof(migs[1].name), "create_posts");
-#else
-  C_ORM_STRCPY(migs[1].version, 256, "20260330010001");
-  C_ORM_STRCPY(migs[1].name, 256, "create_posts");
-#endif
+C_ORM_STRCPY(migs[1].version, sizeof(migs[1].version), "20260330010001");
+  C_ORM_STRCPY(migs[1].name, sizeof(migs[1].name), "create_posts");
   migs[1].up_sql = "CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT);";
 
   err = c_orm_sqlite_connect(":memory:", &db);
@@ -158,13 +148,8 @@ TEST test_migrate_all_execute(void) {
   opts.dry_run = 0;
 
   memset(&migs, 0, sizeof(migs));
-#if defined(_MSC_VER)
-  strcpy_s(migs[0].version, sizeof(migs[0].version), "20260330010000");
-  strcpy_s(migs[0].name, sizeof(migs[0].name), "create_items");
-#else
-  C_ORM_STRCPY(migs[0].version, 256, "20260330010000");
-  C_ORM_STRCPY(migs[0].name, 256, "create_items");
-#endif
+C_ORM_STRCPY(migs[0].version, sizeof(migs[0].version), "20260330010000");
+  C_ORM_STRCPY(migs[0].name, sizeof(migs[0].name), "create_items");
   migs[0].up_sql = "CREATE TABLE items (id INTEGER PRIMARY KEY);";
 
   err = c_orm_sqlite_connect(":memory:", &db);
@@ -267,17 +252,10 @@ TEST test_migrations_oom(void) {
   opts.post_migrate = my_post_migrate;
 
   memset(m_fail, 0, sizeof(m_fail));
-#if defined(_MSC_VER)
-  strcpy_s(m_fail[0].version, sizeof(m_fail[0].version), "1");
-  strcpy_s(m_fail[0].name, sizeof(m_fail[0].name), "fail_pre");
-  strcpy_s(m_fail[1].version, sizeof(m_fail[1].version), "2");
-  strcpy_s(m_fail[1].name, sizeof(m_fail[1].name), "fail_post");
-#else
-  C_ORM_STRCPY(m_fail[0].version, 256, "1");
-  C_ORM_STRCPY(m_fail[0].name, 256, "fail_pre");
-  C_ORM_STRCPY(m_fail[1].version, 256, "2");
-  C_ORM_STRCPY(m_fail[1].name, 256, "fail_post");
-#endif
+C_ORM_STRCPY(m_fail[0].version, sizeof(m_fail[0].version), "1");
+  C_ORM_STRCPY(m_fail[0].name, sizeof(m_fail[0].name), "fail_pre");
+  C_ORM_STRCPY(m_fail[1].version, sizeof(m_fail[1].version), "2");
+  C_ORM_STRCPY(m_fail[1].name, sizeof(m_fail[1].name), "fail_post");
   m_fail[0].up_sql = "SELECT 1;";
   m_fail[1].up_sql = "SELECT 1;";
 
@@ -285,13 +263,8 @@ TEST test_migrations_oom(void) {
   c_orm_migrate_all(db, &m_fail[1], 1, &opts);
 
   memset(&m_good, 0, sizeof(m_good));
-#if defined(_MSC_VER)
-  strcpy_s(m_good.version, sizeof(m_good.version), "3");
-  strcpy_s(m_good.name, sizeof(m_good.name), "good");
-#else
-  C_ORM_STRCPY(m_good.version, 256, "3");
-  C_ORM_STRCPY(m_good.name, 256, "good");
-#endif
+C_ORM_STRCPY(m_good.version, sizeof(m_good.version), "3");
+  C_ORM_STRCPY(m_good.name, sizeof(m_good.name), "good");
   m_good.up_sql = "CREATE TABLE dummy (id INT); /* UP */";
   m_good.down_sql = "DROP TABLE dummy; /* DOWN */";
 

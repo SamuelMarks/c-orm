@@ -11,6 +11,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_c_to_sql.h"
 #include <string.h>
 #include <stdlib.h>
@@ -25,16 +26,16 @@ TEST test_write_struct_to_sql_create_table(void) {
 
   memset(buf, 0, sizeof(buf));
   memset(fields, 0, sizeof(fields));
-  strcpy(fields[0].name, "id");
-  strcpy(fields[0].type, "integer");
+  C_ORM_STRCPY(fields[0].name, sizeof(fields[0].name), "id");
+  C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "integer");
   fields[0].required = 1;
 
-  strcpy(fields[1].name, "username");
-  strcpy(fields[1].type, "string");
-  strcpy(fields[1].description, "@unique @notnull");
+  C_ORM_STRCPY(fields[1].name, sizeof(fields[1].name), "username");
+  C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "string");
+  C_ORM_STRCPY(fields[1].description, sizeof(fields[1].description), "@unique @notnull");
 
-  strcpy(fields[2].name, "company_id");
-  strcpy(fields[2].type, "integer");
+  C_ORM_STRCPY(fields[2].name, sizeof(fields[2].name), "company_id");
+  C_ORM_STRCPY(fields[2].type, sizeof(fields[2].type), "integer");
 
   sf.size = 3;
   sf.fields = fields;

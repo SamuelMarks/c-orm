@@ -11,6 +11,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "abstract_struct.h"
 #include "c_orm_sql.h"
 #include "cdd_c_orm_meta.h"
@@ -33,7 +34,7 @@ TEST test_variant_type_safety(void) {
 
   v2.type = CDD_C_VARIANT_TYPE_STRING;
   v2.value.s_val = (char *)malloc(5);
-  strcpy(v2.value.s_val, "test");
+  C_ORM_STRCPY(v2.value.s_val, sizeof(v2.value.s_val), "test");
 
   ASSERT_EQ(CDD_C_VARIANT_TYPE_INT, v1.type);
   ASSERT_EQ(42, v1.value.i_val);
@@ -214,7 +215,7 @@ TEST test_abstract_struct_conversion(void) {
   /* Specific to Abstract */
   specific_in.id = 20;
   specific_in.ratio = 11.1;
-  strcpy(specific_in.greeting, "Goodbye");
+  C_ORM_STRCPY(specific_in.greeting, sizeof(specific_in.greeting), "Goodbye");
 
   ASSERT_EQ(0, cdd_c_specific_to_abstract(&astruct_out, &specific_in, &meta));
   ASSERT_EQ(3, astruct_out.count);

@@ -10,6 +10,7 @@
 #include "Models.h"
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
+#include "c_orm_ast.h"
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
