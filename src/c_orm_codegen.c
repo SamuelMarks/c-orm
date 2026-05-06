@@ -92,14 +92,8 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     goto cleanup;
   }
 
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
-    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-  sprintf_s(h_path, strlen(output_dir) + 32, "%s/Models.h", output_dir);
-  sprintf_s(c_path, strlen(output_dir) + 32, "%s/Models.c", output_dir);
-#else
-  C_ORM_SPRINTF(h_path, sizeof(h_path), "%s/Models.h", output_dir);
-  C_ORM_SPRINTF(c_path, sizeof(c_path), "%s/Models.c", output_dir);
-#endif
+  C_ORM_SPRINTF(h_path, strlen(output_dir) + 32, "%s/Models.h", output_dir);
+  C_ORM_SPRINTF(c_path, strlen(output_dir) + 32, "%s/Models.c", output_dir);
 
 #if defined(_MSC_VER)
   fopen_s(&fp, h_path, "wb");
