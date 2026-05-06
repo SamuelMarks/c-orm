@@ -13,5 +13,11 @@
       "platform": "!windows"
     },
     "parson"
+  ],
+  "overrides": [
+    {
+      "name": "parson",
+      "version-date": "2023-10-31"
+    }
   ]
 }
