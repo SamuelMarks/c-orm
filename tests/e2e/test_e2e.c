@@ -691,8 +691,13 @@ TEST test_e2e_bulk_processing(void) {
   for (i = 2000; i < 12000; i++) {
     char username[32];
     char email[64];
+#if defined(_MSC_VER)
+    sprintf_s(username, sizeof(username), "bulk_%u", (unsigned int)i);
+    sprintf_s(email, sizeof(email), "bulk_%u@example.com", (unsigned int)i);
+#else
     C_ORM_SPRINTF(username, sizeof(username), "bulk_%u", (unsigned int)i);
     C_ORM_SPRINTF(email, sizeof(email), "bulk_%u@example.com", (unsigned int)i);
+#endif
     user.id = (int32_t)i;
     user.username = username;
     user.email = email;

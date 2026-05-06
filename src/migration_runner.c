@@ -749,8 +749,14 @@ int create_migration_file(const char *migrations_dir, const char *name) {
     return ENOMEM;
   }
 
-  C_ORM_SPRINTF(filepath, filepath_len, "%s%c%s_%s.sql", migrations_dir, PATH_SEP_C,
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
+    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
+  sprintf_s(filepath, filepath_len, "%s%c%s_%s.sql", migrations_dir, PATH_SEP_C,
+            timestamp, safe_name);
+#else
+  C_ORM_SPRINTF(filepath, 1024, "%s%c%s_%s.sql", migrations_dir, PATH_SEP_C,
                 timestamp, safe_name);
+#endif
 
   template_str = "-- UP\n"
                  "-- Add up migration statements here\n\n"
@@ -838,7 +844,14 @@ int dump_schema(const char *out_filepath) {
     return ENOMEM;
   }
 
-  C_ORM_SPRINTF(cmd, cmd_len, "pg_dump -s -O -x \"%s\" > \"%s\"", db_url, out_filepath);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
+    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
+  sprintf_s(cmd, cmd_len, "pg_dump -s -O -x \"%s\" > \"%s\"", db_url,
+            out_filepath);
+#else
+  C_ORM_SPRINTF(cmd, 1024, "pg_dump -s -O -x \"%s\" > \"%s\"", db_url,
+                out_filepath);
+#endif
 
   rc = system(cmd);
   if (rc == 0) {
@@ -886,7 +899,12 @@ int setup_test_database(const char *db_name, const char *migrations_dir) {
     return ENOMEM;
   }
 
-  C_ORM_SPRINTF(create_db_query, query_len, "CREATE DATABASE \"%s\"", db_name);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
+    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
+  sprintf_s(create_db_query, query_len, "CREATE DATABASE \"%s\"", db_name);
+#else
+  C_ORM_SPRINTF(create_db_query, 512, "CREATE DATABASE \"%s\"", db_name);
+#endif
 
   res = PQexec(conn, create_db_query);
   if (PQresultStatus(res) != PGRES_COMMAND_OK) {
