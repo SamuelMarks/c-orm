@@ -749,8 +749,8 @@ int create_migration_file(const char *migrations_dir, const char *name) {
     return ENOMEM;
   }
 
-  C_ORM_SPRINTF(filepath, filepath_len, "%s%c%s_%s.sql", migrations_dir, PATH_SEP_C,
-                timestamp, safe_name);
+  C_ORM_SPRINTF(filepath, filepath_len, "%s%c%s_%s.sql", migrations_dir,
+                PATH_SEP_C, timestamp, safe_name);
 
   template_str = "-- UP\n"
                  "-- Add up migration statements here\n\n"

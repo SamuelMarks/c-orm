@@ -32,7 +32,8 @@ TEST test_write_struct_to_sql_create_table(void) {
 
   C_ORM_STRCPY(fields[1].name, sizeof(fields[1].name), "username");
   C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "string");
-  C_ORM_STRCPY(fields[1].description, sizeof(fields[1].description), "@unique @notnull");
+  C_ORM_STRCPY(fields[1].description, sizeof(fields[1].description),
+               "@unique @notnull");
 
   C_ORM_STRCPY(fields[2].name, sizeof(fields[2].name), "company_id");
   C_ORM_STRCPY(fields[2].type, sizeof(fields[2].type), "integer");

@@ -96,6 +96,17 @@ endif()
 
 if(TARGET c-abstract-http)
     # Target already populated natively
+elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http/CMakeLists.txt")
+    FetchContent_Declare(c-abstract-http SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http")
+    FetchContent_MakeAvailable(c-abstract-http)
+else()
+    if(CDD_DEPS STREQUAL "VCPKG")
+        find_package(c-abstract-http CONFIG QUIET)
+    endif()
+    if(NOT c-abstract-http_FOUND AND NOT TARGET c-abstract-http)
+        FetchContent_Declare(c-abstract-http GIT_REPOSITORY https://github.com/SamuelMarks/c-abstract-http.git GIT_TAG master UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master COMMAND git clean -fdx)
+        FetchContent_MakeAvailable(c-abstract-http)
+    endif()
 endif()
 
 if(TARGET parson)
