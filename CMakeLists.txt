@@ -147,6 +147,7 @@ else()
 endif()
 
 if(TARGET c_cdd AND NOT TARGET cdd-c)
+    FetchContent_GetProperties(cdd_c)
     if(cdd_c_SOURCE_DIR)
         set(BIN_CDD_PATH "${cdd_c_SOURCE_DIR}/src/bin_cdd.c")
     elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../cdd-c/src/bin_cdd.c")
