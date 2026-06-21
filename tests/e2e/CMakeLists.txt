@@ -56,6 +56,7 @@ add_executable(c_orm_e2e_tests
     test_memory_driver.c
     test_migrations.c
     test_oom_coverage.c
+    test_codegen_coverage.c
     test_query_builder_coverage.c
     test_query_coverage.c
     test_relations.c

@@ -56,7 +56,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
   fseek(fp, 0, SEEK_SET);
 
   if (sql_size > 0) {
-    sql_data = (char *)malloc((size_t)sql_size + 1);
+    sql_data = (char *)C_ORM_MALLOC((size_t)sql_size + 1);
     if (!sql_data) {
       LOG_DEBUG("c_orm_codegen_generate: OOM");
       fclose(fp);
@@ -65,7 +65,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     }
     if (fread(sql_data, 1, (size_t)sql_size, fp) != (size_t)sql_size) {
       LOG_DEBUG("c_orm_codegen_generate: fread failed");
-      free(sql_data);
+      C_ORM_FREE(sql_data);
       sql_data = NULL;
       fclose(fp);
       rc = C_ORM_ERROR_UNKNOWN;
@@ -78,14 +78,17 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 
   if (sql_data) {
     if (parse_sql_ddl(sql_data, &tables, &n_tables) != 0) {
+      printf("FAILED TO PARSE SQL\n");
+
       LOG_DEBUG("c_orm_codegen_generate: parse_sql_ddl failed");
       rc = C_ORM_ERROR_UNKNOWN;
       goto cleanup;
     }
   }
 
-  h_path = (char *)malloc(strlen(output_dir) + 32);
-  c_path = (char *)malloc(strlen(output_dir) + 32);
+  LOG_DEBUG("NUM TABLES GENERATED: %d\n", (int)n_tables);
+  h_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
+  c_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
   if (!h_path || !c_path) {
     LOG_DEBUG("c_orm_codegen_generate: OOM for paths");
     rc = C_ORM_ERROR_MEMORY;
@@ -136,32 +139,32 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 
 cleanup:
   if (sql_data) {
-    free(sql_data);
+    C_ORM_FREE(sql_data);
   }
   if (h_path) {
-    free(h_path);
+    C_ORM_FREE(h_path);
   }
   if (c_path) {
-    free(c_path);
+    C_ORM_FREE(c_path);
   }
   if (tables) {
     for (i = 0; i < n_tables; ++i) {
       for (j = 0; j < tables[i].n_columns; ++j) {
         if (tables[i].columns[j].name) {
-          free(tables[i].columns[j].name);
+          C_ORM_FREE(tables[i].columns[j].name);
         }
         if (tables[i].columns[j].constraints) {
-          free(tables[i].columns[j].constraints);
+          C_ORM_FREE(tables[i].columns[j].constraints);
         }
       }
       if (tables[i].columns) {
-        free(tables[i].columns);
+        C_ORM_FREE(tables[i].columns);
       }
       if (tables[i].name) {
-        free(tables[i].name);
+        C_ORM_FREE(tables[i].name);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
   }
 
   LOG_DEBUG("c_orm_codegen_generate: exit");

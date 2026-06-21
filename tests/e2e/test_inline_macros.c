@@ -131,10 +131,10 @@ TEST test_spatial_crud(void) {
     ASSERT_EQ_FMT(C_ORM_ERROR_SQL, err, "%d");
   }
 
-  memset(&fetched, 0,
-         sizeof(fetched)); /* leaks the old points intentionally in test to keep
-                              it simple, wait let's free it */
   free(fetched.polygon.points);
+  free(fetched.data.data);
+  free(fetched.ndval);
+  memset(&fetched, 0, sizeof(fetched));
   err = c_orm_find_by_id_int32(db, &SpatialModel_meta, 1, &fetched);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ_FMT(99.9, fetched.point.x, "%f");
@@ -147,6 +147,7 @@ TEST test_spatial_crud(void) {
   free(sm.ndval);
   free(fetched.ndval);
 
+  db->vtable->disconnect(db);
   PASS();
 }
 
@@ -217,6 +218,7 @@ TEST test_inline_macros_crud(void) {
   if (fetched.username)
     free(fetched.username);
 
+  db->vtable->disconnect(db);
   PASS();
 }
 

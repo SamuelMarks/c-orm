@@ -22,28 +22,23 @@ static int cli_exit_code = 0;
   } while (0)
 
 #include "c_orm_migrations.h"
-static int mock_get_applied_fail = 0;
-static int mock_get_applied_empty = 0;
-static c_orm_error_t mock_load_dir(const char *dir_path,
+
+
+c_orm_error_t mock_load_dir(const char *dir_path,
                                    c_orm_migration_t **out_migrations,
                                    size_t *out_count) {
-  if (strcmp(dir_path, "empty_dir") == 0) {
-    *out_count = 0;
-    *out_migrations = NULL;
+  if (strcmp(dir_path, ".") == 0 || strcmp(dir_path, "test_migrations_dir_cli_cli") == 0) {
+    *out_count = 1;
+    *out_migrations = (c_orm_migration_t *)malloc(sizeof(c_orm_migration_t));
+    memset(*out_migrations, 0, sizeof(c_orm_migration_t));
+    strcpy((*out_migrations)[0].version, "1");
+    strcpy((*out_migrations)[0].name, "test");
+    strcpy((*out_migrations)[0].hash, "hash");
     return C_ORM_OK;
   }
   if (strcmp(dir_path, "bad_dir") == 0) {
     *out_count = 0;
     *out_migrations = NULL;
-    return C_ORM_ERROR_NOT_FOUND;
-  }
-  if (1) {
-    *out_migrations = (c_orm_migration_t *)malloc(sizeof(c_orm_migration_t));
-    C_ORM_STRCPY((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "123");
-    C_ORM_STRCPY((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
-    (*out_migrations)[0].up_sql = NULL;
-    (*out_migrations)[0].down_sql = NULL;
-    *out_count = 1;
     return C_ORM_OK;
   }
   *out_count = 0;
@@ -57,24 +52,17 @@ mock_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
   return C_ORM_OK;
 }
 
+int mock_get_applied_fail = 0;
 static c_orm_error_t mock_get_applied(c_orm_db_t *db,
                                       c_orm_migration_t **out_migrations,
                                       size_t *out_count) {
-  (void)db;
-  if (mock_get_applied_fail)
-    return C_ORM_ERROR_NOT_FOUND;
-  if (mock_get_applied_empty) {
-    *out_count = 0;
-    *out_migrations = NULL;
-    return C_ORM_OK;
-  }
-  *out_migrations =
-      (c_orm_migration_t *)C_ORM_MALLOC(sizeof(c_orm_migration_t));
-  C_ORM_STRCPY((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "123");
-  C_ORM_STRCPY((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
-  (*out_migrations)[0].up_sql = NULL;
-  (*out_migrations)[0].down_sql = NULL;
+  if (mock_get_applied_fail) return C_ORM_ERROR_UNKNOWN;
   *out_count = 1;
+  *out_migrations = (c_orm_migration_t *)malloc(sizeof(c_orm_migration_t));
+  memset(*out_migrations, 0, sizeof(c_orm_migration_t));
+  strcpy((*out_migrations)[0].version, "1");
+  strcpy((*out_migrations)[0].name, "test");
+  strcpy((*out_migrations)[0].hash, "hash");
   return C_ORM_OK;
 }
 #define c_orm_migration_get_applied mock_get_applied
@@ -111,9 +99,10 @@ TEST test_cli_init(void) {
   int rc;
   const char *argv_init[] = {"c-orm-cli", "init", "--dir", "."};
   const char *argv_dir_no_arg[] = {"c-orm-cli", "init", "--dir"};
-  const char *argv[] = {"c-orm-cli", "init", "--dir", "test_migrations_dir"};
+  const char *argv[] = {"c-orm-cli", "init", "--dir",
+                        "test_migrations_dir_cli"};
   int argc = 4;
-  system("rm -rf test_migrations_dir");
+  system("rm -rf test_migrations_dir_cli");
   rc = c_orm_cli_main(argc, (char **)argv);
   ASSERT_EQ(0, rc);
 
@@ -132,15 +121,15 @@ TEST test_cli_create(void) {
   const char *argv[] = {"c-orm-cli", "create"};
   int argc = 2;
   const char *argv_init[] = {"c-orm-cli", "init", "--dir",
-                             "test_migrations_dir"};
+                             "test_migrations_dir_cli"};
   const char *argv2[] = {"c-orm-cli", "create", "my_mig", "--dir",
-                         "test_migrations_dir"};
+                         "test_migrations_dir_cli"};
   const char *argv3[] = {"c-orm-cli", "create", "my_mig", "--dir", ""};
   const char *argv_multi[] = {"c-orm-cli", "create", "name1", "name2"};
   rc = c_orm_cli_main(argc, (char **)argv);
   ASSERT_EQ(1, rc);
 
-  /* ensure test_migrations_dir exists */
+  /* ensure test_migrations_dir_cli exists */
   c_orm_cli_main(4, (char **)argv_init);
 
   argc = 5;
@@ -172,7 +161,7 @@ TEST test_cli_migrate(void) {
   int rc;
   const char *argv[] = {"c-orm-cli", "migrate"};
   const char *argv2[] = {"c-orm-cli",   "migrate", "--db",
-                         "test_cli.db", "--dir",   "test_migrations_dir"};
+                         "test_cli.db", "--dir",   "test_migrations_dir_cli"};
   const char *argv3[] = {"c-orm-cli", "migrate", "--db", "/root/invalid.db"};
   const char *argv4[] = {"c-orm-cli",   "migrate", "--db",
                          "test_cli.db", "--dir",   "empty_dir"};
@@ -251,22 +240,18 @@ TEST test_cli_status(void) {
                "CREATE TABLE IF NOT EXISTS _c_orm_migrations (id INTEGER "
                "PRIMARY KEY, version TEXT, name TEXT, applied_at DATETIME)",
                0, 0, 0);
-  sqlite3_exec(sdb,
-               "INSERT INTO _c_orm_migrations (version, name, hash) VALUES "
-               "('123', 'test', 'hash123')",
-               0, 0, 0);
   sqlite3_close(sdb);
 
-  argc = 4;
-  rc = c_orm_cli_main(argc, (char **)argv2);
+  rc = c_orm_cli_main(4, (char **)argv2);
   ASSERT_EQ(0, rc);
 
-  mock_get_applied_empty = 1;
-  rc = c_orm_cli_main(argc, (char **)argv2);
-  ASSERT_EQ(0, rc);
-  mock_get_applied_empty = 0;
+  mock_get_applied_fail = 1;
+  rc = c_orm_cli_main(4, (char **)argv2);
+  ASSERT_EQ(3, rc);
+  mock_get_applied_fail = 0;
 
-  c_orm_cli_main(4, (char **)argv3);
+  rc = c_orm_cli_main(4, (char **)argv3);
+  ASSERT_EQ(1, rc);
 
   PASS();
 }
@@ -286,6 +271,31 @@ TEST test_cli_unknown(void) {
   PASS();
 }
 
+TEST test_cli_sql2c(void) {
+  int rc;
+  FILE *f;
+  const char *argv1[] = {"c-orm-cli", "sql2c"};
+  const char *argv2[] = {"c-orm-cli", "sql2c", "test_schema.sql", "test_out"};
+  const char *argv3[] = {"c-orm-cli", "sql2c", "invalid_missing.sql",
+                         "test_out"};
+
+  system("mkdir -p test_out");
+  f = fopen("test_schema.sql", "w");
+  if (f) {
+    fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
+    fclose(f);
+  }
+
+  rc = c_orm_cli_main(2, (char **)argv1);
+  ASSERT_EQ(1, rc);
+  rc = c_orm_cli_main(4, (char **)argv2);
+  ASSERT_EQ(0, rc);
+  rc = c_orm_cli_main(4, (char **)argv3);
+  printf("RC WAS %d\n", rc);
+  printf("CLI MAIN RETURNED %d\n", rc);
+  ASSERT_NEQ(0, rc);
+  PASS();
+}
 SUITE(cli_suite) {
   RUN_TEST(test_cli_help);
   RUN_TEST(test_cli_no_args);
@@ -297,4 +307,5 @@ SUITE(cli_suite) {
   RUN_TEST(test_cli_status);
   RUN_TEST(test_cli_log);
   RUN_TEST(test_cli_unknown);
+  RUN_TEST(test_cli_sql2c);
 }

@@ -41,6 +41,7 @@ TEST test_arena_coverage(void) {
   malloc_fail_countdown = 0;
   rc = c_orm_arena_alloc(arena, 10, &ptr);
   ASSERT_EQ(1, rc);
+  c_orm_arena_free(arena);
 
   /* Reset */
   c_orm_malloc = old_malloc;

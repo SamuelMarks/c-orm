@@ -129,6 +129,8 @@ TEST test_memory_edge_cases(void) {
   err = vt->finalize(q);
   ASSERT_EQ(C_ORM_OK, err);
 
+  vt->disconnect(db);
+
   /* Test OOM in mem_connect */
   oom_active = 1;
   oom_countdown = 0;

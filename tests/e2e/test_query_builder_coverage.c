@@ -65,6 +65,9 @@ TEST test_query_builder_coverage(void) {
   c_orm_select_builder_init(&meta, &b);
   c_orm_update_builder_init(&meta, &ub);
 
+  c_orm_select_builder_free(b);
+  c_orm_update_builder_free(ub);
+
   ASSERT_EQ(1, c_orm_select_builder_init(NULL, &b));
   ASSERT_EQ(1, c_orm_select_builder_init(&meta, NULL));
   ASSERT_EQ(0, c_orm_select_builder_init(&meta, &b));
@@ -157,6 +160,7 @@ TEST test_query_builder_coverage(void) {
 
   /* Update builder */
   c_orm_update_builder_init(&meta, &ub);
+  c_orm_update_builder_free(ub);
 
   ASSERT_EQ(1, c_orm_update_builder_init(NULL, &ub));
   ASSERT_EQ(1, c_orm_update_builder_init(&meta, NULL));

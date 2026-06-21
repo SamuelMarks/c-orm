@@ -182,7 +182,14 @@ static c_orm_error_t sqlite_disconnect(c_orm_db_t *db) {
   data = (struct sqlite_db_data *)db->driver_data;
   if (data) {
     if (data->db) {
-      sqlite3_close(data->db);
+      int close_rc = sqlite3_close(data->db);
+      if (close_rc != SQLITE_OK) {
+        printf("DEBUG: sqlite3_close failed with %d in sqlite_disconnect\n",
+               close_rc);
+        fflush(stdout);
+        /* Force close */
+        sqlite3_close_v2(data->db);
+      }
     }
     C_ORM_FREE(data);
   }
@@ -254,6 +261,9 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
   printf("sqlite_prepare: before prepare_v2\n");
   fflush(stdout);
   rc = sqlite3_prepare_v2(db_data->db, sql, -1, &q_data->stmt, NULL);
+  printf("DEBUG: sqlite_prepare allocated stmt %p for sql %s\n", q_data->stmt,
+         sql);
+  fflush(stdout);
   if (rc != SQLITE_OK) {
     printf("sqlite_prepare: prepare failed, setting error\n");
     fflush(stdout);
@@ -763,6 +773,8 @@ static c_orm_error_t sqlite_finalize(c_orm_query_t *query) {
   }
   if (query->data) {
     if (query->data->stmt) {
+      printf("DEBUG: sqlite_finalize freeing stmt %p\n", query->data->stmt);
+      fflush(stdout);
       sqlite3_finalize(query->data->stmt);
     }
     C_ORM_FREE(query->data);

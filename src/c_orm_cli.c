@@ -81,6 +81,7 @@ int main(int argc, char **argv) {
     rc = 1;
     LOG_DEBUG("main: missing command");
     LOG_DEBUG("main: exit");
+    printf("RETURNING RC %d\n", rc);
     return rc;
   }
 
@@ -114,6 +115,7 @@ int main(int argc, char **argv) {
       rc = 1;
       LOG_DEBUG("main: create requires migration name");
       LOG_DEBUG("main: exit");
+      printf("RETURNING RC %d\n", rc);
       return rc;
     }
 
@@ -147,11 +149,15 @@ int main(int argc, char **argv) {
       rc = 1;
       LOG_DEBUG("main: sql2c requires arguments");
       LOG_DEBUG("main: exit");
+      printf("RETURNING RC %d\n", rc);
       return rc;
     }
     rc = c_orm_codegen_generate(argv[2], argv[3]);
+    printf("CODEGEN RC IS %d\n", rc);
     if (rc != 0) {
       printf("Failed to generate code from schema.\n");
+      printf("RETURNING RC %d\n", rc);
+      return rc;
     } else {
       printf("Code generation successful.\n");
     }
@@ -169,15 +175,18 @@ int main(int argc, char **argv) {
       rc = 1;
       LOG_DEBUG("main: DB string required for migrate");
       LOG_DEBUG("main: exit");
+      printf("RETURNING RC %d\n", rc);
       return rc;
     }
 
     err = c_orm_sqlite_connect(db_str, &db);
+    printf("SQLITE CONNECT RETURNED %d FOR %s\n", err, db_str);
     if (err != C_ORM_OK) {
       printf("Error connecting to database.\n");
       rc = 1;
       LOG_DEBUG("main: failed connecting to db in migrate");
       LOG_DEBUG("main: exit");
+      printf("RETURNING RC %d\n", rc);
       return rc;
     }
 
@@ -207,15 +216,18 @@ int main(int argc, char **argv) {
       rc = 1;
       LOG_DEBUG("main: DB string required for status");
       LOG_DEBUG("main: exit");
+      printf("RETURNING RC %d\n", rc);
       return rc;
     }
 
     err = c_orm_sqlite_connect(db_str, &db);
+    printf("SQLITE CONNECT RETURNED %d FOR %s\n", err, db_str);
     if (err != C_ORM_OK) {
       printf("Error connecting to database.\n");
       rc = 1;
       LOG_DEBUG("main: failed connecting to db in status");
       LOG_DEBUG("main: exit");
+      printf("RETURNING RC %d\n", rc);
       return rc;
     }
 
@@ -236,6 +248,7 @@ int main(int argc, char **argv) {
       rc = 3;
       LOG_DEBUG("main: failed to fetch migration status");
       LOG_DEBUG("main: exit");
+      printf("RETURNING RC %d\n", rc);
       return rc;
     }
     db->vtable->disconnect(db);
@@ -245,10 +258,12 @@ int main(int argc, char **argv) {
     rc = 1;
     LOG_DEBUG("main: unknown command");
     LOG_DEBUG("main: exit");
+    printf("RETURNING RC %d\n", rc);
     return rc;
   }
 
   rc = 0;
   LOG_DEBUG("main: exit");
+  printf("RETURNING RC %d\n", rc);
   return rc;
 }

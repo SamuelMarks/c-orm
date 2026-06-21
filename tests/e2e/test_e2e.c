@@ -444,6 +444,7 @@ TEST test_e2e_verify_credentials(void) {
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   }
 
+  auth_db->vtable->disconnect(auth_db);
   PASS();
 }
 
@@ -889,6 +890,17 @@ TEST test_c_orm_uuid_generation(void) {
   ASSERT_STR_EQ(token.access_token, fetched.access_token);
   ASSERT_STR_EQ("rtk_uuid_test", fetched.refresh_token);
 
+  if (fetched.access_token)
+    free(fetched.access_token);
+  if (fetched.refresh_token)
+    free(fetched.refresh_token);
+  if (fetched.token_type)
+    free(fetched.token_type);
+  if (fetched.expires_in)
+    free(fetched.expires_in);
+  if (fetched.created_at)
+    free(fetched.created_at);
+
   free(token.access_token);
 
   PASS();
@@ -1076,6 +1088,15 @@ TEST test_c_orm_delete_all(void) {
   PASS();
 }
 
+TEST test_e2e_disconnect(void) {
+  if (db) {
+    c_orm_disable_statement_caching(db);
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
+  PASS();
+}
+
 SUITE(e2e_suite) {
   RUN_TEST(test_e2e_connect);
   RUN_TEST(test_e2e_generate_schema);
@@ -1114,6 +1135,7 @@ SUITE(e2e_suite) {
   RUN_TEST(test_c_orm_find_all_paginated);
   RUN_TEST(test_c_orm_statement_cache);
   RUN_TEST(test_c_orm_delete_all);
+  RUN_TEST(test_e2e_disconnect);
 }
 
 GREATEST_MAIN_DEFS();
@@ -1126,6 +1148,7 @@ extern SUITE(cli_exec_suite);
 extern SUITE(db_stubs_suite);
 extern SUITE(inline_macros_suite);
 extern SUITE(oom_coverage_suite);
+SUITE(codegen_coverage_suite);
 extern SUITE(query_fluent_coverage_suite);
 extern SUITE(migrations_suite);
 extern SUITE(relations_suite);
@@ -1148,6 +1171,7 @@ int main(int argc, char **argv) {
   RUN_SUITE(db_stubs_suite);
   RUN_SUITE(inline_macros_suite);
   RUN_SUITE(oom_coverage_suite);
+  RUN_SUITE(codegen_coverage_suite);
   RUN_SUITE(query_fluent_coverage_suite);
   RUN_SUITE(migrations_suite);
   RUN_SUITE(relations_suite);

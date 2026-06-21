@@ -50,6 +50,17 @@ static void do_uuid(void) {
   c_orm_uuid_v4(uuid_buf);
 }
 
+#include "c_orm_codegen.h"
+
+static void do_codegen(void) {
+  system("echo 'CREATE TABLE t_oom (id int);' > oom_schema.sql");
+  c_orm_codegen_generate("oom_schema.sql", ".");
+}
+
+TEST test_codegen_oom(void) {
+  OOM_TEST(do_codegen, 10);
+  PASS();
+}
 TEST test_uuid_oom(void) {
   OOM_TEST(do_uuid, 2);
   PASS();
@@ -81,6 +92,7 @@ SUITE(oom_coverage_suite) {
   c_orm_malloc = mock_malloc_oom;
   c_orm_free = mock_free_oom;
 
+  RUN_TEST(test_codegen_oom);
   RUN_TEST(test_uuid_oom);
   RUN_TEST(test_string_builder_oom);
 

@@ -84,9 +84,11 @@ TEST test_c_orm_cascade_delete_and_update(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   /* Setup nested struct */
+  memset(&new_team, 0, sizeof(new_team));
   new_team.id = 0;
   new_team.name = "Support";
 
+  memset(&user, 0, sizeof(user));
   user.id = 0;
   user.team_id = 0;
   user.team.data = &new_team;
@@ -308,9 +310,11 @@ TEST test_c_orm_nested_insert_relations(void) {
   }
 
   /* Setup nested struct */
+  memset(&new_team, 0, sizeof(new_team));
   new_team.id = 0; /* will be auto-assigned */
   new_team.name = "Marketing";
 
+  memset(&user, 0, sizeof(user));
   user.id = 0;
   user.team_id = 0; /* will be auto-assigned from new_team.id */
   user.team.data = &new_team;
@@ -872,7 +876,7 @@ TEST test_c_orm_query_builder_relation_filtering(void) {
 #define NODE_FIELDS(X, S)                                                      \
   X(S, C_ORM_TYPE_INT32, int32_t, id)                                          \
   X(S, C_ORM_TYPE_STRING, char *, name)                                        \
-  X(S, C_ORM_TYPE_INT32, int32_t, parent_id)
+  X(S, C_ORM_TYPE_INT32, int32_t *, parent_id)
 
 C_ORM_STRUCT(Node, NODE_FIELDS)
 
@@ -957,16 +961,22 @@ TEST test_c_orm_self_referencing_tree(void) {
   /* Cleanup */
   if (root.name)
     free(root.name);
+  if (root.parent_id)
+    free(root.parent_id);
   if (root.children.data.length > 0) {
     size_t i;
     for (i = 0; i < root.children.data.length; i++) {
       if (root.children.data.data[i].name)
         free(root.children.data.data[i].name);
+      if (root.children.data.data[i].parent_id)
+        free(root.children.data.data[i].parent_id);
       if (root.children.data.data[i].children.data.length > 0) {
         size_t j;
         for (j = 0; j < root.children.data.data[i].children.data.length; j++) {
           if (root.children.data.data[i].children.data.data[j].name)
             free(root.children.data.data[i].children.data.data[j].name);
+          if (root.children.data.data[i].children.data.data[j].parent_id)
+            free(root.children.data.data[i].children.data.data[j].parent_id);
         }
         free(root.children.data.data[i].children.data.data);
       }

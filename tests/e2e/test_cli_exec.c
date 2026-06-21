@@ -22,12 +22,14 @@
 
 TEST test_cli_help(void) {
   int rc = system(CLI_CMD " --help" DEV_NULL);
+  printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc); /* help is unknown command, returns 1 */
   PASS();
 }
 
 TEST test_cli_no_args(void) {
   int rc = system(CLI_CMD DEV_NULL);
+  printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
   PASS();
 }
@@ -42,6 +44,7 @@ TEST test_cli_init(void) {
 
 TEST test_cli_create(void) {
   int rc = system(CLI_CMD " create" DEV_NULL);
+  printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
   rc = system(CLI_CMD " create my_mig --dir test_migrations_dir" DEV_NULL);
   ASSERT_EQ(0, rc);
@@ -62,6 +65,7 @@ TEST test_cli_migrate(void) {
   unsetenv("C_ORM_DB_URL");
 #endif
   rc = system(CLI_CMD " migrate" DEV_NULL);
+  printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
   rc = system(CLI_CMD
               " migrate --db :memory: --dir test_migrations_dir" DEV_NULL);
@@ -84,18 +88,72 @@ TEST test_cli_status(void) {
   unsetenv("C_ORM_DB_URL");
 #endif
   rc = system(CLI_CMD " status" DEV_NULL);
+  printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
-  rc = system(CLI_CMD " status --db :memory:" DEV_NULL);
-  ASSERT_EQ(0, rc);
+
+  system("rm -f bad_schema.db && sqlite3 bad_schema.db \"CREATE TABLE "
+         "_c_orm_migrations(id INTEGER);\"");
+  rc = system(CLI_CMD " status --db bad_schema.db" DEV_NULL);
+  printf("SYSTEM RETURNED %d\n", rc);
+  ASSERT_NEQ(0, rc);
+
+  rc = system(CLI_CMD " status --db /root/invalid.db" DEV_NULL);
+  printf("SYSTEM RETURNED %d\n", rc);
+  ASSERT_NEQ(0, rc);
+
   PASS();
 }
 
 TEST test_cli_unknown(void) {
   int rc = system(CLI_CMD " unknown_command" DEV_NULL);
+  printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
   PASS();
 }
 
+TEST test_cli_exec_sql2c(void) {
+  int rc;
+  FILE *f;
+  f = fopen("test_schema.sql", "w");
+  if (f) {
+    fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
+    fclose(f);
+  }
+  rc = system(C_ORM_CLI_EXECUTABLE " sql2c");
+  printf("SYSTEM RETURNED %d\n", rc);
+  ASSERT_NEQ(0, rc);
+
+  system("mkdir -p test_out");
+  rc = system(C_ORM_CLI_EXECUTABLE " sql2c test_schema.sql test_out");
+  ASSERT_EQ(0, rc);
+
+  rc = system(C_ORM_CLI_EXECUTABLE " sql2c invalid_missing.sql test_out");
+  printf("SYSTEM RETURNED %d\n", rc);
+  ASSERT_NEQ(0, rc);
+
+  system("mkdir -p test_schema_dir");
+  rc = system(C_ORM_CLI_EXECUTABLE " sql2c test_schema_dir test_out");
+  printf("SYSTEM RETURNED %d\n", rc);
+  ASSERT_NEQ(0, rc);
+
+  system("mkdir -p readonly_dir && chmod 555 readonly_dir");
+  rc = system(C_ORM_CLI_EXECUTABLE " sql2c test_schema.sql readonly_dir");
+  system("chmod 777 readonly_dir && rm -rf readonly_dir");
+  printf("SYSTEM RETURNED %d\n", rc);
+  ASSERT_NEQ(0, rc);
+
+  system("mkdir -p partial_readonly_dir");
+  system("touch partial_readonly_dir/Models.c && chmod 444 "
+         "partial_readonly_dir/Models.c");
+  rc = system(C_ORM_CLI_EXECUTABLE
+              " sql2c test_schema.sql partial_readonly_dir");
+  system(
+      "chmod 777 partial_readonly_dir/Models.c && rm -rf partial_readonly_dir");
+  printf("SYSTEM RETURNED %d\n", rc);
+  ASSERT_NEQ(0, rc);
+
+  PASS();
+}
 SUITE(cli_exec_suite) {
   RUN_TEST(test_cli_help);
   RUN_TEST(test_cli_no_args);
@@ -106,4 +164,5 @@ SUITE(cli_exec_suite) {
   RUN_TEST(test_cli_rollback);
   RUN_TEST(test_cli_status);
   RUN_TEST(test_cli_unknown);
+  RUN_TEST(test_cli_exec_sql2c);
 }

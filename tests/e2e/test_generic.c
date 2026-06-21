@@ -55,6 +55,14 @@ TEST test_c_orm_generic_crud(void) {
       free(out_u.username);
     if (out_u.email)
       free(out_u.email);
+    if (out_u.age)
+      free(out_u.age);
+    if (out_u.score)
+      free(out_u.score);
+    if (out_u.is_active)
+      free(out_u.is_active);
+    if (out_u.created_at)
+      free(out_u.created_at);
   }
 
   err = c_orm_find_all_generic(test_db, &Users_meta, &arr, &count);
@@ -69,6 +77,14 @@ TEST test_c_orm_generic_crud(void) {
         free(users_arr[i].username);
       if (users_arr[i].email)
         free(users_arr[i].email);
+      if (users_arr[i].age)
+        free(users_arr[i].age);
+      if (users_arr[i].score)
+        free(users_arr[i].score);
+      if (users_arr[i].is_active)
+        free(users_arr[i].is_active);
+      if (users_arr[i].created_at)
+        free(users_arr[i].created_at);
     }
     free(arr);
   }
@@ -103,6 +119,9 @@ TEST test_c_orm_generic_crud(void) {
 
     err = c_orm_get_generic_string(test_db, &bad_meta, "my_id", &my_struct);
     ASSERT_EQ(C_ORM_OK, err);
+    if (err == C_ORM_OK && my_struct.id) {
+      free(my_struct.id);
+    }
 
     err =
         c_orm_get_generic_string(test_db, &bad_meta, "missing_id", &my_struct);
@@ -145,7 +164,13 @@ TEST test_c_orm_telemetry(void) {
   PASS();
 }
 
+TEST test_c_orm_alloc(void) {
+  ASSERT_EQ(NULL, c_orm_strdup(NULL));
+  PASS();
+}
+
 SUITE(generic_suite) {
   RUN_TEST(test_c_orm_generic_crud);
   RUN_TEST(test_c_orm_telemetry);
+  RUN_TEST(test_c_orm_alloc);
 }

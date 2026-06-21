@@ -912,8 +912,10 @@ TEST test_query_sql_coverage(void) {
   c_orm_query_new(&q);
   c_orm_query_to_sql(NULL, C_ORM_DIALECT_SQLITE, &sql, &p);
   c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &p);
+  c_orm_free(sql);
   q->ast_head = NULL;
   c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &p);
+  c_orm_free(sql);
 
   /* Query Execute / Fetch NULL validation */
   c_orm_query_execute(NULL, q);
@@ -969,6 +971,7 @@ TEST test_query_sql_coverage(void) {
 
   /* Fallback call */
   my_mock_prep(exec_db, "SELECT 1", &q_bad);
+  mock_vt.finalize(q_bad);
 
   exec_db->vtable = (const c_orm_driver_vtable_t *)&orig_vt;
 
@@ -997,6 +1000,9 @@ TEST test_query_sql_coverage(void) {
 
   exec_db->vtable->disconnect(exec_db);
   c_orm_query_free(qe);
+  if (my_arr.data) {
+    c_orm_free(my_arr.data);
+  }
   PASS();
 }
 

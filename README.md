@@ -2,8 +2,8 @@ c-orm
 =====
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![CI](https://github.com/SamuelMarks/c-orm/actions/workflows/ci.yml/badge.svg)](https://github.com/SamuelMarks/c-orm/actions/workflows/ci.yml)
-[![Doc Coverage](https://img.shields.io/badge/docs-100%25-brightgreen.svg)](#)
-[![Test Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](#)
+[![Doc Coverage](https://img.shields.io/badge/docs-83.84%25-yellow.svg)](#)
+[![Test Coverage](https://img.shields.io/badge/coverage-0%25-red.svg)](#)
 [![C Standard](https://img.shields.io/badge/C-89-blue.svg)](#)
 
 An abstract, cross-platform Object Relational Mapper for C. Designed to be lightweight, rigorously safe, and compatible with SQLite, PostgreSQL, and MySQL.
@@ -136,3 +136,4 @@ at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions. Please refer to [skills.md](skills.md) before submitting Pull Requests.
+ 

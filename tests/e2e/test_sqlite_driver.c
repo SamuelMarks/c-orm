@@ -96,6 +96,8 @@ TEST test_sqlite_edge_cases(void) {
   err = c_orm_sqlite_blob_close(NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, err);
 
+  vt->disconnect(db);
+
   /* Test OOM in connect */
   oom_active = 1;
   oom_countdown = 0;
