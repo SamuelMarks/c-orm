@@ -91,6 +91,7 @@ TEST test_cli_status(void) {
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
 
+#ifndef _WIN32
   system("rm -f bad_schema.db && sqlite3 bad_schema.db \"CREATE TABLE "
          "_c_orm_migrations(id INTEGER);\"");
   rc = system(CLI_CMD " status --db bad_schema.db" DEV_NULL);
@@ -100,6 +101,7 @@ TEST test_cli_status(void) {
   rc = system(CLI_CMD " status --db /root/invalid.db" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
+#endif
 
   PASS();
 }
@@ -119,25 +121,34 @@ TEST test_cli_exec_sql2c(void) {
     fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
     fclose(f);
   }
-  rc = system(C_ORM_CLI_EXECUTABLE " sql2c");
+  rc = system(CLI_CMD " sql2c" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
 
+#ifdef _WIN32
+  system("mkdir test_out" DEV_NULL);
+#else
   system("mkdir -p test_out");
-  rc = system(C_ORM_CLI_EXECUTABLE " sql2c test_schema.sql test_out");
+#endif
+  rc = system(CLI_CMD " sql2c test_schema.sql test_out" DEV_NULL);
   ASSERT_EQ(0, rc);
 
-  rc = system(C_ORM_CLI_EXECUTABLE " sql2c invalid_missing.sql test_out");
+  rc = system(CLI_CMD " sql2c invalid_missing.sql test_out" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
 
+#ifdef _WIN32
+  system("mkdir test_schema_dir" DEV_NULL);
+#else
   system("mkdir -p test_schema_dir");
-  rc = system(C_ORM_CLI_EXECUTABLE " sql2c test_schema_dir test_out");
+#endif
+  rc = system(CLI_CMD " sql2c test_schema_dir test_out" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
 
+#ifndef _WIN32
   system("mkdir -p readonly_dir && chmod 555 readonly_dir");
-  rc = system(C_ORM_CLI_EXECUTABLE " sql2c test_schema.sql readonly_dir");
+  rc = system(CLI_CMD " sql2c test_schema.sql readonly_dir" DEV_NULL);
   system("chmod 777 readonly_dir && rm -rf readonly_dir");
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
@@ -145,12 +156,12 @@ TEST test_cli_exec_sql2c(void) {
   system("mkdir -p partial_readonly_dir");
   system("touch partial_readonly_dir/Models.c && chmod 444 "
          "partial_readonly_dir/Models.c");
-  rc = system(C_ORM_CLI_EXECUTABLE
-              " sql2c test_schema.sql partial_readonly_dir");
+  rc = system(CLI_CMD " sql2c test_schema.sql partial_readonly_dir" DEV_NULL);
   system(
       "chmod 777 partial_readonly_dir/Models.c && rm -rf partial_readonly_dir");
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
+#endif
 
   PASS();
 }

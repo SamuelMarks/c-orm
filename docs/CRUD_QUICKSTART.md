@@ -50,9 +50,9 @@ memset(&fetched_user, 0, sizeof(fetched_user));
 
 if (c_orm_find_by_id_int32(db, &Users_meta, 1, &fetched_user) == C_ORM_OK) {
     printf("Found: %s\n", fetched_user.username);
-    
+
     /* Important: Free dynamic strings and nullable pointers allocated during fetch */
-    Users_free(&fetched_user); 
+    Users_free(&fetched_user);
 }
 ```
 

@@ -96,10 +96,10 @@ static c_orm_error_t mock_reset(c_orm_query_t *query) {
 
 static c_orm_error_t mock_finalize(c_orm_query_t *query) {
   if (mock_finalize_fail) {
-    free(query); /* Free anyway to avoid memory leak in test */
+    C_ORM_FREE(query); /* Free anyway to avoid memory leak in test */
     return C_ORM_ERROR_SQL;
   }
-  free(query);
+  C_ORM_FREE(query);
   return C_ORM_OK;
 }
 

@@ -1,7 +1,7 @@
 # C_ORM Batch Strategy & Limitations
 
 ## SQLite Limitations on Max Parameters
-SQLite limits the number of host parameters in a single SQL statement. By default, `SQLITE_MAX_VARIABLE_NUMBER` is 999 in older versions, and 32766 in newer versions (>= 3.32.0). 
+SQLite limits the number of host parameters in a single SQL statement. By default, `SQLITE_MAX_VARIABLE_NUMBER` is 999 in older versions, and 32766 in newer versions (>= 3.32.0).
 When chunking bulk inserts, we must ensure `num_rows * num_columns <= SQLITE_MAX_VARIABLE_NUMBER`.
 A safe default chunk size for SQLite is 500 rows, assuming less than 64 columns.
 
@@ -17,7 +17,7 @@ This works in SQLite, PostgreSQL, and MySQL. It requires dynamically generating 
 
 ## Postgres COPY Command
 `COPY table (c1, c2) FROM STDIN BINARY;` or `COPY ... FROM STDIN (FORMAT csv);`
-This is the fastest method for Postgres. In `c-orm`, we could stream structs into CSV or Binary representation over the `libpq` connection. 
+This is the fastest method for Postgres. In `c-orm`, we could stream structs into CSV or Binary representation over the `libpq` connection.
 
 ## C Array Handling APIs
 - **Input (Inserts/Updates):** Accept `const void* array` and `size_t count`. Use pointer arithmetic `((const char*)array) + (i * meta->struct_size)` to iterate.

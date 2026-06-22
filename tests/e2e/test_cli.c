@@ -24,12 +24,12 @@ static int cli_exit_code = 0;
 #include "c_orm_migrations.h"
 
 
-c_orm_error_t mock_load_dir(const char *dir_path,
+static c_orm_error_t mock_load_dir(const char *dir_path,
                                    c_orm_migration_t **out_migrations,
                                    size_t *out_count) {
-  if (strcmp(dir_path, ".") == 0 || strcmp(dir_path, "test_migrations_dir_cli_cli") == 0) {
+  if (strcmp(dir_path, ".") == 0 || strcmp(dir_path, "test_migrations_dir_cli") == 0) {
     *out_count = 1;
-    *out_migrations = (c_orm_migration_t *)malloc(sizeof(c_orm_migration_t));
+    *out_migrations = (c_orm_migration_t *)C_ORM_MALLOC(sizeof(c_orm_migration_t));
     memset(*out_migrations, 0, sizeof(c_orm_migration_t));
     strcpy((*out_migrations)[0].version, "1");
     strcpy((*out_migrations)[0].name, "test");
@@ -48,7 +48,7 @@ c_orm_error_t mock_load_dir(const char *dir_path,
 
 static c_orm_error_t
 mock_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
-                 size_t count, const c_orm_migration_options_t *options) { (void)db; (void)migrations; (void)count; (void)options; 
+                 size_t count, const c_orm_migration_options_t *options) { (void)db; (void)migrations; (void)count; (void)options;
   return C_ORM_OK;
 }
 
@@ -56,9 +56,10 @@ int mock_get_applied_fail = 0;
 static c_orm_error_t mock_get_applied(c_orm_db_t *db,
                                       c_orm_migration_t **out_migrations,
                                       size_t *out_count) {
+  (void)db;
   if (mock_get_applied_fail) return C_ORM_ERROR_UNKNOWN;
   *out_count = 1;
-  *out_migrations = (c_orm_migration_t *)malloc(sizeof(c_orm_migration_t));
+  *out_migrations = (c_orm_migration_t *)C_ORM_MALLOC(sizeof(c_orm_migration_t));
   memset(*out_migrations, 0, sizeof(c_orm_migration_t));
   strcpy((*out_migrations)[0].version, "1");
   strcpy((*out_migrations)[0].name, "test");
@@ -102,7 +103,11 @@ TEST test_cli_init(void) {
   const char *argv[] = {"c-orm-cli", "init", "--dir",
                         "test_migrations_dir_cli"};
   int argc = 4;
+#ifdef _WIN32
+  system("rmdir /s /q test_migrations_dir_cli >nul 2>&1");
+#else
   system("rm -rf test_migrations_dir_cli");
+#endif
   rc = c_orm_cli_main(argc, (char **)argv);
   ASSERT_EQ(0, rc);
 
@@ -279,7 +284,11 @@ TEST test_cli_sql2c(void) {
   const char *argv3[] = {"c-orm-cli", "sql2c", "invalid_missing.sql",
                          "test_out"};
 
+#ifdef _WIN32
+  system("mkdir test_out >nul 2>&1");
+#else
   system("mkdir -p test_out");
+#endif
   f = fopen("test_schema.sql", "w");
   if (f) {
     fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");

@@ -64,22 +64,22 @@ TEST test_mysql_stubs_edge_cases(void) {
 
 static void test_hook(c_orm_db_t *db, const char *sql, void *user_data) { (void)db; (void)sql; (void)user_data; }
 static c_orm_error_t crypto_enc_hook(const void *in, size_t in_len, void *ctx,
-                                     void **out, size_t *out_len) { (void)in; (void)in_len; (void)ctx; (void)out; (void)out_len; 
+                                     void **out, size_t *out_len) { (void)in; (void)in_len; (void)ctx; (void)out; (void)out_len;
   return C_ORM_OK;
 }
 static c_orm_error_t crypto_dec_hook(const void *in, size_t in_len, void *ctx,
-                                     void **out, size_t *out_len) { (void)in; (void)in_len; (void)ctx; (void)out; (void)out_len; 
+                                     void **out, size_t *out_len) { (void)in; (void)in_len; (void)ctx; (void)out; (void)out_len;
   return C_ORM_OK;
 }
 static void test_log_cb(const char *msg, void *user_data) { (void)msg; (void)user_data; }
 static void test_expire_cb(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                            void *obj, void *user_data) { (void)db; (void)meta; (void)obj; (void)user_data; }
 
-static int get_last_err_mock(c_orm_db_t *db, const char **out) { (void)db; (void)out; 
+static int get_last_err_mock(c_orm_db_t *db, const char **out) { (void)db; (void)out;
   *out = "mock";
   return 0;
 }
-static int get_last_trace_mock(c_orm_db_t *db, const char **out) { (void)db; (void)out; 
+static int get_last_trace_mock(c_orm_db_t *db, const char **out) { (void)db; (void)out;
   *out = "trace";
   return 0;
 }

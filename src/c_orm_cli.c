@@ -152,6 +152,7 @@ int main(int argc, char **argv) {
       printf("RETURNING RC %d\n", rc);
       return rc;
     }
+    printf("SQL2C CALLED WITH %s AND %s\n", argv[2], argv[3]);
     rc = c_orm_codegen_generate(argv[2], argv[3]);
     printf("CODEGEN RC IS %d\n", rc);
     if (rc != 0) {

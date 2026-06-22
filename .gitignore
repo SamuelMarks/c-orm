@@ -121,3 +121,4 @@ vcpkg_installed/
 test_migrations_dir/
 trace.sh
 
+coverage.txt

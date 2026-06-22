@@ -52,10 +52,10 @@ TEST test_sql_parser_basic(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -82,10 +82,10 @@ TEST test_sql_parser_oom(void) {
         if (tbl) {
           *tbl = tables[k];
           sql_table_free(tbl);
-          free(tbl);
+          C_ORM_FREE(tbl);
         }
       }
-      free(tables);
+      C_ORM_FREE(tables);
       tables = NULL;
       n_tables = 0;
     }
@@ -158,10 +158,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -175,10 +175,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -190,10 +190,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -205,10 +205,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -220,10 +220,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -235,10 +235,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -250,10 +250,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -265,10 +265,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -280,10 +280,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -295,10 +295,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -310,10 +310,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -325,10 +325,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -340,10 +340,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -355,10 +355,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -370,10 +370,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -385,10 +385,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -400,10 +400,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -415,10 +415,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -513,10 +513,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -528,10 +528,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -543,10 +543,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -558,10 +558,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -573,10 +573,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -590,10 +590,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }
@@ -606,10 +606,10 @@ TEST test_sql_parser_errors(void) {
       if (tbl) {
         *tbl = tables[k];
         sql_table_free(tbl);
-        free(tbl);
+        C_ORM_FREE(tbl);
       }
     }
-    free(tables);
+    C_ORM_FREE(tables);
     tables = NULL;
     n_tables = 0;
   }

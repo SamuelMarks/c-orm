@@ -132,8 +132,8 @@ int main(void) {
         row = c_orm_hydrate_abstract_row(db, query);
         if (row) {
              /* cdd-c dynamic keys are available at runtime */
-             printf("User: %s has %d posts\n", 
-                 cdd_c_abstract_struct_get_string(row, "username"), 
+             printf("User: %s has %d posts\n",
+                 cdd_c_abstract_struct_get_string(row, "username"),
                  cdd_c_abstract_struct_get_int32(row, "post_count"));
              cdd_c_abstract_struct_free(row);
         }

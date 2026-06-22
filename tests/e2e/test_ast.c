@@ -95,7 +95,7 @@ TEST test_c_orm_ast_to_sql(void) {
   ASSERT_STR_EQ("active", params.params[0].value);
   ASSERT_EQ_FMT(1, params.params[0].is_string, "%d");
 
-  free(sql);
+  C_ORM_FREE(sql);
   c_orm_query_params_cleanup(&params);
   c_orm_query_free(q);
   PASS();
@@ -125,7 +125,7 @@ TEST test_c_orm_ast_to_sql_postgres(void) {
   ASSERT_STR_EQ("100", params.params[1].value);
   ASSERT_EQ_FMT(0, params.params[1].is_string, "%d");
 
-  free(sql);
+  C_ORM_FREE(sql);
   c_orm_query_params_cleanup(&params);
   c_orm_query_free(q);
   PASS();

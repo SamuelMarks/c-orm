@@ -12,7 +12,7 @@ struct Users user;
 memset(&user, 0, sizeof(user));
 user.id = 1;
 /* Using an integer flag for simplicity */
-int32_t deleted = 1; 
+int32_t deleted = 1;
 user.is_deleted = &deleted;
 
 /* Update the row instead of deleting it */

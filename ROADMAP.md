@@ -5,7 +5,7 @@ This document outlines the planned features and architectural direction for `c-o
 ## 🚀 Near-Term Goals
 
 ### Serde/Diesel-Style Struct Mapping
-We aim to bring the developer experience of modern ORMs (like Rust's Diesel) and serialization frameworks (like Serde) to C. 
+We aim to bring the developer experience of modern ORMs (like Rust's Diesel) and serialization frameworks (like Serde) to C.
 
 #### Fully Typed SQL Table Representations
 Tables will be directly represented by fully typed C `struct`s. A database schema should map 1:1 to your C data structures, enabling type-safe database interactions natively.

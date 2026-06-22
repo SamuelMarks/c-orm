@@ -146,7 +146,7 @@ TEST test_query_builder_coverage(void) {
     char *sql = NULL;
     ASSERT_EQ(0, 0);
     ASSERT_EQ(1, c_orm_select_builder_compile(b, NULL));
-    free(sql);
+    C_ORM_FREE(sql);
   }
 
   c_orm_select_builder_free(b);
@@ -182,7 +182,7 @@ TEST test_query_builder_coverage(void) {
     char *sql = NULL;
     ASSERT_EQ(0, c_orm_update_builder_compile(ub, &sql));
     ASSERT_EQ(1, c_orm_update_builder_compile(ub, NULL));
-    free(sql);
+    C_ORM_FREE(sql);
   }
   c_orm_update_builder_free(ub);
   c_orm_update_builder_free(NULL);

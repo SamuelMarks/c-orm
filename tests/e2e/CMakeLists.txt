@@ -17,33 +17,49 @@ if(NOT EXISTS "${GREATEST_H_DIR}/greatest.h")
 endif()
 
 if(WIN32 AND BUILD_SHARED_LIBS)
+    if(CMAKE_HOST_WIN32)
+        set(PATH_SEP ";")
+    else()
+        set(PATH_SEP ":")
+    endif()
     set(CDD_C_PATH_ENV "$ENV{PATH}")
+
     foreach(tgt c89stringutils cfs c_cdd c-abstract-http ${C_ORM_SQLITE_TARGET} c-orm c_str_span)
         if(TARGET ${tgt})
-            set(CDD_C_PATH_ENV "$<TARGET_FILE_DIR:${tgt}>;${CDD_C_PATH_ENV}")
+            set(CDD_C_PATH_ENV "$<TARGET_FILE_DIR:${tgt}>${PATH_SEP}${CDD_C_PATH_ENV}")
         endif()
     endforeach()
 
+    if(CMAKE_CROSSCOMPILING AND CMAKE_CROSSCOMPILING_EMULATOR)
+        set(CLI_CMD ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:c-orm-cli>)
+    else()
+        set(CLI_CMD $<TARGET_FILE:c-orm-cli>)
+    endif()
+
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-        COMMAND ${CMAKE_COMMAND} -E env "PATH=${CDD_C_PATH_ENV}" $<TARGET_FILE:c-orm-cli> sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E env PATH="${CDD_C_PATH_ENV}" ${CLI_CMD} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
         DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
         COMMENT "Generating C Models from schema.sql using c-orm-cli..."
     )
 else()
+    if(CMAKE_CROSSCOMPILING AND CMAKE_CROSSCOMPILING_EMULATOR)
+        set(CLI_CMD_STATIC ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:c-orm-cli>)
+    else()
+        set(CLI_CMD_STATIC $<TARGET_FILE:c-orm-cli>)
+    endif()
+
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-        COMMAND $<TARGET_FILE:c-orm-cli> sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+        COMMAND ${CLI_CMD_STATIC} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
         DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
         COMMENT "Generating C Models from schema.sql using c-orm-cli..."
     )
-endif()
+    endif()
 
-add_custom_target(generate_e2e_models
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Models.c ${CMAKE_CURRENT_BINARY_DIR}/Models.h
-)
+    add_library(e2e_models STATIC "${CMAKE_CURRENT_BINARY_DIR}/Models.c")
 
-add_executable(c_orm_e2e_tests
+    add_executable(c_orm_e2e_tests
     test_arena_uuid.c
     test_ast.c
     test_cache_coverage.c
@@ -62,9 +78,10 @@ add_executable(c_orm_e2e_tests
     test_relations.c
     test_sqlite_driver.c
     test_string_builder.c
-    "${CMAKE_CURRENT_BINARY_DIR}/Models.c"
+
 )
-add_dependencies(c_orm_e2e_tests generate_e2e_models)
+
+add_dependencies(c_orm_e2e_tests e2e_models)
 
 target_include_directories(c_orm_e2e_tests PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
@@ -87,3 +104,7 @@ if(WIN32 AND BUILD_SHARED_LIBS AND DEFINED CDD_C_PATH_ENV)
     string(REPLACE ";" "\\;" CDD_C_PATH_ENV_ESCAPED "${CDD_C_PATH_ENV}")
     set_tests_properties(e2e_test PROPERTIES ENVIRONMENT "PATH=${CDD_C_PATH_ENV_ESCAPED}")
 endif()
+
+target_include_directories(e2e_models PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+target_link_libraries(c_orm_e2e_tests PRIVATE e2e_models)
+target_link_libraries(e2e_models PRIVATE c-orm)

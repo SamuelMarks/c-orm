@@ -1,6 +1,6 @@
 # Developer Skills Required (skills.md)
 
-This repository requires specific technical skills and knowledge sets to successfully maintain, debug, and extend. 
+This repository requires specific technical skills and knowledge sets to successfully maintain, debug, and extend.
 
 ## C Programming & Systems Engineering
 - **C89/ANSI C:** Complete proficiency in the legacy C89 standard. Familiarity with archaic scope declarations, the lack of `//` comments, and the absence of `stdint.h` guarantees in very old compilers (though `stdint.h` is polyfilled via macros where necessary).

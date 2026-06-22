@@ -8,4 +8,24 @@ on:
 
 jobs:
   build:
-    uses: SamuelMarks/c-ci/.github/workflows/c-cmake-ci.yml@project0
+    uses: SamuelMarks/c-ci/.github/workflows/c-cmake-ci.yml@master
+
+  msvc-wine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache MSVC
+        id: cache-msvc
+        uses: actions/cache@v4
+        with:
+          path: ~/my_msvc
+          key: ${{ runner.os }}-msvc-wine
+      - name: Setup MSVC Wine
+        if: steps.cache-msvc.outputs.cache-hit != 'true'
+        run: |
+          # Ideally we download a tarball, but for now we assume it exists in cache or a script handles it
+          # You might need to add steps to actually download msvc wine if it's not cached
+          echo "MSVC Wine not in cache. You need to implement the download step here if necessary."
+      - name: Run MSVC Wine build script from upstream
+        run: |
+          curl -sSL https://raw.githubusercontent.com/SamuelMarks/c-ci/master/build_msvc_wine.sh | bash

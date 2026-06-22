@@ -173,8 +173,8 @@ TEST test_c_orm_lazy_load_relations(void) {
   ASSERT_STR_EQ("Engineering", user.team.data->name);
 
   if (user.team.data->name)
-    free(user.team.data->name);
-  free(user.team.data);
+    C_ORM_FREE(user.team.data->name);
+  C_ORM_FREE(user.team.data);
 
   if (db)
     db->vtable->disconnect(db);
@@ -247,8 +247,8 @@ TEST test_c_orm_eager_load_relations(void) {
   fflush(stdout);
 
   if (user.team.data->name)
-    free(user.team.data->name);
-  free(user.team.data);
+    C_ORM_FREE(user.team.data->name);
+  C_ORM_FREE(user.team.data);
   printf("FREED\n");
   fflush(stdout);
 
@@ -415,11 +415,11 @@ TEST test_c_orm_one_to_many_lazy_load(void) {
   ASSERT_STR_EQ("Second Post", user.posts.data.data[1].title);
 
   if (user.posts.data.data[0].title)
-    free(user.posts.data.data[0].title);
+    C_ORM_FREE(user.posts.data.data[0].title);
   if (user.posts.data.data[1].title)
-    free(user.posts.data.data[1].title);
+    C_ORM_FREE(user.posts.data.data[1].title);
   if (user.posts.data.data)
-    free(user.posts.data.data);
+    C_ORM_FREE(user.posts.data.data);
 
   if (db)
     db->vtable->disconnect(db);
@@ -497,9 +497,9 @@ TEST test_c_orm_lazy_load_paginated(void) {
   ASSERT_STR_EQ("Second Post", user.posts.data.data[0].title);
 
   if (user.posts.data.data[0].title)
-    free(user.posts.data.data[0].title);
+    C_ORM_FREE(user.posts.data.data[0].title);
   if (user.posts.data.data)
-    free(user.posts.data.data);
+    C_ORM_FREE(user.posts.data.data);
 
   if (db)
     db->vtable->disconnect(db);
@@ -769,16 +769,16 @@ TEST test_c_orm_deeply_nested_eager_loads(void) {
     size_t i, j;
     for (i = 0; i < user.posts.data.length; i++) {
       if (user.posts.data.data[i].title)
-        free(user.posts.data.data[i].title);
+        C_ORM_FREE(user.posts.data.data[i].title);
       if (user.posts.data.data[i].comments.data.length > 0) {
         for (j = 0; j < user.posts.data.data[i].comments.data.length; j++) {
           if (user.posts.data.data[i].comments.data.data[j].text)
-            free(user.posts.data.data[i].comments.data.data[j].text);
+            C_ORM_FREE(user.posts.data.data[i].comments.data.data[j].text);
         }
-        free(user.posts.data.data[i].comments.data.data);
+        C_ORM_FREE(user.posts.data.data[i].comments.data.data);
       }
     }
-    free(user.posts.data.data);
+    C_ORM_FREE(user.posts.data.data);
   }
 
   if (db)
@@ -865,7 +865,7 @@ TEST test_c_orm_query_builder_relation_filtering(void) {
     c_orm_finalize_cached(db, q);
   }
 
-  free(sql);
+  C_ORM_FREE(sql);
   c_orm_select_builder_free(builder);
 
   if (db)
@@ -960,28 +960,29 @@ TEST test_c_orm_self_referencing_tree(void) {
 
   /* Cleanup */
   if (root.name)
-    free(root.name);
+    C_ORM_FREE(root.name);
   if (root.parent_id)
-    free(root.parent_id);
+    C_ORM_FREE(root.parent_id);
   if (root.children.data.length > 0) {
     size_t i;
     for (i = 0; i < root.children.data.length; i++) {
       if (root.children.data.data[i].name)
-        free(root.children.data.data[i].name);
+        C_ORM_FREE(root.children.data.data[i].name);
       if (root.children.data.data[i].parent_id)
-        free(root.children.data.data[i].parent_id);
+        C_ORM_FREE(root.children.data.data[i].parent_id);
       if (root.children.data.data[i].children.data.length > 0) {
         size_t j;
         for (j = 0; j < root.children.data.data[i].children.data.length; j++) {
           if (root.children.data.data[i].children.data.data[j].name)
-            free(root.children.data.data[i].children.data.data[j].name);
+            C_ORM_FREE(root.children.data.data[i].children.data.data[j].name);
           if (root.children.data.data[i].children.data.data[j].parent_id)
-            free(root.children.data.data[i].children.data.data[j].parent_id);
+            C_ORM_FREE(
+                root.children.data.data[i].children.data.data[j].parent_id);
         }
-        free(root.children.data.data[i].children.data.data);
+        C_ORM_FREE(root.children.data.data[i].children.data.data);
       }
     }
-    free(root.children.data.data);
+    C_ORM_FREE(root.children.data.data);
   }
 
   if (db)

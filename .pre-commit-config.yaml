@@ -1,45 +1,82 @@
 repos:
--   repo: local
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
     hooks:
-    -   id: clang-format
-        name: clang-format
-        entry: >
-          bash -c 'find source include tests examples src -type f \( -name "*.c" -o -name "*.h" \) -exec clang-format -i -style=llvm {} +'
-        language: system
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v18.1.8
+    hooks:
+      - id: clang-format
+        args: ['-style=LLVM']
+        types_or: [c, c++]
+  - repo: local
+    hooks:
+      - id: cppcheck
+        name: Cppcheck
+        entry: python3 scripts/precommit_matrix.py cppcheck
+        language: python
         pass_filenames: false
-    -   id: cppcheck
-        name: cppcheck
-        entry: >
-          cppcheck --enable=all --suppress=missingIncludeSystem -I include source src
-        language: system
+        types_or: [c, c++]
+      - id: build-gcc
+        name: Build (GCC)
+        entry: python3 scripts/precommit_matrix.py build gcc
+        language: python
         pass_filenames: false
-    -   id: build
-        name: build
-        entry: >
-          bash -c 'cmake -S . -B build_precommit -DCMAKE_BUILD_TYPE=Debug -DCDD_CHARSET=ANSI -DCDD_THREADING=OFF -DC_ORM_BUILD_TESTING=ON -DBUILD_TESTING=ON && cmake --build build_precommit --parallel'
-        language: system
+      - id: test-gcc
+        name: Test (GCC)
+        entry: python3 scripts/precommit_matrix.py test gcc
+        language: python
         pass_filenames: false
-    -   id: test
-        name: test
-        entry: >
-          bash -c 'cd build_precommit && ctest --output-on-failure'
-        language: system
+      - id: build-clang
+        name: Build (Clang)
+        entry: python3 scripts/precommit_matrix.py build clang
+        language: python
         pass_filenames: false
-    -   id: valgrind
-        name: valgrind
-        entry: >
-          bash -c 'if [ "$(uname)" == "Linux" ]; then valgrind --error-exitcode=1 --leak-check=full ./build_precommit/bin/c_orm_e2e_tests; fi'
-        language: system
+      - id: test-clang
+        name: Test (Clang)
+        entry: python3 scripts/precommit_matrix.py test clang
+        language: python
         pass_filenames: false
-    -   id: doc-coverage
-        name: doc-coverage
-        entry: >
-          bash -c 'DOC_COV=$(python3 doc_coverage.py); DOC_COV_ROUNDED=$(printf "%.0f" "$DOC_COV"); DOC_COLOR="red"; if [ "$DOC_COV_ROUNDED" -ge 80 ]; then DOC_COLOR="yellow"; fi; if [ "$DOC_COV_ROUNDED" -ge 95 ]; then DOC_COLOR="brightgreen"; fi; sed -i -E "s/\[\!\[Doc Coverage\].*badge\/docs-[0-9.]+[^%]*%25-[a-z]+\.svg\)/[![Doc Coverage](https:\/\/img.shields.io\/badge\/docs-${DOC_COV}%25-${DOC_COLOR}.svg)/" README.md; echo "Doc Coverage: ${DOC_COV}%"'
-        language: system
+      - id: build-msvc-wine
+        name: Build (MSVC Wine)
+        entry: python3 scripts/precommit_matrix.py build msvc_wine
+        language: python
         pass_filenames: false
-    -   id: test-coverage
-        name: test-coverage
-        entry: >
-          bash -c 'rm -rf build_cov && cmake -S . -B build_cov -DCMAKE_BUILD_TYPE=Debug -DCDD_CHARSET=ANSI -DCDD_THREADING=OFF -DC_ORM_BUILD_TESTING=ON -DBUILD_TESTING=ON -DCMAKE_C_FLAGS="--coverage" -DCMAKE_EXE_LINKER_FLAGS="--coverage" && cmake --build build_cov --parallel && cd build_cov && ctest --output-on-failure && cd .. && gcovr -r . --txt coverage.txt build_cov && TEST_COV=$(grep "^TOTAL" coverage.txt | awk "{print \$NF}" | tr -d "%"); if [ -z "$TEST_COV" ]; then TEST_COV=0; fi; TEST_COLOR="red"; if [ "$TEST_COV" -ge 80 ]; then TEST_COLOR="yellow"; fi; if [ "$TEST_COV" -ge 95 ]; then TEST_COLOR="brightgreen"; fi; sed -i -E "s/\[\!\[Test Coverage\].*badge\/coverage-[0-9.]+[^%]*%25-[a-z]+\.svg\)/[![Test Coverage](https:\/\/img.shields.io\/badge\/coverage-${TEST_COV}%25-${TEST_COLOR}.svg)/" README.md; echo "Test Coverage: ${TEST_COV}%"'
-        language: system
+      - id: test-msvc-wine
+        name: Test (MSVC Wine)
+        entry: python3 scripts/precommit_matrix.py test msvc_wine
+        language: python
+        pass_filenames: false
+      - id: build-msvc
+        name: Build (MSVC)
+        entry: python3 scripts/precommit_matrix.py build msvc
+        language: python
+        pass_filenames: false
+      - id: test-msvc
+        name: Test (MSVC)
+        entry: python3 scripts/precommit_matrix.py test msvc
+        language: python
+        pass_filenames: false
+      - id: build-mingw
+        name: Build (MinGW)
+        entry: python3 scripts/precommit_matrix.py build mingw
+        language: python
+        pass_filenames: false
+      - id: test-mingw
+        name: Test (MinGW)
+        entry: python3 scripts/precommit_matrix.py test mingw
+        language: python
+        pass_filenames: false
+      - id: valgrind
+        name: Valgrind (GCC)
+        entry: python3 scripts/precommit_matrix.py valgrind gcc
+        language: python
+        pass_filenames: false
+      - id: update-shields
+        name: Update README Shields
+        entry: python3 scripts/precommit_matrix.py shields
+        language: python
+        additional_dependencies: [gcovr]
         pass_filenames: false

@@ -131,21 +131,21 @@ TEST test_spatial_crud(void) {
     ASSERT_EQ_FMT(C_ORM_ERROR_SQL, err, "%d");
   }
 
-  free(fetched.polygon.points);
-  free(fetched.data.data);
-  free(fetched.ndval);
+  C_ORM_FREE(fetched.polygon.points);
+  C_ORM_FREE(fetched.data.data);
+  C_ORM_FREE(fetched.ndval);
   memset(&fetched, 0, sizeof(fetched));
   err = c_orm_find_by_id_int32(db, &SpatialModel_meta, 1, &fetched);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ_FMT(99.9, fetched.point.x, "%f");
 
   /* Free */
-  free(sm.polygon.points);
-  free(fetched.polygon.points);
-  free(sm.data.data);
-  free(fetched.data.data);
-  free(sm.ndval);
-  free(fetched.ndval);
+  C_ORM_FREE(sm.polygon.points);
+  C_ORM_FREE(fetched.polygon.points);
+  C_ORM_FREE(sm.data.data);
+  C_ORM_FREE(fetched.data.data);
+  C_ORM_FREE(sm.ndval);
+  C_ORM_FREE(fetched.ndval);
 
   db->vtable->disconnect(db);
   PASS();
@@ -216,7 +216,7 @@ TEST test_inline_macros_crud(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_STR_EQ("inline_test", fetched.username);
   if (fetched.username)
-    free(fetched.username);
+    C_ORM_FREE(fetched.username);
 
   db->vtable->disconnect(db);
   PASS();

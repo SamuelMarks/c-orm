@@ -747,7 +747,7 @@ TEST test_sql_oom(void) {
     c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &p);
     oom_active = 0;
     if (sql)
-      free(sql);
+      C_ORM_FREE(sql);
     sql = NULL;
     c_orm_query_params_cleanup(&p);
     c_orm_query_params_init(&p);
@@ -857,7 +857,7 @@ TEST test_query_sql_coverage(void) {
   q->and_where(q, r_sub);
 
   c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &p);
-  free(sql);
+  C_ORM_FREE(sql);
   c_orm_query_params_cleanup(&p);
   sql = NULL;
   c_orm_query_params_init(&p);
@@ -882,11 +882,11 @@ TEST test_query_sql_coverage(void) {
 
     c_orm_query_to_sql(q_inline, C_ORM_DIALECT_POSTGRES, &sql_inline, NULL);
     if (sql_inline)
-      free(sql_inline);
+      C_ORM_FREE(sql_inline);
     sql_inline = NULL;
     c_orm_query_to_sql(q_inline, C_ORM_DIALECT_SQLITE, &sql_inline, NULL);
     if (sql_inline)
-      free(sql_inline);
+      C_ORM_FREE(sql_inline);
     sql_inline = NULL;
     c_orm_query_free(q_inline);
   }
@@ -900,7 +900,7 @@ TEST test_query_sql_coverage(void) {
       ->and_where(pg_q, pg_q->in(pg_q, "c", "1, 2"));
   c_orm_query_to_sql(pg_q, C_ORM_DIALECT_POSTGRES, &pg_sql, &pg_p);
   if (pg_sql)
-    free(pg_sql);
+    C_ORM_FREE(pg_sql);
   pg_sql = NULL;
   c_orm_query_params_cleanup(&pg_p);
   c_orm_query_free(pg_q);

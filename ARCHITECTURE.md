@@ -39,7 +39,7 @@ The library isn't just a runtime ORM; it's a development toolchain.
 ## Cross-Platform and Compilation Considerations
 
 ### Avoidance of `<windows.h>`
-To reduce binary bloat and severely cut down compilation times on MSVC, `c-orm` bypasses the standard, monolithic Windows API header. 
+To reduce binary bloat and severely cut down compilation times on MSVC, `c-orm` bypasses the standard, monolithic Windows API header.
 - It relies directly on `<windef.h>` and `<winbase.h>`.
 - To satisfy internal Microsoft headers, target architecture macros (`_X86_`, `_AMD64_`, `_ARM64_`) are manually defined based on compiler preprocessor definitions.
 - This technique drastically improves compilation speed and avoids namespace pollution from legacy Win32 macros.
@@ -58,7 +58,7 @@ All standard operational functions (except destructors and allocation primitives
 ## Memory Management
 
 ### Defensive Allocations
-The ORM dynamically allocates memory using strictly controlled `malloc` / `calloc` / `free` mechanisms. 
+The ORM dynamically allocates memory using strictly controlled `malloc` / `calloc` / `free` mechanisms.
 - Every struct that is allocated dynamically provides a corresponding `_free` or `_destroy` method (e.g., `c_orm_query_destroy`).
 - Large datasets or BLOB streaming APIs utilize memory-mapped abstractions (if supported by the host OS) to stream gigabytes of data natively without saturating the heap.
 

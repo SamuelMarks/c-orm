@@ -197,7 +197,7 @@ TEST test_query_builder_extensions(void) {
                 "created_at < CURRENT_TIMESTAMP LIMIT 10 OFFSET 5",
                 sql);
 
-  free(sql);
+  C_ORM_FREE(sql);
   c_orm_select_builder_free(b);
   PASS();
 }
@@ -355,8 +355,8 @@ TEST test_e2e_oauth2_helpers(void) {
   ASSERT(decrypted != NULL);
   ASSERT_STR_EQ("plain", decrypted);
 
-  free(encrypted);
-  free(decrypted);
+  C_ORM_FREE(encrypted);
+  C_ORM_FREE(decrypted);
 
   err = c_orm_oauth2_get_current_timestamp(&t1);
   ASSERT_EQ(C_ORM_OK, err);
@@ -521,7 +521,7 @@ TEST test_e2e_build_relation_meta(void) {
   ASSERT_STR_EQ("id", relations[0].foreign_key);
   ASSERT_STR_EQ("user_id", relations[0].local_key);
 
-  free(relations);
+  C_ORM_FREE(relations);
   PASS();
 }
 
@@ -746,7 +746,7 @@ TEST test_c_orm_relationship_filtering(void) {
   ASSERT(strstr(sql, "ILIKE") != NULL);
   ASSERT(strstr(sql, "EXISTS") != NULL);
 
-  free(sql);
+  C_ORM_FREE(sql);
   c_orm_select_builder_free(b);
   PASS();
 }
@@ -765,7 +765,7 @@ TEST test_c_orm_array_in_clauses(void) {
   ASSERT(sql != NULL);
   ASSERT(strstr(sql, "IN") != NULL);
 
-  free(sql);
+  C_ORM_FREE(sql);
   c_orm_select_builder_free(b);
   PASS();
 }
@@ -891,17 +891,17 @@ TEST test_c_orm_uuid_generation(void) {
   ASSERT_STR_EQ("rtk_uuid_test", fetched.refresh_token);
 
   if (fetched.access_token)
-    free(fetched.access_token);
+    C_ORM_FREE(fetched.access_token);
   if (fetched.refresh_token)
-    free(fetched.refresh_token);
+    C_ORM_FREE(fetched.refresh_token);
   if (fetched.token_type)
-    free(fetched.token_type);
+    C_ORM_FREE(fetched.token_type);
   if (fetched.expires_in)
-    free(fetched.expires_in);
+    C_ORM_FREE(fetched.expires_in);
   if (fetched.created_at)
-    free(fetched.created_at);
+    C_ORM_FREE(fetched.created_at);
 
-  free(token.access_token);
+  C_ORM_FREE(token.access_token);
 
   PASS();
 }

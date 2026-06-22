@@ -8,6 +8,17 @@ if(POLICY CMP0077)
 endif()
 
 project(c-orm VERSION 0.1.0 LANGUAGES C)
+
+list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/modules")
+
+if(MSVC AND CMAKE_CROSSCOMPILING)
+    if(POLICY CMP0091)
+        cmake_policy(SET CMP0091 NEW)
+    endif()
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP ON CACHE INTERNAL "Skip system runtime libs")
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 add_compile_definitions(C_ORM_TEST_ALLOCATOR)
 
@@ -16,7 +27,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 if(MSVC)
-  add_compile_options(/wd4715 /wd4013 /wd4701 /wd4047 /wd4018 /wd4146 /wd4244 /wd4267 /wd4101 /wd4090 /wd4232 /wd4189 /wd4703)
+  add_compile_options(/wd4715 /wd4013 /wd4701 /wd4047 /wd4018 /wd4146 /wd4244 /wd4267 /wd4101 /wd4090 /wd4232 /wd4189 /wd4703 /wd4005)
 endif()
 
 # Step 278: Static Analysis Integration
@@ -44,6 +55,41 @@ include(FetchContent)
 
 
 
+if(TARGET curl OR TARGET CURL::libcurl OR TARGET libcurl)
+    # Target already populated natively
+elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../curl/CMakeLists.txt")
+    FetchContent_Declare(curl SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../curl")
+    FetchContent_MakeAvailable(curl)
+        set(CURL_FOUND ON)
+        set(curl_FOUND ON)
+else()
+    if(CDD_DEPS STREQUAL "VCPKG" OR (DEFINED CMAKE_TOOLCHAIN_FILE AND CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg") OR DEFINED VCPKG_TOOLCHAIN)
+        find_package(CURL CONFIG QUIET)
+    endif()
+    if(NOT WIN32 AND NOT CURL_FOUND AND NOT TARGET CURL::libcurl)
+        find_package(CURL QUIET)
+    endif()
+    if(NOT WIN32 AND NOT CURL_FOUND AND NOT TARGET CURL::libcurl)
+        set(CURL_USE_OPENSSL OFF CACHE INTERNAL "")
+        set(CURL_ZLIB OFF CACHE INTERNAL "")
+        set(USE_LIBIDN2 OFF CACHE INTERNAL "")
+        set(CURL_USE_LIBPSL OFF CACHE INTERNAL "")
+        set(CURL_USE_LIBSSH2 OFF CACHE INTERNAL "")
+        set(CURL_DISABLE_TESTS ON CACHE INTERNAL "")
+        set(BUILD_CURL_EXE OFF CACHE INTERNAL "")
+        FetchContent_Declare(curl URL https://github.com/curl/curl/archive/refs/tags/curl-8_8_0.tar.gz)
+        FetchContent_MakeAvailable(curl)
+        set(CURL_FOUND ON)
+        set(curl_FOUND ON)
+    endif()
+    if(TARGET curl AND NOT TARGET CURL::libcurl)
+        add_library(CURL::libcurl ALIAS curl)
+    elseif(TARGET libcurl AND NOT TARGET CURL::libcurl)
+        add_library(CURL::libcurl ALIAS libcurl)
+    endif()
+endif()
+
+
 if(TARGET c_str_span)
     # Target already populated natively
 elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-str-span/CMakeLists.txt")
@@ -55,6 +101,7 @@ else()
     endif()
     if(NOT c_str_span_FOUND AND NOT TARGET c_str_span)
         FetchContent_Declare(c_str_span GIT_REPOSITORY https://github.com/SamuelMarks/c-str-span.git GIT_TAG master UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master COMMAND git clean -fdx)
+        set(BUILD_TESTING_c_str_span OFF CACHE INTERNAL "")
         FetchContent_MakeAvailable(c_str_span)
     endif()
 endif()
@@ -70,6 +117,7 @@ else()
     endif()
     if(NOT c89stringutils_FOUND AND NOT TARGET c89stringutils)
         FetchContent_Declare(c89stringutils GIT_REPOSITORY https://github.com/offscale/c89stringutils.git GIT_TAG master UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master COMMAND git clean -fdx)
+        set(BUILD_TESTING_c89stringutils OFF CACHE INTERNAL "")
         FetchContent_MakeAvailable(c89stringutils)
     endif()
 endif()
@@ -90,7 +138,11 @@ else()
     endif()
     if(NOT cfs_FOUND AND NOT TARGET cfs)
         FetchContent_Declare(cfs GIT_REPOSITORY https://github.com/SamuelMarks/c-fs.git GIT_TAG master UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master COMMAND git clean -fdx)
+        set(BUILD_TESTING_cfs OFF CACHE INTERNAL "")
+        set(TEMP_BUILD_TESTING ${BUILD_TESTING})
+        set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
         FetchContent_MakeAvailable(cfs)
+        set(BUILD_TESTING ${TEMP_BUILD_TESTING} CACHE BOOL "" FORCE)
     endif()
 endif()
 
@@ -105,6 +157,7 @@ else()
     endif()
     if(NOT c-abstract-http_FOUND AND NOT TARGET c-abstract-http)
         FetchContent_Declare(c-abstract-http GIT_REPOSITORY https://github.com/SamuelMarks/c-abstract-http.git GIT_TAG master UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master COMMAND git clean -fdx)
+        set(BUILD_TESTING_c-abstract-http OFF CACHE INTERNAL "")
         FetchContent_MakeAvailable(c-abstract-http)
     endif()
 endif()
@@ -142,6 +195,7 @@ else()
     if(NOT cdd_c_FOUND AND NOT TARGET c_cdd)
         FetchContent_Declare(cdd_c GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git GIT_TAG master UPDATE_COMMAND git fetch origin master COMMAND git reset --hard origin/master COMMAND git clean -fdx)
         set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
+        set(BUILD_TESTING_c_cdd OFF CACHE INTERNAL "")
         FetchContent_MakeAvailable(cdd_c)
     endif()
 endif()
@@ -202,9 +256,9 @@ target_include_directories(c-orm SYSTEM PUBLIC include)
 target_link_libraries(c-orm PUBLIC c_cdd cfs parson c89stringutils)
   target_include_directories(c-orm PUBLIC )
   target_include_directories(c-orm PUBLIC )
-  
 
-    
+
+
 
 
 
@@ -306,10 +360,11 @@ endif()
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests/e2e)
 
-set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/tests/e2e/Models.c PROPERTIES GENERATED TRUE)
 
-add_executable(c_orm_benchmarks tests/benchmarks/test_benchmarks.c ${CMAKE_CURRENT_BINARY_DIR}/tests/e2e/Models.c)
-add_dependencies(c_orm_benchmarks generate_e2e_models)
+
+add_executable(c_orm_benchmarks tests/benchmarks/test_benchmarks.c )
+add_dependencies(c_orm_benchmarks e2e_models)
+target_link_libraries(c_orm_benchmarks PRIVATE e2e_models)
 target_include_directories(c_orm_benchmarks PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}/tests/e2e
     ${CMAKE_CURRENT_BINARY_DIR}/tests/e2e/test_downloads
@@ -354,6 +409,46 @@ target_link_libraries(c-orm-cli PRIVATE c-orm)
 if(MSVC)
     target_compile_definitions(c-orm-cli PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
+
+if(WIN32 AND BUILD_SHARED_LIBS)
+    add_custom_command(TARGET c-orm-cli POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:c-orm-cli> $<TARGET_FILE_DIR:c-orm-cli>
+        COMMAND_EXPAND_LISTS
+    )
+    if(MSVC AND CMAKE_CROSSCOMPILING)
+        get_filename_component(MSVC_BIN_DIR "${CMAKE_C_COMPILER}" DIRECTORY)
+        get_filename_component(MSVC_ROOT_DIR "${MSVC_BIN_DIR}/../.." ABSOLUTE)
+        file(GLOB MSVC_DEBUG_CRT "${MSVC_ROOT_DIR}/VC/Redist/MSVC/*/debug_nonredist/x64/Microsoft.VC14*.DebugCRT/*.dll")
+        file(GLOB MSVC_RELEASE_CRT "${MSVC_ROOT_DIR}/VC/Redist/MSVC/*/x64/Microsoft.VC14*.CRT/*.dll")
+        file(GLOB MSVC_UCRT "${MSVC_ROOT_DIR}/Windows Kits/10/bin/*/x64/ucrt/*.dll")
+
+        if(MSVC_DEBUG_CRT)
+            add_custom_command(TARGET c-orm-cli POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MSVC_DEBUG_CRT} $<TARGET_FILE_DIR:c-orm-cli>
+            )
+        endif()
+        if(MSVC_RELEASE_CRT)
+            add_custom_command(TARGET c-orm-cli POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MSVC_RELEASE_CRT} $<TARGET_FILE_DIR:c-orm-cli>
+            )
+        endif()
+        if(MSVC_UCRT)
+            add_custom_command(TARGET c-orm-cli POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MSVC_UCRT} $<TARGET_FILE_DIR:c-orm-cli>
+            )
+        endif()
+    elseif(MSVC)
+        set(CMAKE_INSTALL_UCRT_LIBRARIES TRUE)
+        set(CMAKE_INSTALL_DEBUG_LIBRARIES TRUE)
+        include(InstallRequiredSystemLibraries)
+        if(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
+            add_custom_command(TARGET c-orm-cli POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS} $<TARGET_FILE_DIR:c-orm-cli>
+            )
+        endif()
+    endif()
+endif()
+
 install(TARGETS c-orm-cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 endif()
@@ -384,9 +479,3 @@ set(CPACK_GENERATOR "DEB;RPM")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14)")
 set(CPACK_RPM_PACKAGE_REQUIRES "glibc >= 2.14")
 include(CPack)
-
-
-
-
-
-

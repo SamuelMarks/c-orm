@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS _c_orm_migrations (
 We will use **timestamps** (format `YYYYMMDDHHMMSS`) as versions. This minimizes conflicts when multiple developers create migrations simultaneously.
 
 ## 3. UP and DOWN Migration Script Format
-Migrations will be stored in a specified directory as SQL files or managed via C arrays of strings. 
+Migrations will be stored in a specified directory as SQL files or managed via C arrays of strings.
 Format:
 - `YYYYMMDDHHMMSS_name.up.sql`
 - `YYYYMMDDHHMMSS_name.down.sql`

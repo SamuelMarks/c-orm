@@ -37,7 +37,7 @@ q->select_(q, "id, username, email")
 
 We provide syntactic macros to eliminate verbosity:
 
-- **Comparisons**: 
+- **Comparisons**:
   - `C_ORM_EQ(col, val)` / `C_ORM_EQ_NUM(col, val)`
   - `C_ORM_NEQ(col, val)` / `C_ORM_NEQ_NUM(col, val)`
   - `C_ORM_GT(col, val)` / `C_ORM_GT_NUM(col, val)`
@@ -61,7 +61,7 @@ We provide syntactic macros to eliminate verbosity:
 
 ### Condition Chains
 
-Conditions must be registered utilizing the `WHERE` clauses. 
+Conditions must be registered utilizing the `WHERE` clauses.
 
 ```c
 C_ORM_WHERE(C_ORM_EQ_NUM("age", "18"));
@@ -123,7 +123,7 @@ The `c_orm_query_to_sql` step generates specific SQL bound parameters based on t
 
 ## Integrating Query Builder with Relationship Management
 
-Relationship Management dynamically interacts with the Query Builder for lazy and eager loading models automatically resolving N+1 situations. 
+Relationship Management dynamically interacts with the Query Builder for lazy and eager loading models automatically resolving N+1 situations.
 When `c_orm_load_relation` determines a related structure is unloaded, it formulates an internal AST querying the explicit foreign key:
 
 ```c

@@ -43,11 +43,11 @@ TEST test_oauth2_flat_json(void) {
   ASSERT_EQ(3600, t.expires_in);
 
   if (t.access_token)
-    free(t.access_token);
+    C_ORM_FREE(t.access_token);
   if (t.refresh_token)
-    free(t.refresh_token);
+    C_ORM_FREE(t.refresh_token);
   if (t.token_type)
-    free(t.token_type);
+    C_ORM_FREE(t.token_type);
 
   /* Error paths / edge cases in JSON */
   c_orm_oauth2_token_parse_json("{\"escaped\\\"\": \"val\\\"\"}", &t);
@@ -76,7 +76,7 @@ TEST test_oauth2_crypto(void) {
     c_orm_oauth2_encrypt_token("plain", &out);
     oom_active = 0;
     if (out) {
-      free(out);
+      C_ORM_FREE(out);
       out = NULL;
     }
   }
@@ -87,7 +87,7 @@ TEST test_oauth2_crypto(void) {
     c_orm_oauth2_decrypt_token("cipher", &out);
     oom_active = 0;
     if (out) {
-      free(out);
+      C_ORM_FREE(out);
       out = NULL;
     }
   }
@@ -104,7 +104,7 @@ TEST test_oauth2_crypto(void) {
   /* hex parsing 'A'-'F' */
   c_orm_oauth2_decrypt_token("ABCDEF", &out);
   if (out)
-    free(out);
+    C_ORM_FREE(out);
   c_orm_oauth2_get_current_timestamp(NULL);
 
   /* file open error */

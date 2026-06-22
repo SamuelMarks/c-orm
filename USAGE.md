@@ -79,7 +79,7 @@ if (res == C_ORM_OK) {
 
     /* Or execute it directly */
     res = c_orm_query_execute(q);
-    
+
     c_orm_query_destroy(q);
 }
 ```

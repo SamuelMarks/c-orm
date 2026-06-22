@@ -261,8 +261,8 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
   printf("sqlite_prepare: before prepare_v2\n");
   fflush(stdout);
   rc = sqlite3_prepare_v2(db_data->db, sql, -1, &q_data->stmt, NULL);
-  printf("DEBUG: sqlite_prepare allocated stmt %p for sql %s\n", q_data->stmt,
-         sql);
+  printf("DEBUG: sqlite_prepare allocated stmt %p for sql %s\n",
+         (void *)q_data->stmt, sql);
   fflush(stdout);
   if (rc != SQLITE_OK) {
     printf("sqlite_prepare: prepare failed, setting error\n");
@@ -773,7 +773,8 @@ static c_orm_error_t sqlite_finalize(c_orm_query_t *query) {
   }
   if (query->data) {
     if (query->data->stmt) {
-      printf("DEBUG: sqlite_finalize freeing stmt %p\n", query->data->stmt);
+      printf("DEBUG: sqlite_finalize freeing stmt %p\n",
+             (void *)query->data->stmt);
       fflush(stdout);
       sqlite3_finalize(query->data->stmt);
     }
