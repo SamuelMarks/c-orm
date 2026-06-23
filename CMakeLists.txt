@@ -26,6 +26,14 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
+if(MSVC AND MSVC_VERSION LESS 1600)
+    file(GLOB MSVC_DEBUG_CRT "$ENV{VCINSTALLDIR}/redist/Debug_NonRedist/x86/Microsoft.VC80.DebugCRT/*")
+    if(MSVC_DEBUG_CRT)
+        file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+        file(COPY ${MSVC_DEBUG_CRT} DESTINATION "${CMAKE_BINARY_DIR}/bin")
+    endif()
+endif()
+
 if(MSVC)
   add_compile_options(/wd4715 /wd4013 /wd4701 /wd4047 /wd4018 /wd4146 /wd4244 /wd4267 /wd4101 /wd4090 /wd4232 /wd4189 /wd4703 /wd4005)
 endif()
@@ -55,9 +63,10 @@ include(FetchContent)
 
 
 
+if(NOT WIN32)
 if(TARGET curl OR TARGET CURL::libcurl OR TARGET libcurl)
     # Target already populated natively
-elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../curl/CMakeLists.txt")
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../curl/CMakeLists.txt")
     FetchContent_Declare(curl SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../curl")
     FetchContent_MakeAvailable(curl)
         set(CURL_FOUND ON)
@@ -88,11 +97,12 @@ else()
         add_library(CURL::libcurl ALIAS libcurl)
     endif()
 endif()
+endif()
 
 
 if(TARGET c_str_span)
     # Target already populated natively
-elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-str-span/CMakeLists.txt")
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-str-span/CMakeLists.txt")
     FetchContent_Declare(c_str_span SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-str-span")
     FetchContent_MakeAvailable(c_str_span)
 else()
@@ -108,7 +118,7 @@ endif()
 
 if(TARGET c89stringutils)
     # Target already populated natively
-elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c89stringutils/CMakeLists.txt")
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c89stringutils/CMakeLists.txt")
     FetchContent_Declare(c89stringutils SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c89stringutils")
     FetchContent_MakeAvailable(c89stringutils)
 else()
@@ -129,7 +139,7 @@ set(C_REST_FRAMEWORK_FETCH_CDD_C OFF CACHE BOOL "Disable cdd_c fetch in c_rest_f
 
 if(TARGET cfs)
     # Target already populated natively
-elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-fs/CMakeLists.txt")
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-fs/CMakeLists.txt")
     FetchContent_Declare(cfs SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-fs")
     FetchContent_MakeAvailable(cfs)
 else()
@@ -148,7 +158,7 @@ endif()
 
 if(TARGET c-abstract-http)
     # Target already populated natively
-elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http/CMakeLists.txt")
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http/CMakeLists.txt")
     FetchContent_Declare(c-abstract-http SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http")
     FetchContent_MakeAvailable(c-abstract-http)
 else()
@@ -164,7 +174,7 @@ endif()
 
 if(TARGET parson)
     # Target already populated natively
-elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../parson/CMakeLists.txt")
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../parson/CMakeLists.txt")
     FetchContent_Declare(parson SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../parson")
     FetchContent_MakeAvailable(parson)
 else()
@@ -184,7 +194,7 @@ endif()
 
 if(TARGET c_cdd)
     # Target already populated natively
-elseif(FALSE AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/../cdd-c/CMakeLists.txt")
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../cdd-c/CMakeLists.txt")
     FetchContent_Declare(cdd_c SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cdd-c")
     set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
     FetchContent_MakeAvailable(cdd_c)
