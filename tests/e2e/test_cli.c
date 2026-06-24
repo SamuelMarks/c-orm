@@ -31,9 +31,9 @@ static c_orm_error_t mock_load_dir(const char *dir_path,
     *out_count = 1;
     *out_migrations = (c_orm_migration_t *)C_ORM_MALLOC(sizeof(c_orm_migration_t));
     memset(*out_migrations, 0, sizeof(c_orm_migration_t));
-    strcpy((*out_migrations)[0].version, "1");
-    strcpy((*out_migrations)[0].name, "test");
-    strcpy((*out_migrations)[0].hash, "hash");
+    C_ORM_STRCPY((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "1");
+    C_ORM_STRCPY((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
+    C_ORM_STRCPY((*out_migrations)[0].hash, sizeof((*out_migrations)[0].hash), "hash");
     return C_ORM_OK;
   }
   if (strcmp(dir_path, "bad_dir") == 0) {
@@ -61,9 +61,9 @@ static c_orm_error_t mock_get_applied(c_orm_db_t *db,
   *out_count = 1;
   *out_migrations = (c_orm_migration_t *)C_ORM_MALLOC(sizeof(c_orm_migration_t));
   memset(*out_migrations, 0, sizeof(c_orm_migration_t));
-  strcpy((*out_migrations)[0].version, "1");
-  strcpy((*out_migrations)[0].name, "test");
-  strcpy((*out_migrations)[0].hash, "hash");
+  C_ORM_STRCPY((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "1");
+  C_ORM_STRCPY((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
+  C_ORM_STRCPY((*out_migrations)[0].hash, sizeof((*out_migrations)[0].hash), "hash");
   return C_ORM_OK;
 }
 #define c_orm_migration_get_applied mock_get_applied

@@ -557,7 +557,8 @@ TEST test_benchmark_hydration(void) {
 
   start = clock();
   for (i = 0; i < ITERATIONS; ++i) {
-    strncpy(specific_out.greeting, mock_bar, 31);
+    C_ORM_STRNCPY(specific_out.greeting, sizeof(specific_out.greeting),
+                  mock_bar, 31);
     specific_out.greeting[31] = '\0';
     specific_out.id = (int)mock_can;
     /* Normally we'd call a generated specific hydrator here */

@@ -52,11 +52,11 @@ endif()
 
 # Strict warnings
 if(MSVC)
-    set(C_ORM_STRICT_OPTIONS /W4 /sdl /showIncludes)
+    set(C_ORM_STRICT_OPTIONS /W4 /WX /sdl)
 elseif(CMAKE_C_COMPILER_ID MATCHES "Watcom")
-    set(C_ORM_STRICT_OPTIONS -w4)
+    set(C_ORM_STRICT_OPTIONS -w4 -we)
 else()
-    set(C_ORM_STRICT_OPTIONS -Wall -Wextra -Wpedantic -std=c90 -Wdeclaration-after-statement -Wmissing-prototypes -Werror=declaration-after-statement)
+    set(C_ORM_STRICT_OPTIONS -Wall -Wextra -pedantic -Werror -std=c90 -Wdeclaration-after-statement -Wmissing-prototypes)
 endif()
 
 include(FetchContent)
