@@ -24,7 +24,7 @@ if(WIN32 AND BUILD_SHARED_LIBS)
     endif()
     set(CDD_C_PATH_ENV "$ENV{PATH}")
 
-    foreach(tgt c89stringutils cfs c_cdd c-abstract-http ${C_ORM_SQLITE_TARGET} c-orm c_str_span)
+    foreach(tgt curl parson c89stringutils cfs c_cdd c-abstract-http ${C_ORM_SQLITE_TARGET} c-orm c_str_span)
         if(TARGET ${tgt})
             set(CDD_C_PATH_ENV "$<TARGET_FILE_DIR:${tgt}>${PATH_SEP}${CDD_C_PATH_ENV}")
         endif()
@@ -36,9 +36,10 @@ if(WIN32 AND BUILD_SHARED_LIBS)
         set(CLI_CMD $<TARGET_FILE:c-orm-cli>)
     endif()
 
+    string(REPLACE ";" "\\;" CDD_C_PATH_ENV_ESCAPED "${CDD_C_PATH_ENV}")
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-        COMMAND ${CMAKE_COMMAND} -E env PATH="${CDD_C_PATH_ENV}" ${CLI_CMD} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E env PATH="${CDD_C_PATH_ENV_ESCAPED}" ${CLI_CMD} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
         DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
         COMMENT "Generating C Models from schema.sql using c-orm-cli..."
     )
