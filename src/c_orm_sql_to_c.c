@@ -136,7 +136,9 @@ int sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   fprintf(fp, "extern \"C\" {\n");
   fprintf(fp, "# endif /* __cplusplus */\n\n");
 
-  fprintf(fp, "# if defined(_MSC_VER) && _MSC_VER < 1600\n"
+  fprintf(fp, "/* clang-format off */\n");
+  fprintf(fp, "#if defined(_MSC_VER)\n"
+              "# if _MSC_VER < 1600\n"
               "typedef signed __int8 int8_t;\n"
               "typedef unsigned __int8 uint8_t;\n"
               "typedef signed __int16 int16_t;\n"
@@ -145,33 +147,26 @@ int sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
               "typedef unsigned __int32 uint32_t;\n"
               "typedef signed __int64 int64_t;\n"
               "typedef unsigned __int64 uint64_t;\n"
-              "#else\n"
-              "#include <stdint.h>\n"
-              "# endif\n");
-  fprintf(fp, "# if defined(_MSC_VER) && _MSC_VER < 1800\n"
-              "# if !defined(__cplusplus)\n"
-              "# ifndef bool\n"
-              "#define bool unsigned char\n"
+              "# else\n"
+              "#  include <stdint.h>\n"
               "# endif\n"
-              "# ifndef true\n"
-              "#define true 1\n"
-              "# endif\n"
-              "# ifndef false\n"
-              "#define false 0\n"
-              "# endif\n"
-              "# endif\n"
-              "#else\n"
-              "#if defined(_MSC_VER) && _MSC_VER < 1800\n"
-              "#ifndef __cplusplus\n"
-              "          typedef unsigned char bool;\n"
-              "#define true 1\n"
-              "#define false 0\n"
+              "# if _MSC_VER < 1800\n"
+              "#  ifndef __cplusplus\n"
+              "#   ifndef bool\n"
+              "typedef unsigned char bool;\n"
+              "#    define true 1\n"
+              "#    define false 0\n"
+              "#   endif\n"
+              "#  endif\n"
+              "# else\n"
+              "#  include <stdbool.h>\n"
               "# endif\n"
               "#else\n"
-              "#include <stdbool.h>\n"
-              "#endif \n "
-              "# endif\n");
-  fprintf(fp, "#include <stddef.h>\n\n");
+              "# include <stdint.h>\n"
+              "# include <stdbool.h>\n"
+              "#endif\n"
+              "#include <stddef.h>\n"
+              "/* clang-format on */\n\n");
 
   /* Emit row struct */
   fprintf(fp, "/**\n");
@@ -270,10 +265,12 @@ int sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   str_to_title(struct_name, table->name);
 
   fprintf(fp, "\n");
+  fprintf(fp, "/* clang-format off */\n");
   fprintf(fp, "#include \"%s\"\n", header_name);
   fprintf(fp, "#include <errno.h>\n");
   fprintf(fp, "#include <stdlib.h>\n");
   fprintf(fp, "#include <string.h>\n");
+  fprintf(fp, "/* clang-format on */\n");
   fprintf(fp, "\n\n");
 
   /* Array init */

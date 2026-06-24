@@ -82,7 +82,9 @@ int main(void) {
   err = c_orm_sqlite_connect(":memory:", &db);
   if (err != C_ORM_OK) {
     rc = 1;
-    { return rc; }
+    {
+      return rc;
+    }
   }
 
   printf("Creating tables...\n");
@@ -108,7 +110,9 @@ int main(void) {
     printf("Insert failed\n");
     {
       rc = 1;
-      { return rc; }
+      {
+        return rc;
+      }
     }
   }
 
@@ -154,6 +158,8 @@ int main(void) {
     db->vtable->disconnect(db);
   {
     rc = 0;
-    { return rc; }
+    {
+      return rc;
+    }
   }
 }

@@ -41,29 +41,6 @@ typedef size_t bool;
 #include <stdlib.h>
 /* clang-format on */
 
-#if !defined(_MSC_VER) || _MSC_VER >= 1800
-
-#else
-#ifndef __cplusplus
-#ifndef _STDBOOL_H
-#define _STDBOOL_H
-#ifndef bool
-typedef size_t bool;
-#define true 1
-#define false 0
-#endif
-#endif
-#endif
-#endif
-
-#if !defined(_MSC_VER) || _MSC_VER >= 1600
-#else
-#ifndef _STDINT
-typedef signed __int32 int32_t;
-typedef unsigned __int64 uint64_t;
-#endif
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif

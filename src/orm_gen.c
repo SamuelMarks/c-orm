@@ -273,7 +273,8 @@ int openapi_orm_generate(const struct OpenAPI_Spec *spec,
   fprintf(fp_h, "extern \"C\" {\n");
   fprintf(fp_h, "#endif /* __cplusplus */\n\n");
 
-  fprintf(fp_h, "#if defined(_MSC_VER) && _MSC_VER < 1600\n");
+  fprintf(fp_h, "#if defined(_MSC_VER)\n");
+  fprintf(fp_h, "# if _MSC_VER < 1600\n");
   fprintf(fp_h, "typedef signed __int8 int8_t;\n");
   fprintf(fp_h, "typedef unsigned __int8 uint8_t;\n");
   fprintf(fp_h, "typedef signed __int16 int16_t;\n");
@@ -282,35 +283,39 @@ int openapi_orm_generate(const struct OpenAPI_Spec *spec,
   fprintf(fp_h, "typedef unsigned __int32 uint32_t;\n");
   fprintf(fp_h, "typedef signed __int64 int64_t;\n");
   fprintf(fp_h, "typedef unsigned __int64 uint64_t;\n");
+  fprintf(fp_h, "# else\n");
+  fprintf(fp_h, "#  include <stdint.h>\n");
+  fprintf(fp_h, "# endif\n");
+  fprintf(fp_h, "# if _MSC_VER < 1800\n");
+  fprintf(fp_h, "#  ifndef __cplusplus\n");
+  fprintf(fp_h, "#   ifndef bool\n");
+  fprintf(fp_h, "typedef unsigned char bool;\n");
+  fprintf(fp_h, "#    define true 1\n");
+  fprintf(fp_h, "#    define false 0\n");
+  fprintf(fp_h, "#   endif\n");
+  fprintf(fp_h, "#  endif\n");
+  fprintf(fp_h, "# else\n");
+  fprintf(fp_h, "#  include <stdbool.h>\n");
+  fprintf(fp_h, "# endif\n");
   fprintf(fp_h, "#else\n");
-  fprintf(fp_h, "#include <stdint.h>\n");
-  fprintf(fp_h, "#endif\n");
-  fprintf(fp_h, "#if defined(_MSC_VER) && _MSC_VER < 1800\n");
-  fprintf(fp_h, "#if !defined(__cplusplus)\n");
-  fprintf(fp_h, "#ifndef bool\n");
-  fprintf(fp_h, "#define bool unsigned char\n");
-  fprintf(fp_h, "#endif\n");
-  fprintf(fp_h, "#ifndef true\n");
-  fprintf(fp_h, "#define true 1\n");
-  fprintf(fp_h, "#endif\n");
-  fprintf(fp_h, "#ifndef false\n");
-  fprintf(fp_h, "#define false 0\n");
-  fprintf(fp_h, "#endif\n");
-  fprintf(fp_h, "#endif /* __cplusplus */\n");
-  fprintf(fp_h, "#else\n");
-  fprintf(fp_h, "#include <stdbool.h>\n");
+  fprintf(fp_h, "# include <stdint.h>\n");
+  fprintf(fp_h, "# include <stdbool.h>\n");
   fprintf(fp_h, "#endif\n\n");
+  fprintf(fp_h, "/* clang-format off */\n");
   fprintf(fp_h, "#include <stddef.h>\n");
   fprintf(fp_h, "#include \"classes/emit/cdd_c_orm_meta.h\"\n");
   fprintf(fp_h, "#include \"c_orm_db.h\"\n");
-  fprintf(fp_h, "#include \"c_orm_api.h\"\n\n");
+  fprintf(fp_h, "#include \"c_orm_api.h\"\n");
+  fprintf(fp_h, "/* clang-format on */\n\n");
 
   /* Source */
   fprintf(fp_c, "/* Generated ORM Models Implementation */\n\n");
+  fprintf(fp_c, "/* clang-format off */\n");
   fprintf(fp_c, "#include \"%s\"\n", model_h);
   fprintf(fp_c, "#include <errno.h>\n");
   fprintf(fp_c, "#include <stdlib.h>\n");
-  fprintf(fp_c, "#include <string.h>\n\n");
+  fprintf(fp_c, "#include <string.h>\n");
+  fprintf(fp_c, "/* clang-format on */\n\n");
 
   for (i = 0; i < spec->n_defined_schemas; ++i) {
     const char *struct_name = spec->defined_schema_names[i];
@@ -633,10 +638,12 @@ int openapi_orm_generate(const struct OpenAPI_Spec *spec,
     if (fp_test) {
       fprintf(fp_test,
               "/* Auto-generated greatest.h test stub for ORM models */\n\n");
+      fprintf(fp_test, "/* clang-format off */\n");
       fprintf(fp_test, "#include <stdlib.h>\n");
       fprintf(fp_test, "#include <string.h>\n");
       fprintf(fp_test, "#include <greatest.h>\n");
-      fprintf(fp_test, "#include \"%s\"\n\n", model_h);
+      fprintf(fp_test, "#include \"%s\"\n", model_h);
+      fprintf(fp_test, "/* clang-format on */\n\n");
 
       for (i = 0; i < spec->n_defined_schemas; i++) {
         const char *struct_name = spec->defined_schema_names[i];
