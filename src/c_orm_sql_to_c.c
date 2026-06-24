@@ -136,7 +136,8 @@ int sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   fprintf(fp, "extern \"C\" {\n");
   fprintf(fp, "# endif /* __cplusplus */\n\n");
 
-  fprintf(fp, "/* clang-format off */\n");
+  fprintf(fp, "/* clang-format "
+              "off */\n");
   fprintf(fp, "#if defined(_MSC_VER)\n"
               "# if _MSC_VER < 1600\n"
               "typedef signed __int8 int8_t;\n"
@@ -166,7 +167,8 @@ int sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
               "# include <stdbool.h>\n"
               "#endif\n"
               "#include <stddef.h>\n"
-              "/* clang-format on */\n\n");
+              "/* clang-format "
+              "on */\n\n");
 
   /* Emit row struct */
   fprintf(fp, "/**\n");
@@ -265,12 +267,14 @@ int sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   str_to_title(struct_name, table->name);
 
   fprintf(fp, "\n");
-  fprintf(fp, "/* clang-format off */\n");
+  fprintf(fp, "/* clang-format "
+              "off */\n");
   fprintf(fp, "#include \"%s\"\n", header_name);
   fprintf(fp, "#include <errno.h>\n");
   fprintf(fp, "#include <stdlib.h>\n");
   fprintf(fp, "#include <string.h>\n");
-  fprintf(fp, "/* clang-format on */\n");
+  fprintf(fp, "/* clang-format "
+              "on */\n");
   fprintf(fp, "\n\n");
 
   /* Array init */
@@ -673,7 +677,11 @@ int sql_to_c_projection_struct_emit(FILE *fp,
     }
     *out_hash = hash;
 
+#if defined(_MSC_VER)
+    fprintf(fp, "\n/* Auto-generated Route Hash ID Tag: %I64u */\n", hash);
+#else
     fprintf(fp, "\n/* Auto-generated Route Hash ID Tag: %llu */\n", hash);
+#endif
   }
 
   fprintf(fp, "/**\n");

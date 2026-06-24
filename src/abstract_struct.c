@@ -678,7 +678,7 @@ int cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
 
       if (type == 20 || type == 21 || type == 23) { /* int8, int2, int4 */
         variant.type = CDD_C_VARIANT_TYPE_INT;
-        variant.value.i_val = strtoll(val_str, NULL, 10);
+        variant.value.i_val = C_ORM_STRTOLL(val_str, NULL, 10);
       } else if (type == 16) { /* bool */
         variant.type = CDD_C_VARIANT_TYPE_INT;
         variant.value.i_val = (val_str[0] == 't') ? 1 : 0;
@@ -756,7 +756,7 @@ int cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
       case MYSQL_TYPE_YEAR:
       case MYSQL_TYPE_BIT:
         variant.type = CDD_C_VARIANT_TYPE_INT;
-        variant.value.i_val = strtoll(val_str, NULL, 10);
+        variant.value.i_val = C_ORM_STRTOLL(val_str, NULL, 10);
         break;
       case MYSQL_TYPE_DECIMAL:
       case MYSQL_TYPE_NEWDECIMAL:

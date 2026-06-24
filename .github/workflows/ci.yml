@@ -14,11 +14,5 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - name: Checkout c-ci
-        uses: actions/checkout@v4
-        with:
-          repository: SamuelMarks/c-ci
-          ref: master
-          path: c-ci
       - name: Run MSVC Wine
-        run: bash c-ci/build_msvc_wine.sh
+        run: bash ~/repos/c-ci/build_msvc_wine.sh

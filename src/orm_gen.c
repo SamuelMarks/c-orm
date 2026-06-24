@@ -310,7 +310,8 @@ int openapi_orm_generate(const struct OpenAPI_Spec *spec,
 
   /* Source */
   fprintf(fp_c, "/* Generated ORM Models Implementation */\n\n");
-  fprintf(fp_c, "/* clang-format off */\n");
+  fprintf(fp_c, "/* clang-format "
+                "off */\n");
   fprintf(fp_c, "#include \"%s\"\n", model_h);
   fprintf(fp_c, "#include <errno.h>\n");
   fprintf(fp_c, "#include <stdlib.h>\n");
