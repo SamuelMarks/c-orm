@@ -9,10 +9,3 @@ on:
 jobs:
   build:
     uses: SamuelMarks/c-ci/.github/workflows/c-cmake-ci.yml@master
-
-  msvc-wine:
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run MSVC Wine
-        run: bash ~/repos/c-ci/build_msvc_wine.sh

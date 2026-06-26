@@ -300,7 +300,7 @@ static unsigned long hash_string(const char *str) {
 int cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct, const char *key,
                        const cdd_c_variant_t *value) {
   size_t i;
-  cdd_c_abstract_struct_kv_t *new_kvs;
+  cdd_c_abstract_struct_kv_t *new_kvs = NULL;
   unsigned long khash;
   if (!astruct || !key || !value)
     return EINVAL;
