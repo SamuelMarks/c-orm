@@ -924,7 +924,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(
  */
 C_ORM_EXPORT c_orm_error_t c_orm_hydrate_routed(c_orm_db_t *db,
                                                 c_orm_query_t *query,
-                                                unsigned long long query_hash,
+                                                c_orm_uint64_t query_hash,
                                                 void *out_struct);
 
 /**

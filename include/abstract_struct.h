@@ -17,6 +17,7 @@ extern "C" {
 
 /* clang-format off */
 #include <stddef.h>
+#include "c_orm_safe_crt.h"
 #include "c_orm_db.h"
 /* clang-format on */
 
@@ -37,7 +38,7 @@ typedef enum CddCVariantType {
 typedef struct CddCVariant {
   CddCVariantType type;
   union {
-    long long i_val;
+    c_orm_int64_t i_val;
     double f_val;
     char *s_val;
     struct {

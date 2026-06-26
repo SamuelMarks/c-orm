@@ -21,21 +21,24 @@ typedef unsigned __int64 uint64_t;
 #else
 #include <stdint.h>
 #endif
-#if _MSC_VER < 1800
 #ifndef __cplusplus
 #ifndef _STDBOOL_H
 #define _STDBOOL_H
-typedef size_t bool;
+typedef unsigned char bool;
 #define true 1
 #define false 0
 #endif
 #endif
 #else
-#include <stdbool.h>
-#endif
-#else
 #include <stdint.h>
-#include <stdbool.h>
+#ifndef __cplusplus
+#ifndef _STDBOOL_H
+#define _STDBOOL_H
+typedef unsigned char bool;
+#define true 1
+#define false 0
+#endif
+#endif
 #endif
 
 #include <stdlib.h>

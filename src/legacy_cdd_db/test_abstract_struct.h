@@ -111,7 +111,7 @@ TEST test_abstract_hydrate(void) {
   cdd_c_abstract_struct_t astruct;
   cdd_c_column_meta_t cols[3];
   void *row_data[3];
-  long long mock_int = 42;
+  c_orm_int64_t mock_int = 42;
   double mock_float = 3.14159;
   char *mock_str = (char *)"Hello, Generic World!";
   cdd_c_variant_t *out_val;
@@ -350,7 +350,7 @@ TEST test_mock_driver_specific_struct_hydration(void) {
   cdd_c_driver_row_t drow;
   cdd_c_column_meta_t cols[3];
   void *row_data[3];
-  long long mock_id = 99;
+  c_orm_int64_t mock_id = 99;
   double mock_ratio = 1.234;
   char mock_greeting[] = "Mock Driver";
 
@@ -429,7 +429,7 @@ TEST test_mock_driver_abstract_struct_hydration(void) {
   cdd_c_driver_row_t drow;
   cdd_c_column_meta_t cols[2];
   void *row_data[2];
-  long long mock_id = 1001;
+  c_orm_int64_t mock_id = 1001;
   char mock_name[] = "Dynamic User";
 
   cdd_c_abstract_struct_t astruct;
@@ -515,7 +515,7 @@ TEST test_benchmark_hydration(void) {
   mock_specific_row_t specific_out;
   cdd_c_abstract_struct_t astruct;
   void *row_data[2];
-  long long mock_can = 42;
+  c_orm_int64_t mock_can = 42;
   char mock_bar[] = "bench_str";
 
   cdd_c_prop_meta_t p1, p2;

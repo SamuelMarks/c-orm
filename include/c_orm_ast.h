@@ -371,7 +371,10 @@ C_ORM_EXPORT int c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
 C_ORM_EXPORT void c_orm_arena_free(c_orm_arena_t *arena);
 
 /* Forward declaration */
+#ifndef C_ORM_QUERY_T_DEFINED
+#define C_ORM_QUERY_T_DEFINED
 typedef struct c_orm_query c_orm_query_t;
+#endif
 
 /**
  * @brief Fluent Query builder interface.

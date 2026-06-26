@@ -515,9 +515,9 @@ int cdd_c_abstract_struct_from_json(const char *json_str,
       break;
     case JSONNumber: {
       double num = json_value_get_number(val);
-      if (num == (double)((long long)num)) {
+      if (num == (double)((c_orm_int64_t)num)) {
         variant.type = CDD_C_VARIANT_TYPE_INT;
-        variant.value.i_val = (long long)num;
+        variant.value.i_val = (c_orm_int64_t)num;
       } else {
         variant.type = CDD_C_VARIANT_TYPE_FLOAT;
         variant.value.f_val = num;
@@ -570,7 +570,7 @@ int cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
       int ctype = col->inferred_type;
       if (ctype == 4 || ctype == 3 || ctype == 14) { /* INT, BIGINT, BOOLEAN */
         variant.type = CDD_C_VARIANT_TYPE_INT;
-        variant.value.i_val = *(long long *)raw_val;
+        variant.value.i_val = *(c_orm_int64_t *)raw_val;
       } else if (ctype == 8 || ctype == 9 ||
                  ctype == 10) { /* FLOAT, DOUBLE, DECIMAL */
         variant.type = CDD_C_VARIANT_TYPE_FLOAT;
@@ -833,7 +833,7 @@ int cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
     } else if (strcmp(prop->type, "C_ORM_TYPE_INT64") == 0) {
       val.type = CDD_C_VARIANT_TYPE_INT;
       memcpy(&val.value.i_val, (char *)in_struct + prop->offset,
-             sizeof(long long));
+             sizeof(c_orm_int64_t));
     } else if (strcmp(prop->type, "C_ORM_TYPE_FLOAT") == 0) {
       val.type = CDD_C_VARIANT_TYPE_FLOAT;
       memcpy(&val.value.f_val, (char *)in_struct + prop->offset, sizeof(float));
@@ -894,7 +894,7 @@ int cdd_c_abstract_to_specific(void *out_struct,
     } else if (strcmp(prop->type, "C_ORM_TYPE_INT64") == 0) {
       if (val->type == CDD_C_VARIANT_TYPE_INT) {
         memcpy((char *)out_struct + prop->offset, &val->value.i_val,
-               sizeof(long long));
+               sizeof(c_orm_int64_t));
       } else if (strict_mapping)
         return EINVAL;
     } else if (strcmp(prop->type, "C_ORM_TYPE_FLOAT") == 0) {

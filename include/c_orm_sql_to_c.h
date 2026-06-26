@@ -15,6 +15,7 @@ extern "C" {
 #include "c_orm_sql.h"
 #include "cdd_c_orm_meta.h"
 #include "query_projection.h"
+#include "c_orm_safe_crt.h"
 #include "abstract_struct.h"
 #include <stdio.h>
 /* clang-format on */
@@ -73,7 +74,7 @@ C_ORM_EXPORT int sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
 C_ORM_EXPORT int
 sql_to_c_projection_struct_emit(FILE *fp, const cdd_c_query_projection_t *proj,
                                 const char *struct_name,
-                                unsigned long long *out_hash);
+                                c_orm_uint64_t *out_hash);
 /** @endcond */
 C_ORM_EXPORT int
 sql_to_c_projection_free_emit(FILE *fp, const cdd_c_query_projection_t *proj,

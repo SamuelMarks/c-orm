@@ -122,7 +122,7 @@ TEST test_sql_to_c_errors(void) {
 TEST test_sql_to_c_projections(void) {
   FILE *fp = tmpfile();
   cdd_c_query_projection_t proj;
-  unsigned long long out_hash;
+  c_orm_uint64_t out_hash;
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 2;

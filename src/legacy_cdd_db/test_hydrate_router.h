@@ -16,7 +16,7 @@ extern "C" {
 /* clang-format on */
 
 typedef struct MockHydrateStruct {
-  long long id;
+  c_orm_int64_t id;
 } mock_hydrate_struct_t;
 
 int mock_hydrator(void *out_struct, const cdd_c_abstract_struct_t *row) {
@@ -37,7 +37,7 @@ TEST test_hydrate_router_registration_and_dispatch(void) {
   cdd_c_variant_t val;
   mock_hydrate_struct_t out_struct;
   const struct cdd_c_meta *dummy_meta = NULL;
-  unsigned long long hash = 12345;
+  c_orm_uint64_t hash = 12345;
 
   ASSERT_EQ(0, cdd_c_hydrate_router_init(&router));
 

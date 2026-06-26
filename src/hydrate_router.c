@@ -54,7 +54,7 @@ int cdd_c_hydrate_router_init(cdd_c_hydrate_router_t *router) {
 }
 
 int cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
-                                  unsigned long long query_id_hash,
+                                  c_orm_uint64_t query_id_hash,
                                   const struct cdd_c_meta *struct_meta,
                                   cdd_c_specific_hydrator_fn hydrate_fn) {
   cdd_c_hydrate_route_t *new_routes;
@@ -91,7 +91,7 @@ int cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
 }
 
 int cdd_c_hydrate_router_dispatch(const cdd_c_hydrate_router_t *router,
-                                  unsigned long long query_id_hash,
+                                  c_orm_uint64_t query_id_hash,
                                   const cdd_c_abstract_struct_t *row,
                                   void *out_struct) {
   size_t i;

@@ -45,7 +45,10 @@ typedef struct c_orm_db c_orm_db_t;
 /**
  * @brief Opaque query/prepared statement handle.
  */
+#ifndef C_ORM_QUERY_T_DEFINED
+#define C_ORM_QUERY_T_DEFINED
 typedef struct c_orm_query c_orm_query_t;
+#endif
 
 /**
  * @brief Error codes returned by c-orm functions.

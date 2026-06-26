@@ -151,20 +151,24 @@ int sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
               "# else\n"
               "#  include <stdint.h>\n"
               "# endif\n"
-              "# if _MSC_VER < 1800\n"
               "#  ifndef __cplusplus\n"
-              "#   ifndef bool\n"
+              "#   ifndef _STDBOOL_H\n"
+              "#    define _STDBOOL_H\n"
               "typedef unsigned char bool;\n"
               "#    define true 1\n"
               "#    define false 0\n"
               "#   endif\n"
               "#  endif\n"
-              "# else\n"
-              "#  include <stdbool.h>\n"
-              "# endif\n"
               "#else\n"
               "# include <stdint.h>\n"
-              "# include <stdbool.h>\n"
+              "# ifndef __cplusplus\n"
+              "#  ifndef _STDBOOL_H\n"
+              "#   define _STDBOOL_H\n"
+              "typedef unsigned char bool;\n"
+              "#   define true 1\n"
+              "#   define false 0\n"
+              "#  endif\n"
+              "# endif\n"
               "#endif\n"
               "#include <stddef.h>\n"
               "/* clang-format "
@@ -658,7 +662,7 @@ static int emit_c_orm_queries(FILE *fp, const struct sql_table_t *table,
 int sql_to_c_projection_struct_emit(FILE *fp,
                                     const cdd_c_query_projection_t *proj,
                                     const char *struct_name,
-                                    unsigned long long *out_hash) {
+                                    c_orm_uint64_t *out_hash) {
 
   size_t i;
 
@@ -668,7 +672,7 @@ int sql_to_c_projection_struct_emit(FILE *fp,
   if (out_hash) {
     /* Simplified fast query string hash simulation for external routing
      * metadata tag ID */
-    unsigned long long hash = 14695981039346656037ULL;
+    c_orm_uint64_t hash = 14695981039346656037ULL;
     const char *s = struct_name; /* In reality we hash the actual SELECT AST,
                                     simplified for mock */
     while (*s) {
@@ -1228,13 +1232,13 @@ int sql_to_c_projection_dirty_bitmask_emit(FILE *fp,
 
   } else if (proj->n_fields <= 64) {
 
-    fprintf(fp, "    unsigned long long mask;\n");
+    fprintf(fp, "    c_orm_uint64_t mask;\n");
 
   } else {
 
     size_t arr_size = (proj->n_fields / 64) + 1;
 
-    fprintf(fp, "    unsigned long long mask[%u];\n", (unsigned int)arr_size);
+    fprintf(fp, "    c_orm_uint64_t mask[%u];\n", (unsigned int)arr_size);
   }
 
   fprintf(fp, "} %s_mask;\n\n", struct_name);

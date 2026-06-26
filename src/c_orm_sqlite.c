@@ -19,7 +19,7 @@ typedef union _LARGE_INTEGER {
 #if defined(_MSC_VER)
     __int64 QuadPart;
 #else
-    long long QuadPart;
+    c_orm_int64_t QuadPart;
 #endif
 } LARGE_INTEGER;
 __declspec(dllimport) int __stdcall QueryPerformanceCounter(LARGE_INTEGER *lpPerformanceCount);

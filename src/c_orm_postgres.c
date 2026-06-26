@@ -394,7 +394,7 @@ static c_orm_error_t postgres_bind_int64(c_orm_query_t *query, int index,
     return (c_orm_error_t)rc;
   }
   free_param(query->data, index);
-  C_ORM_SPRINTF(buf, sizeof(buf), INT64_FORMAT, (long long)val);
+  C_ORM_SPRINTF(buf, sizeof(buf), INT64_FORMAT, (c_orm_int64_t)val);
   query->data->param_values[index - 1] = orm_strdup(buf);
   if (!query->data->param_values[index - 1]) {
     LOG_DEBUG("postgres_bind_int64: OOM");

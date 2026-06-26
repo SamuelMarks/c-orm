@@ -18,6 +18,7 @@ extern "C" {
 
 /* clang-format off */
 #include "c_orm_db.h"
+#include "c_orm_safe_crt.h"
 #include "abstract_struct.h"
 #include "cdd_c_orm_meta.h"
 /* clang-format on */
@@ -37,7 +38,7 @@ struct cdd_c_meta; /* Forward decl */
 typedef struct CddCHydrateRoute {
   /** @brief field */
   /** @brief field */
-  unsigned long long query_id_hash;
+  c_orm_uint64_t query_id_hash;
   /** @brief field */
   /** @brief field */
   const struct cdd_c_meta *struct_meta;
@@ -91,7 +92,7 @@ C_ORM_EXPORT void cdd_c_hydrate_router_set_last_error(const char *msg);
  */
 C_ORM_EXPORT int
 cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
-                              unsigned long long query_id_hash,
+                              c_orm_uint64_t query_id_hash,
                               const struct cdd_c_meta *struct_meta,
                               cdd_c_specific_hydrator_fn hydrate_fn);
 
@@ -106,7 +107,7 @@ cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
  * necessary or mapping failed.
  */
 C_ORM_EXPORT int cdd_c_hydrate_router_dispatch(
-    const cdd_c_hydrate_router_t *router, unsigned long long query_id_hash,
+    const cdd_c_hydrate_router_t *router, c_orm_uint64_t query_id_hash,
     const cdd_c_abstract_struct_t *row, void *out_struct);
 
 /**
