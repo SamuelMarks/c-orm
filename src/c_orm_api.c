@@ -487,9 +487,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row(c_orm_db_t *db,
                   /* We found a match! Initialize proxy if needed and hydrate */
                   void *context_ptr = (char *)out_struct + rel->struct_offset;
                   c_orm_lazy_load_context_t *ctx =
-                      (c_orm_lazy_load_context_t *)((char *)context_ptr +
-                                                    (rel->lazy_ctx_offset -
-                                                     rel->struct_offset));
+                      (c_orm_lazy_load_context_t
+                           *)(void *)((char *)context_ptr +
+                                      (rel->lazy_ctx_offset -
+                                       rel->struct_offset));
                   void *target_data_ptr =
                       (char *)context_ptr +
                       (rel->data_offset - rel->struct_offset);
@@ -1083,9 +1084,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
   }
 
   context_ptr = (char *)out_struct + rel->struct_offset;
-  ctx = (c_orm_lazy_load_context_t *)((char *)context_ptr +
-                                      (rel->lazy_ctx_offset -
-                                       rel->struct_offset));
+  ctx = (c_orm_lazy_load_context_t *)(void *)((char *)context_ptr +
+                                              (rel->lazy_ctx_offset -
+                                               rel->struct_offset));
   target_data_ptr =
       (char *)context_ptr + (rel->data_offset - rel->struct_offset);
 
@@ -1281,9 +1282,9 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     void *parent_ptr = (char *)parents_data + (i * meta->struct_size);
     void *context_ptr = (char *)parent_ptr + rel->struct_offset;
     c_orm_lazy_load_context_t *ctx =
-        (c_orm_lazy_load_context_t *)((char *)context_ptr +
-                                      (rel->lazy_ctx_offset -
-                                       rel->struct_offset));
+        (c_orm_lazy_load_context_t *)(void *)((char *)context_ptr +
+                                              (rel->lazy_ctx_offset -
+                                               rel->struct_offset));
     void *target_data_ptr =
         (char *)context_ptr + (rel->data_offset - rel->struct_offset);
 
@@ -5337,9 +5338,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
 
   rel = &meta->relations[target_relation];
   context_ptr = (char *)obj + rel->struct_offset;
-  ctx = (c_orm_lazy_load_context_t *)((char *)context_ptr +
-                                      (rel->lazy_ctx_offset -
-                                       rel->struct_offset));
+  ctx = (c_orm_lazy_load_context_t *)(void *)((char *)context_ptr +
+                                              (rel->lazy_ctx_offset -
+                                               rel->struct_offset));
 
   if (ctx->is_loaded && limit == 0 && offset == 0) {
     {
@@ -5581,9 +5582,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
     void *target_data_ptr =
         (char *)context_ptr + (rel->data_offset - rel->struct_offset);
     c_orm_lazy_load_context_t *ctx =
-        (c_orm_lazy_load_context_t *)((char *)context_ptr +
-                                      (rel->lazy_ctx_offset -
-                                       rel->struct_offset));
+        (c_orm_lazy_load_context_t *)(void *)((char *)context_ptr +
+                                              (rel->lazy_ctx_offset -
+                                               rel->struct_offset));
 
     if (ctx->is_loaded) {
       if (rel->type == C_ORM_RELATION_ONE_TO_ONE ||

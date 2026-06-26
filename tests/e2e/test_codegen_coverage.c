@@ -44,6 +44,9 @@ static void *mock_malloc(size_t size) {
 #define fopen mock_fopen
 #define c_orm_codegen_generate test_c_orm_codegen_generate
 
+c_orm_error_t test_c_orm_codegen_generate(const char *schema_file,
+                                          const char *output_dir);
+
 #include "../../src/c_orm_codegen.c"
 
 
