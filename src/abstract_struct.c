@@ -941,7 +941,7 @@ c_orm_error_t cdd_c_abstract_to_specific(
   return 0;
 }
 
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
                              cdd_c_abstract_struct_array_t *out_schema) {
 #if defined(USE_SQLITE_LINKED)
@@ -992,7 +992,7 @@ cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
 #endif
 }
 
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
                            cdd_c_abstract_struct_array_t *out_schema) {
 #if defined(USE_LIBPQ_LINKED)
@@ -1052,7 +1052,7 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
 #endif
 }
 
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
                            cdd_c_abstract_struct_array_t *out_schema) {
 #if defined(USE_MYSQL_LINKED)

@@ -20,11 +20,11 @@ TEST test_postgres_stubs_edge_cases(void) {
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
   err = c_orm_postgres_get_vtable(&vt);
-  ASSERT_EQ(1, err);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, err);
   ASSERT(vt == NULL);
 
   err = c_orm_postgres_get_vtable(NULL);
-  ASSERT_EQ(1, err);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, err);
 
   err = c_orm_postgres_lo_create(NULL, &oid);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
@@ -53,11 +53,11 @@ TEST test_mysql_stubs_edge_cases(void) {
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
   err = c_orm_mysql_get_vtable(&vt);
-  ASSERT_EQ(1, err);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, err);
   ASSERT(vt == NULL);
 
   err = c_orm_mysql_get_vtable(NULL);
-  ASSERT_EQ(1, err);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, err);
 
   PASS();
 }
@@ -77,11 +77,11 @@ static void test_expire_cb(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 
 static c_orm_error_t get_last_err_mock(c_orm_db_t *db, const char **out) { (void)db; (void)out;
   *out = "mock";
-  return 0;
+  return C_ORM_OK;
 }
 static c_orm_error_t get_last_trace_mock(c_orm_db_t *db, const char **out) { (void)db; (void)out;
   *out = "trace";
-  return 0;
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t
@@ -115,42 +115,42 @@ TEST test_c_orm_db_coverage(void) {
 
   /* c_orm_get_last_error_message */
   rc = c_orm_get_last_error_message(NULL, NULL);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   rc = c_orm_get_last_error_message(NULL, &msg);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_STR_EQ("Unknown Error (No DB context)", msg);
 
   rc = c_orm_get_last_error_message(&db, &msg);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   db.vtable = &vt;
   rc = c_orm_get_last_error_message(&db, &msg);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   vt.get_last_error = get_last_err_mock;
   rc = c_orm_get_last_error_message(&db, &msg);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_STR_EQ("mock", msg);
 
   /* c_orm_get_last_error_trace */
   rc = c_orm_get_last_error_trace(NULL, NULL);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   rc = c_orm_get_last_error_trace(NULL, &msg);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   db.vtable = NULL;
   rc = c_orm_get_last_error_trace(&db, &msg);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   db.vtable = &vt;
   rc = c_orm_get_last_error_trace(&db, &msg);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   vt.get_last_trace = get_last_trace_mock;
   rc = c_orm_get_last_error_trace(&db, &msg);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_STR_EQ("trace", msg);
 
   /* getters setters */

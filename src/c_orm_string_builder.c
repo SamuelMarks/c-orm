@@ -27,16 +27,16 @@ struct c_orm_string_builder {
  * @param out_builder Pointer to receive the new builder instance.
  * @return 0 on success, non-zero on allocation failure.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
   c_orm_string_builder_t *sb;
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_string_builder_init: entry");
 
   if (!out_builder) {
     LOG_DEBUG("c_orm_string_builder_init: out_builder is NULL");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
@@ -59,7 +59,7 @@ c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
   sb->buffer[0] = '\0';
 
   *out_builder = sb;
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_string_builder_init: exit");
   return rc;
 }
@@ -91,7 +91,7 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
   size_t len;
   size_t required_capacity;
-  int rc;
+  c_orm_error_t rc;
   size_t new_capacity;
   char *new_buffer;
 
@@ -99,13 +99,13 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
 
   if (!builder || !str) {
     LOG_DEBUG("c_orm_string_builder_append: null argument");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
   len = strlen(str);
   if (len == 0) {
-    rc = 0;
+    rc = C_ORM_OK;
     LOG_DEBUG("c_orm_string_builder_append: empty string, returning early");
     return rc;
   }
@@ -130,7 +130,7 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
                builder->capacity - builder->length, str);
 
   builder->length += len;
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_string_builder_append: exit");
   return rc;
 }
@@ -144,17 +144,17 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
  */
 C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
     const c_orm_string_builder_t *builder, const char **out_str) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_string_builder_get: entry");
 
   if (!builder || !out_str) {
     LOG_DEBUG("c_orm_string_builder_get: null argument");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
   *out_str = builder->buffer ? builder->buffer : "";
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_string_builder_get: exit");
   return rc;
 }
@@ -168,17 +168,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
  */
 C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
     const c_orm_string_builder_t *builder, size_t *out_len) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_string_builder_len: entry");
 
   if (!builder || !out_len) {
     LOG_DEBUG("c_orm_string_builder_len: null argument");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
   *out_len = builder->length;
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_string_builder_len: exit");
   return rc;
 }

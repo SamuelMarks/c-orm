@@ -56,7 +56,7 @@ typedef struct {
  * @brief Connect
  */
 static c_orm_error_t mem_connect(const char *url, c_orm_db_t **out_db) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_memory_db_t *ctx;
   c_orm_db_t *db;
   const c_orm_driver_vtable_t *vt;
@@ -110,7 +110,7 @@ static c_orm_error_t mem_connect(const char *url, c_orm_db_t **out_db) {
  * @brief Disconnect
  */
 static c_orm_error_t mem_disconnect(c_orm_db_t *db) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_disconnect: entry");
 
   if (db && db->driver_data) {
@@ -165,7 +165,7 @@ static void parse_table_name(const char *sql, const char *prefix, char *out) {
  */
 static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
                                  c_orm_query_t **out_query) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_memory_query_t *q;
   c_orm_memory_db_t *ctx;
 
@@ -233,7 +233,7 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
  */
 static c_orm_error_t mem_bind_int32(c_orm_query_t *query, int index,
                                     int32_t val) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_bind_int32: entry");
   (void)query;
   (void)index;
@@ -248,7 +248,7 @@ static c_orm_error_t mem_bind_int32(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_bind_int64(c_orm_query_t *query, int index,
                                     int64_t val) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_bind_int64: entry");
   (void)query;
   (void)index;
@@ -263,7 +263,7 @@ static c_orm_error_t mem_bind_int64(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_bind_double(c_orm_query_t *query, int index,
                                      double val) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_bind_double: entry");
   (void)query;
   (void)index;
@@ -278,7 +278,7 @@ static c_orm_error_t mem_bind_double(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_bind_string(c_orm_query_t *query, int index,
                                      const char *val) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_bind_string: entry");
   (void)query;
   (void)index;
@@ -293,7 +293,7 @@ static c_orm_error_t mem_bind_string(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_bind_blob(c_orm_query_t *query, int index,
                                    const void *val, size_t size) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_bind_blob: entry");
   (void)query;
   (void)index;
@@ -308,7 +308,7 @@ static c_orm_error_t mem_bind_blob(c_orm_query_t *query, int index,
  * @brief Bind null
  */
 static c_orm_error_t mem_bind_null(c_orm_query_t *query, int index) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_bind_null: entry");
   (void)query;
   (void)index;
@@ -321,7 +321,7 @@ static c_orm_error_t mem_bind_null(c_orm_query_t *query, int index) {
  * @brief Step
  */
 static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_step: entry");
 
   if (!query || !out_has_row) {
@@ -341,7 +341,7 @@ static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
  */
 static c_orm_error_t mem_get_int32(c_orm_query_t *query, int index,
                                    int32_t *out_val) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_get_int32: entry");
   (void)query;
   (void)index;
@@ -356,7 +356,7 @@ static c_orm_error_t mem_get_int32(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_get_int64(c_orm_query_t *query, int index,
                                    int64_t *out_val) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_get_int64: entry");
   (void)query;
   (void)index;
@@ -371,7 +371,7 @@ static c_orm_error_t mem_get_int64(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_get_double(c_orm_query_t *query, int index,
                                     double *out_val) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_get_double: entry");
   (void)query;
   (void)index;
@@ -386,7 +386,7 @@ static c_orm_error_t mem_get_double(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_get_string(c_orm_query_t *query, int index,
                                     const char **out_val) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_get_string: entry");
   (void)query;
   (void)index;
@@ -401,7 +401,7 @@ static c_orm_error_t mem_get_string(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_get_blob(c_orm_query_t *query, int index,
                                   const void **out_val, size_t *out_size) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_get_blob: entry");
   (void)query;
   (void)index;
@@ -417,7 +417,7 @@ static c_orm_error_t mem_get_blob(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_is_null(c_orm_query_t *query, int index,
                                  int *out_is_null) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_is_null: entry");
   (void)query;
   (void)index;
@@ -433,7 +433,7 @@ static c_orm_error_t mem_is_null(c_orm_query_t *query, int index,
  * @brief Finalize
  */
 static c_orm_error_t mem_finalize(c_orm_query_t *query) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_memory_query_t *q;
   LOG_DEBUG("mem_finalize: entry");
 
@@ -453,7 +453,7 @@ static c_orm_error_t mem_finalize(c_orm_query_t *query) {
  * @brief Reset
  */
 static c_orm_error_t mem_reset(c_orm_query_t *query) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_reset: entry");
   (void)query;
   rc = C_ORM_OK;
@@ -466,7 +466,7 @@ static c_orm_error_t mem_reset(c_orm_query_t *query) {
  */
 static c_orm_error_t mem_get_last_error(c_orm_db_t *db,
                                         const char **out_message) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_memory_db_t *ctx;
   LOG_DEBUG("mem_get_last_error: entry");
   if (!db || !db->driver_data) {
@@ -479,7 +479,7 @@ static c_orm_error_t mem_get_last_error(c_orm_db_t *db,
   if (out_message) {
     *out_message = ctx->last_error;
   }
-  rc = 1;
+  rc = C_ORM_ERROR_UNKNOWN;
   LOG_DEBUG("mem_get_last_error: exit");
   return rc;
 }
@@ -489,7 +489,7 @@ static c_orm_error_t mem_get_last_error(c_orm_db_t *db,
  */
 static c_orm_error_t mem_get_last_insert_rowid(c_orm_db_t *db,
                                                int64_t *out_id) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_get_last_insert_rowid: entry");
   (void)db;
   if (out_id) {
@@ -505,7 +505,7 @@ static c_orm_error_t mem_get_last_insert_rowid(c_orm_db_t *db,
  */
 static c_orm_error_t mem_get_column_count(c_orm_query_t *query,
                                           int *out_count) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_get_column_count: entry");
   (void)query;
   if (out_count) {
@@ -521,7 +521,7 @@ static c_orm_error_t mem_get_column_count(c_orm_query_t *query,
  */
 static c_orm_error_t mem_get_column_name(c_orm_query_t *query, int index,
                                          const char **out_name) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("mem_get_column_name: entry");
   (void)query;
   (void)index;
@@ -561,17 +561,17 @@ static const c_orm_driver_vtable_t memory_vtable = {mem_connect,
 /**
  * @brief Get vtable
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_memory_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_memory_get_vtable: entry");
   if (out_vtable) {
     *out_vtable = &memory_vtable;
-    rc = 0;
+    rc = C_ORM_OK;
     LOG_DEBUG("c_orm_memory_get_vtable: exit");
     return rc;
   }
-  rc = 1;
+  rc = C_ORM_ERROR_UNKNOWN;
   LOG_DEBUG("c_orm_memory_get_vtable: exit");
   return rc;
 }

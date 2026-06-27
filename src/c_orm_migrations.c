@@ -18,7 +18,7 @@
  * @return C_ORM_OK on success, or an error code.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_migration_init_table(c_orm_db_t *db) {
-  int rc;
+  c_orm_error_t rc;
   const char *sql = "CREATE TABLE IF NOT EXISTS _c_orm_migrations ("
                     "  id INTEGER PRIMARY KEY,"
                     "  version VARCHAR(255) NOT NULL UNIQUE,"
@@ -50,7 +50,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_init_table(c_orm_db_t *db) {
 C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
     const char *dir_path, c_orm_migration_t **out_migrations,
     size_t *out_count) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_migration_load_dir: entered");
 
@@ -119,7 +119,7 @@ C_ORM_EXPORT void c_orm_migration_free_array(c_orm_migration_t *migrations,
 C_ORM_EXPORT c_orm_error_t
 c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
                   size_t count, const c_orm_migration_options_t *options) {
-  int rc;
+  c_orm_error_t rc;
   size_t i;
   c_orm_error_t err;
   char query[1024];
@@ -239,7 +239,7 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
 C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
     c_orm_db_t *db, const c_orm_migration_t *migrations, size_t count,
     size_t steps, const c_orm_migration_options_t *options) {
-  int rc;
+  c_orm_error_t rc;
   size_t applied_count = 0;
   c_orm_migration_t *applied = NULL;
   c_orm_error_t err;
@@ -341,7 +341,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
  */
 C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
     c_orm_db_t *db, const char *table_name, cdd_c_meta_t **out_schema) {
-  int rc;
+  c_orm_error_t rc;
   char sql[256];
   c_orm_query_t *q;
   c_orm_error_t err;
@@ -496,7 +496,7 @@ C_ORM_EXPORT void c_orm_migration_free_table_schema(cdd_c_meta_t *schema) {
  */
 C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
     c_orm_db_t *db, c_orm_migration_t **out_migrations, size_t *out_count) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_query_t *q = NULL;
   c_orm_error_t err;
   int has_row;
@@ -582,7 +582,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
 C_ORM_EXPORT c_orm_error_t
 c_orm_migrate_up(c_orm_db_t *db, const char *dir_path,
                  const c_orm_migration_options_t *options) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_migration_t *migs = NULL;
   size_t count = 0;
   c_orm_error_t err;
@@ -622,7 +622,7 @@ c_orm_migrate_up(c_orm_db_t *db, const char *dir_path,
 C_ORM_EXPORT c_orm_error_t
 c_orm_migrate_down(c_orm_db_t *db, const char *dir_path, size_t steps,
                    const c_orm_migration_options_t *options) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_migration_t *migs = NULL;
   size_t count = 0;
   c_orm_error_t err;
@@ -657,7 +657,7 @@ c_orm_migrate_down(c_orm_db_t *db, const char *dir_path, size_t steps,
  * @return C_ORM_OK on success, or an error code.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_migration_lock(c_orm_db_t *db) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_error_t err;
 
   LOG_DEBUG("c_orm_migration_lock: entered");
@@ -692,7 +692,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_lock(c_orm_db_t *db) {
  * @return C_ORM_OK on success, or an error code.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_migration_unlock(c_orm_db_t *db) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_error_t err = C_ORM_ERROR_NOT_IMPLEMENTED;
 
   LOG_DEBUG("c_orm_migration_unlock: entered");

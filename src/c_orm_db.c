@@ -18,11 +18,11 @@
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_get_last_error_message(c_orm_db_t *db, const char **out_message) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_get_last_error_message: entry");
   if (!out_message) {
     LOG_DEBUG("c_orm_get_last_error_message: out_message is NULL");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     LOG_DEBUG("c_orm_get_last_error_message: exit");
     return rc;
   }
@@ -30,7 +30,7 @@ c_orm_get_last_error_message(c_orm_db_t *db, const char **out_message) {
     LOG_DEBUG(
         "c_orm_get_last_error_message: missing db or get_last_error pointer");
     *out_message = "Unknown Error (No DB context)";
-    rc = 0;
+    rc = C_ORM_OK;
     LOG_DEBUG("c_orm_get_last_error_message: exit");
     return rc;
   }
@@ -47,18 +47,18 @@ c_orm_get_last_error_message(c_orm_db_t *db, const char **out_message) {
  */
 C_ORM_EXPORT c_orm_error_t c_orm_get_last_error_trace(c_orm_db_t *db,
                                                       const char **out_trace) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_get_last_error_trace: entry");
   if (!out_trace) {
     LOG_DEBUG("c_orm_get_last_error_trace: out_trace is NULL");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     LOG_DEBUG("c_orm_get_last_error_trace: exit");
     return rc;
   }
   if (!db || !db->vtable) {
     LOG_DEBUG("c_orm_get_last_error_trace: missing db or vtable");
     *out_trace = "Unknown Error (No DB context or vtable)";
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     LOG_DEBUG("c_orm_get_last_error_trace: exit");
     return rc;
   }
@@ -66,7 +66,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_get_last_error_trace(c_orm_db_t *db,
     LOG_DEBUG("c_orm_get_last_error_trace: driver does not support stack trace "
               "reporting");
     *out_trace = "Driver does not support stack trace reporting";
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     LOG_DEBUG("c_orm_get_last_error_trace: exit");
     return rc;
   }
@@ -117,7 +117,7 @@ C_ORM_EXPORT void c_orm_set_slow_query_threshold(c_orm_db_t *db,
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_get_telemetry(c_orm_db_t *db, c_orm_pool_telemetry_t *out_telemetry) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_get_telemetry: entry");
   if (!db) {
     LOG_DEBUG("c_orm_get_telemetry: db is NULL");
@@ -163,7 +163,7 @@ C_ORM_EXPORT void c_orm_set_expire_callback(c_orm_db_t *db, c_orm_expire_cb cb,
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_db_attach_identity_map(c_orm_db_t *db, c_orm_identity_map_t *map) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_db_attach_identity_map: entry");
   if (!db) {
     LOG_DEBUG("c_orm_db_attach_identity_map: db is NULL");

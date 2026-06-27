@@ -19,7 +19,8 @@ typedef struct MockHydrateStruct {
   c_orm_int64_t id;
 } mock_hydrate_struct_t;
 
-int mock_hydrator(void *out_struct, const cdd_c_abstract_struct_t *row) {
+c_orm_error_t mock_hydrator(void *out_struct,
+                            const cdd_c_abstract_struct_t *row) {
   mock_hydrate_struct_t *typed_out = (mock_hydrate_struct_t *)out_struct;
   cdd_c_variant_t *val;
   if (cdd_c_abstract_get(row, "id", &val) == 0) {

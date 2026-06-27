@@ -86,7 +86,7 @@ static void set_error(c_orm_db_t *db, const char *msg) {
  * @return C_ORM_OK on success, or an error code.
  */
 static c_orm_error_t mysql_drv_connect(const char *url, c_orm_db_t **out_db) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_db_t *db;
   struct mysql_db_data *data;
 
@@ -151,7 +151,7 @@ static c_orm_error_t mysql_drv_connect(const char *url, c_orm_db_t **out_db) {
  * @return C_ORM_OK on success, or an error code.
  */
 static c_orm_error_t mysql_drv_disconnect(c_orm_db_t *db) {
-  int rc;
+  c_orm_error_t rc;
   struct mysql_db_data *data;
 
   LOG_DEBUG("mysql_drv_disconnect: entered");
@@ -192,7 +192,7 @@ struct c_orm_query {
  */
 static c_orm_error_t mysql_drv_prepare(c_orm_db_t *db, const char *sql,
                                        c_orm_query_t **out_query) {
-  int rc;
+  c_orm_error_t rc;
   struct mysql_db_data *db_data;
   struct mysql_query_data *q_data;
   c_orm_query_t *query;
@@ -272,7 +272,7 @@ static c_orm_error_t mysql_drv_prepare(c_orm_db_t *db, const char *sql,
  */
 static c_orm_error_t mysql_drv_bind_int32(c_orm_query_t *query, int index,
                                           int32_t val) {
-  int rc;
+  c_orm_error_t rc;
   int i;
   MYSQL_BIND *b;
 
@@ -314,7 +314,7 @@ static c_orm_error_t mysql_drv_bind_int32(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mysql_drv_bind_int64(c_orm_query_t *query, int index,
                                           int64_t val) {
-  int rc;
+  c_orm_error_t rc;
   int i;
   MYSQL_BIND *b;
 
@@ -356,7 +356,7 @@ static c_orm_error_t mysql_drv_bind_int64(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mysql_drv_bind_double(c_orm_query_t *query, int index,
                                            double val) {
-  int rc;
+  c_orm_error_t rc;
   int i;
   MYSQL_BIND *b;
 
@@ -398,7 +398,7 @@ static c_orm_error_t mysql_drv_bind_double(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mysql_drv_bind_string(c_orm_query_t *query, int index,
                                            const char *val) {
-  int rc;
+  c_orm_error_t rc;
   int i;
   MYSQL_BIND *b;
 
@@ -445,7 +445,7 @@ static c_orm_error_t mysql_drv_bind_string(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mysql_drv_bind_blob(c_orm_query_t *query, int index,
                                          const void *val, size_t size) {
-  int rc;
+  c_orm_error_t rc;
   int i;
   MYSQL_BIND *b;
 
@@ -489,7 +489,7 @@ static c_orm_error_t mysql_drv_bind_blob(c_orm_query_t *query, int index,
  * @return C_ORM_OK on success, or an error code.
  */
 static c_orm_error_t mysql_drv_bind_null(c_orm_query_t *query, int index) {
-  int rc;
+  c_orm_error_t rc;
   int i;
   MYSQL_BIND *b;
 
@@ -519,7 +519,7 @@ static c_orm_error_t mysql_drv_bind_null(c_orm_query_t *query, int index) {
  * @return C_ORM_OK on success, or an error code.
  */
 static c_orm_error_t init_result_binds(struct mysql_query_data *q_data) {
-  int rc;
+  c_orm_error_t rc;
   MYSQL_RES *meta;
   int i;
 
@@ -588,7 +588,7 @@ static c_orm_error_t init_result_binds(struct mysql_query_data *q_data) {
  */
 static c_orm_error_t mysql_drv_step(c_orm_query_t *query, int *out_has_row) {
   struct mysql_query_data *q_data;
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("mysql_drv_step: entered");
 
@@ -669,7 +669,7 @@ static c_orm_error_t mysql_drv_step(c_orm_query_t *query, int *out_has_row) {
  */
 static c_orm_error_t mysql_drv_get_int32(c_orm_query_t *query, int index,
                                          int32_t *out_val) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("mysql_drv_get_int32: entered");
 
@@ -695,7 +695,7 @@ static c_orm_error_t mysql_drv_get_int32(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mysql_drv_get_int64(c_orm_query_t *query, int index,
                                          int64_t *out_val) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("mysql_drv_get_int64: entered");
 
@@ -725,7 +725,7 @@ static c_orm_error_t mysql_drv_get_int64(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mysql_drv_get_double(c_orm_query_t *query, int index,
                                           double *out_val) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("mysql_drv_get_double: entered");
 
@@ -751,7 +751,7 @@ static c_orm_error_t mysql_drv_get_double(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mysql_drv_get_string(c_orm_query_t *query, int index,
                                           const char **out_val) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("mysql_drv_get_string: entered");
 
@@ -779,7 +779,7 @@ static c_orm_error_t mysql_drv_get_string(c_orm_query_t *query, int index,
 static c_orm_error_t mysql_drv_get_blob(c_orm_query_t *query, int index,
                                         const void **out_val,
                                         size_t *out_size) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("mysql_drv_get_blob: entered");
 
@@ -807,7 +807,7 @@ static c_orm_error_t mysql_drv_get_blob(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mysql_drv_is_null(c_orm_query_t *query, int index,
                                        int *out_is_null) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("mysql_drv_is_null: entered");
 
@@ -830,7 +830,7 @@ static c_orm_error_t mysql_drv_is_null(c_orm_query_t *query, int index,
  * @return C_ORM_OK on success, or an error code.
  */
 static c_orm_error_t mysql_drv_finalize(c_orm_query_t *query) {
-  int rc;
+  c_orm_error_t rc;
   int i;
 
   LOG_DEBUG("mysql_drv_finalize: entered");
@@ -878,7 +878,7 @@ static c_orm_error_t mysql_drv_finalize(c_orm_query_t *query) {
  * @return C_ORM_OK on success, or an error code.
  */
 static c_orm_error_t mysql_drv_reset(c_orm_query_t *query) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("mysql_drv_reset: entered");
 
@@ -907,21 +907,21 @@ static c_orm_error_t mysql_drv_reset(c_orm_query_t *query) {
  */
 static c_orm_error_t mysql_drv_get_last_error(c_orm_db_t *db,
                                               const char **out_message) {
-  int rc;
+  c_orm_error_t rc;
   struct mysql_db_data *data;
 
   LOG_DEBUG("mysql_drv_get_last_error: entered");
 
   if (!out_message) {
     LOG_DEBUG("mysql_drv_get_last_error: validation error");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
   if (!db || !db->driver_data) {
     LOG_DEBUG("mysql_drv_get_last_error: invalid db object");
     *out_message = "Invalid DB object";
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
@@ -929,7 +929,7 @@ static c_orm_error_t mysql_drv_get_last_error(c_orm_db_t *db,
   *out_message = data->last_error;
 
   LOG_DEBUG("mysql_drv_get_last_error: exiting");
-  rc = 0;
+  rc = C_ORM_OK;
   return rc;
 }
 
@@ -941,7 +941,7 @@ static c_orm_error_t mysql_drv_get_last_error(c_orm_db_t *db,
  */
 static c_orm_error_t mysql_drv_get_last_trace(c_orm_db_t *db,
                                               const char **out_trace) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("mysql_drv_get_last_trace: entered");
 
@@ -952,7 +952,7 @@ static c_orm_error_t mysql_drv_get_last_trace(c_orm_db_t *db,
   }
 
   LOG_DEBUG("mysql_drv_get_last_trace: exiting");
-  rc = 0;
+  rc = C_ORM_OK;
   return rc;
 }
 
@@ -964,7 +964,7 @@ static c_orm_error_t mysql_drv_get_last_trace(c_orm_db_t *db,
  */
 static c_orm_error_t mysql_drv_get_last_insert_rowid(c_orm_db_t *db,
                                                      int64_t *out_id) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("mysql_drv_get_last_insert_rowid: entered");
 
@@ -1010,22 +1010,22 @@ static const c_orm_driver_vtable_t mysql_vtable = {
  * @param out_vtable Pointer to store the vtable.
  * @return 0 on success, non-zero otherwise.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_mysql_get_vtable: entered");
 
   if (!out_vtable) {
     LOG_DEBUG("c_orm_mysql_get_vtable: validation error");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
   *out_vtable = &mysql_vtable;
 
   LOG_DEBUG("c_orm_mysql_get_vtable: exiting");
-  rc = 0;
+  rc = C_ORM_OK;
   return rc;
 }
 
@@ -1037,7 +1037,7 @@ c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
  */
 C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
                                                c_orm_db_t **out_db) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_mysql_connect: entered");
 
@@ -1056,9 +1056,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
  * @param out_vtable Pointer to store the vtable.
  * @return 0 on success, non-zero otherwise.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_mysql_get_vtable (stub): entered");
 
@@ -1067,7 +1067,7 @@ c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   }
 
   LOG_DEBUG("c_orm_mysql_get_vtable (stub): exiting");
-  rc = 1;
+  rc = C_ORM_ERROR_UNKNOWN;
   return rc;
 }
 
@@ -1079,7 +1079,7 @@ c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
  */
 C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
                                                c_orm_db_t **out_db) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_mysql_connect (stub): entered");
 

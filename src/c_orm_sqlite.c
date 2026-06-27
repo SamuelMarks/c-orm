@@ -107,7 +107,7 @@ static void set_error(c_orm_db_t *db, const char *msg) {
 static c_orm_error_t sqlite_connect(const char *url, c_orm_db_t **out_db) {
   c_orm_db_t *db;
   struct sqlite_db_data *data;
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("sqlite_connect: entry");
 
@@ -168,7 +168,7 @@ static c_orm_error_t sqlite_connect(const char *url, c_orm_db_t **out_db) {
  * @return C_ORM_OK on success.
  */
 static c_orm_error_t sqlite_disconnect(c_orm_db_t *db) {
-  int rc;
+  c_orm_error_t rc;
   struct sqlite_db_data *data;
 
   LOG_DEBUG("sqlite_disconnect: entry");
@@ -219,7 +219,7 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
   struct sqlite_db_data *db_data;
   struct sqlite_query_data *q_data;
   c_orm_query_t *query;
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("sqlite_prepare: entry");
 
@@ -298,7 +298,7 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
  */
 static c_orm_error_t sqlite_bind_int32(c_orm_query_t *query, int index,
                                        int32_t val) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("sqlite_bind_int32: entry");
   printf("sqlite_bind_int32: start index=%d val=%d\n", index, val);
   fflush(stdout);
@@ -335,7 +335,7 @@ static c_orm_error_t sqlite_bind_int32(c_orm_query_t *query, int index,
  */
 static c_orm_error_t sqlite_bind_int64(c_orm_query_t *query, int index,
                                        int64_t val) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("sqlite_bind_int64: entry");
   if (!query || !query->data || !query->data->stmt) {
     LOG_DEBUG("sqlite_bind_int64: invalid state");
@@ -367,7 +367,7 @@ static c_orm_error_t sqlite_bind_int64(c_orm_query_t *query, int index,
  */
 static c_orm_error_t sqlite_bind_double(c_orm_query_t *query, int index,
                                         double val) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("sqlite_bind_double: entry");
   if (!query || !query->data || !query->data->stmt) {
     LOG_DEBUG("sqlite_bind_double: invalid state");
@@ -396,7 +396,7 @@ static c_orm_error_t sqlite_bind_double(c_orm_query_t *query, int index,
  */
 static c_orm_error_t sqlite_bind_string(c_orm_query_t *query, int index,
                                         const char *val) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("sqlite_bind_string: entry");
   if (!query || !query->data || !query->data->stmt) {
     LOG_DEBUG("sqlite_bind_string: invalid state");
@@ -426,7 +426,7 @@ static c_orm_error_t sqlite_bind_string(c_orm_query_t *query, int index,
  */
 static c_orm_error_t sqlite_bind_blob(c_orm_query_t *query, int index,
                                       const void *val, size_t size) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("sqlite_bind_blob: entry");
   if (!query || !query->data || !query->data->stmt) {
     LOG_DEBUG("sqlite_bind_blob: invalid state");
@@ -454,7 +454,7 @@ static c_orm_error_t sqlite_bind_blob(c_orm_query_t *query, int index,
  * @return C_ORM_OK on success, or an error code.
  */
 static c_orm_error_t sqlite_bind_null(c_orm_query_t *query, int index) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("sqlite_bind_null: entry");
   if (!query || !query->data || !query->data->stmt) {
     LOG_DEBUG("sqlite_bind_null: invalid state");
@@ -481,7 +481,7 @@ static c_orm_error_t sqlite_bind_null(c_orm_query_t *query, int index) {
  * @return C_ORM_OK on success, or an error code.
  */
 static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
-  int rc;
+  c_orm_error_t rc;
   double elapsed = 0.0;
   const char *sql;
   char log_msg[1024];
@@ -574,7 +574,7 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
  */
 static c_orm_error_t sqlite_get_int32(c_orm_query_t *query, int index,
                                       int32_t *out_val) {
-  int rc;
+  c_orm_error_t rc;
   int type;
 
   LOG_DEBUG("sqlite_get_int32: entry");
@@ -607,7 +607,7 @@ static c_orm_error_t sqlite_get_int32(c_orm_query_t *query, int index,
  */
 static c_orm_error_t sqlite_get_int64(c_orm_query_t *query, int index,
                                       int64_t *out_val) {
-  int rc;
+  c_orm_error_t rc;
   int type;
 
   LOG_DEBUG("sqlite_get_int64: entry");
@@ -640,7 +640,7 @@ static c_orm_error_t sqlite_get_int64(c_orm_query_t *query, int index,
  */
 static c_orm_error_t sqlite_get_double(c_orm_query_t *query, int index,
                                        double *out_val) {
-  int rc;
+  c_orm_error_t rc;
   int type;
 
   LOG_DEBUG("sqlite_get_double: entry");
@@ -673,7 +673,7 @@ static c_orm_error_t sqlite_get_double(c_orm_query_t *query, int index,
  */
 static c_orm_error_t sqlite_get_string(c_orm_query_t *query, int index,
                                        const char **out_val) {
-  int rc;
+  c_orm_error_t rc;
   int type;
 
   LOG_DEBUG("sqlite_get_string: entry");
@@ -707,7 +707,7 @@ static c_orm_error_t sqlite_get_string(c_orm_query_t *query, int index,
  */
 static c_orm_error_t sqlite_get_blob(c_orm_query_t *query, int index,
                                      const void **out_val, size_t *out_size) {
-  int rc;
+  c_orm_error_t rc;
   int type;
 
   LOG_DEBUG("sqlite_get_blob: entry");
@@ -741,7 +741,7 @@ static c_orm_error_t sqlite_get_blob(c_orm_query_t *query, int index,
  */
 static c_orm_error_t sqlite_is_null(c_orm_query_t *query, int index,
                                     int *out_is_null) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("sqlite_is_null: entry");
   if (!query || !query->data || !query->data->stmt || !out_is_null) {
@@ -763,7 +763,7 @@ static c_orm_error_t sqlite_is_null(c_orm_query_t *query, int index,
  * @return C_ORM_OK on success, or an error code.
  */
 static c_orm_error_t sqlite_finalize(c_orm_query_t *query) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("sqlite_finalize: entry");
   if (!query) {
@@ -793,7 +793,7 @@ static c_orm_error_t sqlite_finalize(c_orm_query_t *query) {
  * @return C_ORM_OK on success, or an error code.
  */
 static c_orm_error_t sqlite_reset(c_orm_query_t *query) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("sqlite_reset: entry");
   if (!query || !query->data || !query->data->stmt) {
@@ -817,24 +817,24 @@ static c_orm_error_t sqlite_reset(c_orm_query_t *query) {
  */
 static c_orm_error_t sqlite_get_last_error(c_orm_db_t *db,
                                            const char **out_message) {
-  int rc;
+  c_orm_error_t rc;
   struct sqlite_db_data *data;
 
   LOG_DEBUG("sqlite_get_last_error: entry");
   if (!out_message) {
     LOG_DEBUG("sqlite_get_last_error: null args");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
   if (!db || !db->driver_data) {
     *out_message = "Invalid DB object";
     LOG_DEBUG("sqlite_get_last_error: invalid db object");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
   data = (struct sqlite_db_data *)db->driver_data;
   *out_message = data->last_error;
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("sqlite_get_last_error: exit");
   return rc;
 }
@@ -848,7 +848,7 @@ static c_orm_error_t sqlite_get_last_error(c_orm_db_t *db,
  */
 static c_orm_error_t sqlite_get_last_trace(c_orm_db_t *db,
                                            const char **out_trace) {
-  int rc;
+  c_orm_error_t rc;
   (void)db;
 
   LOG_DEBUG("sqlite_get_last_trace: entry");
@@ -860,7 +860,7 @@ static c_orm_error_t sqlite_get_last_trace(c_orm_db_t *db,
                  "runtime AST parser integration currently unsupported "
                  "directly in vtable mappings. Last Error: ";
   }
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("sqlite_get_last_trace: exit");
   return rc;
 }
@@ -874,7 +874,7 @@ static c_orm_error_t sqlite_get_last_trace(c_orm_db_t *db,
  */
 static c_orm_error_t sqlite_get_last_insert_rowid(c_orm_db_t *db,
                                                   int64_t *out_id) {
-  int rc;
+  c_orm_error_t rc;
   struct sqlite_db_data *db_data;
 
   LOG_DEBUG("sqlite_get_last_insert_rowid: entry");
@@ -899,7 +899,7 @@ static c_orm_error_t sqlite_get_last_insert_rowid(c_orm_db_t *db,
  */
 static c_orm_error_t sqlite_get_column_count(c_orm_query_t *query,
                                              int *out_count) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("sqlite_get_column_count: entry");
   if (!query || !query->data || !query->data->stmt || !out_count) {
@@ -923,7 +923,7 @@ static c_orm_error_t sqlite_get_column_count(c_orm_query_t *query,
  */
 static c_orm_error_t sqlite_get_column_name(c_orm_query_t *query, int index,
                                             const char **out_name) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("sqlite_get_column_name: entry");
   if (!query || !query->data || !query->data->stmt || !out_name) {
@@ -971,17 +971,17 @@ static const c_orm_driver_vtable_t sqlite_vtable = {
  * @param out_vtable Pointer to output the vtable.
  * @return 0 on success.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_sqlite_get_vtable: entry");
   if (!out_vtable) {
     LOG_DEBUG("c_orm_sqlite_get_vtable: out_vtable is null");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
   *out_vtable = &sqlite_vtable;
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_sqlite_get_vtable: exit");
   return rc;
 }
@@ -995,7 +995,7 @@ c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
  */
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_connect(const char *url,
                                                 c_orm_db_t **out_db) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_sqlite_connect: entry");
   rc = sqlite_connect(url, out_db);
   LOG_DEBUG("c_orm_sqlite_connect: exit");
@@ -1017,7 +1017,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_connect(const char *url,
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_open(
     c_orm_db_t *db, const char *db_name, const char *table, const char *column,
     int64_t row_id, int is_read_write, void **out_blob_handle) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_sqlite_blob_open: entry");
   if (!db || !db->driver_data || !table || !column || !out_blob_handle) {
     LOG_DEBUG("c_orm_sqlite_blob_open: invalid args");
@@ -1049,7 +1049,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_open(
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_read(void *blob_handle,
                                                   void *buffer, int n,
                                                   int offset) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_sqlite_blob_read: entry");
   if (!blob_handle || !buffer) {
     LOG_DEBUG("c_orm_sqlite_blob_read: invalid args");
@@ -1079,7 +1079,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_read(void *blob_handle,
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
                                                    const void *buffer, int n,
                                                    int offset) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_sqlite_blob_write: entry");
   if (!blob_handle || !buffer) {
     LOG_DEBUG("c_orm_sqlite_blob_write: invalid args");
@@ -1104,7 +1104,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
  * @return C_ORM_OK on success, or an error code.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_sqlite_blob_close: entry");
   if (!blob_handle) {
@@ -1126,14 +1126,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle) {
  * @param out_vtable Pointer to output the vtable.
  * @return 0 on success.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_sqlite_get_vtable: entry (stub)");
   if (out_vtable) {
     *out_vtable = NULL;
   }
-  rc = 1;
+  rc = C_ORM_ERROR_UNKNOWN;
   LOG_DEBUG("c_orm_sqlite_get_vtable: exit (stub)");
   return rc;
 }
@@ -1147,7 +1147,7 @@ c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
  */
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_connect(const char *url,
                                                 c_orm_db_t **out_db) {
-  int rc;
+  c_orm_error_t rc;
 
   (void)url;
   (void)out_db;
@@ -1172,7 +1172,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_connect(const char *url,
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_open(
     c_orm_db_t *db, const char *db_name, const char *table, const char *column,
     int64_t row_id, int is_read_write, void **out_blob_handle) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_sqlite_blob_open: entry (stub)");
   rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   LOG_DEBUG("c_orm_sqlite_blob_open: exit (stub)");
@@ -1191,7 +1191,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_open(
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_read(void *blob_handle,
                                                   void *buffer, int n,
                                                   int offset) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_sqlite_blob_read: entry (stub)");
   rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   LOG_DEBUG("c_orm_sqlite_blob_read: exit (stub)");
@@ -1210,7 +1210,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_read(void *blob_handle,
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
                                                    const void *buffer, int n,
                                                    int offset) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_sqlite_blob_write: entry (stub)");
   rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   LOG_DEBUG("c_orm_sqlite_blob_write: exit (stub)");
@@ -1224,7 +1224,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
  * @return C_ORM_OK on success, or an error code.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_sqlite_blob_close: entry (stub)");
   rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   LOG_DEBUG("c_orm_sqlite_blob_close: exit (stub)");

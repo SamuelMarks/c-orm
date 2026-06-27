@@ -29,8 +29,8 @@ TEST test_memory_edge_cases(void) {
   c_orm_error_t err;
 
   /* get_vtable NULL */
-  ASSERT_EQ(1, c_orm_memory_get_vtable(NULL));
-  ASSERT_EQ(0, c_orm_memory_get_vtable(&vt));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_memory_get_vtable(NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_memory_get_vtable(&vt));
   ASSERT(vt != NULL);
 
   /* Connect NULLs */

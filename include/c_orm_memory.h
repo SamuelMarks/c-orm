@@ -26,7 +26,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_memory_connect(const char *url,
 /**
  * @brief Get the Memory vtable.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_memory_get_vtable(const c_orm_driver_vtable_t **out_vtable);
 
 #ifdef __cplusplus

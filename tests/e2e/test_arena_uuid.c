@@ -31,16 +31,16 @@ TEST test_arena_coverage(void) {
   /* Test OOM in arena_new */
   malloc_fail_countdown = 0;
   rc = c_orm_arena_new(&arena);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   /* Test OOM in arena_alloc */
   malloc_fail_countdown = -1;
   rc = c_orm_arena_new(&arena);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   malloc_fail_countdown = 0;
   rc = c_orm_arena_alloc(arena, 10, &ptr);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
   c_orm_arena_free(arena);
 
   /* Reset */
@@ -51,7 +51,7 @@ TEST test_arena_coverage(void) {
   ASSERT_NEQ(0, rc);
 
   rc = c_orm_arena_new(&arena);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(arena != NULL);
 
   rc = c_orm_arena_alloc(NULL, 10, &ptr);
@@ -65,12 +65,12 @@ TEST test_arena_coverage(void) {
 
   /* allocate normal */
   rc = c_orm_arena_alloc(arena, 10, &ptr);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(ptr != NULL);
 
   /* allocate large */
   rc = c_orm_arena_alloc(arena, 5000, &ptr);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(ptr != NULL);
 
   c_orm_arena_free(NULL);

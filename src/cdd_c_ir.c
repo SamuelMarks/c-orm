@@ -140,7 +140,7 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
   cdd_c_query_projection_t *proj = NULL;
   struct sql_parse_error_t err;
   az_span span;
-  int rc;
+  c_orm_error_t rc;
   size_t i;
   size_t start_idx = 0;
   int in_table = 0;

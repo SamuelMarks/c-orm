@@ -181,7 +181,7 @@ static int ensure_schema_migrations_table(PGconn *conn) {
 static int collect_migration_cb(const char *path, void *user_data) {
   struct MigrationList *list;
   size_t len;
-  int rc;
+  c_orm_error_t rc;
   char *basename;
 
   list = (struct MigrationList *)user_data;
@@ -325,7 +325,7 @@ c_orm_error_t apply_migration(const char *filepath) {
   PGconn *conn;
   PGresult *res;
   const char *db_url;
-  int rc;
+  c_orm_error_t rc;
 
   ENSURE_LIBPQ();
 
@@ -380,7 +380,7 @@ c_orm_error_t rollback_migration(const char *filepath) {
   PGconn *conn;
   PGresult *res;
   const char *db_url;
-  int rc;
+  c_orm_error_t rc;
 
   db_url = getenv("DATABASE_URL");
   if (!db_url) {
@@ -431,7 +431,7 @@ c_orm_error_t rollback_migration(const char *filepath) {
 c_orm_error_t run_pending_migrations(const char *migrations_dir) {
   PGconn *conn;
   const char *db_url;
-  int rc;
+  c_orm_error_t rc;
   struct MigrationList list;
   char **applied_versions;
   size_t applied_count;
@@ -555,7 +555,7 @@ c_orm_error_t run_pending_migrations(const char *migrations_dir) {
 c_orm_error_t rollback_last_migration(const char *migrations_dir) {
   PGconn *conn;
   const char *db_url;
-  int rc;
+  c_orm_error_t rc;
   PGresult *res;
   char *last_version;
   struct MigrationList list;
@@ -717,7 +717,7 @@ c_orm_error_t create_migration_file(const char *migrations_dir,
   struct tm *tm_info;
   char timestamp[20];
   const char *template_str;
-  int rc;
+  c_orm_error_t rc;
   size_t filepath_len;
   int i;
 
@@ -778,7 +778,7 @@ c_orm_error_t reset_database(const char *migrations_dir) {
   PGconn *conn;
   const char *db_url;
   PGresult *res;
-  int rc;
+  c_orm_error_t rc;
 
   db_url = getenv("DATABASE_URL");
   if (!db_url) {
@@ -819,7 +819,7 @@ c_orm_error_t dump_schema(const char *out_filepath) {
   const char *db_url;
   char *cmd;
   size_t cmd_len;
-  int rc;
+  c_orm_error_t rc;
 
   if (!out_filepath) {
     return EINVAL;
@@ -920,7 +920,7 @@ c_orm_error_t seed_database(const char *seed_filepath) {
   PGconn *conn;
   const char *db_url;
   PGresult *res;
-  int rc;
+  c_orm_error_t rc;
 
   if (!seed_filepath) {
     return EINVAL;

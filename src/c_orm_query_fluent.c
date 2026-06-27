@@ -436,7 +436,7 @@ static c_orm_ast_node_t *c_orm_ast_clone_node(c_orm_arena_t *arena,
  */
 static c_orm_error_t c_orm_query_clone(c_orm_query_t *q,
                                        c_orm_query_t **out_q) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_ast_node_t *curr;
   c_orm_ast_node_t *tail = NULL;
   c_orm_ast_node_t *cloned;
@@ -444,13 +444,13 @@ static c_orm_error_t c_orm_query_clone(c_orm_query_t *q,
   LOG_DEBUG("c_orm_query_clone: entry");
   if (!q || !out_q) {
     LOG_DEBUG("c_orm_query_clone: null argument");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
   if (c_orm_query_new(out_q) != 0) {
     LOG_DEBUG("c_orm_query_clone: c_orm_query_new failed");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
   (*out_q)->error = q->error;
@@ -462,7 +462,7 @@ static c_orm_error_t c_orm_query_clone(c_orm_query_t *q,
       c_orm_query_free(*out_q);
       *out_q = NULL;
       LOG_DEBUG("c_orm_query_clone: clone node failed");
-      rc = 1;
+      rc = C_ORM_ERROR_UNKNOWN;
       return rc;
     }
     if (!tail) {
@@ -474,7 +474,7 @@ static c_orm_error_t c_orm_query_clone(c_orm_query_t *q,
     }
     curr = curr->next;
   }
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_query_clone: exit");
   return rc;
 }
@@ -1329,28 +1329,28 @@ static c_orm_ast_node_t *c_orm_query_window_impl(c_orm_query_t *q,
  * @return 0 on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_query_new(c_orm_query_t **out_query) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_query_t *q;
 
   LOG_DEBUG("c_orm_query_new: entry");
 
   if (!out_query) {
     LOG_DEBUG("c_orm_query_new: null argument");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
   q = (c_orm_query_t *)C_ORM_MALLOC(sizeof(c_orm_query_t));
   if (!q) {
     LOG_DEBUG("c_orm_query_new: OOM");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
   if (c_orm_arena_new(&q->arena) != 0) {
     C_ORM_FREE(q);
     LOG_DEBUG("c_orm_query_new: arena OOM");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
@@ -1398,7 +1398,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_new(c_orm_query_t **out_query) {
   q->col = c_orm_query_col_impl;
 
   *out_query = q;
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_query_new: exit");
   return rc;
 }

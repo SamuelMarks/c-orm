@@ -22,7 +22,7 @@
  */
 c_orm_error_t c_orm_codegen_generate(const char *schema_file,
                                      const char *output_dir) {
-  int rc;
+  c_orm_error_t rc;
   char *sql_data = NULL;
   long sql_size;
   struct sql_table_t *tables = NULL;

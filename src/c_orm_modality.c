@@ -15,7 +15,7 @@
 C_ORM_EXPORT c_orm_error_t c_orm_set_modality(c_orm_db_t *db,
                                               c_orm_modality_t modality,
                                               void *ctx) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_set_modality: entry");
 
   if (!db) {

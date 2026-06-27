@@ -48,21 +48,21 @@ static int is_nullable(const struct sql_column_t *col) {
   for (i = 0; i < col->n_constraints; ++i) {
     if (col->constraints[i].type == SQL_CONSTRAINT_NOT_NULL ||
         col->constraints[i].type == SQL_CONSTRAINT_PRIMARY_KEY) {
-      return 0; /* NOT nullable */
+      return C_ORM_OK; /* NOT nullable */
     }
   }
-  return EINVAL; /* nullable */
+  return C_ORM_ERROR_MEMORY; /* nullable */
 }
 
 c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   switch (type) {
   case SQL_TYPE_INT: {
     *_out_val = "int32_t";
-    return 0;
+    return C_ORM_OK;
   }
   case SQL_TYPE_BIGINT: {
     *_out_val = "int64_t";
-    return 0;
+    return C_ORM_OK;
   }
   case SQL_TYPE_VARCHAR:
   case SQL_TYPE_TEXT:
@@ -70,24 +70,24 @@ c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   case SQL_TYPE_DATE:
   case SQL_TYPE_TIMESTAMP: {
     *_out_val = "char *";
-    return 0;
+    return C_ORM_OK;
   }
   case SQL_TYPE_FLOAT: {
     *_out_val = "float";
-    return 0;
+    return C_ORM_OK;
   }
   case SQL_TYPE_DOUBLE:
   case SQL_TYPE_DECIMAL: {
     *_out_val = "double";
-    return 0;
+    return C_ORM_OK;
   }
   case SQL_TYPE_BOOLEAN: {
     *_out_val = "bool";
-    return 0;
+    return C_ORM_OK;
   }
   default: {
     *_out_val = "void *";
-    return 0;
+    return C_ORM_OK;
   }
   }
 }
@@ -99,9 +99,9 @@ c_orm_error_t sql_type_is_string(enum SqlDataType type) {
   case SQL_TYPE_CHAR:
   case SQL_TYPE_DATE:
   case SQL_TYPE_TIMESTAMP:
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
   default:
-    return 0;
+    return C_ORM_OK;
   }
 }
 
@@ -117,7 +117,7 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   size_t i;
 
   if (!fp || !table || !table->name) {
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
   }
 
   str_to_upper(table_name_upper, table->name);
@@ -214,10 +214,10 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
           "init.\n * @param initial_capacity Initial capacity.\n * @return 0 "
           "on success.\n */\n",
           struct_name);
-  fprintf(
-      fp,
-      "int %s_Array_init(struct %s_Array *arr, size_t initial_capacity);\n\n",
-      struct_name, struct_name);
+  fprintf(fp,
+          "c_orm_error_t %s_Array_init(struct %s_Array *arr, size_t "
+          "initial_capacity);\n\n",
+          struct_name, struct_name);
 
   fprintf(fp,
           "/**\n * @brief Free resources inside a single %s struct.\n * @param "
@@ -236,15 +236,18 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
           "/**\n * @brief Deep copy a %s row.\n * @param src Source struct.\n "
           "* @param dest Destination struct.\n * @return 0 on success.\n */\n",
           struct_name);
-  fprintf(fp, "int %s_deepcopy(const struct %s *src, struct %s *dest);\n\n",
-          struct_name, struct_name, struct_name);
+  fprintf(
+      fp,
+      "c_orm_error_t %s_deepcopy(const struct %s *src, struct %s *dest);\n\n",
+      struct_name, struct_name, struct_name);
 
   fprintf(fp,
           "/**\n * @brief Deep copy a %s_Array.\n * @param src Source array.\n "
           "* @param dest Destination array.\n * @return 0 on success.\n */\n",
           struct_name);
   fprintf(fp,
-          "int %s_Array_deepcopy(const struct %s_Array *src, struct %s_Array "
+          "c_orm_error_t %s_Array_deepcopy(const struct %s_Array *src, struct "
+          "%s_Array "
           "*dest);\n\n",
           struct_name, struct_name, struct_name);
 
@@ -255,7 +258,7 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   fprintf(fp, "extern const c_orm_table_meta_t %s_meta;\n\n", struct_name);
   fprintf(fp, "# endif /* C_ORM_MODEL_%s_H */\n", table_name_upper);
 
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
@@ -265,7 +268,7 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   size_t i;
 
   if (!fp || !table || !table->name) {
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
   }
 
   str_to_title(struct_name, table->name);
@@ -282,11 +285,11 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "\n\n");
 
   /* Array init */
-  fprintf(
-      fp,
-      "int %s_Array_init(struct %s_Array *arr, size_t initial_capacity) {\n",
-      struct_name, struct_name);
-  fprintf(fp, "  if (!arr) return EINVAL;\n");
+  fprintf(fp,
+          "c_orm_error_t %s_Array_init(struct %s_Array *arr, size_t "
+          "initial_capacity) {\n",
+          struct_name, struct_name);
+  fprintf(fp, "  if (!arr) return C_ORM_ERROR_MEMORY;\n");
   fprintf(fp, "  arr->length = 0;\n");
   fprintf(fp, "  arr->capacity = initial_capacity;\n");
   fprintf(fp, "  if (initial_capacity > 0) {\n");
@@ -294,11 +297,11 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
           "    arr->data = (struct %s *)calloc(initial_capacity, sizeof(struct "
           "%s));\n",
           struct_name, struct_name);
-  fprintf(fp, "    if (!arr->data) return EINVAL;\n");
+  fprintf(fp, "    if (!arr->data) return C_ORM_ERROR_MEMORY;\n");
   fprintf(fp, "  } else {\n");
   fprintf(fp, "    arr->data = NULL;\n");
   fprintf(fp, "  }\n");
-  fprintf(fp, "  return 0;\n");
+  fprintf(fp, "  return C_ORM_OK;\n");
   fprintf(fp, "}\n\n");
 
   /* Free */
@@ -341,9 +344,11 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "}\n\n");
 
   /* Deepcopy */
-  fprintf(fp, "int %s_deepcopy(const struct %s *src, struct %s *dest) {\n",
-          struct_name, struct_name, struct_name);
-  fprintf(fp, "  if (!src || !dest) return EINVAL;\n");
+  fprintf(
+      fp,
+      "c_orm_error_t %s_deepcopy(const struct %s *src, struct %s *dest) {\n",
+      struct_name, struct_name, struct_name);
+  fprintf(fp, "  if (!src || !dest) return C_ORM_ERROR_MEMORY;\n");
   for (i = 0; i < table->n_columns; ++i) {
     const struct sql_column_t *col = &table->columns[i];
     int is_str = sql_type_is_string(col->type);
@@ -356,7 +361,7 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
       fprintf(fp, "  if (src->%s) {\n", col->name);
       fprintf(fp, "    dest->%s = (char*)malloc(strlen(src->%s) + 1);\n",
               col->name, col->name);
-      fprintf(fp, "    if (!dest->%s) return EINVAL;\n", col->name);
+      fprintf(fp, "    if (!dest->%s) return C_ORM_ERROR_MEMORY;\n", col->name);
       fprintf(fp,
               "#if defined(_MSC_VER)\n    strcpy_s(dest->%s, strlen(src->%s) + "
               "1, src->%s);\n#else\n    strcpy(dest->%s, src->%s);\n#endif\n",
@@ -366,24 +371,25 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
       fprintf(fp, "  if (src->%s) {\n", col->name);
       fprintf(fp, "    dest->%s = (%s*)malloc(sizeof(%s));\n", col->name,
               c_type, c_type);
-      fprintf(fp, "    if (!dest->%s) return EINVAL;\n", col->name);
+      fprintf(fp, "    if (!dest->%s) return C_ORM_ERROR_MEMORY;\n", col->name);
       fprintf(fp, "    *dest->%s = *src->%s;\n", col->name, col->name);
       fprintf(fp, "  } else {\n    dest->%s = NULL;\n  }\n", col->name);
     } else {
       fprintf(fp, "  dest->%s = src->%s;\n", col->name, col->name);
     }
   }
-  fprintf(fp, "  return 0;\n");
+  fprintf(fp, "  return C_ORM_OK;\n");
   fprintf(fp, "}\n\n");
 
   /* Array Deepcopy */
   fprintf(fp,
-          "int %s_Array_deepcopy(const struct %s_Array *src, struct %s_Array "
+          "c_orm_error_t %s_Array_deepcopy(const struct %s_Array *src, struct "
+          "%s_Array "
           "*dest) {\n",
           struct_name, struct_name, struct_name);
   fprintf(fp, "  size_t i;\n");
   fprintf(fp, "  int err;\n");
-  fprintf(fp, "  if (!src || !dest) return EINVAL;\n");
+  fprintf(fp, "  if (!src || !dest) return C_ORM_ERROR_MEMORY;\n");
   fprintf(fp, "  err = %s_Array_init(dest, src->capacity);\n", struct_name);
   fprintf(fp, "  if (err) return err;\n");
   fprintf(fp, "  for (i = 0; i < src->length; ++i) {\n");
@@ -396,13 +402,13 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "    }\n");
   fprintf(fp, "  }\n");
   fprintf(fp, "  dest->length = src->length;\n");
-  fprintf(fp, "  return 0;\n");
+  fprintf(fp, "  return C_ORM_OK;\n");
   fprintf(fp, "}\n\n");
 
   emit_c_orm_queries(fp, table, struct_name);
   emit_c_orm_metadata(fp, table, struct_name);
 
-  return 0;
+  return C_ORM_OK;
 }
 /**
  * @brief Converts a SQL data type enum to its corresponding C ORM string
@@ -411,38 +417,38 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
 c_orm_error_t sql_type_to_c_orm_type(enum SqlDataType type,
                                      const char **out_val) {
   if (!out_val)
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
   switch (type) {
   case SQL_TYPE_INT:
     *out_val = "C_ORM_TYPE_INT32";
-    return 0;
+    return C_ORM_OK;
   case SQL_TYPE_BIGINT:
     *out_val = "C_ORM_TYPE_INT64";
-    return 0;
+    return C_ORM_OK;
   case SQL_TYPE_VARCHAR:
   case SQL_TYPE_TEXT:
   case SQL_TYPE_CHAR:
     *out_val = "C_ORM_TYPE_STRING";
-    return 0;
+    return C_ORM_OK;
   case SQL_TYPE_DATE:
     *out_val = "C_ORM_TYPE_DATE";
-    return 0;
+    return C_ORM_OK;
   case SQL_TYPE_TIMESTAMP:
     *out_val = "C_ORM_TYPE_TIMESTAMP";
-    return 0;
+    return C_ORM_OK;
   case SQL_TYPE_FLOAT:
     *out_val = "C_ORM_TYPE_FLOAT";
-    return 0;
+    return C_ORM_OK;
   case SQL_TYPE_DOUBLE:
   case SQL_TYPE_DECIMAL:
     *out_val = "C_ORM_TYPE_DOUBLE";
-    return 0;
+    return C_ORM_OK;
   case SQL_TYPE_BOOLEAN:
     *out_val = "C_ORM_TYPE_BOOL";
-    return 0;
+    return C_ORM_OK;
   default:
     *out_val = "C_ORM_TYPE_UNKNOWN";
-    return 0;
+    return C_ORM_OK;
   }
 }
 /**
@@ -587,7 +593,7 @@ static int emit_c_orm_metadata(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "  false, false, 0, 0, { 0 }, NULL, 0\n");
   fprintf(fp, "};\n\n");
 
-  return 0;
+  return C_ORM_OK;
 }
 /**
  * @brief Emit table string queries.
@@ -649,7 +655,7 @@ static int emit_c_orm_queries(FILE *fp, const struct sql_table_t *table,
     fprintf(fp, "\"\n\n");
   }
 
-  return 0;
+  return C_ORM_OK;
 }
 /* To be appended to sql_to_c.c */
 
@@ -668,7 +674,7 @@ sql_to_c_projection_struct_emit(FILE *fp, const cdd_c_query_projection_t *proj,
   size_t i;
 
   if (!fp || !proj || !struct_name)
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
 
   if (out_hash) {
     /* Simplified fast query string hash simulation for external routing
@@ -757,7 +763,7 @@ sql_to_c_projection_struct_emit(FILE *fp, const cdd_c_query_projection_t *proj,
   fprintf(fp, "extern C_ORM_EXPORT void %s_free(%s *obj);\n\n", struct_name,
           struct_name);
 
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -773,7 +779,7 @@ sql_to_c_projection_free_emit(FILE *fp, const cdd_c_query_projection_t *proj,
   size_t i;
 
   if (!fp || !proj || !struct_name)
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
 
   fprintf(fp, "void %s_free(%s *obj) {\n", struct_name, struct_name);
 
@@ -806,7 +812,7 @@ sql_to_c_projection_free_emit(FILE *fp, const cdd_c_query_projection_t *proj,
 
   fprintf(fp, "}\n\n");
 
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -823,7 +829,7 @@ sql_to_c_projection_meta_emit(FILE *fp, const cdd_c_query_projection_t *proj,
   const char *orm_type_str;
 
   if (!fp || !proj || !struct_name)
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
 
   fprintf(fp, "/* Metadata for %s */\n", struct_name);
 
@@ -875,7 +881,7 @@ sql_to_c_projection_meta_emit(FILE *fp, const cdd_c_query_projection_t *proj,
 
   fprintf(fp, "};\n\n");
 
-  return 0;
+  return C_ORM_OK;
 }
 
 /* To be appended to sql_to_c.c */
@@ -893,16 +899,16 @@ sql_to_c_projection_hydrate_emit(FILE *fp, const cdd_c_query_projection_t *proj,
   size_t i;
 
   if (!fp || !proj || !struct_name)
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
 
-  fprintf(
-      fp,
-      "int %s_hydrate(%s *out_struct, const cdd_c_abstract_struct_t *row) {\n",
-      struct_name, struct_name);
+  fprintf(fp,
+          "c_orm_error_t %s_hydrate(%s *out_struct, const "
+          "cdd_c_abstract_struct_t *row) {\n",
+          struct_name, struct_name);
 
   fprintf(fp, "    cdd_c_variant_t *val;\n");
 
-  fprintf(fp, "    if (!out_struct || !row) return EINVAL;\n");
+  fprintf(fp, "    if (!out_struct || !row) return C_ORM_ERROR_MEMORY;\n");
 
   for (i = 0; i < proj->n_fields; ++i) {
 
@@ -992,11 +998,11 @@ sql_to_c_projection_hydrate_emit(FILE *fp, const cdd_c_query_projection_t *proj,
     fprintf(fp, "    }\n");
   }
 
-  fprintf(fp, "    return 0;\n");
+  fprintf(fp, "    return C_ORM_OK;\n");
 
   fprintf(fp, "}\n\n");
 
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -1011,19 +1017,20 @@ c_orm_error_t sql_to_c_projection_dehydrate_emit(
   size_t i;
 
   if (!fp || !proj || !struct_name)
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
 
-  fprintf(fp,
-          "int %s_dehydrate(const %s *in_struct, cdd_c_abstract_struct_t "
-          "*out_row) {\n",
-          struct_name, struct_name);
+  fprintf(
+      fp,
+      "c_orm_error_t %s_dehydrate(const %s *in_struct, cdd_c_abstract_struct_t "
+      "*out_row) {\n",
+      struct_name, struct_name);
 
   fprintf(fp, "    cdd_c_variant_t val;\n");
 
-  fprintf(fp, "    if (!in_struct || !out_row) return EINVAL;\n");
+  fprintf(fp, "    if (!in_struct || !out_row) return C_ORM_ERROR_MEMORY;\n");
 
-  fprintf(fp,
-          "    if (cdd_c_abstract_struct_init(out_row) != 0) return EINVAL;\n");
+  fprintf(fp, "    if (cdd_c_abstract_struct_init(out_row) != 0) return "
+              "C_ORM_ERROR_MEMORY;\n");
 
   for (i = 0; i < proj->n_fields; ++i) {
 
@@ -1088,16 +1095,16 @@ c_orm_error_t sql_to_c_projection_dehydrate_emit(
 
     fprintf(fp, "        cdd_c_abstract_struct_free(out_row);\n");
 
-    fprintf(fp, "        return EINVAL;\n");
+    fprintf(fp, "        return C_ORM_ERROR_MEMORY;\n");
 
     fprintf(fp, "    }\n");
   }
 
-  fprintf(fp, "    return 0;\n");
+  fprintf(fp, "    return C_ORM_OK;\n");
 
   fprintf(fp, "}\n\n");
 
-  return 0;
+  return C_ORM_OK;
 }
 /* To be appended to sql_to_c.c */
 
@@ -1111,7 +1118,7 @@ c_orm_error_t sql_to_c_projection_nested_struct_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name) {
 
   if (!fp || !proj || !struct_name)
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
 
   /* A nested 1-to-1 struct uses the exact same codegen logic as a top level
      projection,
@@ -1133,12 +1140,12 @@ c_orm_error_t sql_to_c_projection_nested_array_emit(
     const char *array_name) {
 
   if (!fp || !proj || !struct_name || !array_name)
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
 
   /* First emit the base struct */
 
   if (sql_to_c_projection_struct_emit(fp, proj, struct_name, NULL) != 0)
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
 
   /* Then emit the array wrapper struct used for 1-to-Many nested responses */
 
@@ -1185,7 +1192,7 @@ c_orm_error_t sql_to_c_projection_nested_array_emit(
 
   fprintf(fp, "}\n\n");
 
-  return 0;
+  return C_ORM_OK;
 }
 
 /* To be appended to sql_to_c.c */
@@ -1200,7 +1207,7 @@ c_orm_error_t sql_to_c_projection_dirty_bitmask_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name) {
 
   if (!fp || !proj || !struct_name)
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
 
   fprintf(fp, "/**\n");
 
@@ -1240,7 +1247,7 @@ c_orm_error_t sql_to_c_projection_dirty_bitmask_emit(
 
   fprintf(fp, "} %s_mask;\n\n", struct_name);
 
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -1258,7 +1265,7 @@ sql_to_c_projection_union_struct_emit(FILE *fp,
   size_t i, j;
 
   if (!fp || !projs || !struct_name || n_projs == 0)
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
 
   fprintf(fp, "/**\n");
 
@@ -1340,7 +1347,7 @@ sql_to_c_projection_union_struct_emit(FILE *fp,
   fprintf(fp, "extern C_ORM_EXPORT void %s_free(%s *obj);\n\n", struct_name,
           struct_name);
 
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -1353,7 +1360,7 @@ c_orm_error_t sql_to_c_projection_polymorphic_struct_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name) {
 
   if (!fp || !proj || !struct_name)
-    return EINVAL;
+    return C_ORM_ERROR_MEMORY;
 
   /* Polymorphic mappings simply bind the exact target struct directly
 
@@ -1420,5 +1427,5 @@ c_orm_error_t sql_to_c_projection_polymorphic_struct_emit(
 
   fprintf(fp, "} %s;\n\n", struct_name);
 
-  return 0;
+  return C_ORM_OK;
 }

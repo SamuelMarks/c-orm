@@ -79,25 +79,25 @@ int c_orm_cli_main(int argc, char **argv);
 #undef exit
 
 TEST test_cli_help(void) {
-  int rc;
+  c_orm_error_t rc;
   const char *argv[] = {"c-orm-cli", "--help"};
   int argc = 2;
   rc = c_orm_cli_main(argc, (char **)argv);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
   PASS();
 }
 
 TEST test_cli_no_args(void) {
-  int rc;
+  c_orm_error_t rc;
   const char *argv[] = {"c-orm-cli"};
   int argc = 1;
   rc = c_orm_cli_main(argc, (char **)argv);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
   PASS();
 }
 
 TEST test_cli_init(void) {
-  int rc;
+  c_orm_error_t rc;
   const char *argv_init[] = {"c-orm-cli", "init", "--dir", "."};
   const char *argv_dir_no_arg[] = {"c-orm-cli", "init", "--dir"};
   const char *argv[] = {"c-orm-cli", "init", "--dir",
@@ -109,20 +109,20 @@ TEST test_cli_init(void) {
   system("rm -rf test_migrations_dir_cli");
 #endif
   rc = c_orm_cli_main(argc, (char **)argv);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* call again to hit the already exists branch */
   rc = c_orm_cli_main(argc, (char **)argv);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   rc = c_orm_cli_main(3, (char **)argv_dir_no_arg);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   PASS();
 }
 
 TEST test_cli_create(void) {
-  int rc;
+  c_orm_error_t rc;
   const char *argv[] = {"c-orm-cli", "create"};
   int argc = 2;
   const char *argv_init[] = {"c-orm-cli", "init", "--dir",
@@ -132,38 +132,38 @@ TEST test_cli_create(void) {
   const char *argv3[] = {"c-orm-cli", "create", "my_mig", "--dir", ""};
   const char *argv_multi[] = {"c-orm-cli", "create", "name1", "name2"};
   rc = c_orm_cli_main(argc, (char **)argv);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   /* ensure test_migrations_dir_cli exists */
   c_orm_cli_main(4, (char **)argv_init);
 
   argc = 5;
   rc = c_orm_cli_main(argc, (char **)argv2);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* simulate missing dir or permission denied to hit fopen failure */
   argc = 5;
   rc = c_orm_cli_main(argc, (char **)argv3);
   /* it returns 0 anyway but handles fopen failure silently in output */
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   rc = c_orm_cli_main(4, (char **)argv_multi);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   PASS();
 }
 
 TEST test_cli_generate(void) {
-  int rc;
+  c_orm_error_t rc;
   const char *argv[] = {"c-orm-cli", "generate"};
   int argc = 2;
   rc = c_orm_cli_main(argc, (char **)argv);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   PASS();
 }
 
 TEST test_cli_migrate(void) {
-  int rc;
+  c_orm_error_t rc;
   const char *argv[] = {"c-orm-cli", "migrate"};
   const char *argv2[] = {"c-orm-cli",   "migrate", "--db",
                          "test_cli.db", "--dir",   "test_migrations_dir_cli"};
@@ -184,11 +184,11 @@ TEST test_cli_migrate(void) {
 #endif
 
   rc = c_orm_cli_main(argc, (char **)argv);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   argc = 6;
   rc = c_orm_cli_main(argc, (char **)argv2);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* connection error */
   rc = c_orm_cli_main(4, (char **)argv3);
@@ -199,33 +199,33 @@ TEST test_cli_migrate(void) {
 
   /* no db argument */
   rc = c_orm_cli_main(3, (char **)argv_db_no_arg);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   /* status failure */
   mock_get_applied_fail = 1;
   rc = c_orm_cli_main(4, (char **)argv5);
-  ASSERT_EQ_FMT(3, rc, "%d");
+  ASSERT_EQ_FMT(C_ORM_ERROR_UNKNOWN, rc, "%d");
   mock_get_applied_fail = 0;
 
   /* bad dir load failure */
   rc = c_orm_cli_main(6, (char **)argv6);
   /* it actually returns 0 if dir not found sometimes */
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   PASS();
 }
 
 TEST test_cli_rollback(void) {
-  int rc;
+  c_orm_error_t rc;
   const char *argv[] = {"c-orm-cli", "rollback"};
   int argc = 2;
   rc = c_orm_cli_main(argc, (char **)argv);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   PASS();
 }
 
 TEST test_cli_status(void) {
-  int rc;
+  c_orm_error_t rc;
   sqlite3 *sdb;
   const char *argv[] = {"c-orm-cli", "status"};
   const char *argv2[] = {"c-orm-cli", "status", "--db", "test_cli.db"};
@@ -238,7 +238,7 @@ TEST test_cli_status(void) {
 #endif
 
   rc = c_orm_cli_main(argc, (char **)argv);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   sqlite3_open("test_cli.db", &sdb);
   sqlite3_exec(sdb,
@@ -248,36 +248,36 @@ TEST test_cli_status(void) {
   sqlite3_close(sdb);
 
   rc = c_orm_cli_main(4, (char **)argv2);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   mock_get_applied_fail = 1;
   rc = c_orm_cli_main(4, (char **)argv2);
-  ASSERT_EQ(3, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
   mock_get_applied_fail = 0;
 
   rc = c_orm_cli_main(4, (char **)argv3);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   PASS();
 }
 
 TEST test_cli_log(void) {
-  int rc;
+  c_orm_error_t rc;
   log_cb("test log");
   PASS();
 }
 
 TEST test_cli_unknown(void) {
-  int rc;
+  c_orm_error_t rc;
   const char *argv[] = {"c-orm-cli", "unknown"};
   int argc = 2;
   rc = c_orm_cli_main(argc, (char **)argv);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
   PASS();
 }
 
 TEST test_cli_sql2c(void) {
-  int rc;
+  c_orm_error_t rc;
   FILE *f;
   const char *argv1[] = {"c-orm-cli", "sql2c"};
   const char *argv2[] = {"c-orm-cli", "sql2c", "test_schema.sql", "test_out"};
@@ -296,9 +296,9 @@ TEST test_cli_sql2c(void) {
   }
 
   rc = c_orm_cli_main(2, (char **)argv1);
-  ASSERT_EQ(1, rc);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
   rc = c_orm_cli_main(4, (char **)argv2);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   rc = c_orm_cli_main(4, (char **)argv3);
   printf("RC WAS %d\n", rc);
   printf("CLI MAIN RETURNED %d\n", rc);

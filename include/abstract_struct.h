@@ -292,7 +292,7 @@ cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct, void *row,
  * @param out_schema Pointer to an initialized abstract struct array.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
                              cdd_c_abstract_struct_array_t *out_schema);
 
@@ -304,7 +304,7 @@ cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
  * @param out_schema Pointer to an initialized abstract struct array.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
                            cdd_c_abstract_struct_array_t *out_schema);
 
@@ -316,7 +316,7 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
  * @param out_schema Pointer to an initialized abstract struct array.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
                            cdd_c_abstract_struct_array_t *out_schema);
 

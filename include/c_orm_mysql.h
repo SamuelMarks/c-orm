@@ -20,7 +20,7 @@ extern "C" {
  * @param out_vtable Output parameter to store the vtable pointer.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable);
 
 /**

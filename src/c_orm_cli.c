@@ -65,7 +65,7 @@ static void log_cb(const char *msg) {
  * @return 0 on success, non-zero on failure.
  */
 int main(int argc, char **argv) {
-  int rc;
+  c_orm_error_t rc;
   const char *command = NULL;
   const char *db_str;
   const char *dir_path = "./migrations";
@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
 
   if (argc < 2) {
     print_usage(argv[0]);
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     LOG_DEBUG("main: missing command");
     LOG_DEBUG("main: exit");
     printf("RETURNING RC %d\n", rc);
@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
 
     if (!arg_name) {
       printf("Error: 'create' requires a migration name.\n");
-      rc = 1;
+      rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: create requires migration name");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
@@ -146,7 +146,7 @@ int main(int argc, char **argv) {
   } else if (strcmp(command, "sql2c") == 0) {
     if (argc < 4) {
       printf("Error: 'sql2c' requires <schema.sql> and <out_dir>.\n");
-      rc = 1;
+      rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: sql2c requires arguments");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
     if (!db_str) {
       printf("Error: Database connection string required (--db or C_ORM_DB_URL "
              "env)\n");
-      rc = 1;
+      rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: DB string required for migrate");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
     printf("SQLITE CONNECT RETURNED %d FOR %s\n", err, db_str);
     if (err != C_ORM_OK) {
       printf("Error connecting to database.\n");
-      rc = 1;
+      rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: failed connecting to db in migrate");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
@@ -214,7 +214,7 @@ int main(int argc, char **argv) {
     if (!db_str) {
       printf("Error: Database connection string required (--db or C_ORM_DB_URL "
              "env)\n");
-      rc = 1;
+      rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: DB string required for status");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
@@ -225,7 +225,7 @@ int main(int argc, char **argv) {
     printf("SQLITE CONNECT RETURNED %d FOR %s\n", err, db_str);
     if (err != C_ORM_OK) {
       printf("Error connecting to database.\n");
-      rc = 1;
+      rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: failed connecting to db in status");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
@@ -246,7 +246,7 @@ int main(int argc, char **argv) {
     } else {
       printf("Failed to fetch migration status or no migrations applied.\n");
       db->vtable->disconnect(db);
-      rc = 3;
+      rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: failed to fetch migration status");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
@@ -256,14 +256,14 @@ int main(int argc, char **argv) {
   } else {
     printf("Unknown command: %s\n", command);
     print_usage(argv[0]);
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     LOG_DEBUG("main: unknown command");
     LOG_DEBUG("main: exit");
     printf("RETURNING RC %d\n", rc);
     return rc;
   }
 
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("main: exit");
   printf("RETURNING RC %d\n", rc);
   return rc;

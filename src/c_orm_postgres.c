@@ -50,7 +50,7 @@ struct postgres_query_data {
 
 /** @brief Generate unique statement name */
 static int generate_stmt_name(char *buf, size_t size) {
-  int rc;
+  c_orm_error_t rc;
   static int counter = 0;
   LOG_DEBUG("generate_stmt_name: entry");
   rc = C_ORM_SPRINTF(buf, size, "c_orm_stmt_%d", ++counter);
@@ -132,7 +132,7 @@ static void set_error(c_orm_db_t *db, const char *msg) {
 
 /** @brief Postgres connect */
 static c_orm_error_t postgres_connect(const char *url, c_orm_db_t **out_db) {
-  int rc;
+  c_orm_error_t rc;
   c_orm_db_t *db;
   struct postgres_db_data *data;
 
@@ -188,7 +188,7 @@ static c_orm_error_t postgres_connect(const char *url, c_orm_db_t **out_db) {
 
 /** @brief Postgres disconnect */
 static c_orm_error_t postgres_disconnect(c_orm_db_t *db) {
-  int rc;
+  c_orm_error_t rc;
   struct postgres_db_data *data;
 
   LOG_DEBUG("postgres_disconnect: entry");
@@ -220,7 +220,7 @@ struct c_orm_query {
 /** @brief Postgres prepare */
 static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
                                       c_orm_query_t **out_query) {
-  int rc;
+  c_orm_error_t rc;
   struct postgres_db_data *db_data;
   struct postgres_query_data *q_data;
   c_orm_query_t *query;
@@ -358,7 +358,7 @@ static char *orm_strdup(const char *s) {
 /** @brief Bind int32 */
 static c_orm_error_t postgres_bind_int32(c_orm_query_t *query, int index,
                                          int32_t val) {
-  int rc;
+  c_orm_error_t rc;
   char buf[32];
 
   LOG_DEBUG("postgres_bind_int32: entry");
@@ -384,7 +384,7 @@ static c_orm_error_t postgres_bind_int32(c_orm_query_t *query, int index,
 /** @brief Bind int64 */
 static c_orm_error_t postgres_bind_int64(c_orm_query_t *query, int index,
                                          int64_t val) {
-  int rc;
+  c_orm_error_t rc;
   char buf[64];
 
   LOG_DEBUG("postgres_bind_int64: entry");
@@ -410,7 +410,7 @@ static c_orm_error_t postgres_bind_int64(c_orm_query_t *query, int index,
 /** @brief Bind double */
 static c_orm_error_t postgres_bind_double(c_orm_query_t *query, int index,
                                           double val) {
-  int rc;
+  c_orm_error_t rc;
   char buf[64];
 
   LOG_DEBUG("postgres_bind_double: entry");
@@ -436,7 +436,7 @@ static c_orm_error_t postgres_bind_double(c_orm_query_t *query, int index,
 /** @brief Bind string */
 static c_orm_error_t postgres_bind_string(c_orm_query_t *query, int index,
                                           const char *val) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("postgres_bind_string: entry");
   if (!query || !query->data || index < 1 || index > query->data->param_count) {
@@ -460,7 +460,7 @@ static c_orm_error_t postgres_bind_string(c_orm_query_t *query, int index,
 /** @brief Bind blob */
 static c_orm_error_t postgres_bind_blob(c_orm_query_t *query, int index,
                                         const void *val, size_t size) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("postgres_bind_blob: entry");
   if (!query || !query->data || index < 1 || index > query->data->param_count) {
@@ -487,7 +487,7 @@ static c_orm_error_t postgres_bind_blob(c_orm_query_t *query, int index,
 
 /** @brief Bind null */
 static c_orm_error_t postgres_bind_null(c_orm_query_t *query, int index) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("postgres_bind_null: entry");
   if (!query || !query->data || index < 1 || index > query->data->param_count) {
@@ -504,7 +504,7 @@ static c_orm_error_t postgres_bind_null(c_orm_query_t *query, int index) {
 
 /** @brief Step query */
 static c_orm_error_t postgres_step(c_orm_query_t *query, int *out_has_row) {
-  int rc;
+  c_orm_error_t rc;
   struct postgres_query_data *q_data;
   struct postgres_db_data *db_data;
 
@@ -556,7 +556,7 @@ static c_orm_error_t postgres_step(c_orm_query_t *query, int *out_has_row) {
 /** @brief Get int32 */
 static c_orm_error_t postgres_get_int32(c_orm_query_t *query, int index,
                                         int32_t *out_val) {
-  int rc;
+  c_orm_error_t rc;
   const char *val;
 
   LOG_DEBUG("postgres_get_int32: entry");
@@ -576,7 +576,7 @@ static c_orm_error_t postgres_get_int32(c_orm_query_t *query, int index,
 /** @brief Get int64 */
 static c_orm_error_t postgres_get_int64(c_orm_query_t *query, int index,
                                         int64_t *out_val) {
-  int rc;
+  c_orm_error_t rc;
   const char *val;
 
   LOG_DEBUG("postgres_get_int64: entry");
@@ -600,7 +600,7 @@ static c_orm_error_t postgres_get_int64(c_orm_query_t *query, int index,
 /** @brief Get double */
 static c_orm_error_t postgres_get_double(c_orm_query_t *query, int index,
                                          double *out_val) {
-  int rc;
+  c_orm_error_t rc;
   const char *val;
 
   LOG_DEBUG("postgres_get_double: entry");
@@ -620,7 +620,7 @@ static c_orm_error_t postgres_get_double(c_orm_query_t *query, int index,
 /** @brief Get string */
 static c_orm_error_t postgres_get_string(c_orm_query_t *query, int index,
                                          const char **out_val) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("postgres_get_string: entry");
   if (!query || !query->data || !query->data->res || !out_val) {
@@ -638,7 +638,7 @@ static c_orm_error_t postgres_get_string(c_orm_query_t *query, int index,
 /** @brief Get blob */
 static c_orm_error_t postgres_get_blob(c_orm_query_t *query, int index,
                                        const void **out_val, size_t *out_size) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("postgres_get_blob: entry");
   if (!query || !query->data || !query->data->res || !out_val || !out_size) {
@@ -657,7 +657,7 @@ static c_orm_error_t postgres_get_blob(c_orm_query_t *query, int index,
 /** @brief Is null */
 static c_orm_error_t postgres_is_null(c_orm_query_t *query, int index,
                                       int *out_is_null) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("postgres_is_null: entry");
   if (!query || !query->data || !query->data->res || !out_is_null) {
@@ -675,7 +675,7 @@ static c_orm_error_t postgres_is_null(c_orm_query_t *query, int index,
 
 /** @brief Finalize */
 static c_orm_error_t postgres_finalize(c_orm_query_t *query) {
-  int rc;
+  c_orm_error_t rc;
   int i;
 
   LOG_DEBUG("postgres_finalize: entry");
@@ -709,7 +709,7 @@ static c_orm_error_t postgres_finalize(c_orm_query_t *query) {
 
 /** @brief Reset */
 static c_orm_error_t postgres_reset(c_orm_query_t *query) {
-  int rc;
+  c_orm_error_t rc;
   int i;
 
   LOG_DEBUG("postgres_reset: entry");
@@ -736,33 +736,33 @@ static c_orm_error_t postgres_reset(c_orm_query_t *query) {
 /** @brief Get last error */
 static c_orm_error_t postgres_get_last_error(c_orm_db_t *db,
                                              const char **out_message) {
-  int rc;
+  c_orm_error_t rc;
   struct postgres_db_data *data;
 
   LOG_DEBUG("postgres_get_last_error: entry");
   if (!out_message) {
     LOG_DEBUG("postgres_get_last_error: invalid args");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
   if (!db || !db->driver_data) {
     *out_message = "Invalid DB object";
     LOG_DEBUG("postgres_get_last_error: no driver_data");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
   data = (struct postgres_db_data *)db->driver_data;
   *out_message = data->last_error;
 
   LOG_DEBUG("postgres_get_last_error: exit");
-  rc = 0;
+  rc = C_ORM_OK;
   return rc;
 }
 
 /** @brief Get last trace */
 static c_orm_error_t postgres_get_last_trace(c_orm_db_t *db,
                                              const char **out_trace) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("postgres_get_last_trace: entry");
   if (out_trace) {
@@ -774,14 +774,14 @@ static c_orm_error_t postgres_get_last_trace(c_orm_db_t *db,
   (void)db;
 
   LOG_DEBUG("postgres_get_last_trace: exit");
-  rc = 0;
+  rc = C_ORM_OK;
   return rc;
 }
 
 /** @brief Get last insert rowid */
 static c_orm_error_t postgres_get_last_insert_rowid(c_orm_db_t *db,
                                                     int64_t *out_id) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("postgres_get_last_insert_rowid: entry");
   (void)db;
@@ -819,27 +819,27 @@ static const c_orm_driver_vtable_t postgres_vtable = {
     postgres_get_last_insert_rowid};
 
 /** @brief Get Postgres vtable */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_postgres_get_vtable: entry");
   if (!out_vtable) {
     LOG_DEBUG("c_orm_postgres_get_vtable: invalid args");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
   *out_vtable = &postgres_vtable;
 
   LOG_DEBUG("c_orm_postgres_get_vtable: exit");
-  rc = 0;
+  rc = C_ORM_OK;
   return rc;
 }
 
 /** @brief Postgres connect exported */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
                                                   c_orm_db_t **out_db) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_postgres_connect: entry");
   rc = postgres_connect(url, out_db);
   LOG_DEBUG("c_orm_postgres_connect: exit");
@@ -849,7 +849,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
 /** @brief Postgres large object create */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
                                                     unsigned int *out_oid) {
-  int rc;
+  c_orm_error_t rc;
   struct postgres_db_data *data;
   Oid oid;
 
@@ -877,7 +877,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
                                                   unsigned int oid, int mode,
                                                   void **out_fd) {
-  int rc;
+  c_orm_error_t rc;
   struct postgres_db_data *data;
   int fd;
 
@@ -906,7 +906,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_read(c_orm_db_t *db, void *fd,
                                                   void *buffer, size_t len,
                                                   size_t *out_read) {
-  int rc;
+  c_orm_error_t rc;
   struct postgres_db_data *data;
   int bytes_read;
 
@@ -935,7 +935,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
                                                    const void *buffer,
                                                    size_t len,
                                                    size_t *out_written) {
-  int rc;
+  c_orm_error_t rc;
   struct postgres_db_data *data;
   int bytes_written;
 
@@ -962,7 +962,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
 
 /** @brief Postgres large object close */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd) {
-  int rc;
+  c_orm_error_t rc;
   struct postgres_db_data *data;
 
   LOG_DEBUG("c_orm_postgres_lo_close: entry");
@@ -987,22 +987,22 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd) {
 #else
 
 /** @brief Get Postgres vtable stub */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_postgres_get_vtable: entry");
   if (out_vtable) {
     *out_vtable = NULL;
   }
   LOG_DEBUG("c_orm_postgres_get_vtable: exit");
-  rc = 1;
+  rc = C_ORM_ERROR_UNKNOWN;
   return rc;
 }
 
 /** @brief Postgres connect stub */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
                                                   c_orm_db_t **out_db) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_postgres_connect: entry");
   (void)url;
   (void)out_db;
@@ -1014,7 +1014,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
 /** @brief Postgres large object create stub */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
                                                     unsigned int *out_oid) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_postgres_lo_create: entry");
   (void)db;
   (void)out_oid;
@@ -1027,7 +1027,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
                                                   unsigned int oid, int mode,
                                                   void **out_fd) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_postgres_lo_open: entry");
   (void)db;
   (void)oid;
@@ -1042,7 +1042,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_read(c_orm_db_t *db, void *fd,
                                                   void *buffer, size_t len,
                                                   size_t *out_read) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_postgres_lo_read: entry");
   (void)db;
   (void)fd;
@@ -1059,7 +1059,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
                                                    const void *buffer,
                                                    size_t len,
                                                    size_t *out_written) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_postgres_lo_write: entry");
   (void)db;
   (void)fd;
@@ -1073,7 +1073,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
 
 /** @brief Postgres large object close stub */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd) {
-  int rc;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_postgres_lo_close: entry");
   (void)db;
   (void)fd;

@@ -68,84 +68,92 @@ TEST test_query_builder_coverage(void) {
   c_orm_select_builder_free(b);
   c_orm_update_builder_free(ub);
 
-  ASSERT_EQ(1, c_orm_select_builder_init(NULL, &b));
-  ASSERT_EQ(1, c_orm_select_builder_init(&meta, NULL));
-  ASSERT_EQ(0, c_orm_select_builder_init(&meta, &b));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_builder_init(NULL, &b));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_builder_init(&meta, NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_builder_init(&meta, &b));
 
   /* Where conditions */
-  ASSERT_EQ(1, c_orm_select_where_eq(NULL, "id"));
-  ASSERT_EQ(0, c_orm_select_where_eq(b, "id"));
-  ASSERT_EQ(1, c_orm_select_where_neq(NULL, "id"));
-  ASSERT_EQ(0, c_orm_select_where_neq(b, "id"));
-  ASSERT_EQ(1, c_orm_select_where_lt(NULL, "id"));
-  ASSERT_EQ(0, c_orm_select_where_lt(b, "id"));
-  ASSERT_EQ(1, c_orm_select_where_gt(NULL, "id"));
-  ASSERT_EQ(0, c_orm_select_where_gt(b, "id"));
-  ASSERT_EQ(1, c_orm_select_where_lte(NULL, "id"));
-  ASSERT_EQ(0, c_orm_select_where_lte(b, "id"));
-  ASSERT_EQ(1, c_orm_select_where_gte(NULL, "id"));
-  ASSERT_EQ(0, c_orm_select_where_gte(b, "id"));
-  ASSERT_EQ(1, c_orm_select_where_like(NULL, "id"));
-  ASSERT_EQ(0, c_orm_select_where_like(b, "id"));
-  ASSERT_EQ(1, c_orm_select_where_between(NULL, "id"));
-  ASSERT_EQ(0, c_orm_select_where_between(b, "id"));
-  ASSERT_EQ(1, c_orm_select_where_ilike(NULL, "name"));
-  ASSERT_EQ(0, c_orm_select_where_ilike(b, "name"));
-  ASSERT_EQ(0, c_orm_select_where_in(b, "id", 3));
-  ASSERT_EQ(1, c_orm_select_where_in(NULL, "id", 3));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_where_eq(NULL, "id"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_eq(b, "id"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_where_neq(NULL, "id"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_neq(b, "id"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_where_lt(NULL, "id"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_lt(b, "id"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_where_gt(NULL, "id"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_gt(b, "id"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_where_lte(NULL, "id"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_lte(b, "id"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_where_gte(NULL, "id"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_gte(b, "id"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_where_like(NULL, "id"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_like(b, "id"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_where_between(NULL, "id"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_between(b, "id"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_where_ilike(NULL, "name"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_ilike(b, "name"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_in(b, "id", 3));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_where_in(NULL, "id", 3));
   {
     void *arr = (void *)0x123;
-    ASSERT_EQ(0, c_orm_select_where_in_array(b, "id", arr, &meta));
+    ASSERT_EQ(C_ORM_OK, c_orm_select_where_in_array(b, "id", arr, &meta));
   }
-  ASSERT_EQ(1, c_orm_select_where_in_array(NULL, "id", NULL, &meta));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_select_where_in_array(NULL, "id", NULL, &meta));
 
   /* To hit "AND" appending */
-  ASSERT_EQ(1, c_orm_select_where_eq(NULL, "id"));
-  ASSERT_EQ(0, c_orm_select_where_eq(b, "id"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_where_eq(NULL, "id"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_eq(b, "id"));
 
   /* Relation logic */
-  ASSERT_EQ(1, c_orm_select_where_relation(NULL, "rel", "col"));
-  ASSERT_EQ(0, c_orm_select_where_relation(b, "my_rel.id", "col"));
-  ASSERT_EQ(1, c_orm_select_where_relation(b, "unknown_rel.id", "col"));
-  ASSERT_EQ(0, c_orm_select_where_relation(b, "m2m_rel.id", "col"));
-  ASSERT_EQ(1, c_orm_select_where_relation(b, "bad_rel.id", "col"));
-  ASSERT_EQ(1, c_orm_select_where_relation(b, "my_rel.bad_rel.id", "col"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_select_where_relation(NULL, "rel", "col"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_relation(b, "my_rel.id", "col"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_select_where_relation(b, "unknown_rel.id", "col"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_where_relation(b, "m2m_rel.id", "col"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_select_where_relation(b, "bad_rel.id", "col"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_select_where_relation(b, "my_rel.bad_rel.id", "col"));
 
   {
     char long_name[256];
     memset(long_name, 'A', 255);
     long_name[255] = '\0';
     long_name[128] = '.';
-    ASSERT_EQ(1, c_orm_select_where_relation(b, long_name, "col"));
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+              c_orm_select_where_relation(b, long_name, "col"));
   }
 
-  ASSERT_EQ(0, c_orm_select_having(b, "count > 1"));
-  ASSERT_EQ(1, c_orm_select_having(NULL, "count > 1"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_having(b, "count > 1"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_having(NULL, "count > 1"));
 
   /* Re-init so we have SELECT * FROM at start for aggregate test */
   c_orm_select_builder_free(b);
   c_orm_select_builder_init(&meta, &b);
-  ASSERT_EQ(0, c_orm_select_aggregate(b, "COUNT", "id", "c"));
-  ASSERT_EQ(0, c_orm_select_aggregate(b, "SUM", "val", "s"));
-  ASSERT_EQ(1, c_orm_select_aggregate(NULL, "COUNT", "id", "c"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_aggregate(b, "COUNT", "id", "c"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_aggregate(b, "SUM", "val", "s"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_select_aggregate(NULL, "COUNT", "id", "c"));
 
-  ASSERT_EQ(0, c_orm_select_order_by(b, "id", 0));
-  ASSERT_EQ(0, c_orm_select_order_by(b, "name", 1)); /* Hits ", " and " DESC" */
-  ASSERT_EQ(1, c_orm_select_order_by(b, NULL, 0));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_order_by(b, "id", 0));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_select_order_by(b, "name", 1)); /* Hits ", " and " DESC" */
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_order_by(b, NULL, 0));
 
-  ASSERT_EQ(1, c_orm_select_group_by(NULL, "id"));
-  ASSERT_EQ(0, c_orm_select_group_by(b, "id"));
-  ASSERT_EQ(1, c_orm_select_group_by(b, NULL));
-  ASSERT_EQ(1, c_orm_select_limit(NULL, 10));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_group_by(NULL, "id"));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_group_by(b, "id"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_group_by(b, NULL));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_limit(NULL, 10));
 
-  ASSERT_EQ(0, c_orm_select_limit(b, 10));
-  ASSERT_EQ(1, c_orm_select_offset(NULL, 5));
-  ASSERT_EQ(0, c_orm_select_offset(b, 5));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_limit(b, 10));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_offset(NULL, 5));
+  ASSERT_EQ(C_ORM_OK, c_orm_select_offset(b, 5));
 
   {
     char *sql = NULL;
     ASSERT_EQ(0, 0);
-    ASSERT_EQ(1, c_orm_select_builder_compile(b, NULL));
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_builder_compile(b, NULL));
     C_ORM_FREE(sql);
   }
 
@@ -162,26 +170,27 @@ TEST test_query_builder_coverage(void) {
   c_orm_update_builder_init(&meta, &ub);
   c_orm_update_builder_free(ub);
 
-  ASSERT_EQ(1, c_orm_update_builder_init(NULL, &ub));
-  ASSERT_EQ(1, c_orm_update_builder_init(&meta, NULL));
-  ASSERT_EQ(0, c_orm_update_builder_init(&meta, &ub));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_update_builder_init(NULL, &ub));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_update_builder_init(&meta, NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_update_builder_init(&meta, &ub));
 
-  ASSERT_EQ(1, c_orm_update_set(NULL, "c"));
-  ASSERT_EQ(1, c_orm_update_set(ub, NULL));
-  ASSERT_EQ(0, c_orm_update_set(ub, "c"));
-  ASSERT_EQ(0, c_orm_update_set(ub, "d")); /* Hits , */
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_update_set(NULL, "c"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_update_set(ub, NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_update_set(ub, "c"));
+  ASSERT_EQ(C_ORM_OK, c_orm_update_set(ub, "d")); /* Hits , */
 
-  ASSERT_EQ(1, c_orm_update_where_eq(NULL, "c"));
-  ASSERT_EQ(1, c_orm_update_where_eq(ub, NULL));
-  ASSERT_EQ(0, c_orm_update_where_eq(ub, "c"));
-  ASSERT_EQ(0, c_orm_update_where_eq(ub, "d")); /* Hits AND */
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_update_where_eq(NULL, "c"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_update_where_eq(ub, NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_update_where_eq(ub, "c"));
+  ASSERT_EQ(C_ORM_OK, c_orm_update_where_eq(ub, "d")); /* Hits AND */
 
-  ASSERT_EQ(1, c_orm_update_set(ub, "e")); /* hits has_where == 1 */
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_update_set(ub, "e")); /* hits has_where == 1 */
 
   {
     char *sql = NULL;
-    ASSERT_EQ(0, c_orm_update_builder_compile(ub, &sql));
-    ASSERT_EQ(1, c_orm_update_builder_compile(ub, NULL));
+    ASSERT_EQ(C_ORM_OK, c_orm_update_builder_compile(ub, &sql));
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_update_builder_compile(ub, NULL));
     C_ORM_FREE(sql);
   }
   c_orm_update_builder_free(ub);
@@ -210,10 +219,10 @@ TEST test_query_builder_oom(void) {
   c_orm_select_builder_t *b = NULL;
   c_orm_update_builder_t *ub = NULL;
 
-  int rc1, rc2, rc3, rc4, rc_sel_compile, rc_upd_compile;
-  int rc_agg1, rc_agg2, rc_agg_extra1;
-  int rc_agg3, rc_agg4, rc_agg_extra2;
-  int rc_agg5, rc_agg6, rc_agg7;
+  c_orm_error_t rc1, rc2, rc3, rc4, rc_sel_compile, rc_upd_compile;
+  c_orm_error_t rc_agg1, rc_agg2, rc_agg_extra1;
+  c_orm_error_t rc_agg3, rc_agg4, rc_agg_extra2;
+  c_orm_error_t rc_agg5, rc_agg6, rc_agg7;
   char *sql = NULL;
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void (*old_free)(void *) = c_orm_free;
@@ -234,8 +243,8 @@ TEST test_query_builder_oom(void) {
   oom_countdown = 1;
   rc2 = c_orm_select_builder_init(&meta, &b);
   oom_active = 0;
-  ASSERT_EQ(1, rc1);
-  ASSERT_EQ(1, rc2);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc1);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc2);
 
   /* Select compile OOM */
   c_orm_select_builder_init(&meta, &b);
@@ -243,7 +252,7 @@ TEST test_query_builder_oom(void) {
   oom_countdown = 0;
   rc_sel_compile = c_orm_select_builder_compile(b, &sql);
   oom_active = 0;
-  ASSERT_EQ(1, rc_sel_compile);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc_sel_compile);
   c_orm_select_builder_free(b);
 
   /* Update init OOM */
@@ -253,8 +262,8 @@ TEST test_query_builder_oom(void) {
   oom_countdown = 1;
   rc4 = c_orm_update_builder_init(&meta, &ub);
   oom_active = 0;
-  ASSERT_EQ(1, rc3);
-  ASSERT_EQ(1, rc4);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc3);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc4);
 
   /* Update compile OOM */
   c_orm_update_builder_init(&meta, &ub);
@@ -262,7 +271,7 @@ TEST test_query_builder_oom(void) {
   oom_countdown = 0;
   rc_upd_compile = c_orm_update_builder_compile(ub, &sql);
   oom_active = 0;
-  ASSERT_EQ(1, rc_upd_compile);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc_upd_compile);
   c_orm_update_builder_free(ub);
 
   /* Aggregate OOMs */
@@ -275,9 +284,9 @@ TEST test_query_builder_oom(void) {
   oom_countdown = 2;
   rc_agg_extra1 = c_orm_select_aggregate(b, "AVG", "x", "a");
   oom_active = 0;
-  ASSERT_EQ(1, rc_agg1);
-  ASSERT_EQ(1, rc_agg2);
-  ASSERT_EQ(1, rc_agg_extra1);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc_agg1);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc_agg2);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc_agg_extra1);
 
   /* Aggregate OOMs (else branch) */
   c_orm_select_where_eq(b, "id");
@@ -289,9 +298,9 @@ TEST test_query_builder_oom(void) {
   oom_countdown = 2;
   rc_agg_extra2 = c_orm_select_aggregate(b, "AVG", "x", "a");
   oom_active = 0;
-  ASSERT_EQ(1, rc_agg3);
-  ASSERT_EQ(1, rc_agg4);
-  ASSERT_EQ(1, rc_agg_extra2);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc_agg3);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc_agg4);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc_agg_extra2);
 
   /* OOM for second aggregate */
   /* First we need to make it successfully hit the first branch so the string is
@@ -309,9 +318,9 @@ TEST test_query_builder_oom(void) {
   oom_countdown = 2;
   rc_agg7 = c_orm_select_aggregate(b, "AVG", "y", "b");
   oom_active = 0;
-  ASSERT_EQ(1, rc_agg5);
-  ASSERT_EQ(1, rc_agg6);
-  ASSERT_EQ(1, rc_agg7);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc_agg5);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc_agg6);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc_agg7);
 
   c_orm_select_builder_free(b);
 

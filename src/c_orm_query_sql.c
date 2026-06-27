@@ -58,7 +58,7 @@ C_ORM_EXPORT void c_orm_query_params_cleanup(c_orm_query_params_t *params) {
 C_ORM_EXPORT c_orm_error_t c_orm_query_params_add(c_orm_query_params_t *params,
                                                   const char *value,
                                                   int is_string) {
-  int rc;
+  c_orm_error_t rc;
   size_t new_cap;
   c_orm_query_param_t *new_arr;
 
@@ -66,7 +66,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_params_add(c_orm_query_params_t *params,
 
   if (!params) {
     LOG_DEBUG("c_orm_query_params_add: params is NULL");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
@@ -76,7 +76,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_params_add(c_orm_query_params_t *params,
         params->params, sizeof(c_orm_query_param_t) * new_cap);
     if (!new_arr) {
       LOG_DEBUG("c_orm_query_params_add: OOM");
-      rc = 1;
+      rc = C_ORM_ERROR_UNKNOWN;
       return rc;
     }
     params->params = new_arr;
@@ -86,7 +86,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_params_add(c_orm_query_params_t *params,
   params->params[params->count].value = value;
   params->params[params->count].is_string = is_string;
   params->count++;
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_query_params_add: exit");
   return rc;
 }
@@ -344,14 +344,14 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
   c_orm_ast_join_t *joins[32];
   size_t join_count = 0;
   size_t i;
-  int rc;
+  c_orm_error_t rc;
   char *subsql = NULL;
 
   LOG_DEBUG("c_orm_query_to_sql: entry");
 
   if (!q || !out_sql) {
     LOG_DEBUG("c_orm_query_to_sql: null argument");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
@@ -444,7 +444,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
     c_orm_string_builder_append(sb, " ON ");
     if (render_node(jn->on_condition, dialect, sb, out_params) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
-      rc = 1;
+      rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("c_orm_query_to_sql: join failed");
       return rc;
     }
@@ -454,7 +454,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
     c_orm_string_builder_append(sb, " WHERE ");
     if (render_node(whr->condition, dialect, sb, out_params) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
-      rc = 1;
+      rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("c_orm_query_to_sql: where failed");
       return rc;
     }
@@ -469,7 +469,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
     c_orm_string_builder_append(sb, " HAVING ");
     if (render_node(hav->condition, dialect, sb, out_params) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
-      rc = 1;
+      rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("c_orm_query_to_sql: having failed");
       return rc;
     }
@@ -517,7 +517,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
         C_ORM_STRCPY(*out_sql, len + 1, sql_str);
       } else {
         c_orm_string_builder_free(sb);
-        rc = 1;
+        rc = C_ORM_ERROR_UNKNOWN;
         LOG_DEBUG("c_orm_query_to_sql: OOM sql out");
         return rc;
       }
@@ -525,7 +525,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
   }
 
   c_orm_string_builder_free(sb);
-  rc = *out_sql ? 0 : 1;
+  rc = *out_sql ? C_ORM_OK : C_ORM_ERROR_UNKNOWN;
   LOG_DEBUG("c_orm_query_to_sql: exit");
   return rc;
 }

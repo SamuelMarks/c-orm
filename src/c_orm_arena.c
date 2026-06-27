@@ -40,26 +40,26 @@ struct c_orm_arena {
  */
 C_ORM_EXPORT c_orm_error_t c_orm_arena_new(c_orm_arena_t **out_arena) {
   c_orm_arena_t *arena;
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_arena_new: entry");
 
   if (!out_arena) {
     LOG_DEBUG("c_orm_arena_new: invalid arguments");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
   arena = (c_orm_arena_t *)C_ORM_MALLOC(sizeof(c_orm_arena_t));
   if (!arena) {
     LOG_DEBUG("c_orm_arena_new: OOM");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
   arena->head = NULL;
   *out_arena = arena;
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_arena_new: exit");
   return rc;
 }
@@ -76,13 +76,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
                                              void **out_ptr) {
   c_orm_arena_block_t *block;
   size_t alloc_size;
-  int rc;
+  c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_arena_alloc: entry");
 
   if (!arena || !out_ptr || size == 0) {
     LOG_DEBUG("c_orm_arena_alloc: invalid arguments");
-    rc = 1;
+    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
@@ -101,7 +101,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
     block = (c_orm_arena_block_t *)C_ORM_MALLOC(alloc_size);
     if (!block) {
       LOG_DEBUG("c_orm_arena_alloc: OOM");
-      rc = 1;
+      rc = C_ORM_ERROR_UNKNOWN;
       return rc;
     }
 
@@ -112,7 +112,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
 
   *out_ptr = arena->head->data + arena->head->used;
   arena->head->used += size;
-  rc = 0;
+  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_arena_alloc: exit");
   return rc;
 }

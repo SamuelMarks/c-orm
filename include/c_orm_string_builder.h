@@ -26,7 +26,7 @@ typedef struct c_orm_string_builder c_orm_string_builder_t;
  * @param out_builder Pointer to receive the new builder instance.
  * @return 0 on success, non-zero on allocation failure.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_string_builder_init(c_orm_string_builder_t **out_builder);
 
 /**

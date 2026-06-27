@@ -634,7 +634,7 @@ c_orm_error_t parse_sql_ddl(const char *sql_data,
   struct sql_table_t *table = NULL;
   struct sql_parse_error_t err;
   az_span span;
-  int rc;
+  c_orm_error_t rc;
 
   if (!sql_data || !out_tables || !out_n_tables)
     return 1;

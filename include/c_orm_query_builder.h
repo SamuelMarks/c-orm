@@ -36,9 +36,8 @@ typedef struct c_orm_update_builder c_orm_update_builder_t;
  * @param out_builder Pointer to receive the new builder.
  * @return 0 on success.
  */
-C_ORM_EXPORT int
-c_orm_select_builder_init(const c_orm_table_meta_t *meta,
-                          c_orm_select_builder_t **out_builder);
+C_ORM_EXPORT c_orm_error_t c_orm_select_builder_init(
+    const c_orm_table_meta_t *meta, c_orm_select_builder_t **out_builder);
 
 /**
  * @brief Free resources associated with a select builder.
@@ -94,16 +93,14 @@ c_orm_select_where_gte(c_orm_select_builder_t *builder, const char *column);
 /**
  * @brief Add WHERE column > CURRENT_TIMESTAMP
  */
-C_ORM_EXPORT int
-c_orm_select_where_gt_current_timestamp(c_orm_select_builder_t *builder,
-                                        const char *column);
+C_ORM_EXPORT c_orm_error_t c_orm_select_where_gt_current_timestamp(
+    c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add WHERE column < CURRENT_TIMESTAMP
  */
-C_ORM_EXPORT int
-c_orm_select_where_lt_current_timestamp(c_orm_select_builder_t *builder,
-                                        const char *column);
+C_ORM_EXPORT c_orm_error_t c_orm_select_where_lt_current_timestamp(
+    c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add WHERE column LIKE ?
@@ -189,9 +186,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_offset(c_orm_select_builder_t *builder,
                                                size_t offset);
 
 /* INSERT BUILDER */
-C_ORM_EXPORT int
-c_orm_insert_builder_init(const c_orm_table_meta_t *meta,
-                          c_orm_insert_builder_t **out_builder);
+C_ORM_EXPORT c_orm_error_t c_orm_insert_builder_init(
+    const c_orm_table_meta_t *meta, c_orm_insert_builder_t **out_builder);
 C_ORM_EXPORT void c_orm_insert_builder_free(c_orm_insert_builder_t *builder);
 
 /**
@@ -205,9 +201,8 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_insert_builder_compile(c_orm_insert_builder_t *builder, char **out_sql);
 
 /* UPDATE BUILDER */
-C_ORM_EXPORT int
-c_orm_update_builder_init(const c_orm_table_meta_t *meta,
-                          c_orm_update_builder_t **out_builder);
+C_ORM_EXPORT c_orm_error_t c_orm_update_builder_init(
+    const c_orm_table_meta_t *meta, c_orm_update_builder_t **out_builder);
 C_ORM_EXPORT void c_orm_update_builder_free(c_orm_update_builder_t *builder);
 
 /**

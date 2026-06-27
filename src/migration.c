@@ -51,7 +51,7 @@ c_orm_error_t parse_migration_file(const char *filepath,
                                    struct MigrationStatements *out) {
   char *file_data;
   size_t file_size;
-  int rc;
+  c_orm_error_t rc;
   const char *up_marker;
   const char *down_marker;
   const char *up_start;

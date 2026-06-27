@@ -20,7 +20,7 @@
 static c_orm_error_t c_orm_uuid_seeded = 0;
 
 C_ORM_EXPORT c_orm_error_t c_orm_uuid_v4(char out_uuid[37]) {
-  int rc;
+  c_orm_error_t rc;
   int i;
   unsigned char bytes[16];
 
