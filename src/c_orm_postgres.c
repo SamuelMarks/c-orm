@@ -734,7 +734,8 @@ static c_orm_error_t postgres_reset(c_orm_query_t *query) {
 }
 
 /** @brief Get last error */
-static int postgres_get_last_error(c_orm_db_t *db, const char **out_message) {
+static c_orm_error_t postgres_get_last_error(c_orm_db_t *db,
+                                             const char **out_message) {
   int rc;
   struct postgres_db_data *data;
 
@@ -759,7 +760,8 @@ static int postgres_get_last_error(c_orm_db_t *db, const char **out_message) {
 }
 
 /** @brief Get last trace */
-static int postgres_get_last_trace(c_orm_db_t *db, const char **out_trace) {
+static c_orm_error_t postgres_get_last_trace(c_orm_db_t *db,
+                                             const char **out_trace) {
   int rc;
 
   LOG_DEBUG("postgres_get_last_trace: entry");

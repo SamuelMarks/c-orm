@@ -58,7 +58,7 @@ static int push_token(struct sql_token_list_t *list, enum SqlTokenKind kind,
   return 0;
 }
 
-int sql_lex(az_span source, struct sql_token_list_t **out_list) {
+c_orm_error_t sql_lex(az_span source, struct sql_token_list_t **out_list) {
   struct sql_token_list_t *list;
   const char *curr;
   const char *end;
@@ -173,7 +173,7 @@ fail:
   return 1;
 }
 
-int sql_token_list_free(struct sql_token_list_t *list) {
+c_orm_error_t sql_token_list_free(struct sql_token_list_t *list) {
   if (list) {
     if (list->tokens) {
       free(list->tokens);
@@ -183,7 +183,7 @@ int sql_token_list_free(struct sql_token_list_t *list) {
   return 0;
 }
 
-int sql_table_free(struct sql_table_t *table) {
+c_orm_error_t sql_table_free(struct sql_table_t *table) {
   if (table) {
     size_t i;
     for (i = 0; i < table->n_columns; ++i) {
@@ -235,8 +235,8 @@ struct SqlParserState {
   struct sql_parse_error_t *out_error;
 };
 
-static int sql_parser_peek(struct SqlParserState *state,
-                           struct sql_token_t **_out_val) {
+static c_orm_error_t sql_parser_peek(struct SqlParserState *state,
+                                     struct sql_token_t **_out_val) {
   size_t c = state->cursor;
   while (c < state->list->size &&
          state->list->tokens[c].kind == SQL_TOKEN_WHITESPACE) {
@@ -264,8 +264,8 @@ static void sql_parser_consume(struct SqlParserState *state) {
   }
 }
 
-static int sql_parser_match_keyword(struct SqlParserState *state,
-                                    const char *kw) {
+static c_orm_error_t sql_parser_match_keyword(struct SqlParserState *state,
+                                              const char *kw) {
   struct sql_token_t *_ast_sql_parser_peek_0;
   const struct sql_token_t *tok =
       (sql_parser_peek(state, &_ast_sql_parser_peek_0), _ast_sql_parser_peek_0);
@@ -279,9 +279,9 @@ static int sql_parser_match_keyword(struct SqlParserState *state,
   return 0;
 }
 
-static int sql_parser_match_kind(struct SqlParserState *state,
-                                 enum SqlTokenKind kind,
-                                 const struct sql_token_t **out_tok) {
+static c_orm_error_t sql_parser_match_kind(struct SqlParserState *state,
+                                           enum SqlTokenKind kind,
+                                           const struct sql_token_t **out_tok) {
   struct sql_token_t *_ast_sql_parser_peek_1;
   const struct sql_token_t *tok =
       (sql_parser_peek(state, &_ast_sql_parser_peek_1), _ast_sql_parser_peek_1);
@@ -295,7 +295,8 @@ static int sql_parser_match_kind(struct SqlParserState *state,
   return 0;
 }
 
-static int sql_parser_set_error(struct SqlParserState *state, const char *msg) {
+static c_orm_error_t sql_parser_set_error(struct SqlParserState *state,
+                                          const char *msg) {
   struct sql_token_t *_ast_sql_parser_peek_2;
   if (state->out_error) {
     state->out_error->message = msg;
@@ -305,8 +306,9 @@ static int sql_parser_set_error(struct SqlParserState *state, const char *msg) {
   return 1; /* Return 1 to indicate error */
 }
 
-static int sql_parse_data_type(struct SqlParserState *state,
-                               enum SqlDataType *out_type, int *out_length) {
+static c_orm_error_t sql_parse_data_type(struct SqlParserState *state,
+                                         enum SqlDataType *out_type,
+                                         int *out_length) {
   struct sql_token_t *_ast_sql_parser_peek_3;
   const struct sql_token_t *tok =
       (sql_parser_peek(state, &_ast_sql_parser_peek_3), _ast_sql_parser_peek_3);
@@ -450,9 +452,9 @@ sql_parse_column_constraint(struct SqlParserState *state,
   return 1; /* Not a constraint */
 }
 
-int sql_parse_table(const struct sql_token_list_t *list,
-                    struct sql_table_t **out_table,
-                    struct sql_parse_error_t *out_error) {
+c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
+                              struct sql_table_t **out_table,
+                              struct sql_parse_error_t *out_error) {
   struct sql_token_t *_ast_sql_parser_peek_4;
   struct sql_token_t *_ast_sql_parser_peek_5;
   struct SqlParserState state;
@@ -624,8 +626,9 @@ int sql_parse_table(const struct sql_token_list_t *list,
   return 0;
 }
 
-int parse_sql_ddl(const char *sql_data, struct sql_table_t **out_tables,
-                  size_t *out_n_tables) {
+c_orm_error_t parse_sql_ddl(const char *sql_data,
+                            struct sql_table_t **out_tables,
+                            size_t *out_n_tables) {
   /* Simple stub that parses one table for now utilizing sql_parse_table */
   struct sql_token_list_t *list = NULL;
   struct sql_table_t *table = NULL;
@@ -684,9 +687,9 @@ int parse_sql_ddl(const char *sql_data, struct sql_table_t **out_tables,
   return 0;
 }
 
-int sql_parse_select(const struct sql_token_list_t *list,
-                     struct CddCQueryProjection **out_proj,
-                     struct sql_parse_error_t *out_error) {
+c_orm_error_t sql_parse_select(const struct sql_token_list_t *list,
+                               struct CddCQueryProjection **out_proj,
+                               struct sql_parse_error_t *out_error) {
   (void)list;
   (void)out_proj;
   if (out_error) {
@@ -696,9 +699,9 @@ int sql_parse_select(const struct sql_token_list_t *list,
   return 1;
 }
 
-int sql_parse_returning(const struct sql_token_list_t *list,
-                        struct CddCQueryProjection **out_proj,
-                        struct sql_parse_error_t *out_error) {
+c_orm_error_t sql_parse_returning(const struct sql_token_list_t *list,
+                                  struct CddCQueryProjection **out_proj,
+                                  struct sql_parse_error_t *out_error) {
   (void)list;
   (void)out_proj;
   if (out_error) {

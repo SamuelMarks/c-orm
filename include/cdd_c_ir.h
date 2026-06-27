@@ -38,7 +38,7 @@ extern C_ORM_EXPORT /**
                      * @param ir The IR structure to initialize.
                      * @return 0 on success.
                      */
-    int
+    c_orm_error_t
     cdd_c_ir_init(cdd_c_ir_t *ir);
 
 extern C_ORM_EXPORT /**
@@ -49,7 +49,7 @@ extern C_ORM_EXPORT /**
                      * pointers within for now.
                      * @return 0 on success.
                      */
-    int
+    c_orm_error_t
     cdd_c_ir_add_table(cdd_c_ir_t *ir, const struct sql_table_t *table);
 
 extern C_ORM_EXPORT /**
@@ -58,7 +58,7 @@ extern C_ORM_EXPORT /**
                      * @param proj The projection to add.
                      * @return 0 on success.
                      */
-    int
+    c_orm_error_t
     cdd_c_ir_add_projection(cdd_c_ir_t *ir,
                             const cdd_c_query_projection_t *proj);
 
@@ -67,7 +67,7 @@ extern C_ORM_EXPORT /**
                      * @param ir The IR to free.
                      * @return 0 on success.
                      */
-    int
+    c_orm_error_t
     cdd_c_ir_free(cdd_c_ir_t *ir);
 
 extern C_ORM_EXPORT /**
@@ -76,7 +76,7 @@ extern C_ORM_EXPORT /**
                      * @param out_ir The IR structure to populate.
                      * @return 0 on success.
                      */
-    int
+    c_orm_error_t
     parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir);
 
 #ifdef __cplusplus

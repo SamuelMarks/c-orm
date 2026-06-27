@@ -53,22 +53,7 @@ typedef struct c_orm_query c_orm_query_t;
 /**
  * @brief Error codes returned by c-orm functions.
  */
-typedef enum {
-  C_ORM_OK = 0,
-  C_ORM_ERROR_MEMORY,
-  C_ORM_ERROR_CONNECTION,
-  C_ORM_ERROR_SQL,
-  C_ORM_ERROR_BIND,
-  C_ORM_ERROR_STEP,
-  C_ORM_ERROR_TYPE_MISMATCH,
-  C_ORM_ERROR_NOT_FOUND,
-  C_ORM_ERROR_NOT_IMPLEMENTED,
-  C_ORM_ERROR_UNKNOWN,
-  C_ORM_ERROR_EXPIRED,
-  C_ORM_ERROR_VALIDATION,
-  C_ORM_ERROR_RECURSION,
-  C_ORM_ERROR_READ_ONLY
-} c_orm_error_t;
+
 /**
  * @brief Get the last error message from the database driver.
  *
@@ -76,8 +61,8 @@ typedef enum {
  * @param out_message Returns a string detailing the last error.
  * @return 0 on success.
  */
-C_ORM_EXPORT int c_orm_get_last_error_message(c_orm_db_t *db,
-                                              const char **out_message);
+C_ORM_EXPORT c_orm_error_t
+c_orm_get_last_error_message(c_orm_db_t *db, const char **out_message);
 
 /**
  * @brief Get context-aware stack trace for the last error (Step 265).
@@ -86,8 +71,8 @@ C_ORM_EXPORT int c_orm_get_last_error_message(c_orm_db_t *db,
  * @param out_trace Returns a string detailing the contextual trace stack.
  * @return 0 on success.
  */
-C_ORM_EXPORT int c_orm_get_last_error_trace(c_orm_db_t *db,
-                                            const char **out_trace);
+C_ORM_EXPORT c_orm_error_t c_orm_get_last_error_trace(c_orm_db_t *db,
+                                                      const char **out_trace);
 
 /**
  * @brief Query logging callback signature.
@@ -127,8 +112,8 @@ typedef struct c_orm_driver_vtable {
   c_orm_error_t (*is_null)(c_orm_query_t *query, int index, int *out_is_null);
   c_orm_error_t (*finalize)(c_orm_query_t *query);
   c_orm_error_t (*reset)(c_orm_query_t *query);
-  int (*get_last_error)(c_orm_db_t *db, const char **out_message);
-  int (*get_last_trace)(c_orm_db_t *db, const char **out_trace);
+  c_orm_error_t (*get_last_error)(c_orm_db_t *db, const char **out_message);
+  c_orm_error_t (*get_last_trace)(c_orm_db_t *db, const char **out_trace);
   c_orm_error_t (*get_last_insert_rowid)(c_orm_db_t *db, int64_t *out_id);
   c_orm_error_t (*get_column_count)(c_orm_query_t *query, int *out_count);
   c_orm_error_t (*get_column_name)(c_orm_query_t *query, int index,

@@ -464,7 +464,8 @@ static c_orm_error_t mem_reset(c_orm_query_t *query) {
 /**
  * @brief Get last error
  */
-static int mem_get_last_error(c_orm_db_t *db, const char **out_message) {
+static c_orm_error_t mem_get_last_error(c_orm_db_t *db,
+                                        const char **out_message) {
   int rc;
   c_orm_memory_db_t *ctx;
   LOG_DEBUG("mem_get_last_error: entry");

@@ -70,7 +70,7 @@ extern C_ORM_EXPORT /**
                      * @param proj The projection to initialize.
                      * @return 0 on success, non-zero on error.
                      */
-    int
+    c_orm_error_t
     cdd_c_query_projection_init(cdd_c_query_projection_t *proj);
 
 extern C_ORM_EXPORT /**
@@ -79,7 +79,7 @@ extern C_ORM_EXPORT /**
                      * @param field The field to add.
                      * @return 0 on success, non-zero on error.
                      */
-    int
+    c_orm_error_t
     cdd_c_query_projection_add_field(
         cdd_c_query_projection_t *proj,
         const cdd_c_query_projection_field_t *field);
@@ -89,7 +89,7 @@ extern C_ORM_EXPORT /**
                      * @param proj The projection to free.
                      * @return 0 on success, non-zero on error.
                      */
-    int
+    c_orm_error_t
     cdd_c_query_projection_free(cdd_c_query_projection_t *proj);
 
 #ifdef __cplusplus

@@ -203,8 +203,8 @@ static const char *openapi_type_to_c_type(const struct StructField *field) {
 /**
  * @brief Executes the openapi orm generate operation.
  */
-int openapi_orm_generate(const struct OpenAPI_Spec *spec,
-                         const struct OpenApiClientConfig *config) {
+c_orm_error_t openapi_orm_generate(const struct OpenAPI_Spec *spec,
+                                   const struct OpenApiClientConfig *config) {
   char path_h[1024];
   char path_c[1024];
   FILE *fp_h = NULL;

@@ -52,10 +52,9 @@ typedef struct {
  * @param dialect The SQL dialect to generate for.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int write_struct_to_sql_create_table(FILE *fp,
-                                                  const char *table_name,
-                                                  const struct StructFields *sf,
-                                                  c_to_sql_dialect_t dialect);
+C_ORM_EXPORT c_orm_error_t write_struct_to_sql_create_table(
+    FILE *fp, const char *table_name, const struct StructFields *sf,
+    c_to_sql_dialect_t dialect);
 
 /**
  * @brief Generate a CREATE TABLE SQL statement from C-ORM metadata.
@@ -66,9 +65,8 @@ C_ORM_EXPORT int write_struct_to_sql_create_table(FILE *fp,
  * generated SQL.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int cdd_c_meta_to_sql_create_table(const cdd_c_meta_t *meta,
-                                                c_to_sql_dialect_t dialect,
-                                                char **out_sql);
+C_ORM_EXPORT c_orm_error_t cdd_c_meta_to_sql_create_table(
+    const cdd_c_meta_t *meta, c_to_sql_dialect_t dialect, char **out_sql);
 
 /**
  * @brief Compute the difference between an old and new schema.
@@ -78,9 +76,9 @@ C_ORM_EXPORT int cdd_c_meta_to_sql_create_table(const cdd_c_meta_t *meta,
  * @param out_diff Pointer to a diff structure to populate.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
-                                 const cdd_c_meta_t *new_schema,
-                                 cdd_c_meta_diff_t *out_diff);
+C_ORM_EXPORT c_orm_error_t cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
+                                           const cdd_c_meta_t *new_schema,
+                                           cdd_c_meta_diff_t *out_diff);
 
 /**
  * @brief Generate UP and DOWN migration SQL scripts from a diff.
@@ -94,10 +92,11 @@ C_ORM_EXPORT int cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
  * DOWN migration SQL.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int cdd_c_meta_diff_to_sql(const char *table_name,
-                                        const cdd_c_meta_diff_t *diff,
-                                        c_to_sql_dialect_t dialect,
-                                        char **up_sql, char **down_sql);
+C_ORM_EXPORT c_orm_error_t cdd_c_meta_diff_to_sql(const char *table_name,
+                                                  const cdd_c_meta_diff_t *diff,
+                                                  c_to_sql_dialect_t dialect,
+                                                  char **up_sql,
+                                                  char **down_sql);
 
 /**
  * @brief Free a diff object.
@@ -114,9 +113,8 @@ C_ORM_EXPORT void cdd_c_meta_diff_free(cdd_c_meta_diff_t *diff);
  * @param out_query Pointer to an allocated string with the query.
  * @return 0 on success.
  */
-C_ORM_EXPORT int cdd_c_get_schema_inspection_query(c_to_sql_dialect_t dialect,
-                                                   const char *table_name,
-                                                   char **out_query);
+C_ORM_EXPORT c_orm_error_t cdd_c_get_schema_inspection_query(
+    c_to_sql_dialect_t dialect, const char *table_name, char **out_query);
 
 /**
  * @brief Emit CREATE INDEX SQL statement.
@@ -128,10 +126,11 @@ C_ORM_EXPORT int cdd_c_get_schema_inspection_query(c_to_sql_dialect_t dialect,
  * @param out_sql Pointer to an allocated string with the query.
  * @return 0 on success.
  */
-C_ORM_EXPORT int cdd_c_emit_create_index(const char *table_name,
-                                         const char *index_name,
-                                         const char *column_name, int is_unique,
-                                         char **out_sql);
+C_ORM_EXPORT c_orm_error_t cdd_c_emit_create_index(const char *table_name,
+                                                   const char *index_name,
+                                                   const char *column_name,
+                                                   int is_unique,
+                                                   char **out_sql);
 
 /**
  * @brief Emit DROP INDEX SQL statement.
@@ -140,7 +139,8 @@ C_ORM_EXPORT int cdd_c_emit_create_index(const char *table_name,
  * @param out_sql Pointer to an allocated string with the query.
  * @return 0 on success.
  */
-C_ORM_EXPORT int cdd_c_emit_drop_index(const char *index_name, char **out_sql);
+C_ORM_EXPORT c_orm_error_t cdd_c_emit_drop_index(const char *index_name,
+                                                 char **out_sql);
 
 /**
  * @brief Reorder an array of C-ORM metadata schemas based on foreign key
@@ -151,9 +151,9 @@ C_ORM_EXPORT int cdd_c_emit_drop_index(const char *index_name, char **out_sql);
  * @param out_schemas Array of metadata pointers sorted by dependency.
  * @return 0 on success, non-zero if a cycle is detected.
  */
-C_ORM_EXPORT int cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas,
-                                             size_t num_schemas,
-                                             const cdd_c_meta_t **out_schemas);
+C_ORM_EXPORT c_orm_error_t
+cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
+                            const cdd_c_meta_t **out_schemas);
 
 #ifdef __cplusplus
 }

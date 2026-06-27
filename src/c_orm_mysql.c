@@ -905,7 +905,8 @@ static c_orm_error_t mysql_drv_reset(c_orm_query_t *query) {
  * @param out_message Pointer to store the error message string.
  * @return 0 on success, non-zero otherwise.
  */
-static int mysql_drv_get_last_error(c_orm_db_t *db, const char **out_message) {
+static c_orm_error_t mysql_drv_get_last_error(c_orm_db_t *db,
+                                              const char **out_message) {
   int rc;
   struct mysql_db_data *data;
 
@@ -938,7 +939,8 @@ static int mysql_drv_get_last_error(c_orm_db_t *db, const char **out_message) {
  * @param out_trace Pointer to store the stack trace string.
  * @return 0 on success, non-zero otherwise.
  */
-static int mysql_drv_get_last_trace(c_orm_db_t *db, const char **out_trace) {
+static c_orm_error_t mysql_drv_get_last_trace(c_orm_db_t *db,
+                                              const char **out_trace) {
   int rc;
 
   LOG_DEBUG("mysql_drv_get_last_trace: entered");

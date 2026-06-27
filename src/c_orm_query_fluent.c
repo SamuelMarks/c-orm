@@ -434,7 +434,8 @@ static c_orm_ast_node_t *c_orm_ast_clone_node(c_orm_arena_t *arena,
  * @param out_q Pointer to the output query.
  * @return 0 on success, non-zero on error.
  */
-static int c_orm_query_clone(c_orm_query_t *q, c_orm_query_t **out_q) {
+static c_orm_error_t c_orm_query_clone(c_orm_query_t *q,
+                                       c_orm_query_t **out_q) {
   int rc;
   c_orm_ast_node_t *curr;
   c_orm_ast_node_t *tail = NULL;
@@ -1327,7 +1328,7 @@ static c_orm_ast_node_t *c_orm_query_window_impl(c_orm_query_t *q,
  * @param out_query Pointer to the output query.
  * @return 0 on success.
  */
-C_ORM_EXPORT int c_orm_query_new(c_orm_query_t **out_query) {
+C_ORM_EXPORT c_orm_error_t c_orm_query_new(c_orm_query_t **out_query) {
   int rc;
   c_orm_query_t *q;
 

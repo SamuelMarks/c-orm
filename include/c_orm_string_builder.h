@@ -43,8 +43,8 @@ C_ORM_EXPORT void c_orm_string_builder_free(c_orm_string_builder_t *builder);
  * @param str The string to append.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int c_orm_string_builder_append(c_orm_string_builder_t *builder,
-                                             const char *str);
+C_ORM_EXPORT c_orm_error_t
+c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str);
 
 /**
  * @brief Get the generated string.
@@ -52,8 +52,8 @@ C_ORM_EXPORT int c_orm_string_builder_append(c_orm_string_builder_t *builder,
  * @param builder The builder.
  * @return Null-terminated string buffer. Do not free directly.
  */
-C_ORM_EXPORT int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
-                                          const char **out_str);
+C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
+    const c_orm_string_builder_t *builder, const char **out_str);
 
 /**
  * @brief Get the current length of the generated string.
@@ -61,8 +61,8 @@ C_ORM_EXPORT int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
  * @param builder The builder.
  * @return Length of the string.
  */
-C_ORM_EXPORT int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
-                                          size_t *out_len);
+C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
+    const c_orm_string_builder_t *builder, size_t *out_len);
 
 #ifdef __cplusplus
 }

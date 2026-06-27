@@ -21,7 +21,7 @@ extern "C" {
 extern C_ORM_EXPORT /**
                      * @brief Executes the openapi orm generate operation.
                      */
-    int
+    c_orm_error_t
     openapi_orm_generate(const struct OpenAPI_Spec *spec,
                          const struct OpenApiClientConfig *config);
 

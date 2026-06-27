@@ -73,8 +73,8 @@ C_ORM_EXPORT void c_orm_select_builder_free(c_orm_select_builder_t *builder) {
 }
 
 /** @brief Compile select builder */
-C_ORM_EXPORT int c_orm_select_builder_compile(c_orm_select_builder_t *builder,
-                                              char **out_sql) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_builder_compile(c_orm_select_builder_t *builder, char **out_sql) {
   int rc;
   const char *sql_str;
 
@@ -128,8 +128,8 @@ static int append_where(c_orm_select_builder_t *builder, const char *column,
 }
 
 /** @brief Select where eq */
-C_ORM_EXPORT int c_orm_select_where_eq(c_orm_select_builder_t *builder,
-                                       const char *column) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_where_eq(c_orm_select_builder_t *builder, const char *column) {
   int rc;
   LOG_DEBUG("c_orm_select_where_eq: entry");
   rc = append_where(builder, column, " = ?");
@@ -138,8 +138,8 @@ C_ORM_EXPORT int c_orm_select_where_eq(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select where neq */
-C_ORM_EXPORT int c_orm_select_where_neq(c_orm_select_builder_t *builder,
-                                        const char *column) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_where_neq(c_orm_select_builder_t *builder, const char *column) {
   int rc;
   LOG_DEBUG("c_orm_select_where_neq: entry");
   rc = append_where(builder, column, " != ?");
@@ -148,8 +148,8 @@ C_ORM_EXPORT int c_orm_select_where_neq(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select where lt */
-C_ORM_EXPORT int c_orm_select_where_lt(c_orm_select_builder_t *builder,
-                                       const char *column) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_where_lt(c_orm_select_builder_t *builder, const char *column) {
   int rc;
   LOG_DEBUG("c_orm_select_where_lt: entry");
   rc = append_where(builder, column, " < ?");
@@ -158,8 +158,8 @@ C_ORM_EXPORT int c_orm_select_where_lt(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select where gt */
-C_ORM_EXPORT int c_orm_select_where_gt(c_orm_select_builder_t *builder,
-                                       const char *column) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_where_gt(c_orm_select_builder_t *builder, const char *column) {
   int rc;
   LOG_DEBUG("c_orm_select_where_gt: entry");
   rc = append_where(builder, column, " > ?");
@@ -168,8 +168,8 @@ C_ORM_EXPORT int c_orm_select_where_gt(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select where lte */
-C_ORM_EXPORT int c_orm_select_where_lte(c_orm_select_builder_t *builder,
-                                        const char *column) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_where_lte(c_orm_select_builder_t *builder, const char *column) {
   int rc;
   LOG_DEBUG("c_orm_select_where_lte: entry");
   rc = append_where(builder, column, " <= ?");
@@ -178,8 +178,8 @@ C_ORM_EXPORT int c_orm_select_where_lte(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select where gte */
-C_ORM_EXPORT int c_orm_select_where_gte(c_orm_select_builder_t *builder,
-                                        const char *column) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_where_gte(c_orm_select_builder_t *builder, const char *column) {
   int rc;
   LOG_DEBUG("c_orm_select_where_gte: entry");
   rc = append_where(builder, column, " >= ?");
@@ -210,8 +210,8 @@ c_orm_select_where_lt_current_timestamp(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select where like */
-C_ORM_EXPORT int c_orm_select_where_like(c_orm_select_builder_t *builder,
-                                         const char *column) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_where_like(c_orm_select_builder_t *builder, const char *column) {
   int rc;
   LOG_DEBUG("c_orm_select_where_like: entry");
   rc = append_where(builder, column, " LIKE ?");
@@ -220,8 +220,8 @@ C_ORM_EXPORT int c_orm_select_where_like(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select where in */
-C_ORM_EXPORT int c_orm_select_where_in(c_orm_select_builder_t *builder,
-                                       const char *column, size_t count) {
+C_ORM_EXPORT c_orm_error_t c_orm_select_where_in(
+    c_orm_select_builder_t *builder, const char *column, size_t count) {
   int rc;
   size_t i;
 
@@ -252,9 +252,9 @@ C_ORM_EXPORT int c_orm_select_where_in(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select where in array */
-C_ORM_EXPORT int c_orm_select_where_in_array(c_orm_select_builder_t *builder,
-                                             const char *column, void *array,
-                                             const c_orm_table_meta_t *meta) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_where_in_array(c_orm_select_builder_t *builder, const char *column,
+                            void *array, const c_orm_table_meta_t *meta) {
   int rc;
 
   LOG_DEBUG("c_orm_select_where_in_array: entry");
@@ -270,8 +270,8 @@ C_ORM_EXPORT int c_orm_select_where_in_array(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select where between */
-C_ORM_EXPORT int c_orm_select_where_between(c_orm_select_builder_t *builder,
-                                            const char *column) {
+C_ORM_EXPORT c_orm_error_t c_orm_select_where_between(
+    c_orm_select_builder_t *builder, const char *column) {
   int rc;
   LOG_DEBUG("c_orm_select_where_between: entry");
   rc = append_where(builder, column, " BETWEEN ? AND ?");
@@ -280,8 +280,8 @@ C_ORM_EXPORT int c_orm_select_where_between(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select where ilike */
-C_ORM_EXPORT int c_orm_select_where_ilike(c_orm_select_builder_t *builder,
-                                          const char *column) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_where_ilike(c_orm_select_builder_t *builder, const char *column) {
   int rc;
   LOG_DEBUG("c_orm_select_where_ilike: entry");
   rc = append_where(builder, column, " ILIKE ?");
@@ -403,9 +403,9 @@ static int build_exists_query(c_orm_string_builder_t *sb,
 }
 
 /** @brief Select where relation */
-C_ORM_EXPORT int c_orm_select_where_relation(c_orm_select_builder_t *builder,
-                                             const char *relation_name,
-                                             const char *operator_str) {
+C_ORM_EXPORT c_orm_error_t c_orm_select_where_relation(
+    c_orm_select_builder_t *builder, const char *relation_name,
+    const char *operator_str) {
   int rc;
 
   LOG_DEBUG("c_orm_select_where_relation: entry");
@@ -428,8 +428,8 @@ C_ORM_EXPORT int c_orm_select_where_relation(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select group by */
-C_ORM_EXPORT int c_orm_select_group_by(c_orm_select_builder_t *builder,
-                                       const char *column) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_group_by(c_orm_select_builder_t *builder, const char *column) {
   int rc;
 
   LOG_DEBUG("c_orm_select_group_by: entry");
@@ -447,8 +447,8 @@ C_ORM_EXPORT int c_orm_select_group_by(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select having */
-C_ORM_EXPORT int c_orm_select_having(c_orm_select_builder_t *builder,
-                                     const char *clause) {
+C_ORM_EXPORT c_orm_error_t c_orm_select_having(c_orm_select_builder_t *builder,
+                                               const char *clause) {
   int rc;
 
   LOG_DEBUG("c_orm_select_having: entry");
@@ -466,9 +466,9 @@ C_ORM_EXPORT int c_orm_select_having(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select aggregate */
-C_ORM_EXPORT int c_orm_select_aggregate(c_orm_select_builder_t *builder,
-                                        const char *func, const char *column,
-                                        const char *alias) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_aggregate(c_orm_select_builder_t *builder, const char *func,
+                       const char *column, const char *alias) {
   int rc;
   const char *current_sql;
   char *new_sql;
@@ -552,8 +552,8 @@ C_ORM_EXPORT int c_orm_select_aggregate(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select order by */
-C_ORM_EXPORT int c_orm_select_order_by(c_orm_select_builder_t *builder,
-                                       const char *column, int is_desc) {
+C_ORM_EXPORT c_orm_error_t c_orm_select_order_by(
+    c_orm_select_builder_t *builder, const char *column, int is_desc) {
   int rc;
 
   LOG_DEBUG("c_orm_select_order_by: entry");
@@ -581,8 +581,8 @@ C_ORM_EXPORT int c_orm_select_order_by(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select limit */
-C_ORM_EXPORT int c_orm_select_limit(c_orm_select_builder_t *builder,
-                                    size_t limit) {
+C_ORM_EXPORT c_orm_error_t c_orm_select_limit(c_orm_select_builder_t *builder,
+                                              size_t limit) {
   int rc;
   char buf[32];
 
@@ -602,8 +602,8 @@ C_ORM_EXPORT int c_orm_select_limit(c_orm_select_builder_t *builder,
 }
 
 /** @brief Select offset */
-C_ORM_EXPORT int c_orm_select_offset(c_orm_select_builder_t *builder,
-                                     size_t offset) {
+C_ORM_EXPORT c_orm_error_t c_orm_select_offset(c_orm_select_builder_t *builder,
+                                               size_t offset) {
   int rc;
   char buf[32];
 
@@ -649,8 +649,8 @@ C_ORM_EXPORT void c_orm_insert_builder_free(c_orm_insert_builder_t *builder) {
 }
 
 /** @brief Compile insert builder */
-C_ORM_EXPORT int c_orm_insert_builder_compile(c_orm_insert_builder_t *builder,
-                                              char **out_sql) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_insert_builder_compile(c_orm_insert_builder_t *builder, char **out_sql) {
   int rc;
   LOG_DEBUG("c_orm_insert_builder_compile: entry");
   (void)builder;
@@ -722,8 +722,8 @@ C_ORM_EXPORT void c_orm_update_builder_free(c_orm_update_builder_t *builder) {
 }
 
 /** @brief Update set */
-C_ORM_EXPORT int c_orm_update_set(c_orm_update_builder_t *builder,
-                                  const char *column) {
+C_ORM_EXPORT c_orm_error_t c_orm_update_set(c_orm_update_builder_t *builder,
+                                            const char *column) {
   int rc;
 
   LOG_DEBUG("c_orm_update_set: entry");
@@ -751,8 +751,8 @@ C_ORM_EXPORT int c_orm_update_set(c_orm_update_builder_t *builder,
 }
 
 /** @brief Update where eq */
-C_ORM_EXPORT int c_orm_update_where_eq(c_orm_update_builder_t *builder,
-                                       const char *column) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_update_where_eq(c_orm_update_builder_t *builder, const char *column) {
   int rc;
 
   LOG_DEBUG("c_orm_update_where_eq: entry");
@@ -776,8 +776,8 @@ C_ORM_EXPORT int c_orm_update_where_eq(c_orm_update_builder_t *builder,
 }
 
 /** @brief Compile update builder */
-C_ORM_EXPORT int c_orm_update_builder_compile(c_orm_update_builder_t *builder,
-                                              char **out_sql) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_update_builder_compile(c_orm_update_builder_t *builder, char **out_sql) {
   int rc;
   const char *sql_str;
 

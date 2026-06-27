@@ -81,7 +81,7 @@ extern C_ORM_EXPORT /**
                      * @param capacity Initial capacity.
                      * @return 0 on success.
                      */
-    int
+    c_orm_error_t
     cdd_c_abstract_struct_array_init(cdd_c_abstract_struct_array_t *arr,
                                      size_t capacity);
 
@@ -92,7 +92,7 @@ extern C_ORM_EXPORT /**
                      * @param astruct The struct to append.
                      * @return 0 on success.
                      */
-    int
+    c_orm_error_t
     cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
                                        cdd_c_abstract_struct_t *astruct);
 
@@ -102,19 +102,18 @@ extern C_ORM_EXPORT /**
                      * @param arr The array to free.
                      * @return 0 on success.
                      */
-    int
+    c_orm_error_t
     cdd_c_abstract_struct_array_free(cdd_c_abstract_struct_array_t *arr);
 
-extern C_ORM_EXPORT int
-cdd_c_abstract_struct_array_to_json(const cdd_c_abstract_struct_array_t *arr,
-                                    char **out_json);
+extern C_ORM_EXPORT c_orm_error_t cdd_c_abstract_struct_array_to_json(
+    const cdd_c_abstract_struct_array_t *arr, char **out_json);
 
 extern C_ORM_EXPORT /**
                      * @brief Initialize an abstract struct.
                      * @param astruct The abstract struct to initialize.
                      * @return 0 on success, non-zero on error.
                      */
-    int
+    c_orm_error_t
     cdd_c_abstract_struct_init(cdd_c_abstract_struct_t *astruct);
 
 extern C_ORM_EXPORT /**
@@ -124,7 +123,7 @@ extern C_ORM_EXPORT /**
                      * @param capacity The number of keys to reserve.
                      * @return 0 on success, non-zero on error.
                      */
-    int
+    c_orm_error_t
     cdd_c_abstract_struct_init_with_capacity(cdd_c_abstract_struct_t *astruct,
                                              size_t capacity);
 
@@ -135,7 +134,7 @@ extern C_ORM_EXPORT /**
                      * @param value The value to set (will be deeply copied).
                      * @return 0 on success, non-zero on error.
                      */
-    int
+    c_orm_error_t
     cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct, const char *key,
                        const cdd_c_variant_t *value);
 
@@ -146,7 +145,7 @@ extern C_ORM_EXPORT /**
                      * @param out_value Pointer to receive the found value.
                      * @return 0 on success, non-zero on error.
                      */
-    int
+    c_orm_error_t
     cdd_c_abstract_get(const cdd_c_abstract_struct_t *astruct, const char *key,
                        cdd_c_variant_t **out_value);
 
@@ -156,7 +155,7 @@ extern C_ORM_EXPORT /**
                      * @param src The source abstract struct.
                      * @return 0 on success, non-zero on error.
                      */
-    int
+    c_orm_error_t
     cdd_c_abstract_struct_deep_copy(cdd_c_abstract_struct_t *dest,
                                     const cdd_c_abstract_struct_t *src);
 
@@ -165,7 +164,7 @@ extern C_ORM_EXPORT /**
                      * @param astruct The abstract struct to free.
                      * @return 0 on success, non-zero on error.
                      */
-    int
+    c_orm_error_t
     cdd_c_abstract_struct_free(cdd_c_abstract_struct_t *astruct);
 
 extern C_ORM_EXPORT /**
@@ -173,7 +172,7 @@ extern C_ORM_EXPORT /**
                      * @param variant The variant to free.
                      * @return 0 on success, non-zero on error.
                      */
-    int
+    c_orm_error_t
     cdd_c_variant_free(cdd_c_variant_t *variant);
 
 extern C_ORM_EXPORT /**
@@ -183,7 +182,7 @@ extern C_ORM_EXPORT /**
                      * string.
                      * @return 0 on success, non-zero on error.
                      */
-    int
+    c_orm_error_t
     cdd_c_abstract_struct_to_json(const cdd_c_abstract_struct_t *astruct,
                                   char **out_json);
 
@@ -194,7 +193,7 @@ extern C_ORM_EXPORT /**
                      * struct.
                      * @return 0 on success, non-zero on error.
                      */
-    int
+    c_orm_error_t
     cdd_c_abstract_struct_from_json(const char *json,
                                     cdd_c_abstract_struct_t *out_astruct);
 
@@ -210,14 +209,14 @@ extern C_ORM_EXPORT /**
  * globally.
  * @return Byte count.
  */
-C_ORM_EXPORT int cdd_c_get_allocated_bytes(size_t *out_bytes);
+C_ORM_EXPORT c_orm_error_t cdd_c_get_allocated_bytes(size_t *out_bytes);
 
 /**
  * @brief Retrieves the total number of free calls for abstract structs
  * globally.
  * @return Free count.
  */
-C_ORM_EXPORT int cdd_c_get_freed_calls(size_t *out_calls);
+C_ORM_EXPORT c_orm_error_t cdd_c_get_freed_calls(size_t *out_calls);
 
 /**
  * @brief Represents a driver-agnostic column definition.
@@ -239,10 +238,9 @@ typedef struct CddCColumnMeta {
  * @param n_cols Number of columns.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
-                                        void **row_data,
-                                        const cdd_c_column_meta_t *cols,
-                                        size_t n_cols);
+C_ORM_EXPORT c_orm_error_t
+cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct, void **row_data,
+                       const cdd_c_column_meta_t *cols, size_t n_cols);
 
 /**
  * @brief SQLite3 specific hydration hook. Extracts generic row types safely
@@ -253,9 +251,8 @@ C_ORM_EXPORT int cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
  * @param stmt Opaque pointer to `sqlite3_stmt`.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int
-cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
-                               void *stmt);
+C_ORM_EXPORT c_orm_error_t cdd_c_abstract_hydrate_sqlite3(
+    cdd_c_abstract_struct_t *out_astruct, void *stmt);
 
 /**
  * @brief PostgreSQL libpq specific hydration hook. Extracts generic row types
@@ -268,9 +265,8 @@ cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
  * to decode.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int
-cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct, void *res,
-                             int row_index);
+C_ORM_EXPORT c_orm_error_t cdd_c_abstract_hydrate_libpq(
+    cdd_c_abstract_struct_t *out_astruct, void *res, int row_index);
 
 /**
  * @brief MySQL/MariaDB specific hydration hook. Extracts generic row types
@@ -284,7 +280,7 @@ cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct, void *res,
  * @param num_fields The integer boundary size.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct, void *row,
                              void *fields, unsigned int num_fields);
 
@@ -333,8 +329,9 @@ struct cdd_c_meta;
  * @param field The field name to look up.
  * @return The offset in bytes, or (size_t)-1 if not found.
  */
-C_ORM_EXPORT int cdd_c_meta_offsetof(const struct cdd_c_meta *meta,
-                                     const char *field, size_t *out_offset);
+C_ORM_EXPORT c_orm_error_t cdd_c_meta_offsetof(const struct cdd_c_meta *meta,
+                                               const char *field,
+                                               size_t *out_offset);
 
 /**
  * @brief Provide reflection utility macro helper checking metadata matching
@@ -360,10 +357,9 @@ C_ORM_EXPORT int cdd_c_meta_offsetof(const struct cdd_c_meta *meta,
  * offsets.
  * @return 0 on success.
  */
-C_ORM_EXPORT int
-cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
-                           const void *in_struct,
-                           const struct cdd_c_meta *struct_meta);
+C_ORM_EXPORT c_orm_error_t cdd_c_specific_to_abstract(
+    cdd_c_abstract_struct_t *out_astruct, const void *in_struct,
+    const struct cdd_c_meta *struct_meta);
 
 /**
  * @brief Converts a dynamic abstract dictionary cleanly into a static C struct.
@@ -375,7 +371,7 @@ cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
  * @param strict_mapping If 1, fails if any field is missing or extraneous.
  * @return 0 on success.
  */
-C_ORM_EXPORT int cdd_c_abstract_to_specific(
+C_ORM_EXPORT c_orm_error_t cdd_c_abstract_to_specific(
     void *out_struct, const cdd_c_abstract_struct_t *in_astruct,
     const struct cdd_c_meta *struct_meta, int strict_mapping);
 

@@ -23,7 +23,7 @@
 
 static CDD_C_THREAD_LOCAL char cdd_c_hydrate_error_msg[512] = {0};
 
-int cdd_c_hydrate_router_get_last_error(const char **out_msg) {
+c_orm_error_t cdd_c_hydrate_router_get_last_error(const char **out_msg) {
   if (!out_msg)
     return -1;
   if (cdd_c_hydrate_error_msg[0] == '\0') {
@@ -44,7 +44,7 @@ void cdd_c_hydrate_router_set_last_error(const char *msg) {
   }
 }
 
-int cdd_c_hydrate_router_init(cdd_c_hydrate_router_t *router) {
+c_orm_error_t cdd_c_hydrate_router_init(cdd_c_hydrate_router_t *router) {
   if (!router)
     return -1;
   router->routes = NULL;
@@ -53,10 +53,11 @@ int cdd_c_hydrate_router_init(cdd_c_hydrate_router_t *router) {
   return 0;
 }
 
-int cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
-                                  c_orm_uint64_t query_id_hash,
-                                  const struct cdd_c_meta *struct_meta,
-                                  cdd_c_specific_hydrator_fn hydrate_fn) {
+c_orm_error_t
+cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
+                              c_orm_uint64_t query_id_hash,
+                              const struct cdd_c_meta *struct_meta,
+                              cdd_c_specific_hydrator_fn hydrate_fn) {
   cdd_c_hydrate_route_t *new_routes;
   size_t new_cap, i;
 
@@ -90,10 +91,9 @@ int cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
   return 0;
 }
 
-int cdd_c_hydrate_router_dispatch(const cdd_c_hydrate_router_t *router,
-                                  c_orm_uint64_t query_id_hash,
-                                  const cdd_c_abstract_struct_t *row,
-                                  void *out_struct) {
+c_orm_error_t cdd_c_hydrate_router_dispatch(
+    const cdd_c_hydrate_router_t *router, c_orm_uint64_t query_id_hash,
+    const cdd_c_abstract_struct_t *row, void *out_struct) {
   size_t i;
   int res;
 
@@ -122,7 +122,7 @@ int cdd_c_hydrate_router_dispatch(const cdd_c_hydrate_router_t *router,
   return -1;
 }
 
-int cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router) {
+c_orm_error_t cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router) {
   if (!router)
     return -1;
   if (router->routes)

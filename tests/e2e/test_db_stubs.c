@@ -75,11 +75,11 @@ static void test_log_cb(const char *msg, void *user_data) { (void)msg; (void)use
 static void test_expire_cb(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                            void *obj, void *user_data) { (void)db; (void)meta; (void)obj; (void)user_data; }
 
-static int get_last_err_mock(c_orm_db_t *db, const char **out) { (void)db; (void)out;
+static c_orm_error_t get_last_err_mock(c_orm_db_t *db, const char **out) { (void)db; (void)out;
   *out = "mock";
   return 0;
 }
-static int get_last_trace_mock(c_orm_db_t *db, const char **out) { (void)db; (void)out;
+static c_orm_error_t get_last_trace_mock(c_orm_db_t *db, const char **out) { (void)db; (void)out;
   *out = "trace";
   return 0;
 }

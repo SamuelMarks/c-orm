@@ -54,7 +54,7 @@ static int is_nullable(const struct sql_column_t *col) {
   return EINVAL; /* nullable */
 }
 
-int sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
+c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   switch (type) {
   case SQL_TYPE_INT: {
     *_out_val = "int32_t";
@@ -92,7 +92,7 @@ int sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   }
 }
 
-int sql_type_is_string(enum SqlDataType type) {
+c_orm_error_t sql_type_is_string(enum SqlDataType type) {
   switch (type) {
   case SQL_TYPE_VARCHAR:
   case SQL_TYPE_TEXT:
@@ -110,7 +110,7 @@ static int emit_c_orm_metadata(FILE *fp, const struct sql_table_t *table,
 static int emit_c_orm_queries(FILE *fp, const struct sql_table_t *table,
                               const char *struct_name);
 
-int sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
+c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   char *_ast_sql_type_to_c_type_0 = NULL;
   char table_name_upper[128];
   char struct_name[128];
@@ -258,8 +258,8 @@ int sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   return 0;
 }
 
-int sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
-                         const char *header_name) {
+c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
+                                   const char *header_name) {
   char *_ast_sql_type_to_c_type_1 = NULL;
   char struct_name[128];
   size_t i;
@@ -408,7 +408,8 @@ int sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
  * @brief Converts a SQL data type enum to its corresponding C ORM string
  * representation.
  */
-int sql_type_to_c_orm_type(enum SqlDataType type, const char **out_val) {
+c_orm_error_t sql_type_to_c_orm_type(enum SqlDataType type,
+                                     const char **out_val) {
   if (!out_val)
     return EINVAL;
   switch (type) {
@@ -659,10 +660,10 @@ static int emit_c_orm_queries(FILE *fp, const struct sql_table_t *table,
  * @param struct_name struct_name
  * @param out_hash out_hash
  */
-int sql_to_c_projection_struct_emit(FILE *fp,
-                                    const cdd_c_query_projection_t *proj,
-                                    const char *struct_name,
-                                    c_orm_uint64_t *out_hash) {
+c_orm_error_t
+sql_to_c_projection_struct_emit(FILE *fp, const cdd_c_query_projection_t *proj,
+                                const char *struct_name,
+                                c_orm_uint64_t *out_hash) {
 
   size_t i;
 
@@ -765,9 +766,9 @@ int sql_to_c_projection_struct_emit(FILE *fp,
  * @param proj proj
  * @param struct_name struct_name
  */
-int sql_to_c_projection_free_emit(FILE *fp,
-                                  const cdd_c_query_projection_t *proj,
-                                  const char *struct_name) {
+c_orm_error_t
+sql_to_c_projection_free_emit(FILE *fp, const cdd_c_query_projection_t *proj,
+                              const char *struct_name) {
 
   size_t i;
 
@@ -814,9 +815,9 @@ int sql_to_c_projection_free_emit(FILE *fp,
  * @param proj proj
  * @param struct_name struct_name
  */
-int sql_to_c_projection_meta_emit(FILE *fp,
-                                  const cdd_c_query_projection_t *proj,
-                                  const char *struct_name) {
+c_orm_error_t
+sql_to_c_projection_meta_emit(FILE *fp, const cdd_c_query_projection_t *proj,
+                              const char *struct_name) {
 
   size_t i;
   const char *orm_type_str;
@@ -885,9 +886,9 @@ int sql_to_c_projection_meta_emit(FILE *fp,
  * @param proj proj
  * @param struct_name struct_name
  */
-int sql_to_c_projection_hydrate_emit(FILE *fp,
-                                     const cdd_c_query_projection_t *proj,
-                                     const char *struct_name) {
+c_orm_error_t
+sql_to_c_projection_hydrate_emit(FILE *fp, const cdd_c_query_projection_t *proj,
+                                 const char *struct_name) {
 
   size_t i;
 
@@ -1004,9 +1005,8 @@ int sql_to_c_projection_hydrate_emit(FILE *fp,
  * @param proj proj
  * @param struct_name struct_name
  */
-int sql_to_c_projection_dehydrate_emit(FILE *fp,
-                                       const cdd_c_query_projection_t *proj,
-                                       const char *struct_name) {
+c_orm_error_t sql_to_c_projection_dehydrate_emit(
+    FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name) {
 
   size_t i;
 
@@ -1107,9 +1107,8 @@ int sql_to_c_projection_dehydrate_emit(FILE *fp,
  * @param proj proj
  * @param struct_name struct_name
  */
-int sql_to_c_projection_nested_struct_emit(FILE *fp,
-                                           const cdd_c_query_projection_t *proj,
-                                           const char *struct_name) {
+c_orm_error_t sql_to_c_projection_nested_struct_emit(
+    FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name) {
 
   if (!fp || !proj || !struct_name)
     return EINVAL;
@@ -1129,10 +1128,9 @@ int sql_to_c_projection_nested_struct_emit(FILE *fp,
  * @param struct_name struct_name
  * @param array_name array_name
  */
-int sql_to_c_projection_nested_array_emit(FILE *fp,
-                                          const cdd_c_query_projection_t *proj,
-                                          const char *struct_name,
-                                          const char *array_name) {
+c_orm_error_t sql_to_c_projection_nested_array_emit(
+    FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name,
+    const char *array_name) {
 
   if (!fp || !proj || !struct_name || !array_name)
     return EINVAL;
@@ -1198,9 +1196,8 @@ int sql_to_c_projection_nested_array_emit(FILE *fp,
  * @param proj proj
  * @param struct_name struct_name
  */
-int sql_to_c_projection_dirty_bitmask_emit(FILE *fp,
-                                           const cdd_c_query_projection_t *proj,
-                                           const char *struct_name) {
+c_orm_error_t sql_to_c_projection_dirty_bitmask_emit(
+    FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name) {
 
   if (!fp || !proj || !struct_name)
     return EINVAL;
@@ -1253,10 +1250,10 @@ int sql_to_c_projection_dirty_bitmask_emit(FILE *fp,
  * @param n_projs n_projs
  * @param struct_name struct_name
  */
-int sql_to_c_projection_union_struct_emit(FILE *fp,
-                                          const cdd_c_query_projection_t *projs,
-                                          size_t n_projs,
-                                          const char *struct_name) {
+c_orm_error_t
+sql_to_c_projection_union_struct_emit(FILE *fp,
+                                      const cdd_c_query_projection_t *projs,
+                                      size_t n_projs, const char *struct_name) {
 
   size_t i, j;
 
@@ -1352,7 +1349,7 @@ int sql_to_c_projection_union_struct_emit(FILE *fp,
  * @param proj proj
  * @param struct_name struct_name
  */
-int sql_to_c_projection_polymorphic_struct_emit(
+c_orm_error_t sql_to_c_projection_polymorphic_struct_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name) {
 
   if (!fp || !proj || !struct_name)

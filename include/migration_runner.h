@@ -29,7 +29,7 @@ extern "C" {
 extern C_ORM_EXPORT /**
                      * @brief Applies migration.
                      */
-    int
+    c_orm_error_t
     apply_migration(const char *filepath);
 
 /**
@@ -44,7 +44,7 @@ extern C_ORM_EXPORT /**
 extern C_ORM_EXPORT /**
                      * @brief Executes the rollback migration operation.
                      */
-    int
+    c_orm_error_t
     rollback_migration(const char *filepath);
 
 /**
@@ -60,7 +60,7 @@ extern C_ORM_EXPORT /**
 extern C_ORM_EXPORT /**
                      * @brief Executes the run pending migrations operation.
                      */
-    int
+    c_orm_error_t
     run_pending_migrations(const char *migrations_dir);
 
 /**
@@ -76,7 +76,7 @@ extern C_ORM_EXPORT /**
 extern C_ORM_EXPORT /**
                      * @brief Executes the rollback last migration operation.
                      */
-    int
+    c_orm_error_t
     rollback_last_migration(const char *migrations_dir);
 
 /**
@@ -89,7 +89,7 @@ extern C_ORM_EXPORT /**
 extern C_ORM_EXPORT /**
                      * @brief Executes the create migration file operation.
                      */
-    int
+    c_orm_error_t
     create_migration_file(const char *migrations_dir, const char *name);
 
 /**
@@ -102,7 +102,7 @@ extern C_ORM_EXPORT /**
 extern C_ORM_EXPORT /**
                      * @brief Executes the reset database operation.
                      */
-    int
+    c_orm_error_t
     reset_database(const char *migrations_dir);
 
 /**
@@ -119,7 +119,7 @@ extern C_ORM_EXPORT /**
 extern C_ORM_EXPORT /**
                      * @brief Executes the setup test database operation.
                      */
-    int
+    c_orm_error_t
     setup_test_database(const char *db_name, const char *migrations_dir);
 
 /**
@@ -131,7 +131,7 @@ extern C_ORM_EXPORT /**
 extern C_ORM_EXPORT /**
                      * @brief Executes the seed database operation.
                      */
-    int
+    c_orm_error_t
     seed_database(const char *seed_filepath);
 
 /**
@@ -143,7 +143,7 @@ extern C_ORM_EXPORT /**
 extern C_ORM_EXPORT /**
                      * @brief Executes the dump schema operation.
                      */
-    int
+    c_orm_error_t
     dump_schema(const char *out_filepath);
 
 #ifdef __cplusplus

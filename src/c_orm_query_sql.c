@@ -55,8 +55,9 @@ C_ORM_EXPORT void c_orm_query_params_cleanup(c_orm_query_params_t *params) {
  * @param is_string Whether the value is a string.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int c_orm_query_params_add(c_orm_query_params_t *params,
-                                        const char *value, int is_string) {
+C_ORM_EXPORT c_orm_error_t c_orm_query_params_add(c_orm_query_params_t *params,
+                                                  const char *value,
+                                                  int is_string) {
   int rc;
   size_t new_cap;
   c_orm_query_param_t *new_arr;
@@ -324,9 +325,9 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
  * @param out_params Pointer to receive the query parameters.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
-                                    char **out_sql,
-                                    c_orm_query_params_t *out_params) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
+                   c_orm_query_params_t *out_params) {
   c_orm_string_builder_t *sb;
   c_orm_ast_node_t *node;
   c_orm_ast_select_t *sel = NULL;

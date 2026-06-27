@@ -16,8 +16,8 @@
  * @param out_message Pointer to a string pointer to store the message.
  * @return Integer error code, 0 on success.
  */
-C_ORM_EXPORT int c_orm_get_last_error_message(c_orm_db_t *db,
-                                              const char **out_message) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_get_last_error_message(c_orm_db_t *db, const char **out_message) {
   int rc;
   LOG_DEBUG("c_orm_get_last_error_message: entry");
   if (!out_message) {
@@ -45,8 +45,8 @@ C_ORM_EXPORT int c_orm_get_last_error_message(c_orm_db_t *db,
  * @param out_trace Pointer to a string pointer to store the trace.
  * @return Integer error code, 0 on success.
  */
-C_ORM_EXPORT int c_orm_get_last_error_trace(c_orm_db_t *db,
-                                            const char **out_trace) {
+C_ORM_EXPORT c_orm_error_t c_orm_get_last_error_trace(c_orm_db_t *db,
+                                                      const char **out_trace) {
   int rc;
   LOG_DEBUG("c_orm_get_last_error_trace: entry");
   if (!out_trace) {

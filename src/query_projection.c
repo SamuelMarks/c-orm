@@ -11,7 +11,7 @@
 #include <string.h>
 /* clang-format on */
 
-int cdd_c_query_projection_init(cdd_c_query_projection_t *proj) {
+c_orm_error_t cdd_c_query_projection_init(cdd_c_query_projection_t *proj) {
   if (!proj)
     return -1;
   proj->fields = NULL;
@@ -39,9 +39,9 @@ static int duplicate_string_qp(const char *src, char **dest) {
   return 0;
 }
 
-int cdd_c_query_projection_add_field(
-    cdd_c_query_projection_t *proj,
-    const cdd_c_query_projection_field_t *field) {
+c_orm_error_t
+cdd_c_query_projection_add_field(cdd_c_query_projection_t *proj,
+                                 const cdd_c_query_projection_field_t *field) {
   cdd_c_query_projection_field_t *new_fields;
   size_t new_cap;
   if (!proj || !field)
@@ -74,7 +74,7 @@ int cdd_c_query_projection_add_field(
   return 0;
 }
 
-int cdd_c_query_projection_free(cdd_c_query_projection_t *proj) {
+c_orm_error_t cdd_c_query_projection_free(cdd_c_query_projection_t *proj) {
   size_t i;
   if (!proj)
     return -1;

@@ -29,7 +29,7 @@
 static size_t cdd_c_memory_allocated = 0;
 static size_t cdd_c_memory_freed = 0;
 
-static int cdd_c_malloc(size_t size, void **out_ptr) {
+static c_orm_error_t cdd_c_malloc(size_t size, void **out_ptr) {
   void *ptr;
   if (!out_ptr)
     return EINVAL;
@@ -42,7 +42,7 @@ static int cdd_c_malloc(size_t size, void **out_ptr) {
   return 0;
 }
 
-static int cdd_c_realloc(void *ptr, size_t size, void **out_ptr) {
+static c_orm_error_t cdd_c_realloc(void *ptr, size_t size, void **out_ptr) {
   void *new_ptr;
   if (!out_ptr)
     return EINVAL;
@@ -62,14 +62,14 @@ static void cdd_c_free(void *ptr) {
   }
 }
 
-int cdd_c_get_allocated_bytes(size_t *out_bytes) {
+c_orm_error_t cdd_c_get_allocated_bytes(size_t *out_bytes) {
   if (!out_bytes)
     return EINVAL;
   *out_bytes = cdd_c_memory_allocated;
   return 0;
 }
 
-int cdd_c_get_freed_calls(size_t *out_calls) {
+c_orm_error_t cdd_c_get_freed_calls(size_t *out_calls) {
   if (!out_calls)
     return EINVAL;
   *out_calls = cdd_c_memory_freed;
@@ -77,8 +77,9 @@ int cdd_c_get_freed_calls(size_t *out_calls) {
 }
 
 /* Array logic */
-int cdd_c_abstract_struct_array_init(cdd_c_abstract_struct_array_t *arr,
-                                     size_t capacity) {
+c_orm_error_t
+cdd_c_abstract_struct_array_init(cdd_c_abstract_struct_array_t *arr,
+                                 size_t capacity) {
   if (!arr)
     return EINVAL;
   arr->items = NULL;
@@ -96,8 +97,9 @@ int cdd_c_abstract_struct_array_init(cdd_c_abstract_struct_array_t *arr,
   return 0;
 }
 
-int cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
-                                       cdd_c_abstract_struct_t *astruct) {
+c_orm_error_t
+cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
+                                   cdd_c_abstract_struct_t *astruct) {
   if (!arr || !astruct)
     return EINVAL;
   if (arr->count >= arr->capacity) {
@@ -120,7 +122,8 @@ int cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
   return 0;
 }
 
-int cdd_c_abstract_struct_array_free(cdd_c_abstract_struct_array_t *arr) {
+c_orm_error_t
+cdd_c_abstract_struct_array_free(cdd_c_abstract_struct_array_t *arr) {
   size_t i;
   if (!arr)
     return EINVAL;
@@ -141,8 +144,9 @@ int cdd_c_abstract_struct_array_free(cdd_c_abstract_struct_array_t *arr) {
  * @param arr arr
  * @param out_json out_json
  */
-int cdd_c_abstract_struct_array_to_json(
-    const cdd_c_abstract_struct_array_t *arr, char **out_json) {
+c_orm_error_t
+cdd_c_abstract_struct_array_to_json(const cdd_c_abstract_struct_array_t *arr,
+                                    char **out_json) {
   JSON_Value *root_val;
   JSON_Array *root_arr;
   size_t i, j;
@@ -190,12 +194,13 @@ int cdd_c_abstract_struct_array_to_json(
   return *out_json ? 0 : -1;
 }
 
-int cdd_c_abstract_struct_init(cdd_c_abstract_struct_t *astruct) {
+c_orm_error_t cdd_c_abstract_struct_init(cdd_c_abstract_struct_t *astruct) {
   return cdd_c_abstract_struct_init_with_capacity(astruct, 0);
 }
 
-int cdd_c_abstract_struct_init_with_capacity(cdd_c_abstract_struct_t *astruct,
-                                             size_t capacity) {
+c_orm_error_t
+cdd_c_abstract_struct_init_with_capacity(cdd_c_abstract_struct_t *astruct,
+                                         size_t capacity) {
   if (!astruct)
     return EINVAL;
   astruct->kvs = NULL;
@@ -233,7 +238,7 @@ static int duplicate_blob(const unsigned char *src, size_t size,
   return 0;
 }
 
-int cdd_c_variant_free(cdd_c_variant_t *variant) {
+c_orm_error_t cdd_c_variant_free(cdd_c_variant_t *variant) {
   if (!variant)
     return EINVAL;
   switch (variant->type) {
@@ -297,8 +302,9 @@ static unsigned long hash_string(const char *str) {
   return hash;
 }
 
-int cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct, const char *key,
-                       const cdd_c_variant_t *value) {
+c_orm_error_t cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct,
+                                 const char *key,
+                                 const cdd_c_variant_t *value) {
   size_t i;
   cdd_c_abstract_struct_kv_t *new_kvs = NULL;
   unsigned long khash;
@@ -339,8 +345,8 @@ int cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct, const char *key,
   return 0;
 }
 
-int cdd_c_abstract_get(const cdd_c_abstract_struct_t *astruct, const char *key,
-                       cdd_c_variant_t **out_value) {
+c_orm_error_t cdd_c_abstract_get(const cdd_c_abstract_struct_t *astruct,
+                                 const char *key, cdd_c_variant_t **out_value) {
   size_t i;
   unsigned long khash;
   if (!astruct || !key || !out_value)
@@ -358,8 +364,9 @@ int cdd_c_abstract_get(const cdd_c_abstract_struct_t *astruct, const char *key,
   return EINVAL; /* Not found */
 }
 
-int cdd_c_abstract_struct_deep_copy(cdd_c_abstract_struct_t *dest,
-                                    const cdd_c_abstract_struct_t *src) {
+c_orm_error_t
+cdd_c_abstract_struct_deep_copy(cdd_c_abstract_struct_t *dest,
+                                const cdd_c_abstract_struct_t *src) {
   size_t i;
   if (!dest || !src)
     return EINVAL;
@@ -376,7 +383,7 @@ int cdd_c_abstract_struct_deep_copy(cdd_c_abstract_struct_t *dest,
   return 0;
 }
 
-int cdd_c_abstract_struct_free(cdd_c_abstract_struct_t *astruct) {
+c_orm_error_t cdd_c_abstract_struct_free(cdd_c_abstract_struct_t *astruct) {
   size_t i;
   if (!astruct)
     return EINVAL;
@@ -431,8 +438,9 @@ void cdd_c_abstract_print(const cdd_c_abstract_struct_t *astruct) {
   printf("}\n");
 }
 
-int cdd_c_abstract_struct_to_json(const cdd_c_abstract_struct_t *astruct,
-                                  char **out_json) {
+c_orm_error_t
+cdd_c_abstract_struct_to_json(const cdd_c_abstract_struct_t *astruct,
+                              char **out_json) {
   JSON_Value *root_val;
   JSON_Object *root_obj;
   size_t i;
@@ -476,8 +484,9 @@ int cdd_c_abstract_struct_to_json(const cdd_c_abstract_struct_t *astruct,
   return 0;
 }
 
-int cdd_c_abstract_struct_from_json(const char *json_str,
-                                    cdd_c_abstract_struct_t *out_astruct) {
+c_orm_error_t
+cdd_c_abstract_struct_from_json(const char *json_str,
+                                cdd_c_abstract_struct_t *out_astruct) {
   JSON_Value *root_val;
   JSON_Object *root_obj;
   size_t count, i;
@@ -545,9 +554,10 @@ int cdd_c_abstract_struct_from_json(const char *json_str,
   return 0;
 }
 
-int cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
-                           void **row_data, const cdd_c_column_meta_t *cols,
-                           size_t n_cols) {
+c_orm_error_t cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
+                                     void **row_data,
+                                     const cdd_c_column_meta_t *cols,
+                                     size_t n_cols) {
   size_t i;
   if (!out_astruct || !row_data || !cols)
     return EINVAL;
@@ -595,8 +605,9 @@ int cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
   return 0;
 }
 
-int cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
-                                   void *stmt) {
+c_orm_error_t
+cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
+                               void *stmt) {
 #if defined(USE_SQLITE_LINKED)
   sqlite3_stmt *s = (sqlite3_stmt *)stmt;
   int i, n_cols;
@@ -653,8 +664,8 @@ int cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
   return EINVAL;
 #endif
 }
-int cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
-                                 void *res, int row_index) {
+c_orm_error_t cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
+                                           void *res, int row_index) {
 #if defined(USE_LIBPQ_LINKED)
   PGresult *pq_res = (PGresult *)res;
   int i, n_cols;
@@ -725,9 +736,9 @@ int cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
   return EINVAL;
 #endif
 }
-int cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
-                                 void *row, void *fields,
-                                 unsigned int num_fields) {
+c_orm_error_t cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
+                                           void *row, void *fields,
+                                           unsigned int num_fields) {
 #if defined(USE_MYSQL_LINKED)
   MYSQL_ROW mysql_row = (MYSQL_ROW)row;
   MYSQL_FIELD *mysql_fields = (MYSQL_FIELD *)fields;
@@ -795,8 +806,8 @@ int cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
   return EINVAL;
 #endif
 }
-int cdd_c_meta_offsetof(const struct cdd_c_meta *struct_meta, const char *field,
-                        size_t *out_offset) {
+c_orm_error_t cdd_c_meta_offsetof(const struct cdd_c_meta *struct_meta,
+                                  const char *field, size_t *out_offset) {
   size_t i;
   const cdd_c_meta_t *meta = (const cdd_c_meta_t *)struct_meta;
   if (!meta || !field || !out_offset)
@@ -811,9 +822,9 @@ int cdd_c_meta_offsetof(const struct cdd_c_meta *struct_meta, const char *field,
   return EINVAL;
 }
 
-int cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
-                               const void *in_struct,
-                               const struct cdd_c_meta *struct_meta) {
+c_orm_error_t cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
+                                         const void *in_struct,
+                                         const struct cdd_c_meta *struct_meta) {
   size_t i;
   const cdd_c_meta_t *meta = (const cdd_c_meta_t *)struct_meta;
   if (!out_astruct || !in_struct || !meta)
@@ -860,10 +871,9 @@ int cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
   return 0;
 }
 
-int cdd_c_abstract_to_specific(void *out_struct,
-                               const cdd_c_abstract_struct_t *in_astruct,
-                               const struct cdd_c_meta *struct_meta,
-                               int strict_mapping) {
+c_orm_error_t cdd_c_abstract_to_specific(
+    void *out_struct, const cdd_c_abstract_struct_t *in_astruct,
+    const struct cdd_c_meta *struct_meta, int strict_mapping) {
   size_t i;
   const cdd_c_meta_t *meta = (const cdd_c_meta_t *)struct_meta;
   if (!out_struct || !in_astruct || !meta)

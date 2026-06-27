@@ -38,7 +38,7 @@ struct c_orm_arena {
  * @param out_arena Pointer to store the newly created arena.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int c_orm_arena_new(c_orm_arena_t **out_arena) {
+C_ORM_EXPORT c_orm_error_t c_orm_arena_new(c_orm_arena_t **out_arena) {
   c_orm_arena_t *arena;
   int rc;
 
@@ -72,8 +72,8 @@ C_ORM_EXPORT int c_orm_arena_new(c_orm_arena_t **out_arena) {
  * @param out_ptr Pointer to store the allocated memory address.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
-                                   void **out_ptr) {
+C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
+                                             void **out_ptr) {
   c_orm_arena_block_t *block;
   size_t alloc_size;
   int rc;

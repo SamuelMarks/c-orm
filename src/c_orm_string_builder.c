@@ -87,8 +87,8 @@ C_ORM_EXPORT void c_orm_string_builder_free(c_orm_string_builder_t *builder) {
  * @param str The string to append.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int c_orm_string_builder_append(c_orm_string_builder_t *builder,
-                                             const char *str) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
   size_t len;
   size_t required_capacity;
   int rc;
@@ -142,8 +142,8 @@ C_ORM_EXPORT int c_orm_string_builder_append(c_orm_string_builder_t *builder,
  * @param out_str Pointer to receive the string.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
-                                          const char **out_str) {
+C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
+    const c_orm_string_builder_t *builder, const char **out_str) {
   int rc;
 
   LOG_DEBUG("c_orm_string_builder_get: entry");
@@ -166,8 +166,8 @@ C_ORM_EXPORT int c_orm_string_builder_get(const c_orm_string_builder_t *builder,
  * @param out_len Pointer to receive the length.
  * @return 0 on success, non-zero on failure.
  */
-C_ORM_EXPORT int c_orm_string_builder_len(const c_orm_string_builder_t *builder,
-                                          size_t *out_len) {
+C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
+    const c_orm_string_builder_t *builder, size_t *out_len) {
   int rc;
 
   LOG_DEBUG("c_orm_string_builder_len: entry");

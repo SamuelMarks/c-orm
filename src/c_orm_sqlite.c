@@ -815,7 +815,8 @@ static c_orm_error_t sqlite_reset(c_orm_query_t *query) {
  * @param out_message Pointer to the output message.
  * @return 0 on success, non-zero on failure.
  */
-static int sqlite_get_last_error(c_orm_db_t *db, const char **out_message) {
+static c_orm_error_t sqlite_get_last_error(c_orm_db_t *db,
+                                           const char **out_message) {
   int rc;
   struct sqlite_db_data *data;
 
@@ -845,7 +846,8 @@ static int sqlite_get_last_error(c_orm_db_t *db, const char **out_message) {
  * @param out_trace Pointer to the output trace message.
  * @return 0 on success, non-zero on failure.
  */
-static int sqlite_get_last_trace(c_orm_db_t *db, const char **out_trace) {
+static c_orm_error_t sqlite_get_last_trace(c_orm_db_t *db,
+                                           const char **out_trace) {
   int rc;
   (void)db;
 

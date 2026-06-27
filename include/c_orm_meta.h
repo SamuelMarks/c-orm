@@ -95,6 +95,23 @@ C_ORM_EXPORT char *c_orm_strdup(const char *s);
  * @brief Data types supported by c-orm.
  */
 typedef enum {
+  C_ORM_OK = 0,
+  C_ORM_ERROR_MEMORY,
+  C_ORM_ERROR_CONNECTION,
+  C_ORM_ERROR_SQL,
+  C_ORM_ERROR_BIND,
+  C_ORM_ERROR_STEP,
+  C_ORM_ERROR_TYPE_MISMATCH,
+  C_ORM_ERROR_NOT_FOUND,
+  C_ORM_ERROR_NOT_IMPLEMENTED,
+  C_ORM_ERROR_UNKNOWN,
+  C_ORM_ERROR_EXPIRED,
+  C_ORM_ERROR_VALIDATION,
+  C_ORM_ERROR_RECURSION,
+  C_ORM_ERROR_READ_ONLY
+} c_orm_error_t;
+
+typedef enum {
   C_ORM_TYPE_INT32,
   C_ORM_TYPE_INT64,
   C_ORM_TYPE_FLOAT,
@@ -223,8 +240,8 @@ typedef struct c_orm_relation_meta {
   const char *join_foreign_key;
 
   /* Phase 4 features */
-  int (*on_attach)(void *parent_obj, void *child_obj, void *db_ctx);
-  int (*on_detach)(void *parent_obj, void *child_obj, void *db_ctx);
+  c_orm_error_t (*on_attach)(void *parent_obj, void *child_obj, void *db_ctx);
+  c_orm_error_t (*on_detach)(void *parent_obj, void *child_obj, void *db_ctx);
   const char *custom_filter;
   const char *order_by;
   int soft_delete_aware;
@@ -254,7 +271,7 @@ typedef struct {
  * @param user_data Opaque pointer passed to the connection layer.
  * @return 0 on success, non-zero to abort the operation.
  */
-typedef int (*c_orm_lifecycle_hook_t)(void *obj, void *user_data);
+typedef c_orm_error_t (*c_orm_lifecycle_hook_t)(void *obj, void *user_data);
 
 /**
  * @brief Hook triggers.

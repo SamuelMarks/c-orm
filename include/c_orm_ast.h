@@ -293,8 +293,9 @@ C_ORM_EXPORT void c_orm_query_params_cleanup(c_orm_query_params_t *params);
 /**
  * @brief Add a parameter to the collection.
  */
-C_ORM_EXPORT int c_orm_query_params_add(c_orm_query_params_t *params,
-                                        const char *value, int is_string);
+C_ORM_EXPORT c_orm_error_t c_orm_query_params_add(c_orm_query_params_t *params,
+                                                  const char *value,
+                                                  int is_string);
 
 /**
  * @brief Generate a raw SQL string and its ordered parameters from the AST.
@@ -307,9 +308,10 @@ C_ORM_EXPORT int c_orm_query_params_add(c_orm_query_params_t *params,
  * respectively.
  * @return 0 on success.
  */
-C_ORM_EXPORT int c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect,
-                                    char **out_sql,
-                                    c_orm_query_params_t *out_params);
+C_ORM_EXPORT c_orm_error_t c_orm_query_to_sql(c_orm_query_t *q,
+                                              c_orm_dialect_t dialect,
+                                              char **out_sql,
+                                              c_orm_query_params_t *out_params);
 
 /**
  * @brief Execute a generic AST builder query without expecting a return
@@ -352,7 +354,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
  * @param out_arena The created arena.
  * @return 0 on success.
  */
-C_ORM_EXPORT int c_orm_arena_new(c_orm_arena_t **out_arena);
+C_ORM_EXPORT c_orm_error_t c_orm_arena_new(c_orm_arena_t **out_arena);
 
 /**
  * @brief Allocate memory from the arena.
@@ -361,8 +363,8 @@ C_ORM_EXPORT int c_orm_arena_new(c_orm_arena_t **out_arena);
  * @param out_ptr Pointer to receive the allocated memory.
  * @return 0 on success.
  */
-C_ORM_EXPORT int c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
-                                   void **out_ptr);
+C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
+                                             void **out_ptr);
 
 /**
  * @brief Free all memory in the arena and the arena itself.
@@ -395,7 +397,7 @@ struct c_orm_query {
   c_orm_query_t *(*offset)(c_orm_query_t *q, size_t n);
 
   /* Query Cloning */
-  int (*clone)(c_orm_query_t *q, c_orm_query_t **out_q);
+  c_orm_error_t (*clone)(c_orm_query_t *q, c_orm_query_t **out_q);
 
   /* Advanced Query Features (Phase 3) */
   c_orm_query_t *(*join)(c_orm_query_t *q, const char *table,
@@ -455,7 +457,7 @@ struct c_orm_query {
  * @param out_query Output query builder.
  * @return 0 on success.
  */
-C_ORM_EXPORT int c_orm_query_new(c_orm_query_t **out_query);
+C_ORM_EXPORT c_orm_error_t c_orm_query_new(c_orm_query_t **out_query);
 
 /**
  * @brief Free a query builder.

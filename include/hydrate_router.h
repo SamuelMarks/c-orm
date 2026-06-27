@@ -26,8 +26,8 @@ extern "C" {
 /**
  * @brief Function pointer definition for a specific struct hydrator.
  */
-typedef int (*cdd_c_specific_hydrator_fn)(void *out_struct,
-                                          const cdd_c_abstract_struct_t *row);
+typedef c_orm_error_t (*cdd_c_specific_hydrator_fn)(
+    void *out_struct, const cdd_c_abstract_struct_t *row);
 
 struct cdd_c_meta; /* Forward decl */
 
@@ -67,13 +67,15 @@ typedef struct CddCHydrateRouter {
  * @param router The router instance.
  * @return 0 on success.
  */
-C_ORM_EXPORT int cdd_c_hydrate_router_init(cdd_c_hydrate_router_t *router);
+C_ORM_EXPORT c_orm_error_t
+cdd_c_hydrate_router_init(cdd_c_hydrate_router_t *router);
 
 /**
  * @brief Get the last routing error message for the current thread.
  * @return Null-terminated error message string, or NULL if no error.
  */
-C_ORM_EXPORT int cdd_c_hydrate_router_get_last_error(const char **out_msg);
+C_ORM_EXPORT c_orm_error_t
+cdd_c_hydrate_router_get_last_error(const char **out_msg);
 
 /**
  * @brief Set the last routing error message for the current thread.
@@ -90,11 +92,10 @@ C_ORM_EXPORT void cdd_c_hydrate_router_set_last_error(const char *msg);
  * `StructName_hydrate`).
  * @return 0 on success.
  */
-C_ORM_EXPORT int
-cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
-                              c_orm_uint64_t query_id_hash,
-                              const struct cdd_c_meta *struct_meta,
-                              cdd_c_specific_hydrator_fn hydrate_fn);
+C_ORM_EXPORT c_orm_error_t cdd_c_hydrate_router_register(
+    cdd_c_hydrate_router_t *router, c_orm_uint64_t query_id_hash,
+    const struct cdd_c_meta *struct_meta,
+    cdd_c_specific_hydrator_fn hydrate_fn);
 
 /**
  * @brief Route an incoming abstract dictionary row directly into a specific C
@@ -106,7 +107,7 @@ cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
  * @return 0 on successful exact route and hydration. -1 if fallback is
  * necessary or mapping failed.
  */
-C_ORM_EXPORT int cdd_c_hydrate_router_dispatch(
+C_ORM_EXPORT c_orm_error_t cdd_c_hydrate_router_dispatch(
     const cdd_c_hydrate_router_t *router, c_orm_uint64_t query_id_hash,
     const cdd_c_abstract_struct_t *row, void *out_struct);
 
@@ -115,7 +116,8 @@ C_ORM_EXPORT int cdd_c_hydrate_router_dispatch(
  * @param router The router instance.
  * @return 0 on success.
  */
-C_ORM_EXPORT int cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router);
+C_ORM_EXPORT c_orm_error_t
+cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router);
 
 #ifdef __cplusplus
 }

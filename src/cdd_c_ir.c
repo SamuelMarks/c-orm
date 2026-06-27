@@ -11,7 +11,7 @@
 #include <string.h>
 /* clang-format on */
 
-int cdd_c_ir_init(cdd_c_ir_t *ir) {
+c_orm_error_t cdd_c_ir_init(cdd_c_ir_t *ir) {
   if (!ir)
     return -1;
   ir->tables = NULL;
@@ -24,7 +24,8 @@ int cdd_c_ir_init(cdd_c_ir_t *ir) {
   return 0;
 }
 
-int cdd_c_ir_add_table(cdd_c_ir_t *ir, const struct sql_table_t *table) {
+c_orm_error_t cdd_c_ir_add_table(cdd_c_ir_t *ir,
+                                 const struct sql_table_t *table) {
   struct sql_table_t *new_tables;
   size_t new_cap;
   if (!ir || !table)
@@ -82,8 +83,8 @@ static int duplicate_projection(cdd_c_query_projection_t *dest,
   return 0;
 }
 
-int cdd_c_ir_add_projection(cdd_c_ir_t *ir,
-                            const cdd_c_query_projection_t *proj) {
+c_orm_error_t cdd_c_ir_add_projection(cdd_c_ir_t *ir,
+                                      const cdd_c_query_projection_t *proj) {
   cdd_c_query_projection_t *new_projs;
   size_t new_cap;
   if (!ir || !proj)
@@ -106,7 +107,7 @@ int cdd_c_ir_add_projection(cdd_c_ir_t *ir,
   return 0;
 }
 
-int cdd_c_ir_free(cdd_c_ir_t *ir) {
+c_orm_error_t cdd_c_ir_free(cdd_c_ir_t *ir) {
   size_t i;
   if (!ir)
     return -1;
@@ -133,7 +134,7 @@ int cdd_c_ir_free(cdd_c_ir_t *ir) {
   return 0;
 }
 
-int parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
+c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
   struct sql_token_list_t *list = NULL;
   struct sql_table_t *table = NULL;
   cdd_c_query_projection_t *proj = NULL;

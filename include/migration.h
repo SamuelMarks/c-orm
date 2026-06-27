@@ -60,7 +60,7 @@ extern C_ORM_EXPORT /**
 extern C_ORM_EXPORT /**
                      * @brief Parses migration file from the given input.
                      */
-    int
+    c_orm_error_t
     parse_migration_file(const char *filepath, struct MigrationStatements *out);
 
 #ifdef __cplusplus
