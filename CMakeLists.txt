@@ -63,6 +63,9 @@ else()
 endif()
 
 include(FetchContent)
+set(OLD_BUILD_TESTING_VAL "${BUILD_TESTING}")
+set(BUILD_TESTING OFF)
+
 
 
 

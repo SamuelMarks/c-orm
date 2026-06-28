@@ -204,9 +204,9 @@ static void async_cb(c_orm_error_t err, void *ctx) {
 }
 
 TEST test_c_orm_async_coverage(void) {
-  c_orm_db_t db;
-  c_orm_table_meta_t meta;
-  int obj;
+  c_orm_db_t db = {0};
+  c_orm_table_meta_t meta = {0};
+  int obj = 0;
   int rc;
 
   rc = c_orm_insert_async(NULL, NULL, NULL, NULL, NULL);
