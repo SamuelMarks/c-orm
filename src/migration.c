@@ -61,6 +61,8 @@ c_orm_error_t parse_migration_file(const char *filepath,
   char *up_stmt;
   char *down_stmt;
 
+  enum cdd_c_error cdd_rc;
+
   file_data = NULL;
   file_size = 0;
   up_marker = "-- UP";
@@ -78,9 +80,9 @@ c_orm_error_t parse_migration_file(const char *filepath,
 
   migration_statements_init(out);
 
-  rc = read_to_file(filepath, "rb", &file_data, &file_size);
-  if (rc != 0) {
-    return rc;
+  cdd_rc = read_to_file(filepath, "rb", &file_data, &file_size);
+  if (cdd_rc != 0) {
+    return (c_orm_error_t)cdd_rc;
   }
 
   if (file_size == 0 || !file_data) {
