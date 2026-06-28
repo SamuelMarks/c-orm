@@ -11,12 +11,13 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include "c_orm_meta.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 /* clang-format on */
 
-int c_orm_sprintf(char *buf, size_t size, const char *format, ...);
+C_ORM_EXPORT int c_orm_sprintf(char *buf, size_t size, const char *format, ...);
 #define C_ORM_SPRINTF c_orm_sprintf
 
 #if defined(_MSC_VER)
