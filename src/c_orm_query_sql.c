@@ -14,6 +14,8 @@
 #include <stdio.h>
 /* clang-format on */
 
+C_ORM_EXPORT unsigned int cdd_c_sql_parser_max_depth = 100;
+
 /**
  * @brief Initializes query parameters.
  *
@@ -103,7 +105,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_params_add(c_orm_query_params_t *params,
 static c_orm_error_t render_node(c_orm_ast_node_t *node,
                                  c_orm_dialect_t dialect,
                                  c_orm_string_builder_t *sb,
-                                 c_orm_query_params_t *params) {
+                                 c_orm_query_params_t *params,
+                                 unsigned int depth) {
   c_orm_error_t err;
   c_orm_ast_column_t *col;
   c_orm_ast_literal_t *lit;
@@ -119,6 +122,11 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
   char *subsql;
 
   LOG_DEBUG("render_node: entry");
+
+  if (depth > cdd_c_sql_parser_max_depth) {
+    LOG_DEBUG("render_node: max depth exceeded");
+    return C_ORM_ERROR_SQL;
+  }
 
   if (!node) {
     LOG_DEBUG("render_node: node is NULL");
@@ -161,7 +169,7 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
   }
   case C_ORM_AST_NODE_OPERATOR: {
     op = (c_orm_ast_operator_t *)node;
-    err = render_node(op->left, dialect, sb, params);
+    err = render_node(op->left, dialect, sb, params, depth + 1);
     if (err != C_ORM_OK) {
       LOG_DEBUG("render_node: error rendering left operand");
       return err;
@@ -170,7 +178,7 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
     c_orm_string_builder_append(sb, op->op);
     if (op->right) {
       c_orm_string_builder_append(sb, " ");
-      err = render_node(op->right, dialect, sb, params);
+      err = render_node(op->right, dialect, sb, params, depth + 1);
       if (err != C_ORM_OK) {
         LOG_DEBUG("render_node: error rendering right operand");
         return err;
@@ -181,7 +189,7 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
   case C_ORM_AST_NODE_GROUP: {
     grp = (c_orm_ast_group_t *)node;
     c_orm_string_builder_append(sb, "(");
-    err = render_node(grp->expr, dialect, sb, params);
+    err = render_node(grp->expr, dialect, sb, params, depth + 1);
     if (err != C_ORM_OK) {
       LOG_DEBUG("render_node: error rendering group");
       return err;
@@ -442,7 +450,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
     c_orm_string_builder_append(sb, " JOIN ");
     c_orm_string_builder_append(sb, jn->table);
     c_orm_string_builder_append(sb, " ON ");
-    if (render_node(jn->on_condition, dialect, sb, out_params) != C_ORM_OK) {
+    if (render_node(jn->on_condition, dialect, sb, out_params, 0) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
       rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("c_orm_query_to_sql: join failed");
@@ -452,7 +460,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
 
   if (whr && whr->condition) {
     c_orm_string_builder_append(sb, " WHERE ");
-    if (render_node(whr->condition, dialect, sb, out_params) != C_ORM_OK) {
+    if (render_node(whr->condition, dialect, sb, out_params, 0) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
       rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("c_orm_query_to_sql: where failed");
@@ -467,7 +475,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
 
   if (hav && hav->condition) {
     c_orm_string_builder_append(sb, " HAVING ");
-    if (render_node(hav->condition, dialect, sb, out_params) != C_ORM_OK) {
+    if (render_node(hav->condition, dialect, sb, out_params, 0) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
       rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("c_orm_query_to_sql: having failed");

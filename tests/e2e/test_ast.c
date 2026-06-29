@@ -131,8 +131,46 @@ TEST test_c_orm_ast_to_sql_postgres(void) {
   PASS();
 }
 
+TEST test_c_orm_ast_depth_limit(void) {
+  c_orm_query_t *q = NULL;
+  char *sql = NULL;
+  c_orm_query_params_t params;
+  int err;
+  int i;
+  unsigned int old_depth = cdd_c_sql_parser_max_depth;
+
+  err = c_orm_query_new(&q);
+  ASSERT_EQ_FMT(0, err, "%d");
+
+  q->select_(q, "*")->from(q, "users");
+
+  for (i = 0; i < 110; i++) {
+    q->and_where(q, q->eq(q, "id", "1", 0));
+  }
+
+  c_orm_query_params_init(&params);
+
+  /* Should fail due to max depth = 100 */
+  cdd_c_sql_parser_max_depth = 100;
+  err = c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &params);
+  ASSERT(err != C_ORM_OK);
+
+  /* Should succeed if max depth is increased */
+  cdd_c_sql_parser_max_depth = 200;
+  err = c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &params);
+  ASSERT_EQ_FMT(0, err, "%d");
+
+  cdd_c_sql_parser_max_depth = old_depth;
+  if (sql)
+    C_ORM_FREE(sql);
+  c_orm_query_params_cleanup(&params);
+  c_orm_query_free(q);
+  PASS();
+}
+
 SUITE(ast_suite) {
   RUN_TEST(test_c_orm_ast_fluent);
   RUN_TEST(test_c_orm_ast_to_sql);
   RUN_TEST(test_c_orm_ast_to_sql_postgres);
+  RUN_TEST(test_c_orm_ast_depth_limit);
 }

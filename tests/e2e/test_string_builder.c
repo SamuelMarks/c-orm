@@ -64,13 +64,25 @@ TEST test_c_orm_string_builder(void) {
   ASSERT(sb != NULL);
 
 #ifdef C_ORM_TEST_ALLOCATOR
+  rc = c_orm_string_builder_append(sb, "Initial");
+  ASSERT_EQ(0, rc);
   realloc_fail_countdown = 0;
   rc = c_orm_string_builder_append(
       sb, " This is a very long string that should definitely force a "
           "reallocation of the underlying buffer because it exceeds the "
           "initial capacity of 64 bytes.");
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+
+  rc = c_orm_string_builder_append(sb, " More text");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+
+  rc = c_orm_string_builder_get(sb, &str);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+
   realloc_fail_countdown = -1;
+  c_orm_string_builder_free(sb);
+  rc = c_orm_string_builder_init(&sb);
+  ASSERT_EQ(0, rc);
 #endif
 
   rc = c_orm_string_builder_append(NULL, "test");

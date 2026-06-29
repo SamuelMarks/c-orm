@@ -70,6 +70,8 @@ struct sql_constraint_t {
   char *reference_table;  /**< For FOREIGN KEY */
   char *reference_column; /**< For FOREIGN KEY */
   char *default_value;    /**< For DEFAULT */
+  char **columns;         /**< For table-level constraints */
+  size_t n_columns;
 };
 
 /**

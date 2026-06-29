@@ -637,6 +637,53 @@ TEST test_sql_parser_errors(void) {
   PASS();
 }
 
+TEST test_sql_parser_table_constraints(void) {
+  const char *sql = "CREATE TABLE multi_pk ("
+                    "  id INT, "
+                    "  tenant_id INT, "
+                    "  ref_id INT, "
+                    "  PRIMARY KEY (id, tenant_id), "
+                    "  FOREIGN KEY (ref_id) REFERENCES other_table(id), "
+                    "  UNIQUE (id) "
+                    ");";
+  struct sql_table_t *tables = NULL;
+  size_t n_tables = 0;
+  int rc;
+
+  rc = parse_sql_ddl(sql, &tables, &n_tables);
+  ASSERT_EQ(0, rc);
+  ASSERT_EQ(1, n_tables);
+  if (tables) {
+    struct sql_table_t *tbl = &tables[0];
+    ASSERT_EQ(3, tbl->n_columns);
+    ASSERT_EQ(3, tbl->n_table_constraints);
+
+    /* PRIMARY KEY */
+    ASSERT_EQ((int)SQL_CONSTRAINT_PRIMARY_KEY,
+              (int)tbl->table_constraints[0].type);
+    ASSERT_EQ(2, tbl->table_constraints[0].n_columns);
+    ASSERT_STR_EQ("id", tbl->table_constraints[0].columns[0]);
+    ASSERT_STR_EQ("tenant_id", tbl->table_constraints[0].columns[1]);
+
+    /* FOREIGN KEY */
+    ASSERT_EQ((int)SQL_CONSTRAINT_FOREIGN_KEY,
+              (int)tbl->table_constraints[1].type);
+    ASSERT_EQ(1, tbl->table_constraints[1].n_columns);
+    ASSERT_STR_EQ("ref_id", tbl->table_constraints[1].columns[0]);
+    ASSERT_STR_EQ("other_table", tbl->table_constraints[1].reference_table);
+    ASSERT_STR_EQ("id", tbl->table_constraints[1].reference_column);
+
+    /* UNIQUE */
+    ASSERT_EQ((int)SQL_CONSTRAINT_UNIQUE, (int)tbl->table_constraints[2].type);
+    ASSERT_EQ(1, tbl->table_constraints[2].n_columns);
+    ASSERT_STR_EQ("id", tbl->table_constraints[2].columns[0]);
+
+    sql_table_free(tbl);
+    C_ORM_FREE(tables);
+  }
+  PASS();
+}
+
 SUITE(sql_parser_suite) {
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void *(*old_realloc)(void *, size_t) = c_orm_realloc;
@@ -647,6 +694,7 @@ SUITE(sql_parser_suite) {
   c_orm_free = m_mock_free;
 
   RUN_TEST(test_sql_parser_basic);
+  RUN_TEST(test_sql_parser_table_constraints);
   RUN_TEST(test_sql_parser_oom);
   RUN_TEST(test_sql_lex_oom);
   RUN_TEST(test_sql_parser_errors);

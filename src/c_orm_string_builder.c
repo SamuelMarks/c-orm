@@ -19,6 +19,7 @@ struct c_orm_string_builder {
   char *buffer;
   size_t length;
   size_t capacity;
+  int valid;
 };
 
 /**
@@ -49,6 +50,7 @@ c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
 
   sb->capacity = 64;
   sb->length = 0;
+  sb->valid = 1;
   sb->buffer = (char *)C_ORM_MALLOC(sb->capacity);
   if (!sb->buffer) {
     C_ORM_FREE(sb);
@@ -103,6 +105,12 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
     return rc;
   }
 
+  if (!builder->valid) {
+    LOG_DEBUG("c_orm_string_builder_append: builder in invalid state");
+    rc = C_ORM_ERROR_MEMORY;
+    return rc;
+  }
+
   len = strlen(str);
   if (len == 0) {
     rc = C_ORM_OK;
@@ -119,6 +127,7 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
     new_buffer = (char *)C_ORM_REALLOC(builder->buffer, new_capacity);
     if (!new_buffer) {
       LOG_DEBUG("c_orm_string_builder_append: OOM realloc");
+      builder->valid = 0;
       rc = C_ORM_ERROR_MEMORY;
       return rc;
     }
@@ -153,6 +162,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
     rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
+
+  if (!builder->valid) {
+    LOG_DEBUG("c_orm_string_builder_get: builder in invalid state");
+    rc = C_ORM_ERROR_MEMORY;
+    return rc;
+  }
+
   *out_str = builder->buffer ? builder->buffer : "";
   rc = C_ORM_OK;
   LOG_DEBUG("c_orm_string_builder_get: exit");
@@ -177,6 +193,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
     rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
+
+  if (!builder->valid) {
+    LOG_DEBUG("c_orm_string_builder_len: builder in invalid state");
+    rc = C_ORM_ERROR_MEMORY;
+    return rc;
+  }
+
   *out_len = builder->length;
   rc = C_ORM_OK;
   LOG_DEBUG("c_orm_string_builder_len: exit");

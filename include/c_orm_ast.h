@@ -249,6 +249,9 @@ typedef struct c_orm_ast_window {
   const char *alias;
 } c_orm_ast_window_t;
 
+/** @brief Global max recursion depth for the parser/renderer */
+C_ORM_EXPORT extern unsigned int cdd_c_sql_parser_max_depth;
+
 /**
  * @brief Memory Arena for AST nodes
  */

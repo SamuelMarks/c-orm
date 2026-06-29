@@ -200,6 +200,14 @@ c_orm_error_t sql_table_free(struct sql_table_t *table) {
             free(c->reference_column);
           if (c->default_value)
             free(c->default_value);
+          if (c->columns) {
+            size_t k;
+            for (k = 0; k < c->n_columns; ++k) {
+              if (c->columns[k])
+                free(c->columns[k]);
+            }
+            free(c->columns);
+          }
         }
         free(col->constraints);
       }
@@ -217,6 +225,14 @@ c_orm_error_t sql_table_free(struct sql_table_t *table) {
         free(c->reference_column);
       if (c->default_value)
         free(c->default_value);
+      if (c->columns) {
+        size_t k;
+        for (k = 0; k < c->n_columns; ++k) {
+          if (c->columns[k])
+            free(c->columns[k]);
+        }
+        free(c->columns);
+      }
     }
     if (table->table_constraints)
       free(table->table_constraints);
@@ -377,6 +393,8 @@ sql_parse_column_constraint(struct SqlParserState *state,
   out_constraint->reference_table = NULL;
   out_constraint->reference_column = NULL;
   out_constraint->default_value = NULL;
+  out_constraint->columns = NULL;
+  out_constraint->n_columns = 0;
 
   if (sql_parser_match_keyword(state, "PRIMARY")) {
     if (!sql_parser_match_keyword(state, "KEY")) {
@@ -452,6 +470,117 @@ sql_parse_column_constraint(struct SqlParserState *state,
   return 1; /* Not a constraint */
 }
 
+static int sql_parse_table_constraint(struct SqlParserState *state,
+                                      struct sql_constraint_t *out_constraint) {
+  out_constraint->type = SQL_CONSTRAINT_NONE;
+  out_constraint->reference_table = NULL;
+  out_constraint->reference_column = NULL;
+  out_constraint->default_value = NULL;
+  out_constraint->columns = NULL;
+  out_constraint->n_columns = 0;
+
+  if (sql_parser_match_keyword(state, "PRIMARY")) {
+    if (!sql_parser_match_keyword(state, "KEY")) {
+      return sql_parser_set_error(state, "Expected 'KEY' after 'PRIMARY'");
+    }
+    out_constraint->type = SQL_CONSTRAINT_PRIMARY_KEY;
+  } else if (sql_parser_match_keyword(state, "UNIQUE")) {
+    out_constraint->type = SQL_CONSTRAINT_UNIQUE;
+  } else if (sql_parser_match_keyword(state, "FOREIGN")) {
+    if (!sql_parser_match_keyword(state, "KEY")) {
+      return sql_parser_set_error(state, "Expected 'KEY' after 'FOREIGN'");
+    }
+    out_constraint->type = SQL_CONSTRAINT_FOREIGN_KEY;
+  } else {
+    return sql_parser_set_error(state, "Expected table-level constraint");
+  }
+
+  if (!sql_parser_match_kind(state, SQL_TOKEN_LPAREN, NULL)) {
+    return sql_parser_set_error(state, "Expected '(' after constraint type");
+  }
+
+  /* Parse columns */
+  while (1) {
+    const struct sql_token_t *col_tok;
+    if (!sql_parser_match_kind(state, SQL_TOKEN_IDENTIFIER, &col_tok)) {
+      return sql_parser_set_error(state, "Expected column name in constraint");
+    }
+
+    {
+      char **new_cols =
+          (char **)realloc(out_constraint->columns,
+                           (out_constraint->n_columns + 1) * sizeof(char *));
+      if (!new_cols) {
+        return sql_parser_set_error(state, "OOM allocating constraint columns");
+      }
+      out_constraint->columns = new_cols;
+
+      {
+        char *cname = (char *)malloc(col_tok->length + 1);
+        if (!cname)
+          return sql_parser_set_error(state, "OOM allocating column name");
+        memcpy(cname, col_tok->start, col_tok->length);
+        cname[col_tok->length] = '\0';
+        out_constraint->columns[out_constraint->n_columns++] = cname;
+      }
+    }
+
+    if (sql_parser_match_kind(state, SQL_TOKEN_COMMA, NULL)) {
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  if (!sql_parser_match_kind(state, SQL_TOKEN_RPAREN, NULL)) {
+    return sql_parser_set_error(state, "Expected ')' after constraint columns");
+  }
+
+  if (out_constraint->type == SQL_CONSTRAINT_FOREIGN_KEY) {
+    if (!sql_parser_match_keyword(state, "REFERENCES")) {
+      return sql_parser_set_error(
+          state, "Expected 'REFERENCES' after FOREIGN KEY (...)");
+    }
+    {
+      const struct sql_token_t *ref_table_tok;
+      if (!sql_parser_match_kind(state, SQL_TOKEN_IDENTIFIER, &ref_table_tok)) {
+        return sql_parser_set_error(state,
+                                    "Expected table name after 'REFERENCES'");
+      }
+      {
+        char *tname = (char *)malloc(ref_table_tok->length + 1);
+        if (!tname)
+          return sql_parser_set_error(state, "OOM allocating ref table");
+        memcpy(tname, ref_table_tok->start, ref_table_tok->length);
+        tname[ref_table_tok->length] = '\0';
+        out_constraint->reference_table = tname;
+      }
+    }
+
+    if (sql_parser_match_kind(state, SQL_TOKEN_LPAREN, NULL)) {
+      const struct sql_token_t *ref_col_tok;
+      if (!sql_parser_match_kind(state, SQL_TOKEN_IDENTIFIER, &ref_col_tok)) {
+        return sql_parser_set_error(state,
+                                    "Expected column name in REFERENCES()");
+      }
+      {
+        char *cname = (char *)malloc(ref_col_tok->length + 1);
+        if (!cname)
+          return sql_parser_set_error(state, "OOM allocating ref col");
+        memcpy(cname, ref_col_tok->start, ref_col_tok->length);
+        cname[ref_col_tok->length] = '\0';
+        out_constraint->reference_column = cname;
+      }
+      if (!sql_parser_match_kind(state, SQL_TOKEN_RPAREN, NULL)) {
+        return sql_parser_set_error(state,
+                                    "Expected ')' after reference column");
+      }
+    }
+  }
+
+  return 0;
+}
+
 c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
                               struct sql_table_t **out_table,
                               struct sql_parse_error_t *out_error) {
@@ -517,13 +646,47 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
         ((peek->length == 7 && strncmp(peek->start, "PRIMARY", 7) == 0) ||
          (peek->length == 7 && strncmp(peek->start, "FOREIGN", 7) == 0) ||
          (peek->length == 6 && strncmp(peek->start, "UNIQUE", 6) == 0))) {
-      /* TODO: Table level constraints implementation */
-      /* For now, we skip or error out on table level constraints, or parse
-       * simply. Let's just set an error as it's not fully requested yet, but we
-       * will add it. */
-      /* Or rather, just skip till comma for now if we can't parse */
-      return sql_parser_set_error(
-          &state, "Table level constraints not fully implemented");
+
+      struct sql_constraint_t tc;
+      err = sql_parse_table_constraint(&state, &tc);
+      if (err) {
+        sql_table_free(table);
+        return err;
+      }
+
+      {
+        struct sql_constraint_t *new_tc = (struct sql_constraint_t *)realloc(
+            table->table_constraints,
+            (table->n_table_constraints + 1) * sizeof(struct sql_constraint_t));
+        if (!new_tc) {
+          /* free the tc we just parsed */
+          if (tc.reference_table)
+            free(tc.reference_table);
+          if (tc.reference_column)
+            free(tc.reference_column);
+          if (tc.default_value)
+            free(tc.default_value);
+          if (tc.columns) {
+            size_t k;
+            for (k = 0; k < tc.n_columns; ++k) {
+              if (tc.columns[k])
+                free(tc.columns[k]);
+            }
+            free(tc.columns);
+          }
+          sql_table_free(table);
+          return sql_parser_set_error(&state,
+                                      "OOM allocating table constraints");
+        }
+        table->table_constraints = new_tc;
+        table->table_constraints[table->n_table_constraints++] = tc;
+      }
+
+      if (sql_parser_match_kind(&state, SQL_TOKEN_COMMA, NULL)) {
+        continue;
+      } else {
+        break;
+      }
     }
 
     /* Must be a column definition */
