@@ -36,7 +36,7 @@ typedef unsigned __int64 uint64_t;
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 /**
  * @brief Opaque database connection handle.
  */

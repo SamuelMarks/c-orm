@@ -12,7 +12,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 /**
  * @brief Generate a random UUID v4 string (Step 169).

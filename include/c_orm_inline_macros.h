@@ -14,7 +14,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 /**
  * @brief Macro to define a "Has One" relationship in a struct.

@@ -30,7 +30,7 @@ typedef unsigned __int64 uint64_t;
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 /**
  * @brief Representation of a single migration.

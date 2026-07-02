@@ -14,7 +14,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 /**
  * @brief Dynamic string builder opaque struct.
  */

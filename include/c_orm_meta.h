@@ -46,7 +46,7 @@ typedef unsigned char bool;
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 #ifndef C_ORM_EXPORT
 #if defined(_WIN32) || defined(__CYGWIN__)

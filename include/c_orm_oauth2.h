@@ -12,7 +12,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 /**
  * @brief Represents an OAuth 2.0 token response/storage.

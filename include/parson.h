@@ -28,7 +28,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 #if 0
 } /* unconfuse xcode */
 #endif
@@ -330,6 +330,6 @@ int json_boolean(const JSON_Value *value);
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* __cplusplus */
 
 #endif

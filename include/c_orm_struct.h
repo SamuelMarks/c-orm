@@ -17,7 +17,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 /**
  * @brief Internal helper to generate a C struct field definition.

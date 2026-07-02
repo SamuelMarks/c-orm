@@ -8,7 +8,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 /* clang-format off */
 #include <stdio.h>
@@ -157,6 +157,6 @@ cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* __cplusplus */
 
 #endif /* C_CDD_CODEGEN_C_TO_SQL_H */
