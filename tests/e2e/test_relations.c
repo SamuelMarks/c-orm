@@ -614,7 +614,7 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
     if (exists) {
       db->vtable->get_int32(query, 0, &count);
     }
-    c_orm_finalize_cached(db, query);
+    (void)c_orm_finalize_cached(db, query);
     ASSERT_EQ_FMT(0, count, "%d");
   }
 
@@ -862,7 +862,7 @@ TEST test_c_orm_query_builder_relation_filtering(void) {
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     ASSERT_EQ_FMT(5, user_id, "%d");
 
-    c_orm_finalize_cached(db, q);
+    (void)c_orm_finalize_cached(db, q);
   }
 
   C_ORM_FREE(sql);
@@ -961,8 +961,6 @@ TEST test_c_orm_self_referencing_tree(void) {
   /* Cleanup */
   if (root.name)
     C_ORM_FREE(root.name);
-  if (root.parent_id)
-    C_ORM_FREE(root.parent_id);
   if (root.children.data.length > 0) {
     size_t i;
     for (i = 0; i < root.children.data.length; i++) {

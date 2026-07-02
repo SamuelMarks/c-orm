@@ -7,8 +7,6 @@
 
 static int map_c_type_to_sql(const char *c_type, c_to_sql_dialect_t dialect,
                              const char **out_sql) {
-  if (!out_sql)
-    return 1;
   if (strstr(c_type, "int") != NULL) {
     if (dialect == C_TO_SQL_DIALECT_MYSQL)
       *out_sql = "INT";
@@ -193,7 +191,7 @@ C_ORM_EXPORT c_orm_error_t cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
         found = 1;
         /* Check altered */
         if (strcmp(new_schema->props[i].type, old_schema->props[j].type) != 0) {
-          out_diff->altered_props = (cdd_c_prop_meta_t *)realloc(
+          out_diff->altered_props = (cdd_c_prop_meta_t *)C_ORM_REALLOC(
               out_diff->altered_props,
               (out_diff->num_altered + 1) * sizeof(cdd_c_prop_meta_t));
           out_diff->altered_props[out_diff->num_altered++] =
@@ -203,7 +201,7 @@ C_ORM_EXPORT c_orm_error_t cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
       }
     }
     if (!found) {
-      out_diff->added_props = (cdd_c_prop_meta_t *)realloc(
+      out_diff->added_props = (cdd_c_prop_meta_t *)C_ORM_REALLOC(
           out_diff->added_props,
           (out_diff->num_added + 1) * sizeof(cdd_c_prop_meta_t));
       out_diff->added_props[out_diff->num_added++] = new_schema->props[i];
@@ -220,7 +218,7 @@ C_ORM_EXPORT c_orm_error_t cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
       }
     }
     if (!found) {
-      out_diff->dropped_props = (cdd_c_prop_meta_t *)realloc(
+      out_diff->dropped_props = (cdd_c_prop_meta_t *)C_ORM_REALLOC(
           out_diff->dropped_props,
           (out_diff->num_dropped + 1) * sizeof(cdd_c_prop_meta_t));
       out_diff->dropped_props[out_diff->num_dropped++] = old_schema->props[i];
@@ -303,11 +301,11 @@ C_ORM_EXPORT void cdd_c_meta_diff_free(cdd_c_meta_diff_t *diff) {
   if (!diff)
     return;
   if (diff->added_props)
-    free(diff->added_props);
+    C_ORM_FREE(diff->added_props);
   if (diff->dropped_props)
-    free(diff->dropped_props);
+    C_ORM_FREE(diff->dropped_props);
   if (diff->altered_props)
-    free(diff->altered_props);
+    C_ORM_FREE(diff->altered_props);
   memset(diff, 0, sizeof(cdd_c_meta_diff_t));
 }
 
@@ -374,7 +372,7 @@ cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
 
   visited = (int *)calloc(num_schemas, sizeof(int));
   in_degree = (int *)calloc(num_schemas, sizeof(int));
-  queue = (int *)malloc(num_schemas * sizeof(int));
+  queue = (int *)C_ORM_MALLOC(num_schemas * sizeof(int));
 
   /* Compute in-degrees based on foreign key references (_id suffix) */
   for (i = 0; i < num_schemas; i++) {
@@ -428,9 +426,9 @@ cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
     }
   }
 
-  free(visited);
-  free(in_degree);
-  free(queue);
+  C_ORM_FREE(visited);
+  C_ORM_FREE(in_degree);
+  C_ORM_FREE(queue);
 
   if (count < (int)num_schemas) {
     return 2; /* Cycle detected */

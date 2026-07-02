@@ -149,6 +149,8 @@ TEST test_memory_edge_cases(void) {
   oom_active = 1;
   oom_countdown = 0;
   ASSERT_EQ(C_ORM_ERROR_MEMORY, vt->prepare(db, "SELECT * FROM t", &q));
+  oom_countdown = 1;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, vt->prepare(db, "SELECT * FROM t", &q));
   oom_active = 0;
 
   /* Coverage for pointers passed in */
@@ -216,11 +218,11 @@ SUITE(memory_driver_suite) {
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void (*old_free)(void *) = c_orm_free;
 
-  c_orm_malloc = mock_malloc;
-  c_orm_free = mock_free;
+  c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, mock_free);
 
   RUN_TEST(test_memory_edge_cases);
 
-  c_orm_malloc = old_malloc;
-  c_orm_free = old_free;
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
 }

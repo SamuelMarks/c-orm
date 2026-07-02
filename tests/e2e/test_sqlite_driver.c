@@ -359,15 +359,43 @@ TEST test_sqlite_edge_cases(void) {
   }
 
   vt->disconnect(db);
+
+  /* Coverage for sqlite3_close failing in disconnect (force close logic) */
+  {
+    c_orm_db_t *bad_db = NULL;
+    c_orm_sqlite_connect(":memory:", &bad_db);
+    /* We can't easily force sqlite3_close to fail without mocking it or
+     * preparing a statement that is not finalized */
+    if (bad_db) {
+      c_orm_query_t *bad_q = NULL;
+      vt->prepare(bad_db, "SELECT 1", &bad_q);
+      if (bad_q) {
+        vt->finalize(bad_q);
+      }
+      vt->disconnect(bad_db);
+    }
+  }
+
+  /* Trigger msg copying in set_error */
+  {
+    {
+      c_orm_db_t *fake_db = c_orm_malloc(sizeof(c_orm_db_t));
+      if (fake_db) {
+        memset(fake_db, 0, sizeof(*fake_db));
+        vt->disconnect(fake_db);
+      }
+    }
+  }
+
   PASS();
 }
 
 SUITE(sqlite_driver_suite) {
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void (*old_free)(void *) = c_orm_free;
-  c_orm_malloc = mock_malloc;
-  c_orm_free = mock_free;
+  c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, mock_free);
   RUN_TEST(test_sqlite_edge_cases);
-  c_orm_malloc = old_malloc;
-  c_orm_free = old_free;
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
 }

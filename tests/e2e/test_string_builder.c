@@ -25,9 +25,6 @@ static void *my_test_realloc(void *ptr, size_t size) {
     realloc_fail_countdown--;
     return NULL;
   }
-  if (realloc_fail_countdown > 0) {
-    realloc_fail_countdown--;
-  }
   return realloc(ptr, size);
 }
 #endif
@@ -41,8 +38,8 @@ TEST test_c_orm_string_builder(void) {
 #ifdef C_ORM_TEST_ALLOCATOR
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void *(*old_realloc)(void *, size_t) = c_orm_realloc;
-  c_orm_malloc = my_test_malloc;
-  c_orm_realloc = my_test_realloc;
+  c_orm_set_allocators(my_test_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, my_test_realloc, c_orm_free);
 
   malloc_fail_countdown = 0;
   rc = c_orm_string_builder_init(&sb);
@@ -77,6 +74,9 @@ TEST test_c_orm_string_builder(void) {
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
   rc = c_orm_string_builder_get(sb, &str);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+
+  rc = c_orm_string_builder_len(sb, &len);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
   realloc_fail_countdown = -1;
@@ -134,8 +134,8 @@ TEST test_c_orm_string_builder(void) {
   c_orm_string_builder_free(NULL);
 
 #ifdef C_ORM_TEST_ALLOCATOR
-  c_orm_malloc = old_malloc;
-  c_orm_realloc = old_realloc;
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
 #endif
 
   PASS();

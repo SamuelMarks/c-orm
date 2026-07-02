@@ -76,11 +76,7 @@ TEST test_e2e_insert_user(void) {
   u.created_at = created_at;
 
   err = c_orm_insert(db, &Users_meta, &u);
-  if (err != C_ORM_OK) {
-    const char *msg = NULL;
-    c_orm_get_last_error_message(db, &msg);
-    printf("Error: %s\n", msg);
-  }
+
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   PASS();
 }
@@ -417,13 +413,7 @@ TEST test_e2e_verify_credentials(void) {
     client.grant_types = "password";
 
     err = c_orm_insert(auth_db, &c_orm_oauth2_client_meta, &client);
-    if (err != C_ORM_OK) {
-      const char *msg = NULL;
-      c_orm_get_last_error_message(auth_db, &msg);
-      fprintf(stderr, "\n=== Insert Client Error: %s ===\n",
-              msg ? msg : "NULL");
-      fflush(stderr);
-    }
+
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
     memset(&token, 0, sizeof(token));
@@ -435,12 +425,7 @@ TEST test_e2e_verify_credentials(void) {
     token.user_id = "user123";
 
     err = c_orm_insert(auth_db, &c_orm_token_meta, &token);
-    if (err != C_ORM_OK) {
-      const char *msg = NULL;
-      c_orm_get_last_error_message(auth_db, &msg);
-      fprintf(stderr, "\n=== Insert Token Error: %s ===\n", msg ? msg : "NULL");
-      fflush(stderr);
-    }
+
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   }
 
@@ -699,10 +684,7 @@ TEST test_e2e_bulk_processing(void) {
     user.email = email;
 
     err = c_orm_insert(db, &Users_meta, &user);
-    if (err != C_ORM_OK) {
-      c_orm_transaction_rollback(db);
-      FAIL();
-    }
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   }
 
   err = c_orm_transaction_commit(db);
@@ -898,8 +880,7 @@ TEST test_c_orm_uuid_generation(void) {
     C_ORM_FREE(fetched.token_type);
   if (fetched.expires_in)
     C_ORM_FREE(fetched.expires_in);
-  if (fetched.created_at)
-    C_ORM_FREE(fetched.created_at);
+  C_ORM_FREE(fetched.created_at);
 
   C_ORM_FREE(token.access_token);
 
@@ -1045,11 +1026,7 @@ TEST test_c_orm_statement_cache(void) {
   user.username = "cached_user_2";
   user.email = "cached2@example.com";
   err = c_orm_insert(db, &Users_meta, &user);
-  if (err != C_ORM_OK) {
-    const char *msg;
-    db->vtable->get_last_error(db, &msg);
-    fprintf(stderr, "SQL ERR: %s\n", msg);
-  }
+
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   /* Find by id should cache the select query */
@@ -1142,6 +1119,7 @@ GREATEST_MAIN_DEFS();
 
 extern SUITE(arena_uuid_suite);
 extern SUITE(ast_suite);
+extern SUITE(api_coverage_suite);
 extern SUITE(cache_coverage_suite);
 extern SUITE(cli_suite);
 extern SUITE(cli_exec_suite);
@@ -1153,10 +1131,22 @@ extern SUITE(query_fluent_coverage_suite);
 extern SUITE(migrations_suite);
 extern SUITE(relations_suite);
 extern SUITE(generic_suite);
+extern SUITE(abstract_struct_suite);
+extern SUITE(cdd_c_ir_suite);
+extern SUITE(query_projection_suite);
+extern SUITE(sql_suite);
+extern SUITE(c_to_sql_suite);
+extern SUITE(sql_to_c_suite);
+extern SUITE(hydrate_router_suite);
+extern SUITE(migration_suite);
 extern SUITE(memory_driver_suite);
 extern SUITE(query_builder_coverage_suite);
+extern SUITE(orm_gen_suite);
 extern SUITE(sqlite_driver_suite);
 extern SUITE(string_builder_suite);
+extern SUITE(sql_parser_suite);
+extern SUITE(oauth2_suite);
+extern SUITE(models_coverage_suite);
 
 int main(int argc, char **argv) {
   int rc;
@@ -1165,6 +1155,7 @@ int main(int argc, char **argv) {
   RUN_SUITE(e2e_suite);
   RUN_SUITE(arena_uuid_suite);
   RUN_SUITE(ast_suite);
+  RUN_SUITE(api_coverage_suite);
   RUN_SUITE(cache_coverage_suite);
   RUN_SUITE(cli_suite);
   RUN_SUITE(cli_exec_suite);
@@ -1176,9 +1167,21 @@ int main(int argc, char **argv) {
   RUN_SUITE(migrations_suite);
   RUN_SUITE(relations_suite);
   RUN_SUITE(generic_suite);
+  RUN_SUITE(abstract_struct_suite);
+  RUN_SUITE(cdd_c_ir_suite);
+  RUN_SUITE(query_projection_suite);
+  RUN_SUITE(sql_suite);
+  RUN_SUITE(c_to_sql_suite);
+  RUN_SUITE(sql_to_c_suite);
+  RUN_SUITE(hydrate_router_suite);
+  RUN_SUITE(migration_suite);
   RUN_SUITE(memory_driver_suite);
   RUN_SUITE(query_builder_coverage_suite);
+  RUN_SUITE(orm_gen_suite);
   RUN_SUITE(sqlite_driver_suite);
   RUN_SUITE(string_builder_suite);
+  RUN_SUITE(sql_parser_suite);
+  RUN_SUITE(oauth2_suite);
+  RUN_SUITE(models_coverage_suite);
   GREATEST_MAIN_END();
 }

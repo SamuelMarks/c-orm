@@ -320,12 +320,37 @@ TEST test_cache_unlock_coverage(void) { PASS(); }
 
 TEST test_cache_unlock_coverage_2(void) { PASS(); }
 
+#ifndef _WIN32
+TEST test_mutex_fail_paths(void) {
+  pthread_mutex_t m;
+  pthread_mutex_init(&m, NULL);
+  pthread_mutex_init(&m, NULL);
+  mock_mutex_init_fail = 1;
+  my_mock_init(&m, NULL);
+  mock_mutex_init_fail = 0;
+
+  mock_mutex_lock_fail = 1;
+  my_mock_lock(&m);
+  mock_mutex_lock_fail = 0;
+
+  mock_mutex_unlock_fail = 1;
+  my_mock_unlock(&m);
+  mock_mutex_unlock_fail = 0;
+
+  mock_mutex_destroy_fail = 1;
+  my_mock_destroy(&m);
+  mock_mutex_destroy_fail = 0;
+
+  PASS();
+}
+#endif
+
 SUITE(cache_coverage_suite) {
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void (*old_free)(void *) = c_orm_free;
 
-  c_orm_malloc = mock_malloc;
-  c_orm_free = mock_free;
+  c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, mock_free);
 
 #if !defined(_WIN32) && !defined(_WIN64)
   c_orm_mutex_init_ptr = my_mock_init;
@@ -345,7 +370,10 @@ SUITE(cache_coverage_suite) {
   RUN_TEST(test_cache_mutex_fail);
   RUN_TEST(test_cache_unlock_coverage);
   RUN_TEST(test_cache_unlock_coverage_2);
+#if !defined(_WIN32) && !defined(_WIN64)
+  RUN_TEST(test_mutex_fail_paths);
+#endif
 
-  c_orm_malloc = old_malloc;
-  c_orm_free = old_free;
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
 }

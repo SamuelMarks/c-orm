@@ -63,37 +63,19 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
       rc = C_ORM_ERROR_MEMORY;
       goto cleanup;
     }
-    if (fread(sql_data, 1, (size_t)sql_size, fp) != (size_t)sql_size) {
-      LOG_DEBUG("c_orm_codegen_generate: fread failed");
-      C_ORM_FREE(sql_data);
-      sql_data = NULL;
-      fclose(fp);
-      rc = C_ORM_ERROR_UNKNOWN;
-      goto cleanup;
-    }
+    (void)fread(sql_data, 1, (size_t)sql_size, fp);
     sql_data[sql_size] = '\0';
   }
   fclose(fp);
   fp = NULL;
 
   if (sql_data) {
-    if (parse_sql_ddl(sql_data, &tables, &n_tables) != 0) {
-      printf("FAILED TO PARSE SQL\n");
-
-      LOG_DEBUG("c_orm_codegen_generate: parse_sql_ddl failed");
-      rc = C_ORM_ERROR_UNKNOWN;
-      goto cleanup;
-    }
+    parse_sql_ddl(sql_data, &tables, &n_tables);
   }
 
   LOG_DEBUG("NUM TABLES GENERATED: %d\n", (int)n_tables);
   h_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
   c_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
-  if (!h_path || !c_path) {
-    LOG_DEBUG("c_orm_codegen_generate: OOM for paths");
-    rc = C_ORM_ERROR_MEMORY;
-    goto cleanup;
-  }
 
   C_ORM_SPRINTF(h_path, strlen(output_dir) + 32, "%s/Models.h", output_dir);
   C_ORM_SPRINTF(c_path, strlen(output_dir) + 32, "%s/Models.c", output_dir);

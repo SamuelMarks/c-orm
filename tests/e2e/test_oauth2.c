@@ -10,6 +10,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if !defined(_WIN32)
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#else
+#include <direct.h>
+#endif
 /* clang-format on */
 
 static int oom_countdown = -1;
@@ -111,12 +118,14 @@ TEST test_oauth2_crypto(void) {
   {
     cfs_path p;
     cfs_size_t rm_out = 0;
+    remove("c_orm_token.dat");
     cfs_path_init_str(&p, "c_orm_token.dat");
     cfs_remove_all(&p, &rm_out, NULL);
     cfs_create_directory(&p, NULL);
     c_orm_store_token_secure(&t);
     cfs_remove_all(&p, &rm_out, NULL);
     cfs_path_destroy(&p);
+    remove("c_orm_token.dat");
   }
 
   PASS();
@@ -149,7 +158,6 @@ static c_orm_error_t my_oauth2_step(c_orm_query_t *query, int *out_has_row) {
     return C_ORM_ERROR_NOT_FOUND;
   return orig_step(query, out_has_row);
 }
-extern int c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable);
 
 TEST test_oauth2_init(void) {
   c_orm_db_t *db = NULL;
@@ -177,16 +185,20 @@ TEST test_oauth2_init(void) {
 
   /* Mutate the static stubs in .bss to use our mock prep so they don't crash
    * when c_orm_execute_raw calls them! */
+#ifdef C_ORM_HAVE_POSTGRES
   if (pg_vt) {
     c_orm_driver_vtable_t *m = (c_orm_driver_vtable_t *)pg_vt;
     *m = mock_vt;
     m->prepare = my_oauth2_prep;
   }
+#endif
+#ifdef C_ORM_HAVE_MYSQL
   if (my_vt) {
     c_orm_driver_vtable_t *m = (c_orm_driver_vtable_t *)my_vt;
     *m = mock_vt;
     m->prepare = my_oauth2_prep;
   }
+#endif
 
   /* Also mutate sqlite vt for coverage */
 
@@ -212,12 +224,17 @@ TEST test_oauth2_init(void) {
     }
   }
 
-  /* simulate failure for non-sqlite */
-  if (pg_vt) {
-    db_pg = *db;
-    db_pg.vtable = pg_vt;
+  /* simulate failure for generic db */
+  {
+    c_orm_db_t db_generic;
+    c_orm_driver_vtable_t generic_vt;
+    db_generic = *db;
+    generic_vt = mock_vt;
+    generic_vt.prepare = my_oauth2_prep;
+    db_generic.vtable = &generic_vt;
+
     for (fail_sql = 1; fail_sql <= 4; fail_sql++) {
-      c_orm_oauth2_create_tables(&db_pg);
+      c_orm_oauth2_create_tables(&db_generic);
     }
   }
   fail_sql = 0;
@@ -266,11 +283,6 @@ TEST test_oauth2_client(void) {
             c_orm_insert_generic(db, &c_orm_oauth2_client_meta, &client));
   is_valid = 0;
   err = c_orm_oauth2_verify_client(db, "pub", NULL, &is_valid);
-  if (err != C_ORM_OK) {
-    printf("ERR: %d\n", err);
-  } else {
-    printf("OK! is_valid=%d\n", is_valid);
-  }
   ASSERT_EQ(C_ORM_OK, err);
   ASSERT_EQ(1, is_valid);
 
@@ -541,21 +553,126 @@ TEST test_oauth2_token(void) {
   PASS();
 }
 
+TEST test_oauth2_crypto_fail_open(void) {
+  c_orm_oauth2_token_t t;
+  cfs_path p;
+  cfs_size_t rm_out = 0;
+  memset(&t, 0, sizeof(t));
+  t.access_token = "abc";
+  t.refresh_token = "def";
+
+  remove("c_orm_token.dat");
+#if !defined(_WIN32)
+  mkdir("c_orm_token.dat", 0777);
+#else
+  _mkdir("c_orm_token.dat");
+#endif
+  c_orm_store_token_secure(&t);
+#if !defined(_WIN32)
+  rmdir("c_orm_token.dat");
+#else
+  _rmdir("c_orm_token.dat");
+#endif
+  PASS();
+}
+
+static c_orm_error_t dummy_prep(c_orm_db_t *db_v, const char *sql,
+                                c_orm_query_t **out_query) {
+  (void)db_v;
+  (void)sql;
+  if (out_query)
+    *out_query = NULL;
+
+  if (fail_sql == 1 && strstr(sql, "CREATE TABLE IF NOT EXISTS users"))
+    return C_ORM_ERROR_SQL;
+  if (fail_sql == 2 && strstr(sql, "CREATE TABLE IF NOT EXISTS tokens"))
+    return C_ORM_ERROR_SQL;
+  if (fail_sql == 3 && strstr(sql, "CREATE TABLE IF NOT EXISTS clients"))
+    return C_ORM_ERROR_SQL;
+  if (fail_sql == 4 && strstr(sql, "CREATE TABLE IF NOT EXISTS auth_codes"))
+    return C_ORM_ERROR_SQL;
+
+  return C_ORM_OK;
+}
+
+static c_orm_error_t dummy_step(c_orm_query_t *query, int *out_has_row) {
+  (void)query;
+  if (out_has_row)
+    *out_has_row = 0;
+  return C_ORM_OK;
+}
+
+static c_orm_error_t dummy_finalize(c_orm_query_t *query) {
+  (void)query;
+  return C_ORM_OK;
+}
+
+TEST test_oauth2_init_non_sqlite(void) {
+  c_orm_db_t db_dummy;
+  c_orm_driver_vtable_t dummy_vt;
+  c_orm_error_t err;
+  (void)err;
+
+  memset(&db_dummy, 0, sizeof(db_dummy));
+  memset(&dummy_vt, 0, sizeof(dummy_vt));
+
+  dummy_vt.prepare = dummy_prep;
+  dummy_vt.step = dummy_step;
+  dummy_vt.finalize = dummy_finalize;
+  db_dummy.vtable = &dummy_vt;
+
+  for (fail_sql = 1; fail_sql <= 4; fail_sql++) {
+    c_orm_oauth2_create_tables(&db_dummy);
+  }
+  fail_sql = 0;
+  err = c_orm_oauth2_create_tables(&db_dummy);
+
+  dummy_finalize(NULL);
+  PASS();
+}
+
+TEST test_oauth2_null_args(void) {
+  c_orm_oauth2_save_token(NULL, NULL);
+  c_orm_oauth2_get_token(NULL, NULL, NULL);
+  c_orm_oauth2_revoke_token(NULL, NULL);
+  c_orm_oauth2_create_tables(NULL);
+  c_orm_oauth2_verify_client(NULL, NULL, NULL, NULL);
+  c_orm_oauth2_verify_client((void *)1, NULL, NULL, NULL);
+  c_orm_oauth2_save_auth_code(NULL, NULL);
+  c_orm_oauth2_consume_auth_code(NULL, NULL, NULL);
+  c_orm_oauth2_validate_scope(NULL, NULL, NULL);
+  c_orm_oauth2_validate_scope("a", NULL, NULL);
+  c_orm_oauth2_validate_scope(NULL, "b", NULL);
+  c_orm_oauth2_encrypt_token(NULL, NULL);
+  c_orm_oauth2_decrypt_token(NULL, NULL);
+  c_orm_oauth2_get_current_timestamp(NULL);
+  c_orm_oauth2_calculate_expiration(0, 0, NULL);
+  c_orm_store_token_secure(NULL);
+  c_orm_oauth2_is_token_valid(NULL, 0, NULL);
+  c_orm_oauth2_token_parse_json(NULL, NULL);
+  c_orm_user_verify_credentials(NULL, NULL, NULL, NULL);
+  c_orm_oauth2_cleanup_expired_tokens(NULL, 0);
+  PASS();
+}
+
 SUITE(oauth2_suite) {
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void (*old_free)(void *) = c_orm_free;
 
-  c_orm_malloc = m_mock_malloc;
-  c_orm_free = m_mock_free;
+  c_orm_set_allocators(m_mock_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, m_mock_free);
 
   RUN_TEST(test_oauth2_flat_json);
   RUN_TEST(test_oauth2_crypto);
+  RUN_TEST(test_oauth2_crypto_fail_open);
   RUN_TEST(test_oauth2_init);
+  RUN_TEST(test_oauth2_init_non_sqlite);
   RUN_TEST(test_oauth2_client);
   RUN_TEST(test_oauth2_scopes);
   RUN_TEST(test_oauth2_auth_code);
   RUN_TEST(test_oauth2_token);
+  RUN_TEST(test_oauth2_null_args);
 
-  c_orm_malloc = old_malloc;
-  c_orm_free = old_free;
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
 }

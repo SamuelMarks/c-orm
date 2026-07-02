@@ -13,17 +13,25 @@
 /**
  * @brief Global pointer for malloc override.
  */
-void *(*c_orm_malloc)(size_t size) = malloc;
+C_ORM_EXPORT void *(*c_orm_malloc)(size_t size) = malloc;
 
 /**
  * @brief Global pointer for free override.
  */
-void (*c_orm_free)(void *ptr) = free;
+C_ORM_EXPORT void (*c_orm_free)(void *ptr) = free;
 
 /**
  * @brief Global pointer for realloc override.
  */
-void *(*c_orm_realloc)(void *ptr, size_t size) = realloc;
+C_ORM_EXPORT void *(*c_orm_realloc)(void *ptr, size_t size) = realloc;
+
+C_ORM_EXPORT void c_orm_set_allocators(void *(*m)(size_t),
+                                       void *(*r)(void *, size_t),
+                                       void (*f)(void *)) {
+  c_orm_malloc = m;
+  c_orm_realloc = r;
+  c_orm_free = f;
+}
 #endif
 
 C_ORM_EXPORT char *c_orm_strdup(const char *s) {

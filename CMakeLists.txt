@@ -64,7 +64,7 @@ endif()
 
 include(FetchContent)
 set(OLD_BUILD_TESTING_VAL "${BUILD_TESTING}")
-set(BUILD_TESTING OFF)
+#set(BUILD_TESTING OFF)
 
 
 
@@ -210,27 +210,7 @@ else()
     endif()
 endif()
 
-if(TARGET c_cdd AND NOT TARGET cdd-c)
-    FetchContent_GetProperties(cdd_c)
-    if(cdd_c_SOURCE_DIR)
-        set(BIN_CDD_PATH "${cdd_c_SOURCE_DIR}/src/bin_cdd.c")
-    elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../cdd-c/src/bin_cdd.c")
-        set(BIN_CDD_PATH "${CMAKE_CURRENT_LIST_DIR}/../cdd-c/src/bin_cdd.c")
-    else()
-        message(FATAL_ERROR "Could not find bin_cdd.c to build cdd-c executable")
-    endif()
-    add_executable(cdd-c "${BIN_CDD_PATH}" "src/cdd_c_compat.c")
-    target_link_libraries(cdd-c PRIVATE c_cdd)
-    target_include_directories(cdd-c PRIVATE include)
-    if(NOT WIN32)
-        find_package(OpenSSL QUIET)
-        if(OPENSSL_FOUND)
-            target_link_libraries(cdd-c PRIVATE OpenSSL::Crypto)
-        else()
-            target_link_libraries(cdd-c PRIVATE crypto)
-        endif()
-    endif()
-endif()
+
 
 
 

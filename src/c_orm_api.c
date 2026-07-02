@@ -18,6 +18,42 @@
 #include <time.h>
 /* #include "abstract_struct.h" */
 /* clang-format on */
+static void c_orm_free_columns(const c_orm_table_meta_t *meta, void *obj) {
+  size_t i;
+  if (!meta || !obj)
+    return;
+  for (i = 0; i < meta->num_columns; ++i) {
+    const c_orm_column_meta_t *col = &meta->columns[i];
+    void *field_ptr = (char *)obj + col->offset;
+    if (col->type == C_ORM_TYPE_STRING || col->type == C_ORM_TYPE_DATE ||
+        col->type == C_ORM_TYPE_TIMESTAMP || col->type == C_ORM_TYPE_ENUM ||
+        col->type == C_ORM_TYPE_SET || col->type == C_ORM_TYPE_JSON) {
+      if (*(char **)field_ptr) {
+        C_ORM_FREE(*(char **)field_ptr);
+        *(char **)field_ptr = NULL;
+      }
+    } else if (col->type == C_ORM_TYPE_BLOB) {
+      c_orm_blob_t *blob_ptr = (c_orm_blob_t *)field_ptr;
+      if (blob_ptr->data) {
+        C_ORM_FREE(blob_ptr->data);
+        blob_ptr->data = NULL;
+        blob_ptr->size = 0;
+      }
+    } else if (col->type == C_ORM_TYPE_POLYGON) {
+      c_orm_polygon_t *poly = (c_orm_polygon_t *)field_ptr;
+      if (poly->points) {
+        C_ORM_FREE(poly->points);
+        poly->points = NULL;
+        poly->num_points = 0;
+      }
+    } else if (col->is_nullable) {
+      if (*(void **)field_ptr) {
+        C_ORM_FREE(*(void **)field_ptr);
+        *(void **)field_ptr = NULL;
+      }
+    }
+  }
+}
 
 /**
  * @brief Function c_orm_hydrate_row_from.
@@ -41,7 +77,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
     if (err != C_ORM_OK) {
       rc = err;
       LOG_DEBUG("c_orm_hydrate_row_from: exit");
-      return (c_orm_error_t)rc;
+      goto error_out;
     }
 
     if (is_null) {
@@ -50,7 +86,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
         {
           rc = C_ORM_ERROR_TYPE_MISMATCH;
           LOG_DEBUG("c_orm_hydrate_row_from: exit");
-          return (c_orm_error_t)rc;
+          goto error_out;
         }
       }
       /* If it's nullable primitive, we need to set the pointer to NULL.
@@ -82,7 +118,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       if (err != C_ORM_OK) {
         rc = err;
         LOG_DEBUG("c_orm_hydrate_row_from: exit");
-        return (c_orm_error_t)rc;
+        goto error_out;
       }
       if (col->is_nullable) {
         int32_t *ptr = (int32_t *)C_ORM_MALLOC(sizeof(int32_t));
@@ -90,7 +126,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
           LOG_DEBUG("c_orm_hydrate_row_from: OOM");
           rc = C_ORM_ERROR_MEMORY;
           LOG_DEBUG("c_orm_hydrate_row_from: exit");
-          return (c_orm_error_t)rc;
+          goto error_out;
         }
         *ptr = val;
         *(int32_t **)field_ptr = ptr;
@@ -105,7 +141,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       if (err != C_ORM_OK) {
         rc = err;
         LOG_DEBUG("c_orm_hydrate_row_from: exit");
-        return (c_orm_error_t)rc;
+        goto error_out;
       }
       if (col->is_nullable) {
         /* Allocate 4 bytes to safely cover any compiler bool size mismatches (1
@@ -115,7 +151,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
           LOG_DEBUG("c_orm_hydrate_row_from: OOM");
           rc = C_ORM_ERROR_MEMORY;
           LOG_DEBUG("c_orm_hydrate_row_from: exit");
-          return (c_orm_error_t)rc;
+          goto error_out;
         }
         *ptr = (val != 0 ? 1 : 0);
         *(int **)field_ptr = ptr;
@@ -134,7 +170,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       if (err != C_ORM_OK) {
         rc = err;
         LOG_DEBUG("c_orm_hydrate_row_from: exit");
-        return (c_orm_error_t)rc;
+        goto error_out;
       }
       if (col->is_nullable) {
         int64_t *ptr = (int64_t *)C_ORM_MALLOC(sizeof(int64_t));
@@ -142,7 +178,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
           LOG_DEBUG("c_orm_hydrate_row_from: OOM");
           rc = C_ORM_ERROR_MEMORY;
           LOG_DEBUG("c_orm_hydrate_row_from: exit");
-          return (c_orm_error_t)rc;
+          goto error_out;
         }
         *ptr = val;
         *(int64_t **)field_ptr = ptr;
@@ -158,7 +194,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       if (err != C_ORM_OK) {
         rc = err;
         LOG_DEBUG("c_orm_hydrate_row_from: exit");
-        return (c_orm_error_t)rc;
+        goto error_out;
       }
       if (col->is_nullable) {
         if (col->type == C_ORM_TYPE_FLOAT) {
@@ -167,7 +203,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
             LOG_DEBUG("c_orm_hydrate_row_from: OOM");
             rc = C_ORM_ERROR_MEMORY;
             LOG_DEBUG("c_orm_hydrate_row_from: exit");
-            return (c_orm_error_t)rc;
+            goto error_out;
           }
           *ptr = (float)val;
           *(float **)field_ptr = ptr;
@@ -177,7 +213,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
             LOG_DEBUG("c_orm_hydrate_row_from: OOM");
             rc = C_ORM_ERROR_MEMORY;
             LOG_DEBUG("c_orm_hydrate_row_from: exit");
-            return (c_orm_error_t)rc;
+            goto error_out;
           }
           *ptr = val;
           *(double **)field_ptr = ptr;
@@ -202,7 +238,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       if (err != C_ORM_OK) {
         rc = err;
         LOG_DEBUG("c_orm_hydrate_row_from: exit");
-        return (c_orm_error_t)rc;
+        goto error_out;
       }
 
       if (val) {
@@ -244,7 +280,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
               LOG_DEBUG("c_orm_hydrate_row_from: OOM");
               rc = C_ORM_ERROR_MEMORY;
               LOG_DEBUG("c_orm_hydrate_row_from: exit");
-              return (c_orm_error_t)rc;
+              goto error_out;
             }
             break; /* Skip the rest of string processing for this column since
                       we mapped it */
@@ -263,7 +299,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
           if (err != C_ORM_OK) {
             rc = err;
             LOG_DEBUG("c_orm_hydrate_row_from: exit");
-            return (c_orm_error_t)rc;
+            goto error_out;
           }
           *(char **)field_ptr = (char *)C_ORM_MALLOC(decrypted_size + 1);
           if (*(char **)field_ptr) {
@@ -275,7 +311,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
             LOG_DEBUG("c_orm_hydrate_row_from: OOM");
             rc = C_ORM_ERROR_MEMORY;
             LOG_DEBUG("c_orm_hydrate_row_from: exit");
-            return (c_orm_error_t)rc;
+            goto error_out;
           }
         } else {
           size_t len = strlen(val);
@@ -287,7 +323,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
             LOG_DEBUG("c_orm_hydrate_row_from: OOM");
             rc = C_ORM_ERROR_MEMORY;
             LOG_DEBUG("c_orm_hydrate_row_from: exit");
-            return (c_orm_error_t)rc;
+            goto error_out;
           }
         }
       } else {
@@ -302,7 +338,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       if (err != C_ORM_OK) {
         rc = err;
         LOG_DEBUG("c_orm_hydrate_row_from: exit");
-        return (c_orm_error_t)rc;
+        goto error_out;
       }
       if (val && size == 21) {
         c_orm_point_t *pt = (c_orm_point_t *)field_ptr;
@@ -319,7 +355,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       if (err != C_ORM_OK) {
         rc = err;
         LOG_DEBUG("c_orm_hydrate_row_from: exit");
-        return (c_orm_error_t)rc;
+        goto error_out;
       }
       if (val && size >= 13) {
         c_orm_polygon_t *poly = (c_orm_polygon_t *)field_ptr;
@@ -341,7 +377,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
               LOG_DEBUG("c_orm_hydrate_row_from: OOM");
               rc = C_ORM_ERROR_MEMORY;
               LOG_DEBUG("c_orm_hydrate_row_from: exit");
-              return (c_orm_error_t)rc;
+              goto error_out;
             }
           }
         } else {
@@ -358,7 +394,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       if (err != C_ORM_OK) {
         rc = err;
         LOG_DEBUG("c_orm_hydrate_row_from: exit");
-        return (c_orm_error_t)rc;
+        goto error_out;
       }
 
       if (val && size > 0) {
@@ -372,7 +408,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
           if (err != C_ORM_OK) {
             rc = err;
             LOG_DEBUG("c_orm_hydrate_row_from: exit");
-            return (c_orm_error_t)rc;
+            goto error_out;
           }
 
           blob_ptr->data = C_ORM_MALLOC(decrypted_size);
@@ -387,7 +423,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
               LOG_DEBUG("c_orm_hydrate_row_from: OOM");
               rc = C_ORM_ERROR_MEMORY;
               LOG_DEBUG("c_orm_hydrate_row_from: exit");
-              return (c_orm_error_t)rc;
+              goto error_out;
             }
           }
         } else {
@@ -401,7 +437,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
               LOG_DEBUG("c_orm_hydrate_row_from: OOM");
               rc = C_ORM_ERROR_MEMORY;
               LOG_DEBUG("c_orm_hydrate_row_from: exit");
-              return (c_orm_error_t)rc;
+              goto error_out;
             }
           }
         }
@@ -415,7 +451,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
     default: {
       rc = C_ORM_ERROR_TYPE_MISMATCH;
       LOG_DEBUG("c_orm_hydrate_row_from: exit");
-      return (c_orm_error_t)rc;
+      goto error_out;
     }
     }
   }
@@ -433,7 +469,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
       {
         rc = C_ORM_ERROR_EXPIRED;
         LOG_DEBUG("c_orm_hydrate_row_from: exit");
-        return (c_orm_error_t)rc;
+        goto error_out;
       }
     }
   }
@@ -441,6 +477,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
   {
     rc = C_ORM_OK;
     LOG_DEBUG("c_orm_hydrate_row_from: exit");
+    return (c_orm_error_t)rc;
+  error_out:
+    if (rc != C_ORM_OK)
+      c_orm_free_columns(meta, out_struct);
     return (c_orm_error_t)rc;
   }
 }
@@ -971,68 +1011,156 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
     return (c_orm_error_t)rc;
   }
 
-  if (c_orm_string_builder_init(&sb) != 0) {
-    LOG_DEBUG("c_orm_find_with_relation_int32: OOM");
-    rc = C_ORM_ERROR_MEMORY;
-    LOG_DEBUG("c_orm_find_with_relation_int32: exit");
-    return (c_orm_error_t)rc;
-  }
+  if ((rc = c_orm_string_builder_init(&sb)) != C_ORM_OK)
+    return rc;
 
   /* Build LEFT JOIN query: SELECT p.*, c.* FROM Parent p LEFT JOIN Child c ON
    * p.local_key = c.foreign_key WHERE p.pk = ? */
-  c_orm_string_builder_append(sb, "SELECT ");
+  if ((rc = c_orm_string_builder_append(sb, "SELECT ")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
   /* Select all from parent */
   for (i = 0; i < meta->num_columns; i++) {
     if (i > 0)
-      c_orm_string_builder_append(sb, ", ");
-    c_orm_string_builder_append(sb, "p.");
-    c_orm_string_builder_append(sb, meta->columns[i].name);
+      if ((rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
+      }
+    if ((rc = c_orm_string_builder_append(sb, "p.")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, meta->columns[i].name)) !=
+        C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
   }
   /* Select all from child */
   for (i = 0; i < target_meta->num_columns; i++) {
-    c_orm_string_builder_append(sb, ", ");
-    c_orm_string_builder_append(sb, "c.");
-    c_orm_string_builder_append(sb, target_meta->columns[i].name);
+    if ((rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, "c.")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, target_meta->columns[i].name)) !=
+        C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
   }
 
-  c_orm_string_builder_append(sb, " FROM ");
-  c_orm_string_builder_append(sb, meta->name);
-  c_orm_string_builder_append(sb, " p ");
+  if ((rc = c_orm_string_builder_append(sb, " FROM ")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, meta->name)) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, " p ")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
 
   if (rel->type == C_ORM_RELATION_MANY_TO_MANY) {
-    c_orm_string_builder_append(sb, "LEFT JOIN ");
-    c_orm_string_builder_append(sb, rel->join_table);
-    c_orm_string_builder_append(sb, " j ON p.");
-    c_orm_string_builder_append(sb, rel->local_key);
-    c_orm_string_builder_append(sb, " = j.");
-    c_orm_string_builder_append(sb, rel->join_local_key);
-    c_orm_string_builder_append(sb, " LEFT JOIN ");
-    c_orm_string_builder_append(sb, target_meta->name);
-    c_orm_string_builder_append(sb, " c ON j.");
-    c_orm_string_builder_append(sb, rel->join_foreign_key);
-    c_orm_string_builder_append(sb, " = c.");
-    c_orm_string_builder_append(sb, rel->foreign_key);
+    if ((rc = c_orm_string_builder_append(sb, "LEFT JOIN ")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, rel->join_table)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " j ON p.")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, rel->local_key)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " = j.")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, rel->join_local_key)) !=
+        C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " LEFT JOIN ")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, target_meta->name)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " c ON j.")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, rel->join_foreign_key)) !=
+        C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " = c.")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, rel->foreign_key)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
   } else {
-    c_orm_string_builder_append(sb, "LEFT JOIN ");
-    c_orm_string_builder_append(sb, target_meta->name);
-    c_orm_string_builder_append(sb, " c ON p.");
-    c_orm_string_builder_append(sb, rel->local_key);
-    c_orm_string_builder_append(sb, " = c.");
-    c_orm_string_builder_append(sb, rel->foreign_key);
+    if ((rc = c_orm_string_builder_append(sb, "LEFT JOIN ")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, target_meta->name)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " c ON p.")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, rel->local_key)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " = c.")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, rel->foreign_key)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
   }
 
-  c_orm_string_builder_append(sb, " WHERE p.");
-  c_orm_string_builder_append(sb, pk_col->name);
-  c_orm_string_builder_append(sb, " = ?");
-
-  if (c_orm_string_builder_get(sb, &sql) != 0) {
+  if ((rc = c_orm_string_builder_append(sb, " WHERE p.")) != C_ORM_OK) {
     c_orm_string_builder_free(sb);
-    {
-      LOG_DEBUG("c_orm_find_with_relation_int32: OOM");
-      rc = C_ORM_ERROR_MEMORY;
-      LOG_DEBUG("c_orm_find_with_relation_int32: exit");
-      return (c_orm_error_t)rc;
-    }
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, pk_col->name)) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, " = ?")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+
+  if ((rc = c_orm_string_builder_get(sb, &sql)) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
   }
 
   err = c_orm_prepare_cached(db, sql, &query);
@@ -1311,23 +1439,45 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
       if (actual_chunk > chunk_size)
         actual_chunk = chunk_size;
 
-      if (c_orm_string_builder_init(&sb) != 0) {
-        LOG_DEBUG("c_orm_find_all_with_relation: OOM");
-        rc = C_ORM_ERROR_MEMORY;
-        LOG_DEBUG("c_orm_find_all_with_relation: exit");
-        return (c_orm_error_t)rc;
-      }
+      if ((rc = c_orm_string_builder_init(&sb)) != C_ORM_OK)
+        return rc;
 
       if (rel->type == C_ORM_RELATION_MANY_TO_MANY) {
         const char *target_pk = NULL;
         size_t k;
-        c_orm_string_builder_append(sb, "SELECT c.*, j.");
-        c_orm_string_builder_append(sb, rel->join_local_key);
-        c_orm_string_builder_append(sb, " FROM ");
-        c_orm_string_builder_append(sb, target_meta->name);
-        c_orm_string_builder_append(sb, " c INNER JOIN ");
-        c_orm_string_builder_append(sb, rel->join_table);
-        c_orm_string_builder_append(sb, " j ON c.");
+        if ((rc = c_orm_string_builder_append(sb, "SELECT c.*, j.")) !=
+            C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, rel->join_local_key)) !=
+            C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, " FROM ")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, target_meta->name)) !=
+            C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, " c INNER JOIN ")) !=
+            C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, rel->join_table)) !=
+            C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, " j ON c.")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
         /* Find target PK for join */
         for (k = 0; k < target_meta->num_columns; ++k) {
           if (target_meta->columns[k].is_pk) {
@@ -1343,44 +1493,99 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
             return (c_orm_error_t)rc;
           }
         }
-        c_orm_string_builder_append(sb, target_pk);
-        c_orm_string_builder_append(sb, " = j.");
-        c_orm_string_builder_append(sb, rel->join_foreign_key);
-        c_orm_string_builder_append(sb, " WHERE j.");
-        c_orm_string_builder_append(sb, rel->join_local_key);
-        c_orm_string_builder_append(sb, " IN (");
+        if ((rc = c_orm_string_builder_append(sb, target_pk)) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, " = j.")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, rel->join_foreign_key)) !=
+            C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, " WHERE j.")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, rel->join_local_key)) !=
+            C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, " IN (")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
       } else {
-        c_orm_string_builder_append(sb, "SELECT * FROM ");
-        c_orm_string_builder_append(sb, target_meta->name);
-        c_orm_string_builder_append(sb, " WHERE ");
-        c_orm_string_builder_append(sb, rel->foreign_key);
-        c_orm_string_builder_append(sb, " IN (");
+        if ((rc = c_orm_string_builder_append(sb, "SELECT * FROM ")) !=
+            C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, target_meta->name)) !=
+            C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, " WHERE ")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, rel->foreign_key)) !=
+            C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, " IN (")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
       }
 
       for (i = 0; i < actual_chunk; i++) {
         if (i > 0)
-          c_orm_string_builder_append(sb, ", ");
-        c_orm_string_builder_append(sb, "?");
+          if ((rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+            c_orm_string_builder_free(sb);
+            return rc;
+          }
+        if ((rc = c_orm_string_builder_append(sb, "?")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
       }
-      c_orm_string_builder_append(sb, ")");
+      if (c_orm_string_builder_append(sb, ")") != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return C_ORM_ERROR_MEMORY;
+      }
 
       if (rel->custom_filter && rel->custom_filter[0]) {
-        c_orm_string_builder_append(sb, " AND ");
-        c_orm_string_builder_append(sb, rel->custom_filter);
+        if ((rc = c_orm_string_builder_append(sb, " AND ")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, rel->custom_filter)) !=
+            C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
       }
       if (rel->order_by && rel->order_by[0]) {
-        c_orm_string_builder_append(sb, " ORDER BY ");
-        c_orm_string_builder_append(sb, rel->order_by);
+        if ((rc = c_orm_string_builder_append(sb, " ORDER BY ")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, rel->order_by)) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
       }
 
-      if (c_orm_string_builder_get(sb, &sql) != 0) {
+      if ((rc = c_orm_string_builder_get(sb, &sql)) != C_ORM_OK) {
         c_orm_string_builder_free(sb);
-        {
-          LOG_DEBUG("c_orm_find_all_with_relation: OOM");
-          rc = C_ORM_ERROR_MEMORY;
-          LOG_DEBUG("c_orm_find_all_with_relation: exit");
-          return (c_orm_error_t)rc;
-        }
+        return rc;
       }
 
       err = c_orm_prepare_cached(db, sql, &query);
@@ -1558,7 +1763,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
     LOG_DEBUG("c_orm_hydrate_all: OOM");
     rc = C_ORM_ERROR_MEMORY;
     LOG_DEBUG("c_orm_hydrate_all: exit");
-    return (c_orm_error_t)rc;
+    goto error_out;
   }
 
   for (;;) {
@@ -1567,7 +1772,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
       {
         rc = err;
         LOG_DEBUG("c_orm_hydrate_all: exit");
-        return (c_orm_error_t)rc;
+        goto error_out;
       }
     }
     if (!has_row)
@@ -1581,7 +1786,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
           LOG_DEBUG("c_orm_hydrate_all: OOM");
           rc = C_ORM_ERROR_MEMORY;
           LOG_DEBUG("c_orm_hydrate_all: exit");
-          return (c_orm_error_t)rc;
+          goto error_out;
         }
       }
       /* Step 47: Initialize structure fully including child arrays/relations to
@@ -1602,7 +1807,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
       {
         rc = err;
         LOG_DEBUG("c_orm_hydrate_all: exit");
-        return (c_orm_error_t)rc;
+        goto error_out;
       }
     }
     count++;
@@ -1615,6 +1820,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
   {
     rc = C_ORM_OK;
     LOG_DEBUG("c_orm_hydrate_all: exit");
+    return (c_orm_error_t)rc;
+  error_out:
+    if (rc != C_ORM_OK && data) {
+      size_t j;
+      for (j = 0; j <= count && j < cap; j++) {
+        c_orm_free_columns(meta, (char *)data + (j * meta->struct_size));
+        c_orm_free_relations(meta, (char *)data + (j * meta->struct_size));
+      }
+      C_ORM_FREE(data);
+      ((struct Generic_Array *)out_array)->data = NULL;
+    }
     return (c_orm_error_t)rc;
   }
 }
@@ -2352,30 +2568,68 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
       }
     }
 
-    c_orm_string_builder_append(sb, "INSERT INTO ");
-    c_orm_string_builder_append(sb, meta->name);
-    c_orm_string_builder_append(sb, " (");
+    if ((rc = c_orm_string_builder_append(sb, "INSERT INTO ")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, meta->name)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " (")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
     for (j = 0; j < meta->num_columns; j++) {
       if (j > 0)
-        c_orm_string_builder_append(sb, ", ");
-      c_orm_string_builder_append(sb, meta->columns[j].name);
+        if ((rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+      if ((rc = c_orm_string_builder_append(sb, meta->columns[j].name)) !=
+          C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
+      }
     }
-    c_orm_string_builder_append(sb, ") VALUES ");
+    if (c_orm_string_builder_append(sb, ") VALUES ") != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return C_ORM_ERROR_MEMORY;
+    }
 
     for (j = 0; j < actual_chunk; j++) {
       if (j > 0)
-        c_orm_string_builder_append(sb, ", ");
-      c_orm_string_builder_append(sb, "(");
+        if ((rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+      if ((rc = c_orm_string_builder_append(sb, "(")) != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
+      }
       for (k = 0; k < meta->num_columns; k++) {
         if (k > 0)
-          c_orm_string_builder_append(sb, ", ");
-        c_orm_string_builder_append(sb, "?");
+          if ((rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+            c_orm_string_builder_free(sb);
+            return rc;
+          }
+        if ((rc = c_orm_string_builder_append(sb, "?")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
       }
-      c_orm_string_builder_append(sb, ")");
+      if (c_orm_string_builder_append(sb, ")") != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return C_ORM_ERROR_MEMORY;
+      }
     }
 
     if (conflict_policy == C_ORM_ON_CONFLICT_DO_NOTHING) {
-      c_orm_string_builder_append(sb, " ON CONFLICT DO NOTHING");
+      if ((rc = c_orm_string_builder_append(sb, " ON CONFLICT DO NOTHING")) !=
+          C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
+      }
     } else if (conflict_policy == C_ORM_ON_CONFLICT_DO_UPDATE) {
       /* Basic DO UPDATE without specifying conflict target. Usually needs
        * conflict target (PK). */
@@ -2385,15 +2639,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
       /* For now we just implement DO NOTHING successfully. */
     }
 
-    if (c_orm_string_builder_get(sb, &sql_str) != 0) {
+    if ((rc = c_orm_string_builder_get(sb, &sql_str)) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
-      c_orm_transaction_rollback(db);
-      {
-        LOG_DEBUG("c_orm_insert_batch_ext: OOM");
-        rc = C_ORM_ERROR_MEMORY;
-        LOG_DEBUG("c_orm_insert_batch_ext: exit");
-        return (c_orm_error_t)rc;
-      }
+      return rc;
     }
 
     err = db->vtable->prepare(db, sql_str, &query);
@@ -3169,28 +3417,46 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
       }
     }
 
-    c_orm_string_builder_append(sb, "DELETE FROM ");
-    c_orm_string_builder_append(sb, meta->name);
-    c_orm_string_builder_append(sb, " WHERE ");
-    c_orm_string_builder_append(sb, pk_col->name);
-    c_orm_string_builder_append(sb, " IN (");
+    if ((rc = c_orm_string_builder_append(sb, "DELETE FROM ")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, meta->name)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " WHERE ")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, pk_col->name)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " IN (")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
 
     for (j = 0; j < actual_chunk; j++) {
       if (j > 0)
-        c_orm_string_builder_append(sb, ", ");
-      c_orm_string_builder_append(sb, "?");
-    }
-    c_orm_string_builder_append(sb, ")");
-
-    if (c_orm_string_builder_get(sb, &sql_str) != 0) {
-      c_orm_string_builder_free(sb);
-      c_orm_transaction_rollback(db);
-      {
-        LOG_DEBUG("c_orm_delete_batch: OOM");
-        rc = C_ORM_ERROR_MEMORY;
-        LOG_DEBUG("c_orm_delete_batch: exit");
-        return (c_orm_error_t)rc;
+        if ((rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+      if ((rc = c_orm_string_builder_append(sb, "?")) != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
       }
+    }
+    if (c_orm_string_builder_append(sb, ")") != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return C_ORM_ERROR_MEMORY;
+    }
+
+    if ((rc = c_orm_string_builder_get(sb, &sql_str)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
     }
 
     err = db->vtable->prepare(db, sql_str, &query);
@@ -3368,49 +3634,90 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
       }
     }
 
-    c_orm_string_builder_append(sb, "UPDATE ");
-    c_orm_string_builder_append(sb, meta->name);
-    c_orm_string_builder_append(sb, " SET ");
+    if ((rc = c_orm_string_builder_append(sb, "UPDATE ")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, meta->name)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " SET ")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
 
     for (k = 0; k < meta->num_columns; k++) {
       if (meta->columns[k].is_pk)
         continue;
 
       if (!first_col) {
-        c_orm_string_builder_append(sb, ", ");
+        if ((rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
       }
       first_col = 0;
 
-      c_orm_string_builder_append(sb, meta->columns[k].name);
-      c_orm_string_builder_append(sb, " = CASE ");
-      c_orm_string_builder_append(sb, pk_col->name);
+      if ((rc = c_orm_string_builder_append(sb, meta->columns[k].name)) !=
+          C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
+      }
+      if ((rc = c_orm_string_builder_append(sb, " = CASE ")) != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
+      }
+      if ((rc = c_orm_string_builder_append(sb, pk_col->name)) != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
+      }
 
       for (j = 0; j < actual_chunk; j++) {
-        c_orm_string_builder_append(sb, " WHEN ? THEN ?");
+        if ((rc = c_orm_string_builder_append(sb, " WHEN ? THEN ?")) !=
+            C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
       }
-      c_orm_string_builder_append(sb, " END");
+      if ((rc = c_orm_string_builder_append(sb, " END")) != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
+      }
     }
 
-    c_orm_string_builder_append(sb, " WHERE ");
-    c_orm_string_builder_append(sb, pk_col->name);
-    c_orm_string_builder_append(sb, " IN (");
+    if ((rc = c_orm_string_builder_append(sb, " WHERE ")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, pk_col->name)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " IN (")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
 
     for (j = 0; j < actual_chunk; j++) {
       if (j > 0)
-        c_orm_string_builder_append(sb, ", ");
-      c_orm_string_builder_append(sb, "?");
-    }
-    c_orm_string_builder_append(sb, ")");
-
-    if (c_orm_string_builder_get(sb, &sql_str) != 0) {
-      c_orm_string_builder_free(sb);
-      c_orm_transaction_rollback(db);
-      {
-        LOG_DEBUG("c_orm_update_batch: OOM");
-        rc = C_ORM_ERROR_MEMORY;
-        LOG_DEBUG("c_orm_update_batch: exit");
-        return (c_orm_error_t)rc;
+        if ((rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+      if ((rc = c_orm_string_builder_append(sb, "?")) != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
       }
+    }
+    if (c_orm_string_builder_append(sb, ")") != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return C_ORM_ERROR_MEMORY;
+    }
+
+    if ((rc = c_orm_string_builder_get(sb, &sql_str)) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
     }
 
     err = db->vtable->prepare(db, sql_str, &query);
@@ -6062,21 +6369,35 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
     LOG_DEBUG("c_orm_update_partial: exit");
     return (c_orm_error_t)rc;
   }
-  if (c_orm_string_builder_init(&sb) != 0) {
-    LOG_DEBUG("c_orm_update_partial: OOM");
-    rc = C_ORM_ERROR_MEMORY;
-    LOG_DEBUG("c_orm_update_partial: exit");
-    return (c_orm_error_t)rc;
+  if ((rc = c_orm_string_builder_init(&sb)) != C_ORM_OK)
+    return rc;
+  if ((rc = c_orm_string_builder_append(sb, "UPDATE ")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
   }
-  c_orm_string_builder_append(sb, "UPDATE ");
-  c_orm_string_builder_append(sb, meta->name);
-  c_orm_string_builder_append(sb, " SET ");
+  if ((rc = c_orm_string_builder_append(sb, meta->name)) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, " SET ")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
 
   for (i = 0; i < num_fields; i++) {
     if (i > 0)
-      c_orm_string_builder_append(sb, ", ");
-    c_orm_string_builder_append(sb, fields[i]);
-    c_orm_string_builder_append(sb, " = ?");
+      if ((rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
+      }
+    if ((rc = c_orm_string_builder_append(sb, fields[i])) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if ((rc = c_orm_string_builder_append(sb, " = ?")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
   }
 
   for (i = 0; i < meta->num_columns; i++) {
@@ -6095,20 +6416,24 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
     }
   }
 
-  c_orm_string_builder_append(sb, " WHERE ");
-  c_orm_string_builder_append(sb, pk_col->name);
-  c_orm_string_builder_append(sb, " = ?");
+  if ((rc = c_orm_string_builder_append(sb, " WHERE ")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, pk_col->name)) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, " = ?")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
 
   {
     const char *sql_str;
-    if (c_orm_string_builder_get(sb, &sql_str) != 0) {
+    if ((rc = c_orm_string_builder_get(sb, &sql_str)) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
-      {
-        LOG_DEBUG("c_orm_update_partial: OOM");
-        rc = C_ORM_ERROR_MEMORY;
-        LOG_DEBUG("c_orm_update_partial: exit");
-        return (c_orm_error_t)rc;
-      }
+      return rc;
     }
     err = c_orm_prepare_cached(db, sql_str, &query);
   }
@@ -6834,40 +7159,59 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_generic(c_orm_db_t *db,
     return (c_orm_error_t)rc;
   }
 
-  if (c_orm_string_builder_init(&sb) != 0) {
-    LOG_DEBUG("c_orm_insert_generic: OOM");
-    rc = C_ORM_ERROR_MEMORY;
-    LOG_DEBUG("c_orm_insert_generic: exit");
-    return (c_orm_error_t)rc;
-  }
+  if ((rc = c_orm_string_builder_init(&sb)) != C_ORM_OK)
+    return rc;
 
-  c_orm_string_builder_append(sb, "INSERT INTO ");
-  c_orm_string_builder_append(sb, meta->name);
-  c_orm_string_builder_append(sb, " (");
-
-  for (i = 0; i < meta->num_columns; i++) {
-    if (i > 0)
-      c_orm_string_builder_append(sb, ", ");
-    c_orm_string_builder_append(sb, meta->columns[i].name);
-  }
-
-  c_orm_string_builder_append(sb, ") VALUES (");
-
-  for (i = 0; i < meta->num_columns; i++) {
-    if (i > 0)
-      c_orm_string_builder_append(sb, ", ");
-    c_orm_string_builder_append(sb, "?");
-  }
-  c_orm_string_builder_append(sb, ")");
-
-  if (c_orm_string_builder_get(sb, &sql_str) != 0) {
+  if ((rc = c_orm_string_builder_append(sb, "INSERT INTO ")) != C_ORM_OK) {
     c_orm_string_builder_free(sb);
-    {
-      LOG_DEBUG("c_orm_insert_generic: OOM");
-      rc = C_ORM_ERROR_MEMORY;
-      LOG_DEBUG("c_orm_insert_generic: exit");
-      return (c_orm_error_t)rc;
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, meta->name)) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, " (")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+
+  for (i = 0; i < meta->num_columns; i++) {
+    if (i > 0)
+      if ((rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
+      }
+    if ((rc = c_orm_string_builder_append(sb, meta->columns[i].name)) !=
+        C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
     }
+  }
+
+  if (c_orm_string_builder_append(sb, ") VALUES (") != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  for (i = 0; i < meta->num_columns; i++) {
+    if (i > 0)
+      if ((rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        return rc;
+      }
+    if ((rc = c_orm_string_builder_append(sb, "?")) != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
+  }
+  if (c_orm_string_builder_append(sb, ")") != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  if ((rc = c_orm_string_builder_get(sb, &sql_str)) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
   }
 
   err = db->vtable->prepare(db, sql_str, &query);
@@ -6943,27 +7287,33 @@ C_ORM_EXPORT c_orm_error_t c_orm_get_generic(c_orm_db_t *db,
     return (c_orm_error_t)rc;
   }
 
-  if (c_orm_string_builder_init(&sb) != 0) {
-    LOG_DEBUG("c_orm_get_generic: OOM");
-    rc = C_ORM_ERROR_MEMORY;
-    LOG_DEBUG("c_orm_get_generic: exit");
-    return (c_orm_error_t)rc;
+  if ((rc = c_orm_string_builder_init(&sb)) != C_ORM_OK)
+    return rc;
+
+  if ((rc = c_orm_string_builder_append(sb, "SELECT * FROM ")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, meta->name)) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, " WHERE ")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, pk_col->name)) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, " = ?")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
   }
 
-  c_orm_string_builder_append(sb, "SELECT * FROM ");
-  c_orm_string_builder_append(sb, meta->name);
-  c_orm_string_builder_append(sb, " WHERE ");
-  c_orm_string_builder_append(sb, pk_col->name);
-  c_orm_string_builder_append(sb, " = ?");
-
-  if (c_orm_string_builder_get(sb, &sql_str) != 0) {
+  if ((rc = c_orm_string_builder_get(sb, &sql_str)) != C_ORM_OK) {
     c_orm_string_builder_free(sb);
-    {
-      LOG_DEBUG("c_orm_get_generic: OOM");
-      rc = C_ORM_ERROR_MEMORY;
-      LOG_DEBUG("c_orm_get_generic: exit");
-      return (c_orm_error_t)rc;
-    }
+    return rc;
   }
 
   err = db->vtable->prepare(db, sql_str, &query);
@@ -7037,24 +7387,21 @@ c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     return (c_orm_error_t)rc;
   }
 
-  if (c_orm_string_builder_init(&sb) != 0) {
-    LOG_DEBUG("c_orm_find_all_generic: OOM");
-    rc = C_ORM_ERROR_MEMORY;
-    LOG_DEBUG("c_orm_find_all_generic: exit");
-    return (c_orm_error_t)rc;
+  if ((rc = c_orm_string_builder_init(&sb)) != C_ORM_OK)
+    return rc;
+
+  if ((rc = c_orm_string_builder_append(sb, "SELECT * FROM ")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, meta->name)) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
   }
 
-  c_orm_string_builder_append(sb, "SELECT * FROM ");
-  c_orm_string_builder_append(sb, meta->name);
-
-  if (c_orm_string_builder_get(sb, &sql_str) != 0) {
+  if ((rc = c_orm_string_builder_get(sb, &sql_str)) != C_ORM_OK) {
     c_orm_string_builder_free(sb);
-    {
-      LOG_DEBUG("c_orm_find_all_generic: OOM");
-      rc = C_ORM_ERROR_MEMORY;
-      LOG_DEBUG("c_orm_find_all_generic: exit");
-      return (c_orm_error_t)rc;
-    }
+    return rc;
   }
 
   err = db->vtable->prepare(db, sql_str, &query);
@@ -7066,6 +7413,8 @@ c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   }
 
   data = C_ORM_MALLOC(cap * meta->struct_size);
+  if (data)
+    memset(data, 0, cap * meta->struct_size);
   if (!data) {
     db->vtable->finalize(query);
     {
@@ -7081,8 +7430,13 @@ c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
       void *new_data;
       cap *= 2;
       new_data = C_ORM_REALLOC(data, cap * meta->struct_size);
+      if (new_data) {
+        memset((char *)new_data + ((cap / 2) * meta->struct_size), 0,
+               (cap - (cap / 2)) * meta->struct_size);
+      }
       if (!new_data) {
         C_ORM_FREE(data);
+        ((struct Generic_Array *)out_array)->data = NULL;
         db->vtable->finalize(query);
         {
           LOG_DEBUG("c_orm_find_all_generic: OOM");
@@ -7103,6 +7457,7 @@ c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
       continue;
     } else {
       C_ORM_FREE(data);
+      ((struct Generic_Array *)out_array)->data = NULL;
       db->vtable->finalize(query);
       {
         rc = err;
@@ -7114,6 +7469,7 @@ c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 
   if (err != C_ORM_OK && err != C_ORM_ERROR_NOT_FOUND) {
     C_ORM_FREE(data);
+    ((struct Generic_Array *)out_array)->data = NULL;
     db->vtable->finalize(query);
     {
       rc = err;
@@ -7168,27 +7524,33 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     return (c_orm_error_t)rc;
   }
 
-  if (c_orm_string_builder_init(&sb) != 0) {
-    LOG_DEBUG("c_orm_get_generic_string: OOM");
-    rc = C_ORM_ERROR_MEMORY;
-    LOG_DEBUG("c_orm_get_generic_string: exit");
-    return (c_orm_error_t)rc;
+  if ((rc = c_orm_string_builder_init(&sb)) != C_ORM_OK)
+    return rc;
+
+  if ((rc = c_orm_string_builder_append(sb, "SELECT * FROM ")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, meta->name)) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, " WHERE ")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, pk_col->name)) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if ((rc = c_orm_string_builder_append(sb, " = ?")) != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
   }
 
-  c_orm_string_builder_append(sb, "SELECT * FROM ");
-  c_orm_string_builder_append(sb, meta->name);
-  c_orm_string_builder_append(sb, " WHERE ");
-  c_orm_string_builder_append(sb, pk_col->name);
-  c_orm_string_builder_append(sb, " = ?");
-
-  if (c_orm_string_builder_get(sb, &sql_str) != 0) {
+  if ((rc = c_orm_string_builder_get(sb, &sql_str)) != C_ORM_OK) {
     c_orm_string_builder_free(sb);
-    {
-      LOG_DEBUG("c_orm_get_generic_string: OOM");
-      rc = C_ORM_ERROR_MEMORY;
-      LOG_DEBUG("c_orm_get_generic_string: exit");
-      return (c_orm_error_t)rc;
-    }
+    return rc;
   }
 
   err = db->vtable->prepare(db, sql_str, &query);

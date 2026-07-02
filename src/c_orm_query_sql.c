@@ -16,6 +16,22 @@
 
 C_ORM_EXPORT unsigned int cdd_c_sql_parser_max_depth = 100;
 
+#define APPEND(str)                                                            \
+  do {                                                                         \
+    c_orm_error_t _err = c_orm_string_builder_append(sb, (str));               \
+    if (_err != C_ORM_OK) {                                                    \
+      return _err;                                                             \
+    }                                                                          \
+  } while (0)
+
+#define APPEND_SQL(str)                                                        \
+  do {                                                                         \
+    c_orm_error_t _err = c_orm_string_builder_append(sb, (str));               \
+    if (_err != C_ORM_OK) {                                                    \
+      c_orm_string_builder_free(sb);                                           \
+      return _err;                                                             \
+    }                                                                          \
+  } while (0)
 /**
  * @brief Initializes query parameters.
  *
@@ -136,7 +152,7 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
   switch (node->type) {
   case C_ORM_AST_NODE_COLUMN: {
     col = (c_orm_ast_column_t *)node;
-    c_orm_string_builder_append(sb, col->name);
+    APPEND(col->name);
     break;
   }
   case C_ORM_AST_NODE_LITERAL: {
@@ -149,22 +165,22 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       if (dialect == C_ORM_DIALECT_POSTGRES) {
         char ph[32];
         C_ORM_SPRINTF(ph, sizeof(ph), "$%u", (unsigned int)params->count);
-        c_orm_string_builder_append(sb, ph);
+        APPEND(ph);
       } else {
-        c_orm_string_builder_append(sb, "?");
+        APPEND("?");
       }
     } else {
       if (lit->is_string)
-        c_orm_string_builder_append(sb, "'");
-      c_orm_string_builder_append(sb, lit->value);
+        APPEND("'");
+      APPEND(lit->value);
       if (lit->is_string)
-        c_orm_string_builder_append(sb, "'");
+        APPEND("'");
     }
     break;
   }
   case C_ORM_AST_NODE_RAW: {
     raw = (c_orm_ast_raw_t *)node;
-    c_orm_string_builder_append(sb, raw->sql);
+    APPEND(raw->sql);
     break;
   }
   case C_ORM_AST_NODE_OPERATOR: {
@@ -174,10 +190,10 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       LOG_DEBUG("render_node: error rendering left operand");
       return err;
     }
-    c_orm_string_builder_append(sb, " ");
-    c_orm_string_builder_append(sb, op->op);
+    APPEND(" ");
+    APPEND(op->op);
     if (op->right) {
-      c_orm_string_builder_append(sb, " ");
+      APPEND(" ");
       err = render_node(op->right, dialect, sb, params, depth + 1);
       if (err != C_ORM_OK) {
         LOG_DEBUG("render_node: error rendering right operand");
@@ -188,40 +204,40 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
   }
   case C_ORM_AST_NODE_GROUP: {
     grp = (c_orm_ast_group_t *)node;
-    c_orm_string_builder_append(sb, "(");
+    APPEND("(");
     err = render_node(grp->expr, dialect, sb, params, depth + 1);
     if (err != C_ORM_OK) {
       LOG_DEBUG("render_node: error rendering group");
       return err;
     }
-    c_orm_string_builder_append(sb, ")");
+    APPEND(")");
     break;
   }
   case C_ORM_AST_NODE_CAST: {
     cast = (c_orm_ast_cast_t *)node;
-    c_orm_string_builder_append(sb, "CAST(");
-    c_orm_string_builder_append(sb, cast->col);
-    c_orm_string_builder_append(sb, " AS ");
-    c_orm_string_builder_append(sb, cast->type);
-    c_orm_string_builder_append(sb, ")");
+    APPEND("CAST(");
+    APPEND(cast->col);
+    APPEND(" AS ");
+    APPEND(cast->type);
+    APPEND(")");
     break;
   }
   case C_ORM_AST_NODE_FUNCTION: {
     func = (c_orm_ast_function_t *)node;
-    c_orm_string_builder_append(sb, func->name);
-    c_orm_string_builder_append(sb, "(");
-    c_orm_string_builder_append(sb, func->args);
-    c_orm_string_builder_append(sb, ")");
+    APPEND(func->name);
+    APPEND("(");
+    APPEND(func->args);
+    APPEND(")");
     if (func->alias && func->alias[0] != '\0') {
-      c_orm_string_builder_append(sb, " AS ");
-      c_orm_string_builder_append(sb, func->alias);
+      APPEND(" AS ");
+      APPEND(func->alias);
     }
     break;
   }
   case C_ORM_AST_NODE_BETWEEN: {
     bw = (c_orm_ast_between_t *)node;
-    c_orm_string_builder_append(sb, bw->col);
-    c_orm_string_builder_append(sb, " BETWEEN ");
+    APPEND(bw->col);
+    APPEND(" BETWEEN ");
     if (params) {
       if (c_orm_query_params_add(params, bw->low, bw->is_string) != 0) {
         LOG_DEBUG("render_node: OOM adding low");
@@ -230,11 +246,11 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       if (dialect == C_ORM_DIALECT_POSTGRES) {
         char ph[32];
         C_ORM_SPRINTF(ph, sizeof(ph), "$%u", (unsigned int)params->count);
-        c_orm_string_builder_append(sb, ph);
+        APPEND(ph);
       } else {
-        c_orm_string_builder_append(sb, "?");
+        APPEND("?");
       }
-      c_orm_string_builder_append(sb, " AND ");
+      APPEND(" AND ");
       if (c_orm_query_params_add(params, bw->high, bw->is_string) != 0) {
         LOG_DEBUG("render_node: OOM adding high");
         return C_ORM_ERROR_MEMORY;
@@ -242,22 +258,22 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       if (dialect == C_ORM_DIALECT_POSTGRES) {
         char ph[32];
         C_ORM_SPRINTF(ph, sizeof(ph), "$%u", (unsigned int)params->count);
-        c_orm_string_builder_append(sb, ph);
+        APPEND(ph);
       } else {
-        c_orm_string_builder_append(sb, "?");
+        APPEND("?");
       }
     } else {
       if (bw->is_string)
-        c_orm_string_builder_append(sb, "'");
-      c_orm_string_builder_append(sb, bw->low);
+        APPEND("'");
+      APPEND(bw->low);
       if (bw->is_string)
-        c_orm_string_builder_append(sb, "'");
-      c_orm_string_builder_append(sb, " AND ");
+        APPEND("'");
+      APPEND(" AND ");
       if (bw->is_string)
-        c_orm_string_builder_append(sb, "'");
-      c_orm_string_builder_append(sb, bw->high);
+        APPEND("'");
+      APPEND(bw->high);
       if (bw->is_string)
-        c_orm_string_builder_append(sb, "'");
+        APPEND("'");
     }
     break;
   }
@@ -265,55 +281,55 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
     ex = (c_orm_ast_exists_t *)node;
     subsql = NULL;
     if (ex->is_not)
-      c_orm_string_builder_append(sb, "NOT ");
-    c_orm_string_builder_append(sb, "EXISTS (");
+      APPEND("NOT ");
+    APPEND("EXISTS (");
     err = c_orm_query_to_sql(ex->query, dialect, &subsql, params);
     if (err != 0) {
       LOG_DEBUG("render_node: SQL generation failed for exists");
       return C_ORM_ERROR_SQL;
     }
-    c_orm_string_builder_append(sb, subsql);
-    c_orm_string_builder_append(sb, ")");
+    APPEND(subsql);
+    APPEND(")");
     C_ORM_FREE(subsql);
     break;
   }
   case C_ORM_AST_NODE_SUBQUERY: {
     sq = (c_orm_ast_subquery_t *)node;
     subsql = NULL;
-    c_orm_string_builder_append(sb, "(");
+    APPEND("(");
     err = c_orm_query_to_sql(sq->query, dialect, &subsql, params);
     if (err != 0) {
       LOG_DEBUG("render_node: SQL generation failed for subquery");
       return C_ORM_ERROR_SQL;
     }
-    c_orm_string_builder_append(sb, subsql);
-    c_orm_string_builder_append(sb, ")");
+    APPEND(subsql);
+    APPEND(")");
     if (sq->alias && sq->alias[0] != '\0') {
-      c_orm_string_builder_append(sb, " AS ");
-      c_orm_string_builder_append(sb, sq->alias);
+      APPEND(" AS ");
+      APPEND(sq->alias);
     }
     C_ORM_FREE(subsql);
     break;
   }
   case C_ORM_AST_NODE_WINDOW: {
     win = (c_orm_ast_window_t *)node;
-    c_orm_string_builder_append(sb, win->func_name);
-    c_orm_string_builder_append(sb, " OVER (");
+    APPEND(win->func_name);
+    APPEND(" OVER (");
     if (win->partition_by && win->partition_by[0] != '\0') {
-      c_orm_string_builder_append(sb, "PARTITION BY ");
-      c_orm_string_builder_append(sb, win->partition_by);
+      APPEND("PARTITION BY ");
+      APPEND(win->partition_by);
       if (win->order_by && win->order_by[0] != '\0') {
-        c_orm_string_builder_append(sb, " ");
+        APPEND(" ");
       }
     }
     if (win->order_by && win->order_by[0] != '\0') {
-      c_orm_string_builder_append(sb, "ORDER BY ");
-      c_orm_string_builder_append(sb, win->order_by);
+      APPEND("ORDER BY ");
+      APPEND(win->order_by);
     }
-    c_orm_string_builder_append(sb, ")");
+    APPEND(")");
     if (win->alias && win->alias[0] != '\0') {
-      c_orm_string_builder_append(sb, " AS ");
-      c_orm_string_builder_append(sb, win->alias);
+      APPEND(" AS ");
+      APPEND(win->alias);
     }
     break;
   }
@@ -413,43 +429,43 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
   }
 
   if (wth) {
-    c_orm_string_builder_append(sb, "WITH ");
-    c_orm_string_builder_append(sb, wth->alias);
-    c_orm_string_builder_append(sb, " AS (");
+    APPEND_SQL("WITH ");
+    APPEND_SQL(wth->alias);
+    APPEND_SQL(" AS (");
     rc = c_orm_query_to_sql(wth->query, dialect, &subsql, out_params);
     if (rc != 0) {
       c_orm_string_builder_free(sb);
       LOG_DEBUG("c_orm_query_to_sql: with query failed");
       return rc;
     }
-    c_orm_string_builder_append(sb, subsql);
+    APPEND_SQL(subsql);
     C_ORM_FREE(subsql);
-    c_orm_string_builder_append(sb, ") ");
+    APPEND_SQL(") ");
   }
 
   if (sel) {
-    c_orm_string_builder_append(sb, "SELECT ");
+    APPEND_SQL("SELECT ");
     if (sel->is_distinct)
-      c_orm_string_builder_append(sb, "DISTINCT ");
-    c_orm_string_builder_append(sb, sel->columns);
+      APPEND_SQL("DISTINCT ");
+    APPEND_SQL(sel->columns);
   }
 
   if (frm) {
-    c_orm_string_builder_append(sb, " FROM ");
-    c_orm_string_builder_append(sb, frm->table);
+    APPEND_SQL(" FROM ");
+    APPEND_SQL(frm->table);
     if (frm->alias && frm->alias[0] != '\0') {
-      c_orm_string_builder_append(sb, " AS ");
-      c_orm_string_builder_append(sb, frm->alias);
+      APPEND_SQL(" AS ");
+      APPEND_SQL(frm->alias);
     }
   }
 
   for (i = join_count; i > 0; i--) {
     c_orm_ast_join_t *jn = joins[i - 1];
-    c_orm_string_builder_append(sb, " ");
-    c_orm_string_builder_append(sb, jn->type_str);
-    c_orm_string_builder_append(sb, " JOIN ");
-    c_orm_string_builder_append(sb, jn->table);
-    c_orm_string_builder_append(sb, " ON ");
+    APPEND_SQL(" ");
+    APPEND_SQL(jn->type_str);
+    APPEND_SQL(" JOIN ");
+    APPEND_SQL(jn->table);
+    APPEND_SQL(" ON ");
     if (render_node(jn->on_condition, dialect, sb, out_params, 0) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
       rc = C_ORM_ERROR_UNKNOWN;
@@ -459,7 +475,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
   }
 
   if (whr && whr->condition) {
-    c_orm_string_builder_append(sb, " WHERE ");
+    APPEND(" WHERE ");
     if (render_node(whr->condition, dialect, sb, out_params, 0) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
       rc = C_ORM_ERROR_UNKNOWN;
@@ -469,12 +485,12 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
   }
 
   if (grp) {
-    c_orm_string_builder_append(sb, " GROUP BY ");
-    c_orm_string_builder_append(sb, grp->columns);
+    APPEND(" GROUP BY ");
+    APPEND(grp->columns);
   }
 
   if (hav && hav->condition) {
-    c_orm_string_builder_append(sb, " HAVING ");
+    APPEND(" HAVING ");
     if (render_node(hav->condition, dialect, sb, out_params, 0) != C_ORM_OK) {
       c_orm_string_builder_free(sb);
       rc = C_ORM_ERROR_UNKNOWN;
@@ -485,35 +501,35 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
 
   if (uni) {
     subsql = NULL;
-    c_orm_string_builder_append(sb, uni->is_all ? " UNION ALL " : " UNION ");
+    APPEND(uni->is_all ? " UNION ALL " : " UNION ");
     rc = c_orm_query_to_sql(uni->query, dialect, &subsql, out_params);
     if (rc != 0) {
       c_orm_string_builder_free(sb);
       LOG_DEBUG("c_orm_query_to_sql: union failed");
       return rc;
     }
-    c_orm_string_builder_append(sb, subsql);
+    APPEND_SQL(subsql);
     C_ORM_FREE(subsql);
   }
 
   if (ord) {
-    c_orm_string_builder_append(sb, " ORDER BY ");
-    c_orm_string_builder_append(sb, ord->column);
-    c_orm_string_builder_append(sb, ord->is_desc ? " DESC" : " ASC");
+    APPEND_SQL(" ORDER BY ");
+    APPEND_SQL(ord->column);
+    APPEND_SQL(ord->is_desc ? " DESC" : " ASC");
   }
 
   if (lim) {
     char num_buf[32];
     C_ORM_SPRINTF(num_buf, sizeof(num_buf), " LIMIT %u",
                   (unsigned int)lim->limit);
-    c_orm_string_builder_append(sb, num_buf);
+    APPEND_SQL(num_buf);
   }
 
   if (off) {
     char num_buf[32];
     C_ORM_SPRINTF(num_buf, sizeof(num_buf), " OFFSET %u",
                   (unsigned int)off->offset);
-    c_orm_string_builder_append(sb, num_buf);
+    APPEND_SQL(num_buf);
   }
 
   {
@@ -579,7 +595,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
   for (i = 0; i < params.count; i++) {
     err = db->vtable->bind_string(stmt, (int)(i + 1), params.params[i].value);
     if (err != C_ORM_OK) {
-      c_orm_finalize_cached(db, stmt);
+      {
+        c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
+        if (_fin != C_ORM_OK) {
+          LOG_DEBUG("finalize failed: %d", _fin);
+        }
+      }
       c_orm_query_params_cleanup(&params);
       LOG_DEBUG("c_orm_query_execute: bind failed");
       return err;
@@ -587,7 +608,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
   }
 
   err = db->vtable->step(stmt, &has_row);
-  c_orm_finalize_cached(db, stmt);
+  {
+    c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
+    if (_fin != C_ORM_OK) {
+      LOG_DEBUG("finalize failed: %d", _fin);
+    }
+  }
   c_orm_query_params_cleanup(&params);
   LOG_DEBUG("c_orm_query_execute: exit");
   return err;
@@ -638,7 +664,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
   for (i = 0; i < params.count; i++) {
     err = db->vtable->bind_string(stmt, (int)(i + 1), params.params[i].value);
     if (err != C_ORM_OK) {
-      c_orm_finalize_cached(db, stmt);
+      {
+        c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
+        if (_fin != C_ORM_OK) {
+          LOG_DEBUG("finalize failed: %d", _fin);
+        }
+      }
       c_orm_query_params_cleanup(&params);
       LOG_DEBUG("c_orm_query_fetch_one: bind failed");
       return err;
@@ -648,11 +679,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
   err = db->vtable->step(stmt, &has_row);
   if (err == C_ORM_OK && has_row) {
     err = c_orm_hydrate_row(db, stmt, meta, out_struct);
-  } else if (err == C_ORM_OK) {
-    err = C_ORM_ERROR_NOT_FOUND;
   }
 
-  c_orm_finalize_cached(db, stmt);
+  {
+    c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
+    if (_fin != C_ORM_OK) {
+      LOG_DEBUG("finalize failed: %d", _fin);
+    }
+  }
   c_orm_query_params_cleanup(&params);
   LOG_DEBUG("c_orm_query_fetch_one: exit");
   return err;
@@ -702,7 +736,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
   for (i = 0; i < params.count; i++) {
     err = db->vtable->bind_string(stmt, (int)(i + 1), params.params[i].value);
     if (err != C_ORM_OK) {
-      c_orm_finalize_cached(db, stmt);
+      {
+        c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
+        if (_fin != C_ORM_OK) {
+          LOG_DEBUG("finalize failed: %d", _fin);
+        }
+      }
       c_orm_query_params_cleanup(&params);
       LOG_DEBUG("c_orm_query_fetch_all: bind failed");
       return err;
@@ -710,7 +749,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
   }
 
   err = c_orm_hydrate_all(db, stmt, meta, out_array);
-  c_orm_finalize_cached(db, stmt);
+  {
+    c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
+    if (_fin != C_ORM_OK) {
+      LOG_DEBUG("finalize failed: %d", _fin);
+    }
+  }
   c_orm_query_params_cleanup(&params);
   LOG_DEBUG("c_orm_query_fetch_all: exit");
   return err;

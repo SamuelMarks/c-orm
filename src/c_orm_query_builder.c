@@ -51,8 +51,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_builder_init(
   b->has_where = 0;
   b->has_order = 0;
 
-  c_orm_string_builder_append(b->sb, "SELECT * FROM ");
-  c_orm_string_builder_append(b->sb, meta->name);
+  (void)c_orm_string_builder_append(b->sb, "SELECT * FROM ");
+  (void)c_orm_string_builder_append(b->sb, meta->name);
 
   *out_builder = b;
 
@@ -92,8 +92,6 @@ c_orm_select_builder_compile(c_orm_select_builder_t *builder, char **out_sql) {
     } else {
       LOG_DEBUG("c_orm_select_builder_compile: OOM");
     }
-  } else {
-    *out_sql = NULL;
   }
 
   LOG_DEBUG("c_orm_select_builder_compile: exit");
@@ -113,13 +111,13 @@ static int append_where(c_orm_select_builder_t *builder, const char *column,
     return rc;
   }
   if (!builder->has_where) {
-    c_orm_string_builder_append(builder->sb, " WHERE ");
+    (void)c_orm_string_builder_append(builder->sb, " WHERE ");
     builder->has_where = 1;
   } else {
-    c_orm_string_builder_append(builder->sb, " AND ");
+    (void)c_orm_string_builder_append(builder->sb, " AND ");
   }
-  c_orm_string_builder_append(builder->sb, column);
-  c_orm_string_builder_append(builder->sb, op);
+  (void)c_orm_string_builder_append(builder->sb, column);
+  (void)c_orm_string_builder_append(builder->sb, op);
 
   LOG_DEBUG("append_where: exit");
   rc = C_ORM_OK;
@@ -229,19 +227,19 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_in(
     return rc;
   }
   if (!builder->has_where) {
-    c_orm_string_builder_append(builder->sb, " WHERE ");
+    (void)c_orm_string_builder_append(builder->sb, " WHERE ");
     builder->has_where = 1;
   } else {
-    c_orm_string_builder_append(builder->sb, " AND ");
+    (void)c_orm_string_builder_append(builder->sb, " AND ");
   }
-  c_orm_string_builder_append(builder->sb, column);
-  c_orm_string_builder_append(builder->sb, " IN (");
+  (void)c_orm_string_builder_append(builder->sb, column);
+  (void)c_orm_string_builder_append(builder->sb, " IN (");
   for (i = 0; i < count; ++i) {
-    c_orm_string_builder_append(builder->sb, "?");
+    (void)c_orm_string_builder_append(builder->sb, "?");
     if (i < count - 1)
-      c_orm_string_builder_append(builder->sb, ", ");
+      (void)c_orm_string_builder_append(builder->sb, ", ");
   }
-  c_orm_string_builder_append(builder->sb, ")");
+  (void)c_orm_string_builder_append(builder->sb, ")");
 
   LOG_DEBUG("c_orm_select_where_in: exit");
   rc = C_ORM_OK;
@@ -298,12 +296,12 @@ static int build_exists_query(c_orm_string_builder_t *sb,
   dot = strchr(path, '.');
   if (!dot) {
     /* No dot means it's a column on the current table */
-    c_orm_string_builder_append(sb, parent_alias);
-    c_orm_string_builder_append(sb, ".");
-    c_orm_string_builder_append(sb, path);
-    c_orm_string_builder_append(sb, " ");
-    c_orm_string_builder_append(sb, operator_str);
-    c_orm_string_builder_append(sb, " ?");
+    (void)c_orm_string_builder_append(sb, parent_alias);
+    (void)c_orm_string_builder_append(sb, ".");
+    (void)c_orm_string_builder_append(sb, path);
+    (void)c_orm_string_builder_append(sb, " ");
+    (void)c_orm_string_builder_append(sb, operator_str);
+    (void)c_orm_string_builder_append(sb, " ?");
 
     LOG_DEBUG("build_exists_query: exit");
     rc = C_ORM_OK;
@@ -344,45 +342,45 @@ static int build_exists_query(c_orm_string_builder_t *sb,
 
     C_ORM_SPRINTF(target_alias, sizeof(target_alias), "t%d", depth);
 
-    c_orm_string_builder_append(sb, "EXISTS (SELECT 1 FROM ");
-    c_orm_string_builder_append(sb, rel->target_meta->name);
-    c_orm_string_builder_append(sb, " ");
-    c_orm_string_builder_append(sb, target_alias);
+    (void)c_orm_string_builder_append(sb, "EXISTS (SELECT 1 FROM ");
+    (void)c_orm_string_builder_append(sb, rel->target_meta->name);
+    (void)c_orm_string_builder_append(sb, " ");
+    (void)c_orm_string_builder_append(sb, target_alias);
 
     if (rel->type == C_ORM_RELATION_MANY_TO_MANY) {
-      c_orm_string_builder_append(sb, " INNER JOIN ");
-      c_orm_string_builder_append(sb, rel->join_table);
-      c_orm_string_builder_append(sb, " j_");
-      c_orm_string_builder_append(sb, target_alias);
-      c_orm_string_builder_append(sb, " ON ");
-      c_orm_string_builder_append(sb, target_alias);
-      c_orm_string_builder_append(sb, ".");
-      c_orm_string_builder_append(sb, target_pk);
-      c_orm_string_builder_append(sb, " = j_");
-      c_orm_string_builder_append(sb, target_alias);
-      c_orm_string_builder_append(sb, ".");
-      c_orm_string_builder_append(sb, rel->join_foreign_key);
+      (void)c_orm_string_builder_append(sb, " INNER JOIN ");
+      (void)c_orm_string_builder_append(sb, rel->join_table);
+      (void)c_orm_string_builder_append(sb, " j_");
+      (void)c_orm_string_builder_append(sb, target_alias);
+      (void)c_orm_string_builder_append(sb, " ON ");
+      (void)c_orm_string_builder_append(sb, target_alias);
+      (void)c_orm_string_builder_append(sb, ".");
+      (void)c_orm_string_builder_append(sb, target_pk);
+      (void)c_orm_string_builder_append(sb, " = j_");
+      (void)c_orm_string_builder_append(sb, target_alias);
+      (void)c_orm_string_builder_append(sb, ".");
+      (void)c_orm_string_builder_append(sb, rel->join_foreign_key);
 
-      c_orm_string_builder_append(sb, " WHERE j_");
-      c_orm_string_builder_append(sb, target_alias);
-      c_orm_string_builder_append(sb, ".");
-      c_orm_string_builder_append(sb, rel->join_local_key);
-      c_orm_string_builder_append(sb, " = ");
-      c_orm_string_builder_append(sb, parent_alias);
-      c_orm_string_builder_append(sb, ".");
-      c_orm_string_builder_append(sb, rel->local_key);
+      (void)c_orm_string_builder_append(sb, " WHERE j_");
+      (void)c_orm_string_builder_append(sb, target_alias);
+      (void)c_orm_string_builder_append(sb, ".");
+      (void)c_orm_string_builder_append(sb, rel->join_local_key);
+      (void)c_orm_string_builder_append(sb, " = ");
+      (void)c_orm_string_builder_append(sb, parent_alias);
+      (void)c_orm_string_builder_append(sb, ".");
+      (void)c_orm_string_builder_append(sb, rel->local_key);
     } else {
-      c_orm_string_builder_append(sb, " WHERE ");
-      c_orm_string_builder_append(sb, target_alias);
-      c_orm_string_builder_append(sb, ".");
-      c_orm_string_builder_append(sb, rel->foreign_key);
-      c_orm_string_builder_append(sb, " = ");
-      c_orm_string_builder_append(sb, parent_alias);
-      c_orm_string_builder_append(sb, ".");
-      c_orm_string_builder_append(sb, rel->local_key);
+      (void)c_orm_string_builder_append(sb, " WHERE ");
+      (void)c_orm_string_builder_append(sb, target_alias);
+      (void)c_orm_string_builder_append(sb, ".");
+      (void)c_orm_string_builder_append(sb, rel->foreign_key);
+      (void)c_orm_string_builder_append(sb, " = ");
+      (void)c_orm_string_builder_append(sb, parent_alias);
+      (void)c_orm_string_builder_append(sb, ".");
+      (void)c_orm_string_builder_append(sb, rel->local_key);
     }
 
-    c_orm_string_builder_append(sb, " AND ");
+    (void)c_orm_string_builder_append(sb, " AND ");
     res = build_exists_query(sb, rel->target_meta, dot + 1, operator_str,
                              target_alias, depth + 1);
     if (res != 0) {
@@ -391,7 +389,7 @@ static int build_exists_query(c_orm_string_builder_t *sb,
       return rc;
     }
 
-    c_orm_string_builder_append(sb, ")");
+    (void)c_orm_string_builder_append(sb, ")");
 
     LOG_DEBUG("build_exists_query: exit");
     rc = C_ORM_OK;
@@ -412,10 +410,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_relation(
     return rc;
   }
   if (!builder->has_where) {
-    c_orm_string_builder_append(builder->sb, " WHERE ");
+    (void)c_orm_string_builder_append(builder->sb, " WHERE ");
     builder->has_where = 1;
   } else {
-    c_orm_string_builder_append(builder->sb, " AND ");
+    (void)c_orm_string_builder_append(builder->sb, " AND ");
   }
 
   rc = build_exists_query(builder->sb, builder->meta, relation_name,
@@ -435,8 +433,8 @@ c_orm_select_group_by(c_orm_select_builder_t *builder, const char *column) {
     rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
-  c_orm_string_builder_append(builder->sb, " GROUP BY ");
-  c_orm_string_builder_append(builder->sb, column);
+  (void)c_orm_string_builder_append(builder->sb, " GROUP BY ");
+  (void)c_orm_string_builder_append(builder->sb, column);
 
   LOG_DEBUG("c_orm_select_group_by: exit");
   rc = C_ORM_OK;
@@ -454,8 +452,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_having(c_orm_select_builder_t *builder,
     rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
-  c_orm_string_builder_append(builder->sb, " HAVING ");
-  c_orm_string_builder_append(builder->sb, clause);
+  (void)c_orm_string_builder_append(builder->sb, " HAVING ");
+  (void)c_orm_string_builder_append(builder->sb, clause);
 
   LOG_DEBUG("c_orm_select_having: exit");
   rc = C_ORM_OK;
@@ -508,7 +506,7 @@ c_orm_select_aggregate(c_orm_select_builder_t *builder, const char *func,
       rc = C_ORM_ERROR_UNKNOWN;
       return rc;
     }
-    c_orm_string_builder_append(builder->sb, new_sql);
+    (void)c_orm_string_builder_append(builder->sb, new_sql);
     C_ORM_FREE(new_sql);
   } else {
     from_pos = strstr(current_sql, " FROM ");
@@ -538,7 +536,7 @@ c_orm_select_aggregate(c_orm_select_builder_t *builder, const char *func,
         rc = C_ORM_ERROR_UNKNOWN;
         return rc;
       }
-      c_orm_string_builder_append(builder->sb, new_sql);
+      (void)c_orm_string_builder_append(builder->sb, new_sql);
       C_ORM_FREE(new_sql);
     }
   }
@@ -560,16 +558,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_order_by(
     return rc;
   }
   if (!builder->has_order) {
-    c_orm_string_builder_append(builder->sb, " ORDER BY ");
+    (void)c_orm_string_builder_append(builder->sb, " ORDER BY ");
     builder->has_order = 1;
   } else {
-    c_orm_string_builder_append(builder->sb, ", ");
+    (void)c_orm_string_builder_append(builder->sb, ", ");
   }
-  c_orm_string_builder_append(builder->sb, column);
+  (void)c_orm_string_builder_append(builder->sb, column);
   if (is_desc) {
-    c_orm_string_builder_append(builder->sb, " DESC");
+    (void)c_orm_string_builder_append(builder->sb, " DESC");
   } else {
-    c_orm_string_builder_append(builder->sb, " ASC");
+    (void)c_orm_string_builder_append(builder->sb, " ASC");
   }
 
   LOG_DEBUG("c_orm_select_order_by: exit");
@@ -591,7 +589,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_limit(c_orm_select_builder_t *builder,
   }
   C_ORM_SPRINTF(buf, sizeof(buf), " LIMIT " C_ORM_FMT_SIZE_T,
                 C_ORM_CAST_SIZE_T(limit));
-  c_orm_string_builder_append(builder->sb, buf);
+  (void)c_orm_string_builder_append(builder->sb, buf);
 
   LOG_DEBUG("c_orm_select_limit: exit");
   rc = C_ORM_OK;
@@ -612,7 +610,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_offset(c_orm_select_builder_t *builder,
   }
   C_ORM_SPRINTF(buf, sizeof(buf), " OFFSET " C_ORM_FMT_SIZE_T,
                 C_ORM_CAST_SIZE_T(offset));
-  c_orm_string_builder_append(builder->sb, buf);
+  (void)c_orm_string_builder_append(builder->sb, buf);
 
   LOG_DEBUG("c_orm_select_offset: exit");
   rc = C_ORM_OK;
@@ -695,9 +693,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_builder_init(
   b->has_set = 0;
   b->has_where = 0;
 
-  c_orm_string_builder_append(b->sb, "UPDATE ");
-  c_orm_string_builder_append(b->sb, meta->name);
-  c_orm_string_builder_append(b->sb, " SET ");
+  (void)c_orm_string_builder_append(b->sb, "UPDATE ");
+  (void)c_orm_string_builder_append(b->sb, meta->name);
+  (void)c_orm_string_builder_append(b->sb, " SET ");
 
   *out_builder = b;
 
@@ -734,10 +732,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_set(c_orm_update_builder_t *builder,
   }
 
   if (builder->has_set) {
-    c_orm_string_builder_append(builder->sb, ", ");
+    (void)c_orm_string_builder_append(builder->sb, ", ");
   }
-  c_orm_string_builder_append(builder->sb, column);
-  c_orm_string_builder_append(builder->sb, " = ?");
+  (void)c_orm_string_builder_append(builder->sb, column);
+  (void)c_orm_string_builder_append(builder->sb, " = ?");
   builder->has_set = 1;
 
   LOG_DEBUG("c_orm_update_set: exit");
@@ -757,13 +755,13 @@ c_orm_update_where_eq(c_orm_update_builder_t *builder, const char *column) {
     return rc;
   }
   if (!builder->has_where) {
-    c_orm_string_builder_append(builder->sb, " WHERE ");
+    (void)c_orm_string_builder_append(builder->sb, " WHERE ");
     builder->has_where = 1;
   } else {
-    c_orm_string_builder_append(builder->sb, " AND ");
+    (void)c_orm_string_builder_append(builder->sb, " AND ");
   }
-  c_orm_string_builder_append(builder->sb, column);
-  c_orm_string_builder_append(builder->sb, " = ?");
+  (void)c_orm_string_builder_append(builder->sb, column);
+  (void)c_orm_string_builder_append(builder->sb, " = ?");
 
   LOG_DEBUG("c_orm_update_where_eq: exit");
   rc = C_ORM_OK;
@@ -791,8 +789,6 @@ c_orm_update_builder_compile(c_orm_update_builder_t *builder, char **out_sql) {
     } else {
       LOG_DEBUG("c_orm_update_builder_compile: OOM");
     }
-  } else {
-    *out_sql = NULL;
   }
 
   LOG_DEBUG("c_orm_update_builder_compile: exit");

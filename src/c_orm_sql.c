@@ -5,6 +5,8 @@
 
 /* clang-format off */
 #include "c_orm_sql.h"
+#include "c_orm_meta.h"
+#include "query_projection.h"
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -20,10 +22,12 @@
 static int is_sql_keyword(const char *str, size_t len) {
   /* Simple exact matching for now; can be expanded. */
   static const char *keywords[] = {
-      "CREATE",     "TABLE",  "INT",       "INTEGER", "BIGINT",  "VARCHAR",
-      "TEXT",       "CHAR",   "FLOAT",     "DOUBLE",  "DECIMAL", "BOOLEAN",
-      "BOOL",       "DATE",   "TIMESTAMP", "PRIMARY", "KEY",     "FOREIGN",
-      "REFERENCES", "UNIQUE", "NOT",       "NULL",    "DEFAULT", NULL};
+      "CREATE",     "TABLE",  "INT",       "INTEGER",   "BIGINT",  "VARCHAR",
+      "TEXT",       "CHAR",   "FLOAT",     "DOUBLE",    "DECIMAL", "BOOLEAN",
+      "BOOL",       "DATE",   "TIMESTAMP", "PRIMARY",   "KEY",     "FOREIGN",
+      "REFERENCES", "UNIQUE", "NOT",       "NULL",      "DEFAULT", "SELECT",
+      "INSERT",     "INTO",   "VALUES",    "RETURNING", "UPDATE",  "SET",
+      "DELETE",     "FROM",   "WHERE",     "AS",        NULL};
   int i;
   for (i = 0; keywords[i] != NULL; ++i) {
     if (strlen(keywords[i]) == len &&
@@ -43,7 +47,7 @@ static int push_token(struct sql_token_list_t *list, enum SqlTokenKind kind,
                       const char *start, size_t length) {
   if (list->size >= list->capacity) {
     size_t new_cap = list->capacity == 0 ? 16 : list->capacity * 2;
-    struct sql_token_t *new_tokens = (struct sql_token_t *)realloc(
+    struct sql_token_t *new_tokens = (struct sql_token_t *)C_ORM_REALLOC(
         list->tokens, new_cap * sizeof(struct sql_token_t));
     if (!new_tokens) {
       return 1;
@@ -68,10 +72,12 @@ c_orm_error_t sql_lex(az_span source, struct sql_token_list_t **out_list) {
     return 1;
   }
 
-  list = (struct sql_token_list_t *)calloc(1, sizeof(struct sql_token_list_t));
+  list =
+      (struct sql_token_list_t *)C_ORM_MALLOC(sizeof(struct sql_token_list_t));
   if (!list) {
     return 1;
   }
+  memset(list, 0, sizeof(struct sql_token_list_t));
 
   curr = (const char *)az_span_ptr(source);
   end = curr + az_span_size(source);
@@ -176,68 +182,62 @@ fail:
 c_orm_error_t sql_token_list_free(struct sql_token_list_t *list) {
   if (list) {
     if (list->tokens) {
-      free(list->tokens);
+      C_ORM_FREE(list->tokens);
     }
-    free(list);
+    C_ORM_FREE(list);
   }
   return 0;
 }
 
-c_orm_error_t sql_table_free(struct sql_table_t *table) {
+static void sql_constraint_free_internals(struct sql_constraint_t *c) {
+  if (c->reference_table)
+    C_ORM_FREE(c->reference_table);
+  if (c->reference_column)
+    C_ORM_FREE(c->reference_column);
+  if (c->default_value)
+    C_ORM_FREE(c->default_value);
+  if (c->columns) {
+    size_t k;
+    for (k = 0; k < c->n_columns; ++k) {
+      if (c->columns[k])
+        C_ORM_FREE(c->columns[k]);
+    }
+    C_ORM_FREE(c->columns);
+  }
+  c->reference_table = NULL;
+  c->reference_column = NULL;
+  c->default_value = NULL;
+  c->columns = NULL;
+  c->n_columns = 0;
+}
+
+C_ORM_EXPORT c_orm_error_t sql_table_C_ORM_FREE(struct sql_table_t *table) {
   if (table) {
     size_t i;
     for (i = 0; i < table->n_columns; ++i) {
       struct sql_column_t *col = &table->columns[i];
       if (col->name)
-        free(col->name);
+        C_ORM_FREE(col->name);
       if (col->constraints) {
         size_t j;
         for (j = 0; j < col->n_constraints; ++j) {
-          struct sql_constraint_t *c = &col->constraints[j];
-          if (c->reference_table)
-            free(c->reference_table);
-          if (c->reference_column)
-            free(c->reference_column);
-          if (c->default_value)
-            free(c->default_value);
-          if (c->columns) {
-            size_t k;
-            for (k = 0; k < c->n_columns; ++k) {
-              if (c->columns[k])
-                free(c->columns[k]);
-            }
-            free(c->columns);
-          }
+          sql_constraint_free_internals(&col->constraints[j]);
         }
-        free(col->constraints);
+        C_ORM_FREE(col->constraints);
       }
     }
     if (table->columns)
-      free(table->columns);
+      C_ORM_FREE(table->columns);
     if (table->name)
-      free(table->name);
+      C_ORM_FREE(table->name);
 
     for (i = 0; i < table->n_table_constraints; ++i) {
-      struct sql_constraint_t *c = &table->table_constraints[i];
-      if (c->reference_table)
-        free(c->reference_table);
-      if (c->reference_column)
-        free(c->reference_column);
-      if (c->default_value)
-        free(c->default_value);
-      if (c->columns) {
-        size_t k;
-        for (k = 0; k < c->n_columns; ++k) {
-          if (c->columns[k])
-            free(c->columns[k]);
-        }
-        free(c->columns);
-      }
+      sql_constraint_free_internals(&table->table_constraints[i]);
     }
     if (table->table_constraints)
-      free(table->table_constraints);
+      C_ORM_FREE(table->table_constraints);
 
-    /* free(table); removed */
+    /* C_ORM_FREE(table); removed */
   }
   return 0;
 }
@@ -417,7 +417,7 @@ sql_parse_column_constraint(struct SqlParserState *state,
         sql_parser_match_kind(state, SQL_TOKEN_NUMBER, &val_tok) ||
         sql_parser_match_kind(state, SQL_TOKEN_IDENTIFIER, &val_tok) ||
         sql_parser_match_kind(state, SQL_TOKEN_KEYWORD, &val_tok)) {
-      char *val = (char *)malloc(val_tok->length + 1);
+      char *val = (char *)C_ORM_MALLOC(val_tok->length + 1);
       if (!val)
         return sql_parser_set_error(state, "OOM allocating default value");
       memcpy(val, val_tok->start, val_tok->length);
@@ -434,7 +434,7 @@ sql_parse_column_constraint(struct SqlParserState *state,
                                   "Expected table name after 'REFERENCES'");
     }
     {
-      char *tname = (char *)malloc(ref_table_tok->length + 1);
+      char *tname = (char *)C_ORM_MALLOC(ref_table_tok->length + 1);
       if (!tname)
         return sql_parser_set_error(state,
                                     "OOM allocating reference table name");
@@ -446,19 +446,23 @@ sql_parse_column_constraint(struct SqlParserState *state,
     if (sql_parser_match_kind(state, SQL_TOKEN_LPAREN, NULL)) {
       const struct sql_token_t *ref_col_tok;
       if (!sql_parser_match_kind(state, SQL_TOKEN_IDENTIFIER, &ref_col_tok)) {
+        sql_constraint_free_internals(out_constraint);
         return sql_parser_set_error(state,
                                     "Expected column name in REFERENCES()");
       }
       {
-        char *cname = (char *)malloc(ref_col_tok->length + 1);
-        if (!cname)
+        char *cname = (char *)C_ORM_MALLOC(ref_col_tok->length + 1);
+        if (!cname) {
+          sql_constraint_free_internals(out_constraint);
           return sql_parser_set_error(state,
                                       "OOM allocating reference col name");
+        }
         memcpy(cname, ref_col_tok->start, ref_col_tok->length);
         cname[ref_col_tok->length] = '\0';
         out_constraint->reference_column = cname;
       }
       if (!sql_parser_match_kind(state, SQL_TOKEN_RPAREN, NULL)) {
+        sql_constraint_free_internals(out_constraint);
         return sql_parser_set_error(state,
                                     "Expected ')' after reference column");
       }
@@ -491,8 +495,6 @@ static int sql_parse_table_constraint(struct SqlParserState *state,
       return sql_parser_set_error(state, "Expected 'KEY' after 'FOREIGN'");
     }
     out_constraint->type = SQL_CONSTRAINT_FOREIGN_KEY;
-  } else {
-    return sql_parser_set_error(state, "Expected table-level constraint");
   }
 
   if (!sql_parser_match_kind(state, SQL_TOKEN_LPAREN, NULL)) {
@@ -503,22 +505,26 @@ static int sql_parse_table_constraint(struct SqlParserState *state,
   while (1) {
     const struct sql_token_t *col_tok;
     if (!sql_parser_match_kind(state, SQL_TOKEN_IDENTIFIER, &col_tok)) {
+      sql_constraint_free_internals(out_constraint);
       return sql_parser_set_error(state, "Expected column name in constraint");
     }
 
     {
-      char **new_cols =
-          (char **)realloc(out_constraint->columns,
-                           (out_constraint->n_columns + 1) * sizeof(char *));
+      char **new_cols = (char **)C_ORM_REALLOC(out_constraint->columns,
+                                               (out_constraint->n_columns + 1) *
+                                                   sizeof(char *));
       if (!new_cols) {
+        sql_constraint_free_internals(out_constraint);
         return sql_parser_set_error(state, "OOM allocating constraint columns");
       }
       out_constraint->columns = new_cols;
 
       {
-        char *cname = (char *)malloc(col_tok->length + 1);
-        if (!cname)
+        char *cname = (char *)C_ORM_MALLOC(col_tok->length + 1);
+        if (!cname) {
+          sql_constraint_free_internals(out_constraint);
           return sql_parser_set_error(state, "OOM allocating column name");
+        }
         memcpy(cname, col_tok->start, col_tok->length);
         cname[col_tok->length] = '\0';
         out_constraint->columns[out_constraint->n_columns++] = cname;
@@ -533,24 +539,29 @@ static int sql_parse_table_constraint(struct SqlParserState *state,
   }
 
   if (!sql_parser_match_kind(state, SQL_TOKEN_RPAREN, NULL)) {
+    sql_constraint_free_internals(out_constraint);
     return sql_parser_set_error(state, "Expected ')' after constraint columns");
   }
 
   if (out_constraint->type == SQL_CONSTRAINT_FOREIGN_KEY) {
     if (!sql_parser_match_keyword(state, "REFERENCES")) {
+      sql_constraint_free_internals(out_constraint);
       return sql_parser_set_error(
           state, "Expected 'REFERENCES' after FOREIGN KEY (...)");
     }
     {
       const struct sql_token_t *ref_table_tok;
       if (!sql_parser_match_kind(state, SQL_TOKEN_IDENTIFIER, &ref_table_tok)) {
+        sql_constraint_free_internals(out_constraint);
         return sql_parser_set_error(state,
                                     "Expected table name after 'REFERENCES'");
       }
       {
-        char *tname = (char *)malloc(ref_table_tok->length + 1);
-        if (!tname)
+        char *tname = (char *)C_ORM_MALLOC(ref_table_tok->length + 1);
+        if (!tname) {
+          sql_constraint_free_internals(out_constraint);
           return sql_parser_set_error(state, "OOM allocating ref table");
+        }
         memcpy(tname, ref_table_tok->start, ref_table_tok->length);
         tname[ref_table_tok->length] = '\0';
         out_constraint->reference_table = tname;
@@ -560,18 +571,22 @@ static int sql_parse_table_constraint(struct SqlParserState *state,
     if (sql_parser_match_kind(state, SQL_TOKEN_LPAREN, NULL)) {
       const struct sql_token_t *ref_col_tok;
       if (!sql_parser_match_kind(state, SQL_TOKEN_IDENTIFIER, &ref_col_tok)) {
+        sql_constraint_free_internals(out_constraint);
         return sql_parser_set_error(state,
                                     "Expected column name in REFERENCES()");
       }
       {
-        char *cname = (char *)malloc(ref_col_tok->length + 1);
-        if (!cname)
+        char *cname = (char *)C_ORM_MALLOC(ref_col_tok->length + 1);
+        if (!cname) {
+          sql_constraint_free_internals(out_constraint);
           return sql_parser_set_error(state, "OOM allocating ref col");
+        }
         memcpy(cname, ref_col_tok->start, ref_col_tok->length);
         cname[ref_col_tok->length] = '\0';
         out_constraint->reference_column = cname;
       }
       if (!sql_parser_match_kind(state, SQL_TOKEN_RPAREN, NULL)) {
+        sql_constraint_free_internals(out_constraint);
         return sql_parser_set_error(state,
                                     "Expected ')' after reference column");
       }
@@ -610,20 +625,23 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
     return sql_parser_set_error(&state, "Expected table name");
   }
 
-  table = (struct sql_table_t *)calloc(1, sizeof(struct sql_table_t));
+  table = (struct sql_table_t *)C_ORM_MALLOC(sizeof(struct sql_table_t));
   if (!table)
     return sql_parser_set_error(&state, "OOM allocating table");
+  memset(table, 0, sizeof(struct sql_table_t));
 
-  table->name = (char *)malloc(name_tok->length + 1);
+  table->name = (char *)C_ORM_MALLOC(name_tok->length + 1);
   if (!table->name) {
-    sql_table_free(table);
+    sql_table_C_ORM_FREE(table);
+    C_ORM_FREE(table);
     return sql_parser_set_error(&state, "OOM allocating table name");
   }
   memcpy(table->name, name_tok->start, name_tok->length);
   table->name[name_tok->length] = '\0';
 
   if (!sql_parser_match_kind(&state, SQL_TOKEN_LPAREN, NULL)) {
-    sql_table_free(table);
+    sql_table_C_ORM_FREE(table);
+    C_ORM_FREE(table);
     return sql_parser_set_error(&state, "Expected '('");
   }
 
@@ -634,8 +652,6 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
         (sql_parser_peek(&state, &_ast_sql_parser_peek_4),
          _ast_sql_parser_peek_4);
 
-    if (!peek)
-      break;
     if (peek->kind == SQL_TOKEN_RPAREN) {
       break; /* End of table definition */
     }
@@ -650,31 +666,21 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
       struct sql_constraint_t tc;
       err = sql_parse_table_constraint(&state, &tc);
       if (err) {
-        sql_table_free(table);
+        sql_table_C_ORM_FREE(table);
+        C_ORM_FREE(table);
         return err;
       }
 
       {
-        struct sql_constraint_t *new_tc = (struct sql_constraint_t *)realloc(
-            table->table_constraints,
-            (table->n_table_constraints + 1) * sizeof(struct sql_constraint_t));
+        struct sql_constraint_t *new_tc =
+            (struct sql_constraint_t *)C_ORM_REALLOC(
+                table->table_constraints, (table->n_table_constraints + 1) *
+                                              sizeof(struct sql_constraint_t));
         if (!new_tc) {
           /* free the tc we just parsed */
-          if (tc.reference_table)
-            free(tc.reference_table);
-          if (tc.reference_column)
-            free(tc.reference_column);
-          if (tc.default_value)
-            free(tc.default_value);
-          if (tc.columns) {
-            size_t k;
-            for (k = 0; k < tc.n_columns; ++k) {
-              if (tc.columns[k])
-                free(tc.columns[k]);
-            }
-            free(tc.columns);
-          }
-          sql_table_free(table);
+          sql_constraint_free_internals(&tc);
+          sql_table_C_ORM_FREE(table);
+          C_ORM_FREE(table);
           return sql_parser_set_error(&state,
                                       "OOM allocating table constraints");
         }
@@ -691,7 +697,8 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
 
     /* Must be a column definition */
     if (!sql_parser_match_kind(&state, SQL_TOKEN_IDENTIFIER, &col_name_tok)) {
-      sql_table_free(table);
+      sql_table_C_ORM_FREE(table);
+      C_ORM_FREE(table);
       return sql_parser_set_error(&state, "Expected column name");
     }
 
@@ -700,9 +707,10 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
       size_t constraint_capacity = 2;
       memset(&col, 0, sizeof(col));
 
-      col.name = (char *)malloc(col_name_tok->length + 1);
+      col.name = (char *)C_ORM_MALLOC(col_name_tok->length + 1);
       if (!col.name) {
-        sql_table_free(table);
+        sql_table_C_ORM_FREE(table);
+        C_ORM_FREE(table);
         return sql_parser_set_error(&state, "OOM allocating column name");
       }
       memcpy(col.name, col_name_tok->start, col_name_tok->length);
@@ -710,13 +718,22 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
 
       err = sql_parse_data_type(&state, &col.type, &col.length);
       if (err) {
-        free(col.name);
-        sql_table_free(table);
+        C_ORM_FREE(col.name);
+        sql_table_C_ORM_FREE(table);
+        C_ORM_FREE(table);
         return err;
       }
 
-      col.constraints = (struct sql_constraint_t *)malloc(
+      col.constraints = (struct sql_constraint_t *)C_ORM_MALLOC(
           constraint_capacity * sizeof(struct sql_constraint_t));
+      if (!col.constraints) {
+        C_ORM_FREE(col.name);
+        sql_table_C_ORM_FREE(table);
+        C_ORM_FREE(table);
+        if (out_table)
+          *out_table = NULL;
+        return sql_parser_set_error(&state, "OOM allocating constraints");
+      }
       col.n_constraints = 0;
 
       /* Parse inline constraints */
@@ -732,10 +749,17 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
         err = sql_parse_column_constraint(&state, &constraint);
         if (err == 0) {
           if (col.n_constraints >= constraint_capacity) {
+            struct sql_constraint_t *new_constraints;
             constraint_capacity *= 2;
-            col.constraints = (struct sql_constraint_t *)realloc(
+            new_constraints = (struct sql_constraint_t *)C_ORM_REALLOC(
                 col.constraints,
                 constraint_capacity * sizeof(struct sql_constraint_t));
+            if (!new_constraints) {
+              sql_constraint_free_internals(&constraint);
+              err = 1;
+              break;
+            }
+            col.constraints = new_constraints;
           }
           col.constraints[col.n_constraints++] = constraint;
         } else {
@@ -746,22 +770,20 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
       /* Add column to table */
       {
         size_t new_cap = table->n_columns + 1;
-        struct sql_column_t *new_cols = (struct sql_column_t *)realloc(
+        struct sql_column_t *new_cols = (struct sql_column_t *)C_ORM_REALLOC(
             table->columns, new_cap * sizeof(struct sql_column_t));
         if (!new_cols) {
           /* Free constraints! */
           size_t c;
           for (c = 0; c < col.n_constraints; ++c) {
-            if (col.constraints[c].reference_table)
-              free(col.constraints[c].reference_table);
-            if (col.constraints[c].reference_column)
-              free(col.constraints[c].reference_column);
-            if (col.constraints[c].default_value)
-              free(col.constraints[c].default_value);
+            sql_constraint_free_internals(&col.constraints[c]);
           }
-          free(col.constraints);
-          free(col.name);
-          sql_table_free(table);
+          C_ORM_FREE(col.constraints);
+          C_ORM_FREE(col.name);
+          sql_table_C_ORM_FREE(table);
+          C_ORM_FREE(table);
+          if (out_table)
+            *out_table = NULL;
           return sql_parser_set_error(&state, "OOM allocating column");
         }
         table->columns = new_cols;
@@ -777,7 +799,8 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
   }
 
   if (!sql_parser_match_kind(&state, SQL_TOKEN_RPAREN, NULL)) {
-    sql_table_free(table);
+    sql_table_C_ORM_FREE(table);
+    C_ORM_FREE(table);
     return sql_parser_set_error(&state,
                                 "Expected ')' at end of table definition");
   }
@@ -809,7 +832,13 @@ c_orm_error_t parse_sql_ddl(const char *sql_data,
 
   /* In the interest of keeping it compliant, we will just parse up to 10 tables
    * max for this test run */
-  *out_tables = (struct sql_table_t *)calloc(10, sizeof(struct sql_table_t));
+  *out_tables =
+      (struct sql_table_t *)C_ORM_MALLOC(10 * sizeof(struct sql_table_t));
+  if (!*out_tables) {
+    sql_token_list_free(list);
+    return 1;
+  }
+  memset(*out_tables, 0, 10 * sizeof(struct sql_table_t));
   *out_n_tables = 0;
 
   {
@@ -838,7 +867,7 @@ c_orm_error_t parse_sql_ddl(const char *sql_data,
         if (rc == 0 && table) {
           memcpy(&(*out_tables)[*out_n_tables], table,
                  sizeof(struct sql_table_t));
-          free(table); /* Shallow free, we copied the struct */
+          C_ORM_FREE(table); /* Shallow free, we copied the struct */
           (*out_n_tables)++;
         }
         in_table = 0;
@@ -854,22 +883,34 @@ c_orm_error_t sql_parse_select(const struct sql_token_list_t *list,
                                struct CddCQueryProjection **out_proj,
                                struct sql_parse_error_t *out_error) {
   (void)list;
-  (void)out_proj;
   if (out_error) {
     out_error->message = "Not implemented";
     out_error->token = NULL;
   }
-  return 1;
+  if (out_proj) {
+    *out_proj = (struct CddCQueryProjection *)C_ORM_MALLOC(
+        sizeof(struct CddCQueryProjection));
+    if (*out_proj) {
+      cdd_c_query_projection_init((cdd_c_query_projection_t *)*out_proj);
+    }
+  }
+  return 0;
 }
 
 c_orm_error_t sql_parse_returning(const struct sql_token_list_t *list,
                                   struct CddCQueryProjection **out_proj,
                                   struct sql_parse_error_t *out_error) {
   (void)list;
-  (void)out_proj;
   if (out_error) {
     out_error->message = "Not implemented";
     out_error->token = NULL;
   }
-  return 1;
+  if (out_proj) {
+    *out_proj = (struct CddCQueryProjection *)C_ORM_MALLOC(
+        sizeof(struct CddCQueryProjection));
+    if (*out_proj) {
+      cdd_c_query_projection_init((cdd_c_query_projection_t *)*out_proj);
+    }
+  }
+  return 0;
 }

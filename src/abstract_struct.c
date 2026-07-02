@@ -31,8 +31,6 @@ static size_t cdd_c_memory_freed = 0;
 
 static c_orm_error_t cdd_c_malloc(size_t size, void **out_ptr) {
   void *ptr;
-  if (!out_ptr)
-    return EINVAL;
   ptr = malloc(size);
   if (ptr)
     cdd_c_memory_allocated += size;
@@ -44,8 +42,6 @@ static c_orm_error_t cdd_c_malloc(size_t size, void **out_ptr) {
 
 static c_orm_error_t cdd_c_realloc(void *ptr, size_t size, void **out_ptr) {
   void *new_ptr;
-  if (!out_ptr)
-    return EINVAL;
   new_ptr = realloc(ptr, size);
   if (new_ptr && !ptr)
     cdd_c_memory_allocated += size; /* Rough estimate */
@@ -82,6 +78,8 @@ cdd_c_abstract_struct_array_init(cdd_c_abstract_struct_array_t *arr,
                                  size_t capacity) {
   if (!arr)
     return EINVAL;
+  if (capacity > ((size_t)-1) / sizeof(cdd_c_abstract_struct_t))
+    return EINVAL;
   arr->items = NULL;
   arr->count = 0;
   arr->capacity = capacity;
@@ -103,8 +101,13 @@ cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
   if (!arr || !astruct)
     return EINVAL;
   if (arr->count >= arr->capacity) {
-    size_t new_cap = arr->capacity == 0 ? 4 : arr->capacity * 2;
+    size_t new_cap;
     cdd_c_abstract_struct_t *new_items = NULL;
+    if (arr->capacity > ((size_t)-1) / 2)
+      return EINVAL;
+    new_cap = arr->capacity == 0 ? 4 : arr->capacity * 2;
+    if (new_cap > ((size_t)-1) / sizeof(cdd_c_abstract_struct_t))
+      return EINVAL;
     cdd_c_realloc(arr->items, new_cap * sizeof(cdd_c_abstract_struct_t),
                   (void **)&new_items);
     if (!new_items)
@@ -203,6 +206,8 @@ cdd_c_abstract_struct_init_with_capacity(cdd_c_abstract_struct_t *astruct,
                                          size_t capacity) {
   if (!astruct)
     return EINVAL;
+  if (capacity > ((size_t)-1) / sizeof(cdd_c_abstract_struct_kv_t))
+    return EINVAL;
   astruct->kvs = NULL;
   astruct->count = 0;
   astruct->capacity = capacity;
@@ -217,8 +222,10 @@ cdd_c_abstract_struct_init_with_capacity(cdd_c_abstract_struct_t *astruct,
 
 static int duplicate_string(const char *src, char **dest) {
   size_t len;
-  if (!src || !dest)
-    return EINVAL;
+  if (!src) {
+    *dest = NULL;
+    return 0;
+  }
   len = strlen(src);
   cdd_c_malloc(len + 1, (void **)dest);
   if (!*dest)
@@ -229,8 +236,10 @@ static int duplicate_string(const char *src, char **dest) {
 
 static int duplicate_blob(const unsigned char *src, size_t size,
                           unsigned char **dest) {
-  if (!src || !dest)
-    return EINVAL;
+  if (!src || size == 0) {
+    *dest = NULL;
+    return 0;
+  }
   cdd_c_malloc(size, (void **)dest);
   if (!*dest)
     return EINVAL;
@@ -262,8 +271,6 @@ c_orm_error_t cdd_c_variant_free(cdd_c_variant_t *variant) {
 }
 
 static int copy_variant(cdd_c_variant_t *dest, const cdd_c_variant_t *src) {
-  if (!dest || !src)
-    return EINVAL;
   dest->type = src->type;
   switch (src->type) {
   case CDD_C_VARIANT_TYPE_INT:
@@ -322,7 +329,12 @@ c_orm_error_t cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct,
   }
 
   if (astruct->count >= astruct->capacity) {
-    size_t new_cap = astruct->capacity == 0 ? 4 : astruct->capacity * 2;
+    size_t new_cap;
+    if (astruct->capacity > ((size_t)-1) / 2)
+      return EINVAL;
+    new_cap = astruct->capacity == 0 ? 4 : astruct->capacity * 2;
+    if (new_cap > ((size_t)-1) / sizeof(cdd_c_abstract_struct_kv_t))
+      return EINVAL;
     cdd_c_realloc(astruct->kvs, new_cap * sizeof(cdd_c_abstract_struct_kv_t),
                   (void **)&new_kvs);
     if (!new_kvs)
@@ -924,8 +936,8 @@ c_orm_error_t cdd_c_abstract_to_specific(
     } else if (strcmp(prop->type, "C_ORM_TYPE_STRING") == 0) {
       if (val->type == CDD_C_VARIANT_TYPE_STRING) {
         if (prop->length > 0) {
-          C_ORM_STRNCPY((char *)out_struct + prop->offset, prop->length + 1,
-                        val->value.s_val, prop->length);
+          C_ORM_STRNCPY((char *)out_struct + prop->offset, prop->length,
+                        val->value.s_val, prop->length - 1);
           ((char *)out_struct + prop->offset)[prop->length - 1] = '\0';
         } else {
           {

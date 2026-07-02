@@ -87,7 +87,7 @@ c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   }
   default: {
     *_out_val = "void *";
-    return C_ORM_OK;
+    return EINVAL;
   }
   }
 }
@@ -361,7 +361,10 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
       fprintf(fp, "  if (src->%s) {\n", col->name);
       fprintf(fp, "    dest->%s = (char*)malloc(strlen(src->%s) + 1);\n",
               col->name, col->name);
-      fprintf(fp, "    if (!dest->%s) return C_ORM_ERROR_MEMORY;\n", col->name);
+      fprintf(
+          fp,
+          "    if (!dest->%s) { %s_free(dest); return C_ORM_ERROR_MEMORY; }\n",
+          col->name, struct_name);
       fprintf(fp,
               "#if defined(_MSC_VER)\n    strcpy_s(dest->%s, strlen(src->%s) + "
               "1, src->%s);\n#else\n    strcpy(dest->%s, src->%s);\n#endif\n",
@@ -371,7 +374,10 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
       fprintf(fp, "  if (src->%s) {\n", col->name);
       fprintf(fp, "    dest->%s = (%s*)malloc(sizeof(%s));\n", col->name,
               c_type, c_type);
-      fprintf(fp, "    if (!dest->%s) return C_ORM_ERROR_MEMORY;\n", col->name);
+      fprintf(
+          fp,
+          "    if (!dest->%s) { %s_free(dest); return C_ORM_ERROR_MEMORY; }\n",
+          col->name, struct_name);
       fprintf(fp, "    *dest->%s = *src->%s;\n", col->name, col->name);
       fprintf(fp, "  } else {\n    dest->%s = NULL;\n  }\n", col->name);
     } else {
@@ -1139,13 +1145,16 @@ c_orm_error_t sql_to_c_projection_nested_array_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name,
     const char *array_name) {
 
-  if (!fp || !proj || !struct_name || !array_name)
+  c_orm_error_t err;
+
+  if (!array_name)
     return C_ORM_ERROR_MEMORY;
 
   /* First emit the base struct */
 
-  if (sql_to_c_projection_struct_emit(fp, proj, struct_name, NULL) != 0)
-    return C_ORM_ERROR_MEMORY;
+  err = sql_to_c_projection_struct_emit(fp, proj, struct_name, NULL);
+  if (err != C_ORM_OK)
+    return err;
 
   /* Then emit the array wrapper struct used for 1-to-Many nested responses */
 

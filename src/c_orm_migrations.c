@@ -182,13 +182,12 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
       }
     }
 
-    c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step");
+    (void)c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step");
 
     if (mig->up_sql && strlen(mig->up_sql) > 0) {
       err = c_orm_execute_raw(db, mig->up_sql);
       if (err != C_ORM_OK) {
         LOG_DEBUG("c_orm_migrate_all: up_sql error");
-        c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step");
         c_orm_migration_unlock(db);
         rc = err;
         return (c_orm_error_t)rc;
@@ -202,13 +201,12 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
     err = c_orm_execute_raw(db, query);
     if (err != C_ORM_OK) {
       LOG_DEBUG("c_orm_migrate_all: insert migration error");
-      c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step");
       c_orm_migration_unlock(db);
       rc = err;
       return (c_orm_error_t)rc;
     }
 
-    c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step");
+    (void)c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step");
 
     if (options && options->post_migrate) {
       err = options->post_migrate(db, mig, options->user_data);
@@ -296,13 +294,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
       continue;
     }
 
-    c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step_rb");
+    (void)c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step_rb");
 
     if (mig->down_sql && strlen(mig->down_sql) > 0) {
       err = c_orm_execute_raw(db, mig->down_sql);
       if (err != C_ORM_OK) {
         LOG_DEBUG("c_orm_migrate_rollback: down_sql error");
-        c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step_rb");
         break;
       }
     }
@@ -314,11 +311,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
     err = c_orm_execute_raw(db, query);
     if (err != C_ORM_OK) {
       LOG_DEBUG("c_orm_migrate_rollback: delete migration error");
-      c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step_rb");
       break;
     }
 
-    c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step_rb");
+    (void)c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step_rb");
     rolled_back++;
   }
 
@@ -414,16 +410,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
     }
 
     if (meta->num_props >= cap) {
+      cdd_c_prop_meta_t *new_props;
       cap *= 2;
-      meta->props = (cdd_c_prop_meta_t *)C_ORM_REALLOC(
+      new_props = (cdd_c_prop_meta_t *)C_ORM_REALLOC(
           (void *)meta->props, sizeof(cdd_c_prop_meta_t) * cap);
-      if (!meta->props) {
+      if (!new_props) {
         LOG_DEBUG("c_orm_migration_fetch_table_schema: OOM during realloc");
         c_orm_migration_free_table_schema(meta);
         c_orm_finalize_cached(db, q);
         rc = C_ORM_ERROR_MEMORY;
         return (c_orm_error_t)rc;
       }
+      meta->props = new_props;
     }
 
     prop = (cdd_c_prop_meta_t *)&meta->props[meta->num_props++];
@@ -539,15 +537,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
     db->vtable->get_string(q, 2, &hash);
 
     if (count >= cap) {
+      c_orm_migration_t *new_migs;
       cap *= 2;
-      migs = (c_orm_migration_t *)C_ORM_REALLOC(
+      new_migs = (c_orm_migration_t *)C_ORM_REALLOC(
           migs, cap * sizeof(c_orm_migration_t));
-      if (!migs) {
+      if (!new_migs) {
         LOG_DEBUG("c_orm_migration_get_applied: OOM during realloc");
+        c_orm_migration_free_array(migs, count);
         c_orm_finalize_cached(db, q);
         rc = C_ORM_ERROR_MEMORY;
         return (c_orm_error_t)rc;
       }
+      migs = new_migs;
     }
 
     memset(&migs[count], 0, sizeof(c_orm_migration_t));

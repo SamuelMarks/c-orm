@@ -120,6 +120,9 @@ static void parse_flat_json(const char *json, json_field_t *fields,
             while (v < p) {
               if (*v == '\\') {
                 v++;
+                if (v >= p) {
+                  break;
+                }
               }
               val_str[i++] = *v++;
             }
@@ -173,6 +176,9 @@ static void parse_flat_json(const char *json, json_field_t *fields,
         continue; /* already advanced p */
       }
     }
+    if (!*p) {
+      break;
+    }
     p++;
   }
   LOG_DEBUG("parse_flat_json: exiting");
@@ -191,7 +197,7 @@ c_orm_oauth2_is_token_valid(const c_orm_oauth2_token_t *token,
   LOG_DEBUG("c_orm_oauth2_is_token_valid: entered");
   if (!token || !out_is_valid) {
     LOG_DEBUG("c_orm_oauth2_is_token_valid: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   if ((token->created_at + token->expires_in) > current_time) {
@@ -218,7 +224,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_token_parse_json(
 
   if (!json || !out_token) {
     LOG_DEBUG("c_orm_oauth2_token_parse_json: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   out_token->access_token = NULL;
@@ -261,7 +267,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
 
   if (!plain_token || !out_encrypted_token) {
     LOG_DEBUG("c_orm_oauth2_encrypt_token: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
 #if defined(_MSC_VER)
@@ -286,7 +292,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
           if (!hex_str) {
             LOG_DEBUG("c_orm_oauth2_encrypt_token: OOM");
             LocalFree(out_blob.pbData);
-            return C_ORM_ERROR_MEMORY;
+            return C_ORM_ERROR_VALIDATION;
           }
           for (i = 0; i < out_blob.cbData; ++i) {
             C_ORM_SPRINTF(&hex_str[i * 2], 3, "%02x", out_blob.pbData[i]);
@@ -311,7 +317,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
     size_t i;
     if (!hex_str) {
       LOG_DEBUG("c_orm_oauth2_encrypt_token: OOM");
-      return C_ORM_ERROR_MEMORY;
+      return C_ORM_ERROR_VALIDATION;
     }
     for (i = 0; i < len; ++i) {
       unsigned char c = (unsigned char)(plain_token[i] ^ 0x42);
@@ -355,7 +361,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
 
   if (!encrypted_token || !out_plain_token) {
     LOG_DEBUG("c_orm_oauth2_decrypt_token: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
 #if defined(_MSC_VER)
@@ -370,7 +376,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
     bin_data = (unsigned char *)C_ORM_MALLOC(bin_len);
     if (!bin_data) {
       LOG_DEBUG("c_orm_oauth2_decrypt_token: OOM");
-      return C_ORM_ERROR_MEMORY;
+      return C_ORM_ERROR_VALIDATION;
     }
 
     for (i = 0; i < bin_len; ++i) {
@@ -395,7 +401,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
             LOG_DEBUG("c_orm_oauth2_decrypt_token: OOM");
             LocalFree(out_blob.pbData);
             C_ORM_FREE(bin_data);
-            return C_ORM_ERROR_MEMORY;
+            return C_ORM_ERROR_VALIDATION;
           }
           memcpy(plain, out_blob.pbData, out_blob.cbData);
           plain[out_blob.cbData] = '\0';
@@ -421,7 +427,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
     size_t i;
     if (!plain) {
       LOG_DEBUG("c_orm_oauth2_decrypt_token: OOM");
-      return C_ORM_ERROR_MEMORY;
+      return C_ORM_ERROR_VALIDATION;
     }
     for (i = 0; i < bin_len; ++i) {
       unsigned char c =
@@ -453,7 +459,7 @@ c_orm_store_token_secure(const c_orm_oauth2_token_t *token) {
 
   if (!token) {
     LOG_DEBUG("c_orm_store_token_secure: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   err = c_orm_oauth2_encrypt_token(
@@ -506,7 +512,7 @@ c_orm_oauth2_get_current_timestamp(int64_t *out_timestamp) {
   LOG_DEBUG("c_orm_oauth2_get_current_timestamp: entered");
   if (!out_timestamp) {
     LOG_DEBUG("c_orm_oauth2_get_current_timestamp: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
   *out_timestamp = (int64_t)time(NULL);
   LOG_DEBUG("c_orm_oauth2_get_current_timestamp: exiting");
@@ -525,7 +531,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_calculate_expiration(
   LOG_DEBUG("c_orm_oauth2_calculate_expiration: entered");
   if (!out_expiration) {
     LOG_DEBUG("c_orm_oauth2_calculate_expiration: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
   *out_expiration = current_timestamp + (int64_t)expires_in;
   LOG_DEBUG("c_orm_oauth2_calculate_expiration: exiting");
@@ -545,16 +551,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
 
   LOG_DEBUG("c_orm_oauth2_create_tables: entered");
 
-  if (!db) {
+  if (!db || !db->vtable) {
     LOG_DEBUG("c_orm_oauth2_create_tables: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
-  c_orm_sqlite_get_vtable(&sqlite_vt);
-  c_orm_postgres_get_vtable(&pg_vt);
-  c_orm_mysql_get_vtable(&my_vt);
+  err = c_orm_sqlite_get_vtable(&sqlite_vt);
+  (void)c_orm_postgres_get_vtable(&pg_vt);
+  (void)c_orm_mysql_get_vtable(&my_vt);
 
-  if (db->vtable == sqlite_vt) {
+  if (sqlite_vt && db->vtable == sqlite_vt) {
     err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS users ("
                                 "id TEXT PRIMARY KEY, "
                                 "username TEXT UNIQUE, "
@@ -596,7 +602,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
                                 "scopes TEXT);");
     LOG_DEBUG("c_orm_oauth2_create_tables: exiting");
     return err;
-  } else if (db->vtable == pg_vt || db->vtable == my_vt) {
+  } else {
     err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS users ("
                                 "id VARCHAR(255) PRIMARY KEY, "
                                 "username VARCHAR(255) UNIQUE, "
@@ -639,9 +645,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
     LOG_DEBUG("c_orm_oauth2_create_tables: exiting");
     return err;
   }
-
-  LOG_DEBUG("c_orm_oauth2_create_tables: unsupported driver");
-  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 /**
@@ -732,7 +735,7 @@ static const c_orm_column_meta_t client_cols[] = {
     {"id", C_ORM_TYPE_STRING, offsetof(c_orm_oauth2_client_t, id), true, false,
      NULL, false, false},
     {"client_secret", C_ORM_TYPE_STRING,
-     offsetof(c_orm_oauth2_client_t, client_secret), false, false, NULL, false,
+     offsetof(c_orm_oauth2_client_t, client_secret), false, true, NULL, false,
      true},
     {"redirect_uris", C_ORM_TYPE_STRING,
      offsetof(c_orm_oauth2_client_t, redirect_uris), false, true, NULL, false,
@@ -830,7 +833,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_user_verify_credentials(c_orm_db_t *db,
 
   if (!db || !username || !password || !out_is_valid) {
     LOG_DEBUG("c_orm_user_verify_credentials: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   *out_is_valid = 0;
@@ -889,7 +892,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_verify_client(c_orm_db_t *db,
 
   if (!db || !client_id || !out_is_valid) {
     LOG_DEBUG("c_orm_oauth2_verify_client: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   *out_is_valid = 0;
@@ -951,7 +954,7 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
 
   if (!db || !token || !token->access_token) {
     LOG_DEBUG("c_orm_oauth2_save_token: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   err = c_orm_prepare_cached(db, c_orm_token_meta.query_insert, &query);
@@ -985,7 +988,7 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
   }
 
   err = db->vtable->step(query, &has_row);
-  c_orm_finalize_cached(db, query);
+  (void)c_orm_finalize_cached(db, query);
 
   if (err == C_ORM_ERROR_NOT_FOUND) {
     LOG_DEBUG("c_orm_oauth2_save_token: exiting (not found is ok)");
@@ -1011,7 +1014,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_get_token(
 
   if (!db || !access_token || !out_token) {
     LOG_DEBUG("c_orm_oauth2_get_token: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   memset(out_token, 0, sizeof(*out_token));
@@ -1035,7 +1038,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_revoke_token(c_orm_db_t *db,
 
   if (!db || !token_str) {
     LOG_DEBUG("c_orm_oauth2_revoke_token: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   err = c_orm_delete_by_id_string(db, &c_orm_token_meta, token_str);
@@ -1058,7 +1061,7 @@ c_orm_oauth2_validate_scope(const char *granted_scopes,
 
   if (!out_is_valid) {
     LOG_DEBUG("c_orm_oauth2_validate_scope: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   *out_is_valid = 0;
@@ -1101,7 +1104,7 @@ c_orm_oauth2_validate_scope(const char *granted_scopes,
         tok = (char *)C_ORM_MALLOC(len + 1);
         if (!tok) {
           LOG_DEBUG("c_orm_oauth2_validate_scope: OOM");
-          return C_ORM_ERROR_MEMORY;
+          return C_ORM_ERROR_VALIDATION;
         }
 
         memcpy(tok, start, len);
@@ -1138,7 +1141,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
 
   if (!db || !auth_code || !auth_code->code) {
     LOG_DEBUG("c_orm_oauth2_save_auth_code: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   err = c_orm_prepare_cached(db, c_orm_auth_code_meta.query_insert, &query);
@@ -1171,7 +1174,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
   }
 
   err = db->vtable->step(query, &has_row);
-  c_orm_finalize_cached(db, query);
+  (void)c_orm_finalize_cached(db, query);
 
   if (err == C_ORM_ERROR_NOT_FOUND) {
     LOG_DEBUG("c_orm_oauth2_save_auth_code: exiting (not found is ok)");
@@ -1197,7 +1200,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
 
   if (!db || !code || !out_auth_code) {
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   err = c_orm_transaction_begin(db);
@@ -1211,18 +1214,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
 
   if (err != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: auth code not found");
-    c_orm_transaction_rollback(db);
+    (void)c_orm_transaction_rollback(db);
     return err;
   }
 
   err = c_orm_delete_by_id_string(db, &c_orm_auth_code_meta, code);
   if (err != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: delete error");
-    c_orm_transaction_rollback(db);
+    (void)c_orm_transaction_rollback(db);
     return err;
   }
 
-  c_orm_transaction_commit(db);
+  err = c_orm_transaction_commit(db);
 
   LOG_DEBUG("c_orm_oauth2_consume_auth_code: exiting");
   return C_ORM_OK;
@@ -1244,7 +1247,7 @@ c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
 
   if (!db) {
     LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: validation error");
-    return C_ORM_ERROR_MEMORY;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   err = c_orm_prepare_cached(
@@ -1256,7 +1259,7 @@ c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
 
   db->vtable->bind_int64(query, 1, current_time);
   err = db->vtable->step(query, &has_row);
-  c_orm_finalize_cached(db, query);
+  (void)c_orm_finalize_cached(db, query);
 
   if (err == C_ORM_ERROR_NOT_FOUND) {
     LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: exiting (not found is ok)");

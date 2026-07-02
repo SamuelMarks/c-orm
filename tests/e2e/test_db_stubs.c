@@ -167,9 +167,7 @@ TEST test_c_orm_db_coverage(void) {
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
   rc = c_orm_get_telemetry(&db, &tel);
-  if (rc != C_ORM_OK) {
-    printf("CODEGEN ERROR: %d\n", rc);
-  }
+
   ASSERT_EQ(C_ORM_OK, rc);
 
   c_orm_set_expire_callback(NULL, NULL, NULL);
@@ -178,9 +176,7 @@ TEST test_c_orm_db_coverage(void) {
   rc = c_orm_db_attach_identity_map(NULL, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
   rc = c_orm_db_attach_identity_map(&db, NULL);
-  if (rc != C_ORM_OK) {
-    printf("CODEGEN ERROR: %d\n", rc);
-  }
+
   ASSERT_EQ(C_ORM_OK, rc);
 
   c_orm_register_query_interceptor(NULL, NULL, NULL);
@@ -259,29 +255,22 @@ TEST test_codegen_coverage(void) {
   rc = c_orm_codegen_generate("fake.sql", "fake_dir");
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
-  schema_path = "tests/e2e/schema.sql";
-  f = fopen(schema_path, "r");
-  if (!f) {
-    schema_path = "../tests/e2e/schema.sql";
-    f = fopen(schema_path, "r");
-    if (!f) {
-      schema_path = "../../tests/e2e/schema.sql";
+  {
+    const char *paths[] = {"tests/e2e/schema.sql", "../tests/e2e/schema.sql",
+                           "../../tests/e2e/schema.sql",
+                           "../../../tests/e2e/schema.sql"};
+    int i;
+    for (i = 0; i < 4; i++) {
+      schema_path = paths[i];
       f = fopen(schema_path, "r");
-      if (!f) {
-        schema_path = "../../../tests/e2e/schema.sql";
-      } else {
+      if (f) {
         fclose(f);
+        break;
       }
-    } else {
-      fclose(f);
     }
-  } else {
-    fclose(f);
   }
   rc = c_orm_codegen_generate(schema_path, ".");
-  if (rc != C_ORM_OK) {
-    printf("CODEGEN ERROR: %d\n", rc);
-  }
+
   ASSERT_EQ(C_ORM_OK, rc);
 
   PASS();

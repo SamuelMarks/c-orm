@@ -336,9 +336,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
         if (evict->next) {
           evict->next->prev = evict->prev;
         }
-        if (evict == cache->head) {
-          cache->head = evict->next;
-        }
         if (evict == cache->tail) {
           cache->tail = evict->prev;
         }

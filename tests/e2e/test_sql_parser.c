@@ -2,6 +2,7 @@
 #include "c_orm_sql.h"
 #include "c_orm_api.h"
 #include "greatest.h"
+#include "query_projection.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +10,19 @@
 
 static int oom_countdown = -1;
 static int oom_active = 0;
+
+static void test_cleanup_tables(struct sql_table_t **tables_ptr,
+                                size_t *n_tables_ptr) {
+  if (tables_ptr && *tables_ptr) {
+    size_t k;
+    for (k = 0; k < *n_tables_ptr; k++) {
+      sql_table_C_ORM_FREE(&(*tables_ptr)[k]);
+    }
+    C_ORM_FREE(*tables_ptr);
+    *tables_ptr = NULL;
+    *n_tables_ptr = 0;
+  }
+}
 
 static void *m_mock_malloc(size_t size) {
   if (oom_active) {
@@ -45,20 +59,7 @@ TEST test_sql_parser_basic(void) {
   rc = parse_sql_ddl(sql, &tables, &n_tables);
   ASSERT_EQ(0, rc);
   ASSERT_EQ(2, n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   PASS();
 }
 
@@ -68,34 +69,15 @@ TEST test_sql_parser_oom(void) {
                     "REFERENCES p(id) UNIQUE NOT NULL PRIMARY KEY);";
   struct sql_table_t *tables = NULL;
   size_t n_tables = 0;
-  int rc;
   int i;
-
   for (i = 0; i < 150; i++) {
     oom_active = 1;
     oom_countdown = i;
-    rc = parse_sql_ddl(sql, &tables, &n_tables);
+    (void)parse_sql_ddl(sql, &tables, &n_tables);
     if (tables) {
-      size_t k;
-      for (k = 0; k < n_tables; k++) {
-        struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-        if (tbl) {
-          *tbl = tables[k];
-          sql_table_free(tbl);
-          C_ORM_FREE(tbl);
-        }
-      }
-      C_ORM_FREE(tables);
-      tables = NULL;
-      n_tables = 0;
+      test_cleanup_tables(&tables, &n_tables);
     }
     oom_active = 0;
-    if (rc == 0 && tables) {
-      int j;
-
-      tables = NULL;
-      n_tables = 0;
-    }
   }
   PASS();
 }
@@ -130,8 +112,7 @@ TEST test_sql_lex_oom(void) {
     oom_countdown = 0;
     sql_lex(span, &list);
     oom_active = 0;
-    if (list)
-      sql_token_list_free(list);
+    ASSERT_EQ(NULL, list);
   }
 
   /* NULL source/out_list */
@@ -151,277 +132,43 @@ TEST test_sql_parser_errors(void) {
   /* Lexer errors */
   parse_sql_ddl("CREATE TABLE t1 (name VARCHAR(255) DEFAULT 'unterminated);",
                 &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
 
   /* Parser errors */
   parse_sql_ddl("CREATE;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id UNKNOWN_TYPE;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id TABLE;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id VARCHAR;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id VARCHAR(;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id VARCHAR(255;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id INT PRIMARY;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id INT NOT;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id INT DEFAULT;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id INT REFERENCES;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id INT REFERENCES p;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id INT REFERENCES p(;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id INT REFERENCES p(id;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
 
   /* Call sql_parse_table directly to hit unreachable errors */
   {
@@ -506,124 +253,34 @@ TEST test_sql_parser_errors(void) {
                 "  fk INT REFERENCES other(id)\n"
                 ");\n",
                 &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id INT, PRIMARY KEY;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id INT, FOREIGN KEY;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id INT, UNIQUE;", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 ();", &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
 
   /* NULL tests */
   parse_sql_ddl(NULL, &tables, &n_tables);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1;", NULL, &n_tables);
   parse_sql_ddl("CREATE TABLE t1;", &tables, NULL);
-  if (tables) {
-    size_t k;
-    for (k = 0; k < n_tables; k++) {
-      struct sql_table_t *tbl = (struct sql_table_t *)malloc(sizeof(*tbl));
-      if (tbl) {
-        *tbl = tables[k];
-        sql_table_free(tbl);
-        C_ORM_FREE(tbl);
-      }
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  test_cleanup_tables(&tables, &n_tables);
 
   /* sql_table_free with table_constraints */
   {
     struct sql_table_t t;
     memset(&t, 0, sizeof(t));
     t.n_table_constraints = 1;
-    t.table_constraints = calloc(1, sizeof(struct sql_constraint_t));
+    t.table_constraints = C_ORM_MALLOC(sizeof(struct sql_constraint_t));
+    memset(t.table_constraints, 0, sizeof(struct sql_constraint_t));
     t.table_constraints[0].reference_table = c_orm_strdup("ref_tbl");
     t.table_constraints[0].reference_column = c_orm_strdup("ref_col");
     t.table_constraints[0].default_value = c_orm_strdup("def_val");
-    sql_table_free(&t);
+    sql_table_C_ORM_FREE(&t);
   }
 
   /* stubs */
@@ -631,7 +288,13 @@ TEST test_sql_parser_errors(void) {
     struct CddCQueryProjection *proj = NULL;
     struct sql_parse_error_t err;
     sql_parse_select(NULL, &proj, &err);
+    cdd_c_query_projection_free(proj);
+    free(proj);
+    proj = NULL;
     sql_parse_returning(NULL, &proj, &err);
+    cdd_c_query_projection_free(proj);
+    free(proj);
+    proj = NULL;
   }
 
   PASS();
@@ -678,7 +341,7 @@ TEST test_sql_parser_table_constraints(void) {
     ASSERT_EQ(1, tbl->table_constraints[2].n_columns);
     ASSERT_STR_EQ("id", tbl->table_constraints[2].columns[0]);
 
-    sql_table_free(tbl);
+    sql_table_C_ORM_FREE(tbl);
     C_ORM_FREE(tables);
   }
   PASS();
@@ -689,9 +352,9 @@ SUITE(sql_parser_suite) {
   void *(*old_realloc)(void *, size_t) = c_orm_realloc;
   void (*old_free)(void *) = c_orm_free;
 
-  c_orm_malloc = m_mock_malloc;
-  c_orm_realloc = m_mock_realloc;
-  c_orm_free = m_mock_free;
+  c_orm_set_allocators(m_mock_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, m_mock_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, m_mock_free);
 
   RUN_TEST(test_sql_parser_basic);
   RUN_TEST(test_sql_parser_table_constraints);
@@ -699,7 +362,7 @@ SUITE(sql_parser_suite) {
   RUN_TEST(test_sql_lex_oom);
   RUN_TEST(test_sql_parser_errors);
 
-  c_orm_malloc = old_malloc;
-  c_orm_realloc = old_realloc;
-  c_orm_free = old_free;
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
 }

@@ -24,10 +24,26 @@ static void *mock_malloc_oom(size_t size) {
     oom_countdown--;
   }
   alloc_count++;
+  if (oom_active)
+    printf("oom malloc\n");
   return malloc(size);
 }
 
 static void mock_free_oom(void *ptr) { free(ptr); }
+
+static void *mock_realloc_oom(void *ptr, size_t size) {
+  if (oom_active) {
+    if (oom_countdown == 0) {
+      oom_countdown--;
+      return NULL;
+    }
+    oom_countdown--;
+  }
+  alloc_count++;
+  if (oom_active)
+    printf("oom realloc\n");
+  return realloc(ptr, size);
+}
 
 /* OOM Fuzzer Macro */
 #define OOM_TEST(test_func, max_allocs)                                        \
@@ -85,17 +101,58 @@ TEST test_string_builder_oom(void) {
   PASS();
 }
 
+#include "cdd_c_ir.h"
+
+static void do_cdd_c_ir(void) {
+  cdd_c_ir_t ir;
+  struct sql_table_t tbl;
+  cdd_c_query_projection_t proj;
+  cdd_c_query_projection_field_t field;
+
+  memset(&tbl, 0, sizeof(tbl));
+  memset(&field, 0, sizeof(field));
+  field.name = "test";
+  field.original_name = "test";
+
+  if (cdd_c_ir_init(&ir) == 0) {
+    cdd_c_ir_add_table(&ir, &tbl);
+    if (cdd_c_query_projection_init(&proj) == 0) {
+      proj.source_table = (char *)malloc(5);
+      if (proj.source_table)
+        strcpy(proj.source_table, "test");
+      cdd_c_query_projection_add_field(&proj, &field);
+      cdd_c_ir_add_projection(&ir, &proj);
+      cdd_c_query_projection_free(&proj);
+    }
+    parse_sql_into_ir("CREATE TABLE x (id INT);", &ir);
+    parse_sql_into_ir("SELECT id FROM x;", &ir);
+    parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
+    cdd_c_ir_free(&ir);
+  }
+}
+
+TEST test_cdd_c_ir_oom(void) {
+  OOM_TEST(do_cdd_c_ir, 60);
+  PASS();
+}
+
 SUITE(oom_coverage_suite) {
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void (*old_free)(void *) = c_orm_free;
+  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
 
-  c_orm_malloc = mock_malloc_oom;
-  c_orm_free = mock_free_oom;
+  c_orm_set_allocators(mock_malloc_oom, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, mock_free_oom);
+  c_orm_set_allocators(c_orm_malloc, mock_realloc_oom, c_orm_free);
+  /* Not mocking realloc for now because I need mock_realloc_oom if used, but
+   * realloc acts like malloc if ptr is NULL */
 
   RUN_TEST(test_codegen_oom);
   RUN_TEST(test_uuid_oom);
   RUN_TEST(test_string_builder_oom);
+  RUN_TEST(test_cdd_c_ir_oom);
 
-  c_orm_malloc = old_malloc;
-  c_orm_free = old_free;
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
+  c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
 }

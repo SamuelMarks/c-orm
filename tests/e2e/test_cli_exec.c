@@ -35,9 +35,11 @@ TEST test_cli_no_args(void) {
 }
 
 TEST test_cli_init(void) {
-  int rc = system(CLI_CMD " init --dir test_migrations_dir" DEV_NULL);
+  int rc;
+  system("rm -rf test_migrations_dir_init");
+  rc = system(CLI_CMD " init --dir test_migrations_dir_init" DEV_NULL);
   ASSERT_EQ(0, rc);
-  rc = system(CLI_CMD " init --dir test_migrations_dir" DEV_NULL);
+  rc = system(CLI_CMD " init --dir test_migrations_dir_init" DEV_NULL);
   ASSERT_EQ(0, rc);
   PASS();
 }
@@ -70,6 +72,18 @@ TEST test_cli_migrate(void) {
   rc = system(CLI_CMD
               " migrate --db :memory: --dir test_migrations_dir" DEV_NULL);
   ASSERT_EQ(0, rc);
+
+  system("sqlite3 test_cli_exec.db \"CREATE TABLE IF NOT EXISTS "
+         "_c_orm_migrations (id INTEGER PRIMARY KEY, version TEXT, name TEXT, "
+         "hash TEXT, applied_at DATETIME);\"");
+  system("sqlite3 test_cli_exec.db \"INSERT INTO _c_orm_migrations (version, "
+         "name, hash) VALUES ('1', 'test', 'hash');\"");
+  system(CLI_CMD " status --db test_cli_exec.db" DEV_NULL);
+  system("echo 'CREATE TABLE x (id INT);' > test_migrations_dir/1_test.up.sql");
+  system("echo 'DROP TABLE x;' > test_migrations_dir/1_test.down.sql");
+  system(CLI_CMD
+         " migrate --db test_cli_exec.db --dir test_migrations_dir" DEV_NULL);
+
   rc = system(CLI_CMD " migrate --db invalid_path/file.db" DEV_NULL);
   PASS();
 }

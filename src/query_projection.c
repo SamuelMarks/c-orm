@@ -7,6 +7,7 @@
 
 /* clang-format off */
 #include "query_projection.h"
+#include "c_orm_meta.h"
 #include <stdlib.h>
 #include <string.h>
 /* clang-format on */
@@ -25,14 +26,12 @@ c_orm_error_t cdd_c_query_projection_init(cdd_c_query_projection_t *proj) {
 
 static int duplicate_string_qp(const char *src, char **dest) {
   size_t len;
-  if (!dest)
-    return -1;
   if (!src) {
     *dest = NULL;
     return 0;
   }
   len = strlen(src);
-  *dest = (char *)malloc(len + 1);
+  *dest = (char *)C_ORM_MALLOC(len + 1);
   if (!*dest)
     return -1;
   memcpy(*dest, src, len + 1);
@@ -49,7 +48,7 @@ cdd_c_query_projection_add_field(cdd_c_query_projection_t *proj,
 
   if (proj->n_fields >= proj->capacity) {
     new_cap = proj->capacity == 0 ? 4 : proj->capacity * 2;
-    new_fields = (cdd_c_query_projection_field_t *)realloc(
+    new_fields = (cdd_c_query_projection_field_t *)C_ORM_REALLOC(
         proj->fields, new_cap * sizeof(cdd_c_query_projection_field_t));
     if (!new_fields)
       return -1;
@@ -61,7 +60,7 @@ cdd_c_query_projection_add_field(cdd_c_query_projection_t *proj,
     return -1;
   if (duplicate_string_qp(field->original_name,
                           &proj->fields[proj->n_fields].original_name) != 0) {
-    free(proj->fields[proj->n_fields].name);
+    C_ORM_FREE(proj->fields[proj->n_fields].name);
     return -1;
   }
   proj->fields[proj->n_fields].type = field->type;
@@ -81,12 +80,12 @@ c_orm_error_t cdd_c_query_projection_free(cdd_c_query_projection_t *proj) {
 
   for (i = 0; i < proj->n_fields; ++i) {
     if (proj->fields[i].name)
-      free(proj->fields[i].name);
+      C_ORM_FREE(proj->fields[i].name);
     if (proj->fields[i].original_name)
-      free(proj->fields[i].original_name);
+      C_ORM_FREE(proj->fields[i].original_name);
   }
   if (proj->fields)
-    free(proj->fields);
+    C_ORM_FREE(proj->fields);
   if (proj->source_table)
     free(proj->source_table);
   if (proj->mapping_meta.target_name)

@@ -16,6 +16,7 @@
 #include "cfs/cfs.h"
 #include "c89stringutils_string_extras.h"
 #include "functions/parse/fs.h"
+#include "c_orm_meta.h"
 /* clang-format on */
 
 /**
@@ -34,11 +35,11 @@ void migration_statements_init(struct MigrationStatements *out) {
 void migration_statements_free(struct MigrationStatements *out) {
   if (out) {
     if (out->up_statement) {
-      free(out->up_statement);
+      C_ORM_FREE(out->up_statement);
       out->up_statement = NULL;
     }
     if (out->down_statement) {
-      free(out->down_statement);
+      C_ORM_FREE(out->down_statement);
       out->down_statement = NULL;
     }
   }
@@ -87,7 +88,7 @@ c_orm_error_t parse_migration_file(const char *filepath,
 
   if (file_size == 0 || !file_data) {
     if (file_data) {
-      free(file_data);
+      C_ORM_FREE(file_data);
     }
     return 0;
   }
@@ -122,9 +123,9 @@ c_orm_error_t parse_migration_file(const char *filepath,
   }
 
   if (up_start && up_len > 0) {
-    up_stmt = (char *)malloc(up_len + 1);
+    up_stmt = (char *)C_ORM_MALLOC(up_len + 1);
     if (!up_stmt) {
-      free(file_data);
+      C_ORM_FREE(file_data);
       return ENOMEM;
     }
     memcpy(up_stmt, up_start, up_len);
@@ -133,9 +134,9 @@ c_orm_error_t parse_migration_file(const char *filepath,
   }
 
   if (down_start && down_len > 0) {
-    down_stmt = (char *)malloc(down_len + 1);
+    down_stmt = (char *)C_ORM_MALLOC(down_len + 1);
     if (!down_stmt) {
-      free(file_data);
+      C_ORM_FREE(file_data);
       migration_statements_free(out);
       return ENOMEM;
     }
@@ -144,6 +145,6 @@ c_orm_error_t parse_migration_file(const char *filepath,
     out->down_statement = down_stmt;
   }
 
-  free(file_data);
+  C_ORM_FREE(file_data);
   return 0;
 }

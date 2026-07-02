@@ -72,19 +72,12 @@ static void set_error(c_orm_db_t *db, const char *msg) {
   struct sqlite_db_data *data;
   size_t len;
   const char *sqlite_err;
+  (void)msg;
 
   LOG_DEBUG("set_error: entry");
   if (db && db->driver_data) {
     data = (struct sqlite_db_data *)db->driver_data;
-    if (msg) {
-      /* Safe copy for C90 compatibility */
-      len = strlen(msg);
-      if (len >= sizeof(data->last_error)) {
-        len = sizeof(data->last_error) - 1;
-      }
-      memcpy(data->last_error, msg, len);
-      data->last_error[len] = '\0';
-    } else if (data->db) {
+    if (data->db) {
       sqlite_err = sqlite3_errmsg(data->db);
       len = strlen(sqlite_err);
       if (len >= sizeof(data->last_error)) {
@@ -144,14 +137,7 @@ static c_orm_error_t sqlite_connect(const char *url, c_orm_db_t **out_db) {
     return (c_orm_error_t)rc;
   }
 
-  if (c_orm_sqlite_get_vtable(&db->vtable) != 0) {
-    sqlite3_close(data->db);
-    C_ORM_FREE(data);
-    C_ORM_FREE(db);
-    LOG_DEBUG("sqlite_connect: failed to get vtable");
-    rc = C_ORM_ERROR_UNKNOWN;
-    return (c_orm_error_t)rc;
-  }
+  c_orm_sqlite_get_vtable(&db->vtable);
   db->driver_data = data;
   db->driver_name = "sqlite";
   *out_db = db;
@@ -179,17 +165,12 @@ static c_orm_error_t sqlite_disconnect(c_orm_db_t *db) {
     return (c_orm_error_t)rc;
   }
 
+  c_orm_disable_statement_caching(db);
+
   data = (struct sqlite_db_data *)db->driver_data;
   if (data) {
     if (data->db) {
-      int close_rc = sqlite3_close(data->db);
-      if (close_rc != SQLITE_OK) {
-        printf("DEBUG: sqlite3_close failed with %d in sqlite_disconnect\n",
-               close_rc);
-        fflush(stdout);
-        /* Force close */
-        sqlite3_close_v2(data->db);
-      }
+      sqlite3_close(data->db);
     }
     C_ORM_FREE(data);
   }

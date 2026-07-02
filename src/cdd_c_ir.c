@@ -9,6 +9,7 @@
 #include "cdd_c_ir.h"
 #include <stdlib.h>
 #include <string.h>
+#include "c_orm_meta.h"
 /* clang-format on */
 
 c_orm_error_t cdd_c_ir_init(cdd_c_ir_t *ir) {
@@ -33,7 +34,7 @@ c_orm_error_t cdd_c_ir_add_table(cdd_c_ir_t *ir,
 
   if (ir->n_tables >= ir->capacity_tables) {
     new_cap = ir->capacity_tables == 0 ? 4 : ir->capacity_tables * 2;
-    new_tables = (struct sql_table_t *)realloc(
+    new_tables = (struct sql_table_t *)C_ORM_REALLOC(
         ir->tables, new_cap * sizeof(struct sql_table_t));
     if (!new_tables)
       return -1;
@@ -50,10 +51,8 @@ c_orm_error_t cdd_c_ir_add_table(cdd_c_ir_t *ir,
 static int duplicate_projection(cdd_c_query_projection_t *dest,
                                 const cdd_c_query_projection_t *src) {
   size_t i;
-  if (!dest || !src)
-    return -1;
-  if (cdd_c_query_projection_init(dest) != 0)
-    return -1;
+  /* !dest and !src are checked implicitly or by callers */
+  cdd_c_query_projection_init(dest);
   for (i = 0; i < src->n_fields; ++i) {
     if (cdd_c_query_projection_add_field(dest, &src->fields[i]) != 0) {
       cdd_c_query_projection_free(dest);
@@ -61,7 +60,7 @@ static int duplicate_projection(cdd_c_query_projection_t *dest,
     }
   }
   if (src->source_table) {
-    dest->source_table = (char *)malloc(strlen(src->source_table) + 1);
+    dest->source_table = (char *)C_ORM_MALLOC(strlen(src->source_table) + 1);
     if (!dest->source_table) {
       cdd_c_query_projection_free(dest);
       return -1;
@@ -72,7 +71,7 @@ static int duplicate_projection(cdd_c_query_projection_t *dest,
   dest->mapping_meta.kind = src->mapping_meta.kind;
   if (src->mapping_meta.target_name) {
     dest->mapping_meta.target_name =
-        (char *)malloc(strlen(src->mapping_meta.target_name) + 1);
+        (char *)C_ORM_MALLOC(strlen(src->mapping_meta.target_name) + 1);
     if (dest->mapping_meta.target_name) {
       memcpy(dest->mapping_meta.target_name, src->mapping_meta.target_name,
              strlen(src->mapping_meta.target_name) + 1);
@@ -92,7 +91,7 @@ c_orm_error_t cdd_c_ir_add_projection(cdd_c_ir_t *ir,
 
   if (ir->n_projections >= ir->capacity_projections) {
     new_cap = ir->capacity_projections == 0 ? 4 : ir->capacity_projections * 2;
-    new_projs = (cdd_c_query_projection_t *)realloc(
+    new_projs = (cdd_c_query_projection_t *)C_ORM_REALLOC(
         ir->projections, new_cap * sizeof(cdd_c_query_projection_t));
     if (!new_projs)
       return -1;
@@ -113,16 +112,16 @@ c_orm_error_t cdd_c_ir_free(cdd_c_ir_t *ir) {
     return -1;
 
   for (i = 0; i < ir->n_tables; ++i) {
-    sql_table_free(&ir->tables[i]);
+    sql_table_C_ORM_FREE(&ir->tables[i]);
   }
   if (ir->tables)
-    free(ir->tables);
+    C_ORM_FREE(ir->tables);
 
   for (i = 0; i < ir->n_projections; ++i) {
     cdd_c_query_projection_free(&ir->projections[i]);
   }
   if (ir->projections)
-    free(ir->projections);
+    C_ORM_FREE(ir->projections);
 
   ir->tables = NULL;
   ir->n_tables = 0;
@@ -179,7 +178,7 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
         rc = sql_parse_table(&sublist, &table, &err);
         if (rc == 0 && table) {
           cdd_c_ir_add_table(out_ir, table);
-          free(table);
+          C_ORM_FREE(table);
         }
         in_table = 0;
       } else if (in_select) {
@@ -188,7 +187,7 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
         if (rc == 0 && proj) {
           cdd_c_ir_add_projection(out_ir, proj);
           /* cdd_c_query_projection_free(proj); */
-          free(proj);
+          C_ORM_FREE(proj);
         }
         in_select = 0;
       }
@@ -204,7 +203,7 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
     if (rc == 0 && proj) {
       cdd_c_ir_add_projection(out_ir, proj);
       /* cdd_c_query_projection_free(proj); */
-      free(proj);
+      C_ORM_FREE(proj);
     }
   }
 

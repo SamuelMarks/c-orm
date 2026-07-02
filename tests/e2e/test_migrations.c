@@ -22,6 +22,16 @@ static void *m_mock_malloc(size_t size) {
   }
   return malloc(size);
 }
+static void *m_mock_realloc(void *ptr, size_t size) {
+  if (oom_active) {
+    if (oom_countdown == 0) {
+      oom_countdown--;
+      return NULL;
+    }
+    oom_countdown--;
+  }
+  return realloc(ptr, size);
+}
 static void m_mock_free(void *ptr) { free(ptr); }
 
 static c_orm_error_t
@@ -53,8 +63,25 @@ static int fail_prep_schema = 0;
 static int fail_prep_applied = 0;
 static c_orm_error_t (*orig_prep)(c_orm_db_t *, const char *, c_orm_query_t **);
 
+static int fail_get_string = 0;
+static c_orm_error_t (*orig_get_string)(c_orm_query_t *, int, const char **);
+static c_orm_error_t my_mig_get_string(c_orm_query_t *query, int index,
+                                       const char **out_val) {
+  if (fail_get_string) {
+    *out_val = NULL;
+    return C_ORM_OK;
+  }
+  return orig_get_string(query, index, out_val);
+}
+
+static int fail_pg_lock = 0;
 static c_orm_error_t my_mig_prep(c_orm_db_t *db_v, const char *sql,
                                  c_orm_query_t **out_query) {
+  if (fail_pg_lock &&
+      (strstr(sql, "pg_advisory_lock") || strstr(sql, "GET_LOCK"))) {
+    *out_query = (c_orm_query_t *)0x1234; /* dummy pointer */
+    return C_ORM_OK;
+  }
   if (fail_init && strstr(sql, "CREATE TABLE IF NOT EXISTS _c_orm_migrations"))
     return C_ORM_ERROR_SQL;
   if (fail_insert && strstr(sql, "INSERT INTO _c_orm_migrations"))
@@ -64,6 +91,7 @@ static c_orm_error_t my_mig_prep(c_orm_db_t *db_v, const char *sql,
   if (fail_applied &&
       strstr(sql, "SELECT version, name, hash FROM _c_orm_migrations"))
     return C_ORM_ERROR_SQL;
+
   if (fail_up && strstr(sql, "UP"))
     return C_ORM_ERROR_SQL;
   if (fail_down && strstr(sql, "DOWN"))
@@ -71,20 +99,44 @@ static c_orm_error_t my_mig_prep(c_orm_db_t *db_v, const char *sql,
   if (fail_rollback_step_rb &&
       strstr(sql, "ROLLBACK TO SAVEPOINT c_orm_mig_step_rb"))
     return C_ORM_ERROR_SQL;
+  if (fail_init == 2 && strstr(sql, "SAVEPOINT c_orm_mig_step") &&
+      !strstr(sql, "RELEASE") && !strstr(sql, "ROLLBACK"))
+    return C_ORM_ERROR_SQL;
+  if (fail_init == 3 && strstr(sql, "RELEASE SAVEPOINT c_orm_mig_step"))
+    return C_ORM_ERROR_SQL;
+  if (fail_rollback_step_rb == 2 &&
+      strstr(sql, "SAVEPOINT c_orm_mig_step_rb") && !strstr(sql, "RELEASE") &&
+      !strstr(sql, "ROLLBACK"))
+    return C_ORM_ERROR_SQL;
+  if (fail_rollback_step_rb == 3 &&
+      strstr(sql, "RELEASE SAVEPOINT c_orm_mig_step_rb"))
+    return C_ORM_ERROR_SQL;
   if (fail_prep_schema && strstr(sql, "PRAGMA table_info"))
     return C_ORM_ERROR_SQL;
   if (fail_prep_applied &&
       strstr(sql, "SELECT version, name, hash FROM _c_orm_migrations"))
     return C_ORM_ERROR_SQL;
+
   return orig_prep(db_v, sql, out_query);
 }
 
 static int fail_step = 0;
 static c_orm_error_t (*orig_step)(c_orm_query_t *, int *);
 static c_orm_error_t my_mig_step(c_orm_query_t *query, int *out_has_row) {
+  if (query == (c_orm_query_t *)0x1234) {
+    *out_has_row = 0;
+    return C_ORM_OK;
+  }
   if (fail_step)
     return C_ORM_ERROR_SQL;
   return orig_step(query, out_has_row);
+}
+
+static c_orm_error_t (*orig_finalize)(c_orm_query_t *);
+static c_orm_error_t my_mig_finalize(c_orm_query_t *query) {
+  if (query == (c_orm_query_t *)0x1234)
+    return C_ORM_OK;
+  return orig_finalize(query);
 }
 
 SUITE(migrations_suite);
@@ -98,6 +150,8 @@ TEST test_migration_init(void) {
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ(C_ORM_OK, err);
 
+  err = c_orm_migration_init_table(NULL);
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, err);
   err = c_orm_migration_init_table(db);
   ASSERT_EQ(C_ORM_OK, err);
 
@@ -180,8 +234,9 @@ TEST test_c_orm_fetch_table_schema(void) {
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ(C_ORM_OK, err);
 
-  c_orm_execute_raw(
+  err = c_orm_execute_raw(
       db, "CREATE TABLE authors (id INTEGER PRIMARY KEY, name TEXT);");
+  ASSERT_EQ(C_ORM_OK, err);
 
   err = c_orm_migration_fetch_table_schema(db, "authors", &schema);
   ASSERT_EQ(C_ORM_OK, err);
@@ -216,6 +271,7 @@ TEST test_migrations_oom(void) {
   c_orm_db_t db_pg;
   c_orm_db_t db_my;
   cdd_c_meta_t *step_meta = NULL;
+  c_orm_error_t err;
   cdd_c_meta_t *s_meta = NULL;
   c_orm_migration_t *a_migs = NULL;
   size_t a_count = 0;
@@ -281,11 +337,40 @@ TEST test_migrations_oom(void) {
   c_orm_migrate_down(NULL, "dir", 1, &opts);
   c_orm_migrate_down(db, "dir", 1, &opts);
 
-  c_orm_execute_raw(db, "CREATE TABLE schema_test (id INT, v TEXT);");
+  /* Cover "real_migrations_cli" stub load */
+  c_orm_migrate_up(db, "real_migrations_cli", &opts);
+  c_orm_migrate_down(db, "real_migrations_cli", 1, &opts);
+
+  /* Cover lock/unlock validation error */
+  c_orm_migration_lock(NULL);
+  c_orm_migration_unlock(NULL);
+  {
+    c_orm_db_t tmp_db;
+    memset(&tmp_db, 0, sizeof(tmp_db));
+    c_orm_migration_unlock(&tmp_db); /* !db->driver_name */
+  }
+
+  err =
+      c_orm_execute_raw(db, "CREATE TABLE schema_test (c1 INT, c2 INT, c3 INT, "
+                            "c4 INT, c5 INT, c6 INT, c7 INT, c8 INT, c9 INT, "
+                            "c10 INT, c11 INT, c12 INT, c13 INT, c14 INT);");
+  ASSERT_EQ(C_ORM_OK, err);
+  {
+    int j;
+    for (j = 0; j < 12; j++) {
+      char buf[128];
+      sprintf(buf,
+              "INSERT INTO _c_orm_migrations (version, name, hash) VALUES "
+              "('%d', 'n', 'h')",
+              200 + j);
+      c_orm_execute_raw(db, buf);
+    }
+  }
+
   {
     int i;
     cdd_c_meta_t *null_name_meta;
-    for (i = 0; i < 25; i++) {
+    for (i = 0; i < 60; i++) {
       cdd_c_meta_t *out_s = NULL;
       oom_active = 1;
       oom_countdown = i;
@@ -294,7 +379,7 @@ TEST test_migrations_oom(void) {
       if (out_s)
         c_orm_migration_free_table_schema(out_s);
     }
-    for (i = 0; i < 15; i++) {
+    for (i = 0; i < 40; i++) {
       c_orm_migration_t *m_out = NULL;
       size_t c_out = 0;
       oom_active = 1;
@@ -312,39 +397,89 @@ TEST test_migrations_oom(void) {
     c_orm_migration_free_table_schema(null_name_meta);
   }
 
-  /* Mock vtable for failures */
+  /* NULL checks */
+  c_orm_migration_fetch_table_schema(NULL, "schema_test", &step_meta);
+  c_orm_migration_fetch_table_schema(db, NULL, &step_meta);
+  c_orm_migration_fetch_table_schema(db, "schema_test", NULL);
+
+  c_orm_migration_get_applied(NULL, &a_migs, &a_count);
+  c_orm_migration_get_applied(db, NULL, &a_count);
+  c_orm_migration_get_applied(db, &a_migs, NULL);
   orig_vt = *(c_orm_driver_vtable_t *)db->vtable;
   mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
   orig_prep = mock_vt.prepare;
   mock_vt.prepare = my_mig_prep;
   orig_step = mock_vt.step;
   mock_vt.step = my_mig_step;
+  orig_get_string = mock_vt.get_string;
+  mock_vt.get_string = my_mig_get_string;
+  orig_finalize = mock_vt.finalize;
+  mock_vt.finalize = my_mig_finalize;
   db->vtable = (const c_orm_driver_vtable_t *)&mock_vt;
+
+  /* Test NULL col_name branch in fetch_table_schema */
+  fail_get_string = 1;
+  step_meta = NULL;
+  c_orm_migration_fetch_table_schema(db, "schema_test", &step_meta);
+  if (step_meta)
+    c_orm_migration_free_table_schema(step_meta);
+  fail_get_string = 0;
 
   fail_init = 1;
   c_orm_migrate_all(db, &m_good, 1, &opts);
-  fail_init = 0;
+  {
+    c_orm_migration_t m_save;
+    memset(&m_save, 0, sizeof(m_save));
+    m_save.up_sql = "SELECT 1";
+    m_save.down_sql = "SELECT 1";
+    C_ORM_STRCPY(m_save.version, sizeof(m_save.version), "99");
+    C_ORM_STRCPY(m_save.name, sizeof(m_save.name), "save_test");
+    fail_init = 2;
+    c_orm_migrate_all(db, &m_save, 1, &opts);
+    fail_init = 3;
+    c_orm_migrate_all(db, &m_save, 1, &opts);
+    fail_init = 0;
+    /* Now for rollback rb savepoint tests we need it to be actually applied */
+    c_orm_migrate_all(db, &m_save, 1, &opts);
+    fail_rollback_step_rb = 2;
+    c_orm_migrate_rollback(db, &m_save, 1, 1, &opts);
+    fail_rollback_step_rb = 3;
+    c_orm_migrate_rollback(db, &m_save, 1, 1, &opts);
+    fail_rollback_step_rb = 0;
+  }
 
   fail_applied = 1;
   c_orm_migrate_rollback(db, &m_good, 1, 1, &opts);
   fail_applied = 0;
 
+  /* Actually rollback m_good so we can apply it again */
+  c_orm_migrate_rollback(db, &m_good, 1, 1, &opts);
+
   fail_up = 1;
+  m_good.up_sql = "CREATE TABLE dummy (id INT); /* UP FAIL */";
+  printf("--- AT FAIL UP ---\n");
   c_orm_migrate_all(db, &m_good, 1, &opts); /* fails in up_sql */
   fail_up = 0;
 
+  c_orm_migrate_rollback(db, &m_good, 1, 1, &opts);
   fail_insert = 1;
+  C_ORM_STRCPY(m_good.hash, sizeof(m_good.hash), "newhash1");
   c_orm_migrate_all(db, &m_good, 1, &opts);
   fail_insert = 0;
+
+  c_orm_execute_raw(db, "DROP TABLE dummy");
 
   /* Need to ensure it's applied for down to work */
   c_orm_migrate_all(db, &m_good, 1, &opts);
 
   fail_down = 1;
+  m_good.down_sql = "DROP TABLE dummy; /* DOWN FAIL */";
+  c_orm_disable_statement_caching(db);
   c_orm_migrate_rollback(db, &m_good, 1, 1, &opts); /* fails down_sql */
   fail_down = 0;
 
   fail_delete = 1;
+  c_orm_disable_statement_caching(db);
   c_orm_migrate_rollback(db, &m_good, 1, 1, &opts);
   fail_delete = 0;
 
@@ -362,14 +497,18 @@ TEST test_migrations_oom(void) {
 
   fail_rollback_step_rb = 1;
   fail_down = 1;
+  m_good.down_sql = "DROP TABLE dummy; /* DOWN FAIL */";
+  c_orm_disable_statement_caching(db);
   c_orm_migrate_rollback(db, &m_good, 1, 1, &opts);
   fail_down = 0;
   fail_delete = 1;
+  c_orm_disable_statement_caching(db);
   c_orm_migrate_rollback(db, &m_good, 1, 1, &opts);
   fail_delete = 0;
   fail_rollback_step_rb = 0;
 
   /* Extra branch coverage */
+  c_orm_migrate_all(db, &m_good, 1, &opts);
   opts.log_cb = test_log_cb;
   c_orm_migrate_rollback(db, &m_good, 1, 1, &opts); /* log_cb in rollback */
   c_orm_migrate_rollback(db, &m_good, 1, 0, &opts); /* steps == 0 */
@@ -377,33 +516,35 @@ TEST test_migrations_oom(void) {
   fail_prep_schema = 1;
   s_meta = NULL;
   c_orm_migration_fetch_table_schema(db, "authors", &s_meta);
-  if (s_meta)
-    c_orm_migration_free_table_schema(s_meta);
+  c_orm_migration_free_table_schema(s_meta);
   fail_prep_schema = 0;
 
   fail_prep_applied = 1;
   a_migs = NULL;
   a_count = 0;
   c_orm_migration_get_applied(db, &a_migs, &a_count);
-  if (a_migs)
-    c_orm_migration_free_array(a_migs, a_count);
+  c_orm_migration_free_array(a_migs, a_count);
   fail_prep_applied = 0;
 
   db->vtable = (const c_orm_driver_vtable_t *)&orig_vt;
 
   memset(&db_pg, 0, sizeof(db_pg));
-  db_pg.vtable = (const c_orm_driver_vtable_t *)&orig_vt;
+  db_pg.vtable = (const c_orm_driver_vtable_t *)&mock_vt;
   db_pg.driver_name = "postgres";
   db_pg.driver_data = db->driver_data;
+  fail_pg_lock = 1;
   c_orm_migration_lock(&db_pg);
   c_orm_migration_unlock(&db_pg);
+  fail_pg_lock = 0;
 
   memset(&db_my, 0, sizeof(db_my));
-  db_my.vtable = (const c_orm_driver_vtable_t *)&orig_vt;
+  db_my.vtable = (const c_orm_driver_vtable_t *)&mock_vt;
   db_my.driver_name = "mysql";
   db_my.driver_data = db->driver_data;
+  fail_pg_lock = 1;
   c_orm_migration_lock(&db_my);
   c_orm_migration_unlock(&db_my);
+  fail_pg_lock = 0;
 
   db->vtable->disconnect(db);
   PASS();
@@ -412,10 +553,12 @@ TEST test_migrations_oom(void) {
 SUITE(migrations_suite) {
 
   void *(*old_malloc)(size_t) = c_orm_malloc;
+  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
   void (*old_free)(void *) = c_orm_free;
 
-  c_orm_malloc = m_mock_malloc;
-  c_orm_free = m_mock_free;
+  c_orm_set_allocators(m_mock_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, m_mock_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, m_mock_free);
 
   RUN_TEST(test_c_orm_fetch_table_schema);
   RUN_TEST(test_migration_init);
@@ -423,6 +566,7 @@ SUITE(migrations_suite) {
   RUN_TEST(test_migrate_all_execute);
   RUN_TEST(test_migrations_oom);
 
-  c_orm_malloc = old_malloc;
-  c_orm_free = old_free;
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
 }

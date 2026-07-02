@@ -78,6 +78,15 @@ extern "C" {
 C_ORM_EXPORT extern void *(*c_orm_malloc)(size_t size);
 C_ORM_EXPORT extern void (*c_orm_free)(void *ptr);
 C_ORM_EXPORT extern void *(*c_orm_realloc)(void *ptr, size_t size);
+
+/**
+ * @brief Sets the allocator functions. Useful for testing across DLL
+ * boundaries.
+ */
+C_ORM_EXPORT void c_orm_set_allocators(void *(*m)(size_t),
+                                       void *(*r)(void *, size_t),
+                                       void (*f)(void *));
+
 #define C_ORM_MALLOC c_orm_malloc
 #define C_ORM_FREE c_orm_free
 #define C_ORM_REALLOC c_orm_realloc

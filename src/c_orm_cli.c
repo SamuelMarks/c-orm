@@ -202,7 +202,8 @@ int main(int argc, char **argv) {
       printf("No pending migrations found in %s\n", dir_path);
     }
 
-    db->vtable->disconnect(db);
+    if (db->vtable && db->vtable->disconnect)
+      db->vtable->disconnect(db);
   } else if (strcmp(command, "rollback") == 0) {
     printf("Rollback logic stubbed.\n");
   } else if (strcmp(command, "status") == 0) {
@@ -241,18 +242,20 @@ int main(int argc, char **argv) {
         printf("  [%s] %s\n", applied[j].version, applied[j].name);
       }
       if (applied) {
-        C_ORM_FREE(applied);
+        c_orm_migration_free_array(applied, count);
       }
     } else {
       printf("Failed to fetch migration status or no migrations applied.\n");
-      db->vtable->disconnect(db);
+      if (db->vtable && db->vtable->disconnect)
+        db->vtable->disconnect(db);
       rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: failed to fetch migration status");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
       return rc;
     }
-    db->vtable->disconnect(db);
+    if (db->vtable && db->vtable->disconnect)
+      db->vtable->disconnect(db);
   } else {
     printf("Unknown command: %s\n", command);
     print_usage(argv[0]);

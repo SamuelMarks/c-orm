@@ -49,8 +49,14 @@ static c_orm_error_t mock_load_dir(const char *dir_path,
 static c_orm_error_t
 mock_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
                  size_t count, const c_orm_migration_options_t *options) { (void)db; (void)migrations; (void)count; (void)options;
+  if (options && options->log_cb) {
+    options->log_cb("Mock migrate all log");
+  }
   return C_ORM_OK;
 }
+
+#define c_orm_migration_load_dir mock_load_dir
+#define c_orm_migrate_all mock_migrate_all
 
 int mock_get_applied_fail = 0;
 static c_orm_error_t mock_get_applied(c_orm_db_t *db,
@@ -68,8 +74,7 @@ static c_orm_error_t mock_get_applied(c_orm_db_t *db,
 }
 #define c_orm_migration_get_applied mock_get_applied
 
-#define c_orm_migration_load_dir mock_load_dir
-#define c_orm_migrate_all mock_migrate_all
+
 
 int c_orm_cli_main(int argc, char **argv);
 #define main c_orm_cli_main
@@ -107,6 +112,7 @@ TEST test_cli_init(void) {
   system("rmdir /s /q test_migrations_dir_cli >nul 2>&1");
 #else
   system("rm -rf test_migrations_dir_cli");
+  system("rm -rf ./test_migrations_dir_cli");
 #endif
   rc = c_orm_cli_main(argc, (char **)argv);
   ASSERT_EQ(C_ORM_OK, rc);

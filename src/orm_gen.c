@@ -217,13 +217,13 @@ c_orm_error_t openapi_orm_generate(const struct OpenAPI_Spec *spec,
 
   if (config->model_header) {
     size_t header_len = strlen(config->model_header);
-    model_h = malloc(header_len + 1);
+    model_h = C_ORM_MALLOC(header_len + 1);
     if (model_h) {
       C_ORM_STRCPY(model_h, header_len + 1, config->model_header);
     }
   } else {
     size_t len = strlen(config->filename_base) + 10;
-    model_h = malloc(len + 1);
+    model_h = C_ORM_MALLOC(len + 1);
     if (model_h) {
       C_ORM_SPRINTF(model_h, len + 1, "%s_models.h", config->filename_base);
     }
@@ -257,7 +257,7 @@ c_orm_error_t openapi_orm_generate(const struct OpenAPI_Spec *spec,
 #endif
 
   if (!fp_h || !fp_c) {
-    free(model_h);
+    C_ORM_FREE(model_h);
     if (fp_h)
       fclose(fp_h);
     if (fp_c)
@@ -591,9 +591,10 @@ c_orm_error_t openapi_orm_generate(const struct OpenAPI_Spec *spec,
                 field->name, struct_name);
         if (strcmp(openapi_type_to_c_type(field), "int32_t") == 0 ||
             strcmp(openapi_type_to_c_type(field), "int64_t") == 0) {
-          fprintf(fp_c,
-                  "  if (out_obj) *out_obj = malloc(sizeof(struct %s));\n",
-                  struct_name);
+          fprintf(
+              fp_c,
+              "  if (out_obj) *out_obj = C_ORM_MALLOC(sizeof(struct %s));\n",
+              struct_name);
           fprintf(fp_c, "  if (out_obj && !*out_obj) return "
                         "C_ORM_ERROR_MEMORY;\n");
           fprintf(fp_c,
@@ -601,9 +602,10 @@ c_orm_error_t openapi_orm_generate(const struct OpenAPI_Spec *spec,
                   "(int32_t)%s, *out_obj);\n",
                   struct_name, field->name);
         } else if (strcmp(openapi_type_to_c_type(field), "char*") == 0) {
-          fprintf(fp_c,
-                  "  if (out_obj) *out_obj = malloc(sizeof(struct %s));\n",
-                  struct_name);
+          fprintf(
+              fp_c,
+              "  if (out_obj) *out_obj = C_ORM_MALLOC(sizeof(struct %s));\n",
+              struct_name);
           fprintf(fp_c, "  if (out_obj && !*out_obj) return "
                         "C_ORM_ERROR_MEMORY;\n");
           fprintf(fp_c,
@@ -672,7 +674,7 @@ c_orm_error_t openapi_orm_generate(const struct OpenAPI_Spec *spec,
 
   fclose(fp_h);
   fclose(fp_c);
-  free(model_h);
+  C_ORM_FREE(model_h);
 
   return 0;
 }

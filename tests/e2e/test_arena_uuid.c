@@ -26,7 +26,7 @@ TEST test_arena_coverage(void) {
 
 #ifdef C_ORM_TEST_ALLOCATOR
   void *(*old_malloc)(size_t) = c_orm_malloc;
-  c_orm_malloc = my_test_malloc;
+  c_orm_set_allocators(my_test_malloc, c_orm_realloc, c_orm_free);
 
   /* Test OOM in arena_new */
   malloc_fail_countdown = 0;
@@ -44,7 +44,7 @@ TEST test_arena_coverage(void) {
   c_orm_arena_free(arena);
 
   /* Reset */
-  c_orm_malloc = old_malloc;
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
 #endif
 
   rc = c_orm_arena_new(NULL);

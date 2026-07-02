@@ -205,6 +205,15 @@ TEST test_query_fluent_coverage(void) {
   PASS();
 }
 
+static c_orm_error_t (*orig_finalize_mock)(c_orm_query_t *);
+static int my_fail_finalize = 0;
+static c_orm_error_t my_mock_finalize(c_orm_query_t *q_ptr) {
+  c_orm_error_t res = orig_finalize_mock(q_ptr);
+  if (my_fail_finalize)
+    res = C_ORM_ERROR_SQL;
+  return res;
+}
+
 static c_orm_error_t (*orig_bind_string)(c_orm_query_t *, int, const char *);
 static int fail_bind = 0;
 static c_orm_error_t my_mock_bind_string(c_orm_query_t *query, int index,
@@ -224,8 +233,7 @@ static c_orm_error_t my_mock_prep(c_orm_db_t *db, const char *sql,
 }
 
 TEST test_fluent_oom(void) {
-  int pad, i, j;
-  /* Test c_orm_query_new OOMs */
+  int i;
   {
     c_orm_query_t *oq = NULL;
     oom_active = 1;
@@ -236,399 +244,86 @@ TEST test_fluent_oom(void) {
     oom_active = 0;
   }
 
-  for (pad = 165; pad < 166; pad++) {
-    {
+#define TEST_OOM(expr)                                                         \
+  do {                                                                         \
+    c_orm_query_t *oq = NULL;                                                  \
+    c_orm_ast_node_t *n = (c_orm_ast_node_t *)1;                               \
+    c_orm_query_t *sq = (c_orm_query_t *)1;                                    \
+    c_orm_query_new(&oq);                                                      \
+    oom_active = 1;                                                            \
+    oom_countdown = 0;                                                         \
+    expr;                                                                      \
+    oom_active = 0;                                                            \
+    c_orm_query_free(oq);                                                      \
+  } while (0)
+
+  TEST_OOM(oq->raw(oq, "1"));
+  TEST_OOM(oq->col(oq, "1"));
+  TEST_OOM(oq->lit(oq, "1", 0));
+  TEST_OOM(oq->lit(oq, "x\'x", 1));
+  TEST_OOM(oq->op(oq, "=", n, n));
+  TEST_OOM(oq->select_(oq, "1"));
+  TEST_OOM(oq->from(oq, "1"));
+  TEST_OOM(oq->where(oq, n));
+  TEST_OOM({
+    oq->where(oq, oq->raw(oq, "1"));
+    oq->and_where(oq, n);
+  });
+  TEST_OOM({
+    oq->where(oq, oq->raw(oq, "1"));
+    oq->or_where(oq, n);
+  });
+  TEST_OOM(oq->order_by(oq, "1", 0));
+  TEST_OOM(oq->limit(oq, 1));
+  TEST_OOM(oq->offset(oq, 1));
+  TEST_OOM(oq->join(oq, "1", "2", n));
+  TEST_OOM(oq->left_join(oq, "1", n));
+  TEST_OOM(oq->right_join(oq, "1", n));
+  TEST_OOM(oq->group_by(oq, "1"));
+  TEST_OOM(oq->having(oq, n));
+  TEST_OOM(oq->with(oq, "1", sq));
+  TEST_OOM(oq->union_(oq, sq, 0));
+  TEST_OOM(oq->from_alias(oq, "1", "2"));
+  TEST_OOM(oq->distinct(oq));
+  TEST_OOM(oq->group(oq, n));
+  TEST_OOM(oq->subquery(oq, sq, "s"));
+  TEST_OOM(oq->func(oq, "f", "c", "a"));
+  TEST_OOM(oq->cast_(oq, "c", "t"));
+  TEST_OOM(oq->is_null(oq, "c", 0));
+  TEST_OOM(oq->between(oq, "c", "1", "2", 0));
+  TEST_OOM(oq->exists(oq, sq, 0));
+  TEST_OOM(oq->window(oq, "f", "p", "o", "a"));
+
+#undef TEST_OOM
+
+  {
+    int count = 0;
+    char big_str[5000];
+    memset(big_str, 'x', 4999);
+    big_str[4999] = '\0';
+    big_str[0] = '\'';
+
+    while (1) {
+      int err;
       c_orm_query_t *oq = NULL;
       c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
       oom_active = 1;
-      oom_countdown = 0;
-      oq->select_(oq, "1");
+      oom_countdown = count;
+      oq->lit(oq, big_str, 1);
       oom_active = 0;
+      err = oq->error;
       c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->from(oq, "1");
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_ast_node_t *n;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      n = oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->where(oq, n);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_ast_node_t *n;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      n = oq->raw(oq, "1");
-      oq->where(oq, n);
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->and_where(oq, n);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_ast_node_t *n;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      n = oq->raw(oq, "1");
-      oq->where(oq, n);
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->or_where(oq, n);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->order_by(oq, "1", 0);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->group_by(oq, "1");
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_ast_node_t *n;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      n = oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->having(oq, n);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_ast_node_t *n;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      n = oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->join(oq, "1", "2", n);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_ast_node_t *n;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      n = oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->left_join(oq, "1", n);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_ast_node_t *n;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      n = oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->right_join(oq, "1", n);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_t *sq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      c_orm_query_new(&sq);
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->with(oq, "1", sq);
-      oom_active = 0;
-      c_orm_query_free(sq);
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_t *sq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      c_orm_query_new(&sq);
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->union_(oq, sq, 0);
-      oom_active = 0;
-      c_orm_query_free(sq);
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->from_alias(oq, "1", "2");
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->distinct(oq);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->limit(oq, 1);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->offset(oq, 1);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->raw(oq, "1");
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->col(oq, "1");
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->lit(oq, "1", 0);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->lit(oq, "x'x", 1);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 1;
-      oq->lit(oq, "x'x", 1);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_ast_node_t *n;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      n = oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->op(oq, "=", n, n);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_ast_node_t *n;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      n = oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->group(oq, n);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_t *sq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      c_orm_query_new(&sq);
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->subquery(oq, sq, "s");
-      oom_active = 0;
-      c_orm_query_free(sq);
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->func(oq, "f", "c", "a");
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->cast_(oq, "c", "t");
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->between(oq, "c", "1", "2", 0);
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_t *sq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      c_orm_query_new(&sq);
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->exists(oq, sq, 0);
-      oom_active = 0;
-      c_orm_query_free(sq);
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->window(oq, "f", "p", "o", "a");
-      oom_active = 0;
-      c_orm_query_free(oq);
-    }
-    {
-      c_orm_query_t *oq = NULL;
-      c_orm_query_new(&oq);
-      for (j = 0; j < pad; j++)
-        oq->raw(oq, "1");
-      oom_active = 1;
-      oom_countdown = 0;
-      oq->is_null(oq, "c", 0);
-      oom_active = 0;
-      c_orm_query_free(oq);
+      if (!err)
+        break;
+      count++;
     }
   }
 
-  /* Test clone OOM */
   {
     c_orm_query_t *qc = NULL;
-    c_orm_ast_node_t *n_raw;
-    c_orm_ast_node_t *n_group;
-    c_orm_query_t *sq2 = NULL;
-    c_orm_ast_node_t *n_sq;
-    c_orm_ast_node_t *n_func;
-    c_orm_ast_node_t *n_cast;
-    c_orm_ast_node_t *n_exists;
-    c_orm_ast_node_t *n_between;
-    c_orm_ast_node_t *n_window;
-    c_orm_ast_node_t *n_in;
-    c_orm_ast_node_t *n_like;
-    c_orm_query_t *w_sq = NULL;
-    c_orm_query_t *u = NULL;
-    c_orm_query_t *q_cloned = NULL;
+    c_orm_ast_node_t *n_raw, *n_group, *n_sq, *n_func, *n_cast, *n_exists,
+        *n_between, *n_window, *n_in, *n_like;
+    c_orm_query_t *sq2 = NULL, *w_sq = NULL, *u = NULL;
 
     c_orm_query_new(&qc);
     n_raw = qc->raw(qc, "1");
@@ -653,7 +348,6 @@ TEST test_fluent_oom(void) {
     qc->and_where(qc, n_window);
     qc->and_where(qc, n_in);
     qc->and_where(qc, n_like);
-
     qc->group_by(qc, "id");
     qc->having(qc, n_raw);
     qc->join(qc, "users", "INNER", qc->eq(qc, "a", "b", 0));
@@ -664,8 +358,9 @@ TEST test_fluent_oom(void) {
     c_orm_query_new(&u);
     u->select_(u, "1");
     qc->union_(qc, u, 1);
+
     for (i = 0; i < 40; i++) {
-      q_cloned = NULL;
+      c_orm_query_t *q_cloned = NULL;
       oom_active = 1;
       oom_countdown = i;
       qc->clone(qc, &q_cloned);
@@ -680,7 +375,6 @@ TEST test_fluent_oom(void) {
     c_orm_query_free(qc);
   }
 
-  /* eager_load OOM and validation */
   {
     c_orm_table_meta_t meta;
     c_orm_relation_meta_t rel[2];
@@ -690,6 +384,8 @@ TEST test_fluent_oom(void) {
 
     memset(&meta, 0, sizeof(meta));
     meta.name = "base_tbl";
+    meta.num_columns = 2;
+    meta.columns = tcol;
 
     memset(rel, 0, sizeof(rel));
     rel[0].field_name = "my_rel";
@@ -711,14 +407,17 @@ TEST test_fluent_oom(void) {
     meta.relations = rel;
 
     c_orm_query_new(&qe);
+    qe->select_(qe, "*");
     qe->eager_load(qe, &meta, "unknown");
-    qe->select_(qe, "1");
+    rel[0].target_meta = NULL;
+    qe->eager_load(qe, &meta, "my_rel");
+    rel[0].target_meta = &tmeta;
     qe->eager_load(qe, &meta, "my_rel");
 
     for (i = 0; i < 20; i++) {
       c_orm_query_t *qo = NULL;
       c_orm_query_new(&qo);
-      qo->select_(qo, "1");
+      qo->select_(qo, "*");
       oom_active = 1;
       oom_countdown = i;
       qo->eager_load(qo, &meta, "my_rel");
@@ -727,9 +426,66 @@ TEST test_fluent_oom(void) {
     }
     c_orm_query_free(qe);
   }
+
+  {
+    c_orm_query_t *qc = NULL;
+    c_orm_ast_node_t *n;
+    c_orm_query_t *qc2 = NULL;
+    c_orm_query_new(&qc);
+    n = qc->where(qc, NULL)->ast_head;
+    (void)n;
+    qc->clone(qc, &qc2);
+    if (qc2)
+      c_orm_query_free(qc2);
+
+    qc->join(qc, "a", "b", NULL);
+    qc->clone(qc, &qc2);
+    if (qc2)
+      c_orm_query_free(qc2);
+    c_orm_query_free(qc);
+  }
+
+  {
+    c_orm_query_t *oq = NULL;
+    c_orm_ast_node_t *n;
+    c_orm_query_new(&oq);
+    n = oq->raw(oq, "1");
+    oq->where(oq, NULL);
+    oq->and_where(oq, n);
+    c_orm_query_free(oq);
+  }
+
+  {
+    c_orm_query_t *oq = NULL;
+    c_orm_ast_node_t *n;
+    c_orm_query_new(&oq);
+    n = oq->raw(oq, "1");
+    oq->where(oq, NULL);
+    oq->or_where(oq, n);
+    c_orm_query_free(oq);
+  }
+
+  {
+    c_orm_query_t *oq = NULL;
+    c_orm_ast_node_t *n;
+    c_orm_query_new(&oq);
+    oq->select_(oq, "1");
+    oq->from(oq, "t");
+    n = oq->raw(oq, "1");
+    oq->or_where(oq, n);
+    c_orm_query_free(oq);
+  }
+
+  {
+    c_orm_query_t *oq = NULL;
+    c_orm_query_new(&oq);
+    oq->from(oq, "t");
+    oq->distinct(oq);
+    c_orm_query_free(oq);
+  }
+
   PASS();
 }
-
 TEST test_sql_oom(void) {
   c_orm_query_t *q = NULL;
   char *sql = NULL;
@@ -746,14 +502,70 @@ TEST test_sql_oom(void) {
     oom_countdown = i;
     c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &p);
     oom_active = 0;
-    if (sql)
+    if (sql) {
       C_ORM_FREE(sql);
-    sql = NULL;
+      sql = NULL;
+    }
     c_orm_query_params_cleanup(&p);
     c_orm_query_params_init(&p);
   }
 
-  c_orm_query_params_cleanup(&p);
+  {
+    c_orm_query_t *qb = NULL;
+    c_orm_query_new(&qb);
+    qb->select_(qb, "1")
+        ->from(qb, "t")
+        ->where(qb, qb->eq(qb, "a", "1", 0))
+        ->and_where(qb, qb->eq(qb, "a", "2", 0))
+        ->and_where(qb, qb->eq(qb, "a", "3", 0))
+        ->and_where(qb, qb->eq(qb, "a", "4", 0))
+        ->and_where(qb, qb->eq(qb, "a", "5", 0))
+        ->and_where(qb, qb->eq(qb, "a", "6", 0))
+        ->and_where(qb, qb->eq(qb, "a", "7", 0))
+        ->and_where(qb, qb->between(qb, "a", "8", "9", 0));
+    for (i = 0; i < 100; i++) {
+      oom_active = 1;
+      oom_countdown = i;
+      c_orm_query_to_sql(qb, C_ORM_DIALECT_POSTGRES, &sql, &p);
+      oom_active = 0;
+      if (sql) {
+        C_ORM_FREE(sql);
+        sql = NULL;
+      }
+      c_orm_query_params_cleanup(&p);
+      c_orm_query_params_init(&p);
+    }
+    c_orm_query_free(qb);
+  }
+
+  {
+    c_orm_query_t *qb = NULL, *sq = NULL;
+    c_orm_query_new(&qb);
+    c_orm_query_new(&sq);
+    sq->select_(sq, "1");
+
+    qb->with(qb, "cte", sq);
+    qb->select_(qb, "1")->from(qb, "t");
+    qb->where(qb, qb->exists(qb, sq, 0));
+    qb->and_where(qb, qb->subquery(qb, sq, "alias"));
+    qb->union_(qb, sq, 0);
+
+    for (i = 0; i < 40; i++) {
+      oom_active = 1;
+      oom_countdown = i;
+      c_orm_query_to_sql(qb, C_ORM_DIALECT_SQLITE, &sql, &p);
+      oom_active = 0;
+      if (sql) {
+        C_ORM_FREE(sql);
+        sql = NULL;
+      }
+      c_orm_query_params_cleanup(&p);
+      c_orm_query_params_init(&p);
+    }
+    c_orm_query_free(sq);
+    c_orm_query_free(qb);
+  }
+
   c_orm_query_free(q);
 
   c_orm_query_params_init(&p);
@@ -769,6 +581,7 @@ TEST test_sql_oom(void) {
 }
 
 TEST test_query_sql_coverage(void) {
+  c_orm_error_t err;
   void *res_obj = NULL;
 
   struct Generic_Array {
@@ -913,13 +726,132 @@ TEST test_query_sql_coverage(void) {
   c_orm_query_to_sql(NULL, C_ORM_DIALECT_SQLITE, &sql, &p);
   c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &p);
   c_orm_free(sql);
+  sql = NULL;
   q->ast_head = NULL;
   c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &p);
-  c_orm_free(sql);
+  if (sql) {
+    c_orm_free(sql);
+    sql = NULL;
+  }
 
   /* Query Execute / Fetch NULL validation */
   c_orm_query_execute(NULL, q);
   c_orm_query_free(q);
+
+  {
+    c_orm_query_t *qn = NULL;
+    char *sql_n = NULL;
+    c_orm_query_new(&qn);
+    qn->select_(qn, "1")->from(qn, "t")->where(qn, qn->group(qn, NULL));
+    c_orm_query_to_sql(qn, C_ORM_DIALECT_SQLITE, &sql_n, NULL);
+    if (sql_n) {
+      C_ORM_FREE(sql_n);
+      sql_n = NULL;
+    }
+    c_orm_query_free(qn);
+  }
+
+  {
+    c_orm_query_t *qn = NULL;
+    char *sql_n = NULL;
+    c_orm_ast_node_t *dummy_node;
+    c_orm_query_new(&qn);
+    dummy_node = qn->raw(qn, "1");
+    dummy_node->type = (c_orm_ast_node_type_t)999;
+    qn->ast_head = dummy_node;
+    c_orm_query_to_sql(qn, C_ORM_DIALECT_SQLITE, &sql_n, NULL);
+    if (sql_n) {
+      C_ORM_FREE(sql_n);
+      sql_n = NULL;
+    }
+
+    qn->ast_head = NULL;
+    qn->select_(qn, "1")->from(qn, "t")->where(qn, qn->group(qn, dummy_node));
+    c_orm_query_to_sql(qn, C_ORM_DIALECT_SQLITE, &sql_n, NULL);
+    if (sql_n) {
+      C_ORM_FREE(sql_n);
+      sql_n = NULL;
+    }
+
+    c_orm_query_free(qn);
+  }
+
+  {
+    extern unsigned int cdd_c_sql_parser_max_depth;
+    unsigned int old_depth;
+    char *sql_d = NULL;
+    c_orm_query_t *q1 = NULL;
+    c_orm_query_t *q2 = NULL;
+
+    old_depth = cdd_c_sql_parser_max_depth;
+
+    c_orm_query_new(&q1);
+    q1->select_(q1, "1")->from(q1, "t")->join(q1, "t2", "INNER",
+                                              q1->eq(q1, "a", "b", 0));
+    cdd_c_sql_parser_max_depth = 0;
+    c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql_d, NULL);
+    ASSERT_EQ(NULL, sql_d);
+    cdd_c_sql_parser_max_depth = old_depth;
+    c_orm_query_free(q1);
+
+    c_orm_query_new(&q2);
+    q2->select_(q2, "1")->from(q2, "t")->having(q2, q2->eq(q2, "c", "d", 0));
+    cdd_c_sql_parser_max_depth = 0;
+    c_orm_query_to_sql(q2, C_ORM_DIALECT_SQLITE, &sql_d, NULL);
+    ASSERT_EQ(NULL, sql_d);
+    cdd_c_sql_parser_max_depth = old_depth;
+    c_orm_query_free(q2);
+  }
+
+  {
+    c_orm_query_t *qo = NULL;
+    c_orm_query_new(&qo);
+    qo->select_(qo, "1")->from(qo, "t");
+
+    oom_active = 1;
+    oom_countdown = 0;
+    c_orm_query_execute(exec_db, qo);
+    oom_active = 0;
+
+    oom_active = 1;
+    oom_countdown = 0;
+    c_orm_query_fetch_one(exec_db, qo, &meta, &res_obj);
+    oom_active = 0;
+
+    oom_active = 1;
+    oom_countdown = 0;
+    c_orm_query_fetch_all(exec_db, qo, &meta, &my_arr);
+    oom_active = 0;
+
+    c_orm_query_free(qo);
+  }
+
+  {
+    c_orm_query_t *qb = NULL;
+    int i;
+    char big[4500];
+
+    c_orm_query_params_init(&p);
+    c_orm_query_new(&qb);
+    memset(big, 'a', 4499);
+    big[4499] = '\0';
+    qb->select_(qb, "1")->from(qb, "t")->where(qb,
+                                               qb->group(qb, qb->raw(qb, big)));
+
+    for (i = 0; i < 50; i++) {
+      oom_active = 1;
+      oom_countdown = i;
+      c_orm_query_to_sql(qb, C_ORM_DIALECT_POSTGRES, &sql, &p);
+      oom_active = 0;
+      if (sql) {
+        C_ORM_FREE(sql);
+        sql = NULL;
+      }
+      c_orm_query_params_cleanup(&p);
+      c_orm_query_params_init(&p);
+    }
+    c_orm_query_free(qb);
+  }
 
   /* Execute, fetch_one, fetch_all tests */
   memset(&meta, 0, sizeof(meta));
@@ -927,8 +859,10 @@ TEST test_query_sql_coverage(void) {
   meta.struct_size = 8;
 
   c_orm_sqlite_connect(":memory:", &exec_db);
-  c_orm_execute_raw(exec_db, "CREATE TABLE t_exec (id INT);");
-  c_orm_execute_raw(exec_db, "INSERT INTO t_exec VALUES (1);");
+  err = c_orm_execute_raw(exec_db, "CREATE TABLE t_exec (id INT);");
+  ASSERT_EQ(C_ORM_OK, err);
+  err = c_orm_execute_raw(exec_db, "INSERT INTO t_exec VALUES (1);");
+  ASSERT_EQ(C_ORM_OK, err);
 
   c_orm_query_new(&qe);
   qe->select_(qe, "id")
@@ -998,11 +932,221 @@ TEST test_query_sql_coverage(void) {
   c_orm_query_fetch_all(exec_db, q_inv, &meta, &my_arr);
   c_orm_query_free(q_inv);
 
+  {
+    c_orm_driver_vtable_t vtable_fin = *exec_db->vtable;
+    const c_orm_driver_vtable_t *old_vt = exec_db->vtable;
+    c_orm_query_t *qf = NULL;
+
+    orig_finalize_mock = vtable_fin.finalize;
+    vtable_fin.finalize = my_mock_finalize;
+    exec_db->vtable = (const c_orm_driver_vtable_t *)&vtable_fin;
+
+    c_orm_query_new(&qf);
+    qf->select_(qf, "id")
+        ->from(qf, "t_exec")
+        ->where(qf, qf->eq(qf, "id", "1", 1));
+
+    my_fail_finalize = 1;
+    fail_bind = 1;
+    c_orm_query_execute(exec_db, qf);
+    c_orm_query_fetch_one(exec_db, qf, &meta, &res_obj);
+    c_orm_query_fetch_all(exec_db, qf, &meta, &my_arr);
+
+    fail_bind = 0;
+    my_fail_finalize = 1;
+    c_orm_query_execute(exec_db, qf);
+    c_orm_query_fetch_one(exec_db, qf, &meta, &res_obj);
+    c_orm_query_fetch_all(exec_db, qf, &meta, &my_arr);
+
+    my_fail_finalize = 0;
+    exec_db->vtable = old_vt;
+    c_orm_query_free(qf);
+  }
+
   exec_db->vtable->disconnect(exec_db);
   c_orm_query_free(qe);
   if (my_arr.data) {
     c_orm_free(my_arr.data);
   }
+  PASS();
+}
+
+static int g_malloc_fail = 0;
+static int g_malloc_count = 0;
+static int g_malloc_target = -1;
+static void *mock_malloc_fail(size_t size) {
+  if (g_malloc_fail) {
+    if (g_malloc_target == g_malloc_count++)
+      return NULL;
+  }
+  return malloc(size);
+}
+
+static void *mock_realloc_fail(void *ptr, size_t size) {
+  void *res = NULL;
+  if (!g_malloc_fail || g_malloc_target != g_malloc_count++)
+    res = realloc(ptr, size);
+  return res;
+}
+
+static void mock_free(void *p) { free(p); }
+
+static c_orm_error_t mock_prepare(c_orm_db_t *db, const char *sql,
+                                  c_orm_query_t **out) {
+  (void)db;
+  (void)sql;
+  *out = NULL;
+  return C_ORM_ERROR_SQL;
+}
+
+/* mock_step and mock_fin removed for coverage */
+
+TEST test_query_sql_to_sql_fail(void) {
+  void *(*old_malloc)(size_t) = c_orm_malloc;
+  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
+  void (*old_free)(void *) = c_orm_free;
+  int i;
+  c_orm_db_t db;
+  c_orm_driver_vtable_t vt;
+  c_orm_query_t *qb = NULL;
+  int fake_struct = 0;
+
+  memset(&db, 0, sizeof(db));
+  memset(&vt, 0, sizeof(vt));
+  vt.prepare = mock_prepare;
+  vt.step = NULL;
+  vt.finalize = NULL;
+  db.vtable = &vt;
+
+  for (i = 0; i < 50; i++) {
+    c_orm_error_t rc;
+
+    qb = NULL;
+    rc = c_orm_query_new(&qb);
+    if (rc == 0 && qb) {
+      c_orm_ast_between_t *bw = NULL;
+
+      qb->select_(qb, "*");
+      qb->from(qb, "users");
+
+      c_orm_arena_alloc(qb->arena, sizeof(c_orm_ast_between_t), (void **)&bw);
+      if (bw) {
+        memset(bw, 0, sizeof(*bw));
+        bw->base.type = C_ORM_AST_NODE_BETWEEN;
+        bw->col = "score";
+        bw->low = "1";
+        bw->high = "100";
+        bw->is_string = 0;
+
+        qb->where(qb, (c_orm_ast_node_t *)bw);
+      }
+
+      c_orm_set_allocators(mock_malloc_fail, c_orm_realloc, c_orm_free);
+      c_orm_set_allocators(c_orm_malloc, mock_realloc_fail, c_orm_free);
+      c_orm_set_allocators(c_orm_malloc, c_orm_realloc, mock_free);
+
+      g_malloc_target = 0;
+      g_malloc_count = 0;
+      g_malloc_fail = 1;
+      /* Pass valid pointers so to_sql is what fails */
+      c_orm_query_fetch_one(&db, qb, (const c_orm_table_meta_t *)&db,
+                            &fake_struct);
+
+      g_malloc_target = 0;
+      g_malloc_count = 0;
+      g_malloc_fail = 1;
+      c_orm_query_fetch_all(&db, qb, (const c_orm_table_meta_t *)&db,
+                            &fake_struct);
+
+      g_malloc_target = 0;
+      g_malloc_count = 0;
+      g_malloc_fail = 1;
+      c_orm_query_execute(&db, qb);
+
+      g_malloc_target = 2;
+      g_malloc_count = 0;
+      g_malloc_fail = 1;
+      c_orm_query_fetch_one(&db, qb, (const c_orm_table_meta_t *)&db,
+                            &fake_struct);
+
+      g_malloc_target = 2;
+      g_malloc_count = 0;
+      g_malloc_fail = 1;
+      c_orm_query_fetch_all(&db, qb, (const c_orm_table_meta_t *)&db,
+                            &fake_struct);
+
+      g_malloc_fail = 0;
+      c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+      c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
+      c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
+
+      c_orm_query_free(qb);
+    }
+  }
+
+  PASS();
+}
+
+TEST test_query_sql_oom(void) {
+  void *(*old_malloc)(size_t) = c_orm_malloc;
+  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
+  void (*old_free)(void *) = c_orm_free;
+  int i;
+  c_orm_db_t db;
+  c_orm_driver_vtable_t vt;
+  c_orm_query_t *qb = NULL;
+
+  memset(&db, 0, sizeof(db));
+  memset(&vt, 0, sizeof(vt));
+  vt.prepare = mock_prepare;
+  vt.step = NULL;
+  vt.finalize = NULL;
+  db.vtable = &vt;
+
+  c_orm_set_allocators(mock_malloc_fail, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, mock_realloc_fail, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, mock_free);
+
+  for (i = 0; i < 200; i++) {
+    c_orm_error_t rc;
+    g_malloc_target = i;
+    g_malloc_count = 0;
+    g_malloc_fail = 1;
+
+    qb = NULL;
+    rc = c_orm_query_new(&qb);
+    if (rc == 0 && qb) {
+      c_orm_ast_between_t *bw = NULL;
+
+      /* Make it use a BETWEEN to hit render_node low/high */
+      c_orm_arena_alloc(qb->arena, sizeof(c_orm_ast_between_t), (void **)&bw);
+      if (bw) {
+        memset(bw, 0, sizeof(*bw));
+        bw->base.type = C_ORM_AST_NODE_BETWEEN;
+        bw->col = "score";
+        bw->low = "1";
+        bw->high = "100";
+        bw->is_string = 0;
+
+        qb->ast_head = (c_orm_ast_node_t *)bw;
+      }
+
+      /* Hit execution OOMs */
+      c_orm_query_execute(&db, qb);
+      c_orm_query_fetch_one(&db, qb, NULL, NULL);
+      c_orm_query_fetch_all(&db, qb, NULL, NULL);
+      c_orm_query_free(qb);
+    }
+
+    g_malloc_fail = 0;
+    if (g_malloc_count <= i)
+      break;
+  }
+
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
+
   PASS();
 }
 
@@ -1012,16 +1156,18 @@ SUITE(query_fluent_coverage_suite) {
   void (*old_free)(void *) = c_orm_free;
   void *(*old_realloc)(void *, size_t) = c_orm_realloc;
 
-  c_orm_malloc = q_mock_malloc;
-  c_orm_free = q_mock_free;
-  c_orm_realloc = q_mock_realloc;
+  c_orm_set_allocators(q_mock_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, q_mock_free);
+  c_orm_set_allocators(c_orm_malloc, q_mock_realloc, c_orm_free);
 
   RUN_TEST(test_query_fluent_coverage);
+  RUN_TEST(test_query_sql_oom);
+  RUN_TEST(test_query_sql_to_sql_fail);
   RUN_TEST(test_fluent_oom);
   RUN_TEST(test_query_sql_coverage);
   RUN_TEST(test_sql_oom);
 
-  c_orm_malloc = old_malloc;
-  c_orm_free = old_free;
-  c_orm_realloc = old_realloc;
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
+  c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
 }

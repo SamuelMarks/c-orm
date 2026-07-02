@@ -55,10 +55,8 @@ TEST test_c_orm_generic_crud(void) {
       C_ORM_FREE(out_u.username);
     if (out_u.email)
       C_ORM_FREE(out_u.email);
-    if (out_u.age)
-      C_ORM_FREE(out_u.age);
-    if (out_u.score)
-      C_ORM_FREE(out_u.score);
+    C_ORM_FREE(out_u.age);
+    C_ORM_FREE(out_u.score);
     if (out_u.is_active)
       C_ORM_FREE(out_u.is_active);
     if (out_u.created_at)
@@ -77,10 +75,8 @@ TEST test_c_orm_generic_crud(void) {
         C_ORM_FREE(users_arr[i].username);
       if (users_arr[i].email)
         C_ORM_FREE(users_arr[i].email);
-      if (users_arr[i].age)
-        C_ORM_FREE(users_arr[i].age);
-      if (users_arr[i].score)
-        C_ORM_FREE(users_arr[i].score);
+      C_ORM_FREE(users_arr[i].age);
+      C_ORM_FREE(users_arr[i].score);
       if (users_arr[i].is_active)
         C_ORM_FREE(users_arr[i].is_active);
       if (users_arr[i].created_at)
@@ -169,8 +165,15 @@ TEST test_c_orm_alloc(void) {
   PASS();
 }
 
+int C_CDD_LOG_DEBUG(const char *fmt, ...);
+TEST test_cdd_c_compat_log(void) {
+  ASSERT_EQ(0, C_CDD_LOG_DEBUG("Test log\n"));
+  PASS();
+}
+
 SUITE(generic_suite) {
   RUN_TEST(test_c_orm_generic_crud);
   RUN_TEST(test_c_orm_telemetry);
   RUN_TEST(test_c_orm_alloc);
+  RUN_TEST(test_cdd_c_compat_log);
 }

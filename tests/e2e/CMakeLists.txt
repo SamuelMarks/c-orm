@@ -59,6 +59,7 @@ else()
     endif()
 
     add_library(e2e_models STATIC "${CMAKE_CURRENT_BINARY_DIR}/Models.c")
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/Models.c" PROPERTIES COMPILE_DEFINITIONS "malloc=e2e_mock_malloc;calloc=e2e_mock_calloc")
 
     add_executable(c_orm_e2e_tests
     test_arena_uuid.c
@@ -68,18 +69,31 @@ else()
     test_cli_exec.c
     test_db_stubs.c
     test_e2e.c
+    test_api_coverage.c
     test_generic.c
+    test_abstract_struct.c
+    test_cdd_c_ir.c
+    test_query_projection.c
+    test_c_orm_sql.c
+    test_c_orm_sql_extra.c
+    test_hydrate_router.c
+    test_migration.c
+    test_c_orm_c_to_sql.c
+    test_c_orm_sql_to_c.c
     test_inline_macros.c
     test_memory_driver.c
     test_migrations.c
     test_oom_coverage.c
     test_codegen_coverage.c
     test_query_builder_coverage.c
+      test_orm_gen.c
     test_query_coverage.c
     test_relations.c
     test_sqlite_driver.c
     test_string_builder.c
-
+    test_sql_parser.c
+    test_oauth2.c
+    test_models_coverage.c
 )
 
 add_dependencies(c_orm_e2e_tests e2e_models)

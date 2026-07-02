@@ -10,6 +10,7 @@
 #include "c_orm_safe_crt.h"
 #include "hydrate_router.h"
 #include <stdlib.h>
+#include "c_orm_meta.h"
 #include <string.h>
 /* clang-format on */
 
@@ -75,7 +76,7 @@ cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
 
   if (router->count >= router->capacity) {
     new_cap = router->capacity == 0 ? 8 : router->capacity * 2;
-    new_routes = (cdd_c_hydrate_route_t *)realloc(
+    new_routes = (cdd_c_hydrate_route_t *)C_ORM_REALLOC(
         router->routes, new_cap * sizeof(cdd_c_hydrate_route_t));
     if (!new_routes)
       return -1;
@@ -126,7 +127,7 @@ c_orm_error_t cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router) {
   if (!router)
     return -1;
   if (router->routes)
-    free(router->routes);
+    C_ORM_FREE(router->routes);
   router->routes = NULL;
   router->count = 0;
   router->capacity = 0;

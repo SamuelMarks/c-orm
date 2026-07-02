@@ -211,7 +211,7 @@ C_ORM_EXPORT c_orm_error_t sql_token_list_free(struct sql_token_list_t *list);
  * @param table The table to free.
  * @return 0 on success.
  */
-C_ORM_EXPORT c_orm_error_t sql_table_free(struct sql_table_t *table);
+C_ORM_EXPORT c_orm_error_t sql_table_C_ORM_FREE(struct sql_table_t *table);
 
 /**
  * @brief Parse full SQL DDL file returning all tables.
