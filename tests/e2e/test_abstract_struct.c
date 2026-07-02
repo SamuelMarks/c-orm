@@ -610,7 +610,7 @@ TEST test_benchmark_hydration(void) {
 TEST test_abstract_struct_null_checks(void) {
   cdd_c_abstract_struct_t astruct;
   cdd_c_abstract_struct_array_t arr;
-  cdd_c_variant_t v, *v_out;
+  cdd_c_variant_t v = {0}, *v_out = NULL;
   size_t bytes, calls;
   char *json_out;
 

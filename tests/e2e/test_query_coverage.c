@@ -376,7 +376,7 @@ TEST test_fluent_oom(void) {
   }
 
   {
-    c_orm_table_meta_t meta;
+    c_orm_table_meta_t meta = {0};
     c_orm_relation_meta_t rel[2];
     c_orm_column_meta_t tcol[2];
     c_orm_table_meta_t tmeta;
@@ -608,7 +608,7 @@ TEST test_query_sql_coverage(void) {
   char *pg_sql = NULL;
   c_orm_query_params_t pg_p;
   c_orm_query_t *pg_q = NULL;
-  c_orm_table_meta_t meta;
+  c_orm_table_meta_t meta = {0};
   c_orm_db_t *exec_db = NULL;
   c_orm_query_t *qe = NULL;
   c_orm_query_t *q_bad = NULL;
