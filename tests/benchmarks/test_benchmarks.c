@@ -18,6 +18,13 @@
 /* #include "abstract_struct.h" */
 /* clang-format on */
 
+void *e2e_mock_malloc(size_t size);
+void *e2e_mock_calloc(size_t nmemb, size_t size);
+
+void *e2e_mock_malloc(size_t size) { return malloc(size); }
+
+void *e2e_mock_calloc(size_t nmemb, size_t size) { return calloc(nmemb, size); }
+
 static c_orm_db_t *db = NULL;
 
 TEST benchmark_setup(void) {
@@ -141,7 +148,7 @@ TEST benchmark_n_plus_one_vs_eager(void) {
   c_orm_error_t err;
   struct Users_Array users;
   size_t i;
-  int iters = 10;
+  size_t iters = 10;
 
   /* Since benchmark mock data is flat, we just run the APIs to trace overhead
    * bounds */
@@ -171,8 +178,6 @@ SUITE(benchmarks_suite) {
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
-  int rc;
-
   GREATEST_MAIN_BEGIN();
   RUN_SUITE(benchmarks_suite);
   GREATEST_MAIN_END();
