@@ -305,12 +305,14 @@ c_orm_error_t openapi_orm_generate(const struct OpenAPI_Spec *spec,
   fprintf(fp_h, "#  endif\n");
   fprintf(fp_h, "# endif\n");
   fprintf(fp_h, "#endif\n\n");
-  fprintf(fp_h, "/* clang-format off */\n");
+  fprintf(fp_h, "/* clang-format "
+                "off */\n");
   fprintf(fp_h, "#include <stddef.h>\n");
   fprintf(fp_h, "#include \"classes/emit/cdd_c_orm_meta.h\"\n");
   fprintf(fp_h, "#include \"c_orm_db.h\"\n");
   fprintf(fp_h, "#include \"c_orm_api.h\"\n");
-  fprintf(fp_h, "/* clang-format on */\n\n");
+  fprintf(fp_h, "/* clang-format "
+                "on */\n\n");
 
   /* Source */
   fprintf(fp_c, "/* Generated ORM Models Implementation */\n\n");
@@ -320,7 +322,8 @@ c_orm_error_t openapi_orm_generate(const struct OpenAPI_Spec *spec,
   fprintf(fp_c, "#include <errno.h>\n");
   fprintf(fp_c, "#include <stdlib.h>\n");
   fprintf(fp_c, "#include <string.h>\n");
-  fprintf(fp_c, "/* clang-format on */\n\n");
+  fprintf(fp_c, "/* clang-format "
+                "on */\n\n");
 
   for (i = 0; i < spec->n_defined_schemas; ++i) {
     const char *struct_name = spec->defined_schema_names[i];
@@ -645,12 +648,14 @@ c_orm_error_t openapi_orm_generate(const struct OpenAPI_Spec *spec,
     if (fp_test) {
       fprintf(fp_test,
               "/* Auto-generated greatest.h test stub for ORM models */\n\n");
-      fprintf(fp_test, "/* clang-format off */\n");
+      fprintf(fp_test, "/* clang-format "
+                       "off */\n");
       fprintf(fp_test, "#include <stdlib.h>\n");
       fprintf(fp_test, "#include <string.h>\n");
       fprintf(fp_test, "#include <greatest.h>\n");
       fprintf(fp_test, "#include \"%s\"\n", model_h);
-      fprintf(fp_test, "/* clang-format on */\n\n");
+      fprintf(fp_test, "/* clang-format "
+                       "on */\n\n");
 
       for (i = 0; i < spec->n_defined_schemas; i++) {
         const char *struct_name = spec->defined_schema_names[i];

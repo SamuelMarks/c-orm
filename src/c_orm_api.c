@@ -7612,24 +7612,26 @@ void c_orm_wasm_init_fs(void (*callback)(int)) {
 #pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 
-  /* clang-format off */
-  EM_ASM({
-    if (!FS.analyzePath('/data').exists) {
-      FS.mkdir('/data');
-    }
-    FS.mount(IDBFS, {}, '/data');
-    FS.syncfs(true, function (err) {
-      var cb = $0;
-      if (cb) {
-        if (typeof dynCall_vi !== 'undefined') {
-          dynCall_vi(cb, err ? 1 : 0);
-        } else if (typeof Module !== 'undefined' && Module['dynCall_vi']) {
-          Module['dynCall_vi'](cb, err ? 1 : 0);
+  EM_ASM(
+      {
+        if (!FS.analyzePath('/data').exists) {
+          FS.mkdir('/data');
         }
-      }
-    });
-  }, callback);
-  /* clang-format on */
+        FS.mount(IDBFS, {}, '/data');
+        FS.syncfs(
+            true, function(err) {
+              var cb = $0;
+              if (cb) {
+                if (typeof dynCall_vi != 'undefined') {
+                  dynCall_vi(cb, err ? 1 : 0);
+                } else if (typeof Module != 'undefined' &&
+                           Module['dynCall_vi']) {
+                  Module['dynCall_vi'](cb, err ? 1 : 0);
+                }
+              }
+            });
+      },
+      callback);
 
 #if defined(__clang__) || defined(__GNUC__)
 #pragma GCC diagnostic pop
