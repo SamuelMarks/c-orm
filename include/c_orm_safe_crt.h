@@ -32,12 +32,6 @@ C_ORM_EXPORT int c_orm_sprintf(char *buf, size_t size, const char *format, ...);
 #define C_ORM_STRTOLL(nptr, endptr, base) strtoll(nptr, endptr, base)
 #endif
 
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
-#endif /* C_ORM_SAFE_CRT_H */
-
 #if defined(_MSC_VER)
 typedef __int64 c_orm_int64_t;
 typedef unsigned __int64 c_orm_uint64_t;
@@ -49,3 +43,9 @@ __extension__ typedef unsigned long long c_orm_uint64_t;
 typedef long c_orm_int64_t;
 typedef unsigned long c_orm_uint64_t;
 #endif
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* C_ORM_SAFE_CRT_H */
