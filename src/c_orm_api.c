@@ -7598,3 +7598,41 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     return (c_orm_error_t)rc;
   }
 }
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+void c_orm_wasm_init_fs(void (*callback)(int)) {
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc99-extensions"
+#pragma GCC diagnostic ignored "-Wc11-extensions"
+#pragma GCC diagnostic ignored "-Wdollar-in-identifier-extension"
+#pragma GCC diagnostic ignored "-Wvariadic-macro-arguments-omitted"
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+
+  /* clang-format off */
+  EM_ASM({
+    if (!FS.analyzePath('/data').exists) {
+      FS.mkdir('/data');
+    }
+    FS.mount(IDBFS, {}, '/data');
+    FS.syncfs(true, function (err) {
+      var cb = $0;
+      if (cb) {
+        if (typeof dynCall_vi !== 'undefined') {
+          dynCall_vi(cb, err ? 1 : 0);
+        } else if (typeof Module !== 'undefined' && Module['dynCall_vi']) {
+          Module['dynCall_vi'](cb, err ? 1 : 0);
+        }
+      }
+    });
+  }, callback);
+  /* clang-format on */
+
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+}
+#endif

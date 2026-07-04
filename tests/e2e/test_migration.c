@@ -146,7 +146,8 @@ TEST test_parse_migration_file_errors(void) {
 }
 
 TEST test_migration_runner_stubs(void) {
-#if !defined(USE_LIBPQ_LINKED) && !defined(USE_LIBPQ_DYNAMIC)
+#if defined(__EMSCRIPTEN__) ||                                                 \
+    (!defined(USE_LIBPQ_LINKED) && !defined(USE_LIBPQ_DYNAMIC))
   ASSERT_EQ(ENOSYS, apply_migration("dummy"));
   ASSERT_EQ(ENOSYS, rollback_migration("dummy"));
   ASSERT_EQ(ENOSYS, run_pending_migrations("dummy"));

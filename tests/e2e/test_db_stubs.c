@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef __EMSCRIPTEN__
 TEST test_postgres_stubs_edge_cases(void) {
   c_orm_db_t *db = NULL;
   const c_orm_driver_vtable_t *vt = NULL;
@@ -61,6 +62,7 @@ TEST test_mysql_stubs_edge_cases(void) {
 
   PASS();
 }
+#endif
 
 static void test_hook(c_orm_db_t *db, const char *sql, void *user_data) { (void)db; (void)sql; (void)user_data; }
 static c_orm_error_t crypto_enc_hook(const void *in, size_t in_len, void *ctx,
@@ -241,6 +243,7 @@ TEST test_c_orm_async_coverage(void) {
 #include "c_orm_codegen.h"
 /* clang-format on */
 
+#ifndef __EMSCRIPTEN__
 TEST test_codegen_coverage(void) {
   int rc;
   const char *schema_path;
@@ -275,6 +278,7 @@ TEST test_codegen_coverage(void) {
 
   PASS();
 }
+#endif
 
 TEST test_modality_coverage(void) {
   c_orm_db_t db;
@@ -292,10 +296,14 @@ TEST test_modality_coverage(void) {
 }
 
 SUITE(db_stubs_suite) {
+#ifndef __EMSCRIPTEN__
   RUN_TEST(test_postgres_stubs_edge_cases);
   RUN_TEST(test_mysql_stubs_edge_cases);
+#endif
   RUN_TEST(test_c_orm_db_coverage);
   RUN_TEST(test_c_orm_async_coverage);
+#ifndef __EMSCRIPTEN__
   RUN_TEST(test_codegen_coverage);
+#endif
   RUN_TEST(test_modality_coverage);
 }

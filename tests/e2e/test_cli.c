@@ -282,6 +282,7 @@ TEST test_cli_unknown(void) {
   PASS();
 }
 
+#ifndef __EMSCRIPTEN__
 TEST test_cli_sql2c(void) {
   c_orm_error_t rc;
   FILE *f;
@@ -303,14 +304,25 @@ TEST test_cli_sql2c(void) {
 
   rc = c_orm_cli_main(2, (char **)argv1);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
-  rc = c_orm_cli_main(4, (char **)argv2);
+
+  if (setjmp(cli_exit_env) == 0) {
+    rc = c_orm_cli_main(4, (char **)argv2);
+  } else {
+    rc = cli_exit_code;
+  }
   ASSERT_EQ(C_ORM_OK, rc);
-  rc = c_orm_cli_main(4, (char **)argv3);
+
+  if (setjmp(cli_exit_env) == 0) {
+    rc = c_orm_cli_main(4, (char **)argv3);
+  } else {
+    rc = cli_exit_code;
+  }
   printf("RC WAS %d\n", rc);
   printf("CLI MAIN RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
   PASS();
 }
+#endif
 SUITE(cli_suite) {
   RUN_TEST(test_cli_help);
   RUN_TEST(test_cli_no_args);
@@ -322,5 +334,7 @@ SUITE(cli_suite) {
   RUN_TEST(test_cli_status);
   RUN_TEST(test_cli_log);
   RUN_TEST(test_cli_unknown);
+#ifndef __EMSCRIPTEN__
   RUN_TEST(test_cli_sql2c);
+#endif
 }

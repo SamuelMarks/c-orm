@@ -80,6 +80,18 @@ FetchContent_MakeAvailable(c-orm)
 target_link_libraries(my_server PRIVATE c-orm)
 ```
 
+## WebAssembly / Emscripten
+
+`c-orm` fully supports Emscripten, enabling SQLite usage directly within modern web browsers. Emscripten environments use a virtual filesystem (MEMFS by default), which means database files are lost when the page reloads. For persistent storage, Emscripten provides `IDBFS` (IndexedDB).
+
+To utilize persistent `IDBFS` storage:
+1. Compile with Emscripten (`emcmake cmake ..`). `c-orm` automatically appends `-lidbfs.js` during compilation.
+2. The JavaScript host must mount the `IDBFS` file system to a directory (e.g., `/data`) and call `FS.syncfs(true, callback)`. We provide a C hook for this: `void c_orm_wasm_init_fs(void (*callback)(int));`.
+3. Call `c_orm_wasm_init_fs` and wait for the callback to fire with `0` (success). Then open your SQLite database at `/data/mydb.sqlite`.
+4. Call `FS.syncfs(false, callback)` from JS to persist any subsequent writes to the IndexedDB backend before the application exits.
+
+`c-orm` will conditionally prune `libpq` (PostgreSQL) and `mysqlclient` (MySQL) networking components out of the WASM build to ensure a clean compilation without requiring TCP/socket shim layers.
+
 ## Advanced CMake Options
 
 `c-orm` exposes an extensive set of CMake options allowing you to precisely control the build output to match your host application's environment. This is especially useful for strict MSVC ABI matching.

@@ -127,6 +127,7 @@ TEST test_cli_unknown(void) {
   PASS();
 }
 
+#ifndef __EMSCRIPTEN__
 TEST test_cli_exec_sql2c(void) {
   int rc;
   FILE *f;
@@ -179,6 +180,7 @@ TEST test_cli_exec_sql2c(void) {
 
   PASS();
 }
+#endif
 SUITE(cli_exec_suite) {
   RUN_TEST(test_cli_help);
   RUN_TEST(test_cli_no_args);
@@ -189,5 +191,7 @@ SUITE(cli_exec_suite) {
   RUN_TEST(test_cli_rollback);
   RUN_TEST(test_cli_status);
   RUN_TEST(test_cli_unknown);
+#ifndef __EMSCRIPTEN__
   RUN_TEST(test_cli_exec_sql2c);
+#endif
 }

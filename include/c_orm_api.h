@@ -1314,6 +1314,15 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 
 /** @} */
 
+#ifdef __EMSCRIPTEN__
+/**
+ * @brief Emscripten specific initialization hook to mount and sync IDBFS.
+ * @param callback Callback function to invoke when syncfs completes (receives
+ * an error code, 0 on success).
+ */
+C_ORM_EXPORT void c_orm_wasm_init_fs(void (*callback)(int));
+#endif
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

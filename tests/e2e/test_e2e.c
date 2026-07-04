@@ -4,6 +4,9 @@
 
 /* clang-format off */
 #include "c_orm_safe_crt.h"
+#ifdef __EMSCRIPTEN__
+#define GREATEST_USE_TIME 0
+#endif
 #include "Models.h"
 #include "c_orm_api.h"
 #include "c_orm_mysql.h"
@@ -198,6 +201,7 @@ TEST test_query_builder_extensions(void) {
   PASS();
 }
 
+#ifndef __EMSCRIPTEN__
 TEST test_postgres_stub(void) {
   const c_orm_driver_vtable_t *vtable;
   c_orm_db_t *pdb;
@@ -255,6 +259,7 @@ TEST test_mysql_stub(void) {
 #endif
   PASS();
 }
+#endif
 
 TEST test_e2e_string_pk_and_oauth2(void) {
   struct Oauth2_tokens token;
@@ -1091,8 +1096,10 @@ SUITE(e2e_suite) {
   RUN_TEST(test_c_orm_json_dict_serialization);
   RUN_TEST(test_c_orm_runtime_validation);
   RUN_TEST(test_c_orm_composite_keys);
+#ifndef __EMSCRIPTEN__
   RUN_TEST(test_postgres_stub);
   RUN_TEST(test_mysql_stub);
+#endif
   RUN_TEST(test_e2e_string_pk_and_oauth2);
   RUN_TEST(test_e2e_find_one_by_string);
   RUN_TEST(test_e2e_oauth2_helpers);
@@ -1148,17 +1155,16 @@ extern SUITE(sql_parser_suite);
 extern SUITE(oauth2_suite);
 extern SUITE(models_coverage_suite);
 
-int main(int argc, char **argv) {
-  int rc;
-  (void)rc;
-  GREATEST_MAIN_BEGIN();
+static void run_all_suites(void) {
   RUN_SUITE(e2e_suite);
   RUN_SUITE(arena_uuid_suite);
   RUN_SUITE(ast_suite);
   RUN_SUITE(api_coverage_suite);
   RUN_SUITE(cache_coverage_suite);
   RUN_SUITE(cli_suite);
+#ifndef __EMSCRIPTEN__
   RUN_SUITE(cli_exec_suite);
+#endif
   RUN_SUITE(db_stubs_suite);
   RUN_SUITE(inline_macros_suite);
   RUN_SUITE(oom_coverage_suite);
@@ -1183,5 +1189,45 @@ int main(int argc, char **argv) {
   RUN_SUITE(sql_parser_suite);
   RUN_SUITE(oauth2_suite);
   RUN_SUITE(models_coverage_suite);
+}
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+static int g_argc;
+static char **g_argv;
+
+static void emscripten_test_callback(int err) {
+  int argc = g_argc;
+  char **argv = g_argv;
+  if (err) {
+    fprintf(stderr,
+            "Warning: Failed to initialize IDBFS (err: %d), possibly running "
+            "in Node.js where IndexedDB is unsupported.\n",
+            err);
+  }
+
+  GREATEST_MAIN_BEGIN();
+  run_all_suites();
+
+  /* Manual exit because we are in an async callback */
+  exit(greatest_info.failed + GREATEST_FAILURE_ABORT());
+}
+
+int main(int argc, char **argv) {
+  g_argc = argc;
+  g_argv = argv;
+
+  c_orm_wasm_init_fs(emscripten_test_callback);
+  emscripten_exit_with_live_runtime();
+  return 0;
+}
+#else
+int main(int argc, char **argv) {
+  int rc;
+  (void)rc;
+  GREATEST_MAIN_BEGIN();
+  run_all_suites();
   GREATEST_MAIN_END();
 }
+#endif

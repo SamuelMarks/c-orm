@@ -10,7 +10,7 @@
 #include "c_orm_log.h"
 #include <stdlib.h>
 #include <string.h>
-#if !defined(_WIN32) && !defined(_WIN64)
+#if !defined(_WIN32) && !defined(_WIN64) && !defined(EMSCRIPTEN_NO_THREADS)
 #include <pthread.h>
 #endif
 /* clang-format on */
@@ -47,6 +47,14 @@ __declspec(dllimport) void __stdcall DeleteCriticalSection(CRITICAL_SECTION *);
     DeleteCriticalSection((CRITICAL_SECTION *)(m));                            \
     C_ORM_FREE((m));                                                           \
   } while (0)
+#elif defined(EMSCRIPTEN_NO_THREADS)
+#define C_ORM_MUTEX_INIT(m)                                                    \
+  do {                                                                         \
+    (m) = C_ORM_MALLOC(1);                                                     \
+  } while (0)
+#define C_ORM_MUTEX_LOCK(m) ((void)0)
+#define C_ORM_MUTEX_UNLOCK(m) ((void)0)
+#define C_ORM_MUTEX_DESTROY(m) C_ORM_FREE((m))
 #else
 #ifdef C_ORM_TEST_ALLOCATOR
 int (*c_orm_mutex_init_ptr)(pthread_mutex_t *,

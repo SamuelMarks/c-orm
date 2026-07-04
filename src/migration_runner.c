@@ -14,16 +14,16 @@
 #include <string.h>
 #include <errno.h>
 
-#if defined(USE_LIBPQ_LINKED)
+#if !defined(__EMSCRIPTEN__) && defined(USE_LIBPQ_LINKED)
 #include <libpq-fe.h>
-#endif /* USE_LIBPQ_LINKED */
+#endif /* !defined(__EMSCRIPTEN__) && USE_LIBPQ_LINKED */
 
 #include "migration.h"
 #include "cfs/cfs.h"
 #include "c89stringutils_string_extras.h"
 #include "functions/parse/fs.h"
 
-#if defined(USE_LIBPQ_LINKED) || defined(USE_LIBPQ_DYNAMIC)
+#if !defined(__EMSCRIPTEN__) && (defined(USE_LIBPQ_LINKED) || defined(USE_LIBPQ_DYNAMIC))
 
 #if defined(USE_LIBPQ_DYNAMIC)
 #if defined(_WIN32)
@@ -971,7 +971,8 @@ c_orm_error_t seed_database(const char *seed_filepath) {
   printf("Database seeded successfully from '%s'.\n", seed_filepath);
   return 0;
 }
-#else  /* !defined(USE_LIBPQ_LINKED) && !defined(USE_LIBPQ_DYNAMIC) */
+#else  /* !(!defined(__EMSCRIPTEN__) && (defined(USE_LIBPQ_LINKED) ||          \
+          defined(USE_LIBPQ_DYNAMIC))) */
 c_orm_error_t apply_migration(const char *filepath) {
   (void)filepath;
   return ENOSYS;
@@ -1012,4 +1013,5 @@ c_orm_error_t seed_database(const char *seed_filepath) {
   (void)seed_filepath;
   return ENOSYS;
 }
-#endif /* !defined(USE_LIBPQ_LINKED) && !defined(USE_LIBPQ_DYNAMIC) */
+#endif /* !(!defined(__EMSCRIPTEN__) && (defined(USE_LIBPQ_LINKED) ||          \
+          defined(USE_LIBPQ_DYNAMIC))) */

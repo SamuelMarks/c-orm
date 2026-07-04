@@ -18,10 +18,10 @@
 #if defined(USE_SQLITE_LINKED)
 #include <sqlite3.h>
 #endif
-#if defined(USE_LIBPQ_LINKED)
+#if !defined(__EMSCRIPTEN__) && defined(USE_LIBPQ_LINKED)
 #include <libpq-fe.h>
 #endif
-#if defined(USE_MYSQL_LINKED)
+#if !defined(__EMSCRIPTEN__) && defined(USE_MYSQL_LINKED)
 #include <mysql.h>
 #endif
 /* clang-format on */
@@ -678,7 +678,7 @@ cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
 }
 c_orm_error_t cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
                                            void *res, int row_index) {
-#if defined(USE_LIBPQ_LINKED)
+#if !defined(__EMSCRIPTEN__) && defined(USE_LIBPQ_LINKED)
   PGresult *pq_res = (PGresult *)res;
   int i, n_cols;
   if (!out_astruct || !pq_res)
@@ -1007,7 +1007,7 @@ cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
 C_ORM_EXPORT c_orm_error_t
 cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
                            cdd_c_abstract_struct_array_t *out_schema) {
-#if defined(USE_LIBPQ_LINKED)
+#if !defined(__EMSCRIPTEN__) && defined(USE_LIBPQ_LINKED)
   PGconn *pq_conn = (PGconn *)conn;
   PGresult *res;
   char query[512];

@@ -107,6 +107,10 @@ if(MSVC)
     target_compile_definitions(c_orm_e2e_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
+if(EMSCRIPTEN)
+    target_link_options(c_orm_e2e_tests PRIVATE -lidbfs.js "SHELL:-s EXIT_RUNTIME=1" "SHELL:-s USE_PTHREADS=1" "SHELL:-s STACK_SIZE=5MB" "SHELL:-s EMULATE_FUNCTION_POINTER_CASTS=1")
+endif()
+
 # Pass the c-orm-cli executable path to the tests
 # We need to escape backslashes so the C compiler sees it as a valid string literal.
 # $<TARGET_FILE:c-orm-cli> usually gives forward slashes in CMake, which is safe for C strings.
