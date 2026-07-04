@@ -777,7 +777,6 @@ TEST test_query_sql_coverage(void) {
   }
 
   {
-    extern unsigned int cdd_c_sql_parser_max_depth;
     unsigned int old_depth;
     char *sql_d = NULL;
     c_orm_query_t *q1 = NULL;

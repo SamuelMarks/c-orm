@@ -16,7 +16,7 @@
 #define CLI_CMD "\"" C_ORM_CLI_EXECUTABLE "\""
 #define DEV_NULL " >nul 2>&1"
 #else
-#define CLI_CMD C_ORM_CLI_EXECUTABLE
+#define CLI_CMD "\"" C_ORM_CLI_EXECUTABLE "\""
 #define DEV_NULL " >/dev/null 2>&1"
 #endif
 
@@ -61,14 +61,12 @@ TEST test_cli_generate(void) {
 
 TEST test_cli_migrate(void) {
   int rc;
-#ifdef _WIN32
-  _putenv("C_ORM_DB_URL=");
-#else
+#if !defined(_WIN32) && !defined(__CYGWIN__)
   unsetenv("C_ORM_DB_URL");
-#endif
   rc = system(CLI_CMD " migrate" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
+#endif
   rc = system(CLI_CMD
               " migrate --db :memory: --dir test_migrations_dir" DEV_NULL);
   ASSERT_EQ(0, rc);
@@ -96,16 +94,12 @@ TEST test_cli_rollback(void) {
 
 TEST test_cli_status(void) {
   int rc;
-#ifdef _WIN32
-  _putenv("C_ORM_DB_URL=");
-#else
+#if !defined(_WIN32) && !defined(__CYGWIN__)
   unsetenv("C_ORM_DB_URL");
-#endif
   rc = system(CLI_CMD " status" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
 
-#ifndef _WIN32
   system("rm -f bad_schema.db && sqlite3 bad_schema.db \"CREATE TABLE "
          "_c_orm_migrations(id INTEGER);\"");
   rc = system(CLI_CMD " status --db bad_schema.db" DEV_NULL);
@@ -116,7 +110,6 @@ TEST test_cli_status(void) {
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
 #endif
-
   PASS();
 }
 
@@ -161,7 +154,7 @@ TEST test_cli_exec_sql2c(void) {
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__CYGWIN__)
   system("mkdir -p readonly_dir && chmod 555 readonly_dir");
   rc = system(CLI_CMD " sql2c test_schema.sql readonly_dir" DEV_NULL);
   system("chmod 777 readonly_dir && rm -rf readonly_dir");
