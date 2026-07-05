@@ -15,22 +15,23 @@
 /**
  * @brief Convert string to uppercase.
  */
-static void str_to_upper(char *dst, const char *src) {
+static c_orm_error_t str_to_upper(char *dst, const char *src) {
   while (*src) {
     *dst = (char)toupper((unsigned char)*src);
     dst++;
     src++;
   }
   *dst = '\0';
+  return C_ORM_OK;
 }
 
 /**
  * @brief Convert string to TitleCase (first letter upper).
  */
-static void str_to_title(char *dst, const char *src) {
+static c_orm_error_t str_to_title(char *dst, const char *src) {
   if (!*src) {
     *dst = '\0';
-    return;
+    return C_ORM_OK;
   }
   *dst = (char)toupper((unsigned char)*src);
   dst++;
@@ -41,17 +42,23 @@ static void str_to_title(char *dst, const char *src) {
     src++;
   }
   *dst = '\0';
+  return C_ORM_OK;
 }
 
-static int is_nullable(const struct sql_column_t *col) {
+static c_orm_error_t is_nullable(const struct sql_column_t *col,
+                                 int *out_is_nullable) {
   size_t i;
+  if (!out_is_nullable)
+    return C_ORM_ERROR_VALIDATION;
+  *out_is_nullable = 1;
   for (i = 0; i < col->n_constraints; ++i) {
     if (col->constraints[i].type == SQL_CONSTRAINT_NOT_NULL ||
         col->constraints[i].type == SQL_CONSTRAINT_PRIMARY_KEY) {
-      return C_ORM_OK; /* NOT nullable */
+      *out_is_nullable = 0; /* NOT nullable */
+      return C_ORM_OK;
     }
   }
-  return C_ORM_ERROR_MEMORY; /* nullable */
+  return C_ORM_OK; /* nullable */
 }
 
 c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
@@ -105,10 +112,12 @@ c_orm_error_t sql_type_is_string(enum SqlDataType type) {
   }
 }
 
-static int emit_c_orm_metadata(FILE *fp, const struct sql_table_t *table,
-                               const char *struct_name);
-static int emit_c_orm_queries(FILE *fp, const struct sql_table_t *table,
-                              const char *struct_name);
+static c_orm_error_t emit_c_orm_metadata(FILE *fp,
+                                         const struct sql_table_t *table,
+                                         const char *struct_name);
+static c_orm_error_t emit_c_orm_queries(FILE *fp,
+                                        const struct sql_table_t *table,
+                                        const char *struct_name);
 
 c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   char *_ast_sql_type_to_c_type_0 = NULL;
@@ -186,8 +195,10 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
     const char *c_type =
         (sql_type_to_c_type(col->type, &_ast_sql_type_to_c_type_0),
          _ast_sql_type_to_c_type_0);
-    int nullable = is_nullable(col);
-    int is_str = sql_type_is_string(col->type);
+    int nullable;
+    int is_str;
+    is_nullable(col, &nullable);
+    is_str = sql_type_is_string(col->type);
 
     if (nullable && !is_str) {
       /* Use pointer for nullable primitive types */
@@ -310,7 +321,8 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   for (i = 0; i < table->n_columns; ++i) {
     const struct sql_column_t *col = &table->columns[i];
     int is_str = sql_type_is_string(col->type);
-    int nullable = is_nullable(col);
+    int nullable;
+    is_nullable(col, &nullable);
 
     if (is_str) {
       fprintf(
@@ -352,10 +364,11 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   for (i = 0; i < table->n_columns; ++i) {
     const struct sql_column_t *col = &table->columns[i];
     int is_str = sql_type_is_string(col->type);
-    int nullable = is_nullable(col);
-    const char *c_type =
-        (sql_type_to_c_type(col->type, &_ast_sql_type_to_c_type_1),
-         _ast_sql_type_to_c_type_1);
+    int nullable;
+    const char *c_type;
+    is_nullable(col, &nullable);
+    c_type = (sql_type_to_c_type(col->type, &_ast_sql_type_to_c_type_1),
+              _ast_sql_type_to_c_type_1);
 
     if (is_str) {
       fprintf(fp, "  if (src->%s) {\n", col->name);
@@ -465,8 +478,9 @@ c_orm_error_t sql_type_to_c_orm_type(enum SqlDataType type,
  * @param struct_name The generated struct name.
  * @return 0 on success, non-zero on failure.
  */
-static int emit_c_orm_metadata(FILE *fp, const struct sql_table_t *table,
-                               const char *struct_name) {
+static c_orm_error_t emit_c_orm_metadata(FILE *fp,
+                                         const struct sql_table_t *table,
+                                         const char *struct_name) {
   size_t i;
   int is_pk;
   int is_null;
@@ -522,7 +536,7 @@ static int emit_c_orm_metadata(FILE *fp, const struct sql_table_t *table,
   /* Emit Nullable flags */
   fprintf(fp, "const bool %s_col_is_nullable[] = {\n", struct_name);
   for (i = 0; i < table->n_columns; ++i) {
-    is_null = is_nullable(&table->columns[i]);
+    is_nullable(&table->columns[i], &is_null);
     fprintf(fp, "  %s%s\n", is_null ? "true" : "false",
             i == table->n_columns - 1 ? "" : ",");
   }
@@ -570,7 +584,7 @@ static int emit_c_orm_metadata(FILE *fp, const struct sql_table_t *table,
         }
       }
     }
-    is_null = is_nullable(&table->columns[i]);
+    is_nullable(&table->columns[i], &is_null);
 
     fprintf(
         fp,
@@ -604,8 +618,9 @@ static int emit_c_orm_metadata(FILE *fp, const struct sql_table_t *table,
 /**
  * @brief Emit table string queries.
  */
-static int emit_c_orm_queries(FILE *fp, const struct sql_table_t *table,
-                              const char *struct_name) {
+static c_orm_error_t emit_c_orm_queries(FILE *fp,
+                                        const struct sql_table_t *table,
+                                        const char *struct_name) {
   size_t i;
   int pk_count = 0;
   const char *pk_name = NULL;
@@ -982,7 +997,7 @@ sql_to_c_projection_hydrate_emit(FILE *fp, const cdd_c_query_projection_t *proj,
 
         fprintf(
             fp,
-            "            out_struct->%s = C_ORM_STRDUP(val->value.s_val);\n",
+            "            C_ORM_STRDUP(val->value.s_val, &out_struct->%s);\n",
             field->name);
       }
 

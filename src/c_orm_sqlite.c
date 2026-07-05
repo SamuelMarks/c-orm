@@ -68,7 +68,7 @@ struct sqlite_query_data {
  * @param db Database context.
  * @param msg Error message. If NULL, fetches from sqlite3.
  */
-static void set_error(c_orm_db_t *db, const char *msg) {
+static c_orm_error_t set_error(c_orm_db_t *db, const char *msg) {
   struct sqlite_db_data *data;
   size_t len;
   const char *sqlite_err;
@@ -88,6 +88,7 @@ static void set_error(c_orm_db_t *db, const char *msg) {
     }
   }
   LOG_DEBUG("set_error: exit");
+  return C_ORM_OK;
 }
 
 /**

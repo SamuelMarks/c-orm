@@ -336,17 +336,23 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
  * @param c The hex character.
  * @return The byte value.
  */
-static unsigned char hex_to_byte(char c) {
+static c_orm_error_t hex_to_byte(char c, unsigned char *out) {
+  if (!out)
+    return C_ORM_ERROR_VALIDATION;
   if (c >= '0' && c <= '9') {
-    return (unsigned char)(c - '0');
+    *out = (unsigned char)(c - '0');
+    return C_ORM_OK;
   }
   if (c >= 'a' && c <= 'f') {
-    return (unsigned char)(c - 'a' + 10);
+    *out = (unsigned char)(c - 'a' + 10);
+    return C_ORM_OK;
   }
   if (c >= 'A' && c <= 'F') {
-    return (unsigned char)(c - 'A' + 10);
+    *out = (unsigned char)(c - 'A' + 10);
+    return C_ORM_OK;
   }
-  return 0;
+  *out = 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -380,8 +386,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
     }
 
     for (i = 0; i < bin_len; ++i) {
-      bin_data[i] = (unsigned char)((hex_to_byte(encrypted_token[i * 2]) << 4) |
-                                    hex_to_byte(encrypted_token[i * 2 + 1]));
+      {
+        unsigned char b1, b2;
+        hex_to_byte(encrypted_token[i * 2], &b1);
+        hex_to_byte(encrypted_token[i * 2 + 1], &b2);
+        bin_data[i] = (unsigned char)((b1 << 4) | b2);
+      }
     }
 
     in_blob.pbData = bin_data;
@@ -430,9 +440,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
       return C_ORM_ERROR_VALIDATION;
     }
     for (i = 0; i < bin_len; ++i) {
-      unsigned char c =
-          (unsigned char)((hex_to_byte(encrypted_token[i * 2]) << 4) |
-                          hex_to_byte(encrypted_token[i * 2 + 1]));
+      unsigned char b1, b2, c;
+      hex_to_byte(encrypted_token[i * 2], &b1);
+      hex_to_byte(encrypted_token[i * 2 + 1], &b2);
+      c = (unsigned char)((b1 << 4) | b2);
       plain[i] = (char)(c ^ 0x42);
     }
     plain[bin_len] = '\0';

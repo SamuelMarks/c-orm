@@ -141,7 +141,10 @@ static c_orm_error_t my_mig_finalize(c_orm_query_t *query) {
 
 SUITE(migrations_suite);
 
-static void test_log_cb(const char *msg) { (void)msg; }
+static c_orm_error_t test_log_cb(const char *msg) {
+  (void)msg;
+  return C_ORM_OK;
+}
 
 TEST test_migration_init(void) {
   c_orm_db_t *db = NULL;
@@ -287,8 +290,8 @@ TEST test_migrations_oom(void) {
   {
     c_orm_migration_t *m = malloc(sizeof(c_orm_migration_t));
     memset(m, 0, sizeof(*m));
-    m->up_sql = C_ORM_STRDUP("UP");
-    m->down_sql = C_ORM_STRDUP("DOWN");
+    C_ORM_STRDUP("UP", &m->up_sql);
+    C_ORM_STRDUP("DOWN", &m->down_sql);
     c_orm_migration_free_array(m, 1);
   }
 

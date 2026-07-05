@@ -19,7 +19,8 @@
  * @param len The length of the string.
  * @return 1 if keyword, 0 otherwise.
  */
-static int is_sql_keyword(const char *str, size_t len) {
+static c_orm_error_t is_sql_keyword(const char *str, size_t len,
+                                    int *out_is_kw) {
   /* Simple exact matching for now; can be expanded. */
   static const char *keywords[] = {
       "CREATE",     "TABLE",  "INT",       "INTEGER",   "BIGINT",  "VARCHAR",
@@ -34,23 +35,32 @@ static int is_sql_keyword(const char *str, size_t len) {
         strncmp(str, keywords[i], len) ==
             0) { /* Case sensitive for simplicity now; SQL usually case
                     insensitive, but we'll improve later */
-      return 1;
+      {
+        if (out_is_kw)
+          *out_is_kw = 1;
+        return C_ORM_OK;
+      }
     }
   }
-  return 0;
+  {
+    if (out_is_kw)
+      *out_is_kw = 0;
+    return C_ORM_OK;
+  }
 }
 
 /**
  * @brief Push a token into the list.
  */
-static int push_token(struct sql_token_list_t *list, enum SqlTokenKind kind,
-                      const char *start, size_t length) {
+static c_orm_error_t push_token(struct sql_token_list_t *list,
+                                enum SqlTokenKind kind, const char *start,
+                                size_t length) {
   if (list->size >= list->capacity) {
     size_t new_cap = list->capacity == 0 ? 16 : list->capacity * 2;
     struct sql_token_t *new_tokens = (struct sql_token_t *)C_ORM_REALLOC(
         list->tokens, new_cap * sizeof(struct sql_token_t));
     if (!new_tokens) {
-      return 1;
+      return C_ORM_ERROR_MEMORY;
     }
     list->tokens = new_tokens;
     list->capacity = new_cap;
@@ -59,7 +69,7 @@ static int push_token(struct sql_token_list_t *list, enum SqlTokenKind kind,
   list->tokens[list->size].start = start;
   list->tokens[list->size].length = length;
   list->size++;
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t sql_lex(az_span source, struct sql_token_list_t **out_list) {
@@ -103,10 +113,15 @@ c_orm_error_t sql_lex(az_span source, struct sql_token_list_t **out_list) {
       {
         size_t len = (size_t)(curr - start);
         enum SqlTokenKind kind = SQL_TOKEN_IDENTIFIER;
-        if (is_sql_keyword(start, len)) {
-          /* Note: In a real implementation we'd do case-insensitive comparison
-           */
-          kind = SQL_TOKEN_KEYWORD;
+        {
+          int is_kw = 0;
+          is_sql_keyword(start, len, &is_kw);
+          if (is_kw) {
+            /* Note: In a real implementation we'd do case-insensitive
+             * comparison
+             */
+            kind = SQL_TOKEN_KEYWORD;
+          }
         }
         err = push_token(list, kind, start, len);
         if (err)
@@ -270,7 +285,7 @@ static c_orm_error_t sql_parser_peek(struct SqlParserState *state,
   }
 }
 
-static void sql_parser_consume(struct SqlParserState *state) {
+static c_orm_error_t sql_parser_consume(struct SqlParserState *state) {
   while (state->cursor < state->list->size &&
          state->list->tokens[state->cursor].kind == SQL_TOKEN_WHITESPACE) {
     state->cursor++;
@@ -278,6 +293,7 @@ static void sql_parser_consume(struct SqlParserState *state) {
   if (state->cursor < state->list->size) {
     state->cursor++;
   }
+  return C_ORM_OK;
 }
 
 static c_orm_error_t sql_parser_match_keyword(struct SqlParserState *state,
@@ -386,7 +402,7 @@ static c_orm_error_t sql_parse_data_type(struct SqlParserState *state,
   return 0;
 }
 
-static int
+static c_orm_error_t
 sql_parse_column_constraint(struct SqlParserState *state,
                             struct sql_constraint_t *out_constraint) {
   out_constraint->type = SQL_CONSTRAINT_NONE;
@@ -471,11 +487,12 @@ sql_parse_column_constraint(struct SqlParserState *state,
     return 0;
   }
 
-  return 1; /* Not a constraint */
+  return C_ORM_ERROR_SQL; /* Not a constraint */
 }
 
-static int sql_parse_table_constraint(struct SqlParserState *state,
-                                      struct sql_constraint_t *out_constraint) {
+static c_orm_error_t
+sql_parse_table_constraint(struct SqlParserState *state,
+                           struct sql_constraint_t *out_constraint) {
   out_constraint->type = SQL_CONSTRAINT_NONE;
   out_constraint->reference_table = NULL;
   out_constraint->reference_column = NULL;
@@ -593,7 +610,7 @@ static int sql_parse_table_constraint(struct SqlParserState *state,
     }
   }
 
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
@@ -809,7 +826,7 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
                         NULL); /* Optional semicolon */
 
   *out_table = table;
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t parse_sql_ddl(const char *sql_data,

@@ -161,7 +161,9 @@ TEST test_c_orm_telemetry(void) {
 }
 
 TEST test_c_orm_alloc(void) {
-  ASSERT_EQ(NULL, c_orm_strdup(NULL));
+  char *dup = (char *)1;
+  ASSERT_EQ(0, c_orm_strdup(NULL, &dup));
+  ASSERT_EQ(NULL, dup);
   PASS();
 }
 

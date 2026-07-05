@@ -5,8 +5,9 @@
 #include <stdlib.h>
 /* clang-format on */
 
-static int map_c_type_to_sql(const char *c_type, c_to_sql_dialect_t dialect,
-                             const char **out_sql) {
+static c_orm_error_t map_c_type_to_sql(const char *c_type,
+                                       c_to_sql_dialect_t dialect,
+                                       const char **out_sql) {
   if (strstr(c_type, "int") != NULL) {
     if (dialect == C_TO_SQL_DIALECT_MYSQL)
       *out_sql = "INT";
@@ -169,8 +170,8 @@ C_ORM_EXPORT c_orm_error_t cdd_c_meta_to_sql_create_table(
   }
 
   offset += C_ORM_SPRINTF(buffer + offset, sizeof(buffer) - offset, ");\n");
-  *out_sql = C_ORM_STRDUP(buffer);
-  return 0;
+  C_ORM_STRDUP(buffer, out_sql);
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t cdd_c_meta_diff(const cdd_c_meta_t *old_schema,
@@ -291,10 +292,10 @@ C_ORM_EXPORT c_orm_error_t cdd_c_meta_diff_to_sql(const char *table_name,
         diff->altered_props[i].name);
   }
 
-  *up_sql = C_ORM_STRDUP(up_buf);
-  *down_sql = C_ORM_STRDUP(down_buf);
+  C_ORM_STRDUP(up_buf, up_sql);
+  C_ORM_STRDUP(down_buf, down_sql);
 
-  return 0;
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT void cdd_c_meta_diff_free(cdd_c_meta_diff_t *diff) {
@@ -328,8 +329,8 @@ C_ORM_EXPORT c_orm_error_t cdd_c_get_schema_inspection_query(
   } else {
     return 1;
   }
-  *out_query = C_ORM_STRDUP(buf);
-  return 0;
+  C_ORM_STRDUP(buf, out_query);
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t cdd_c_emit_create_index(const char *table_name,
@@ -343,8 +344,8 @@ C_ORM_EXPORT c_orm_error_t cdd_c_emit_create_index(const char *table_name,
   C_ORM_SPRINTF(buf, sizeof(buf), "CREATE %sINDEX %s ON %s (%s);",
                 is_unique ? "UNIQUE " : "", index_name, table_name,
                 column_name);
-  *out_sql = C_ORM_STRDUP(buf);
-  return 0;
+  C_ORM_STRDUP(buf, out_sql);
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t cdd_c_emit_drop_index(const char *index_name,
@@ -353,8 +354,8 @@ C_ORM_EXPORT c_orm_error_t cdd_c_emit_drop_index(const char *index_name,
   if (!index_name || !out_sql)
     return 1;
   C_ORM_SPRINTF(buf, sizeof(buf), "DROP INDEX %s;", index_name);
-  *out_sql = C_ORM_STRDUP(buf);
-  return 0;
+  C_ORM_STRDUP(buf, out_sql);
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t

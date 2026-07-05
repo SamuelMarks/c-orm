@@ -286,12 +286,14 @@ typedef struct c_orm_query_params {
 /**
  * @brief Initialize a parameter collection.
  */
-C_ORM_EXPORT void c_orm_query_params_init(c_orm_query_params_t *params);
+C_ORM_EXPORT c_orm_error_t
+c_orm_query_params_init(c_orm_query_params_t *params);
 
 /**
  * @brief Free resources in a parameter collection.
  */
-C_ORM_EXPORT void c_orm_query_params_cleanup(c_orm_query_params_t *params);
+C_ORM_EXPORT c_orm_error_t
+c_orm_query_params_cleanup(c_orm_query_params_t *params);
 
 /**
  * @brief Add a parameter to the collection.

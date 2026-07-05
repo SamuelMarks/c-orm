@@ -32,7 +32,7 @@ struct MigrationStatements {
 extern C_ORM_EXPORT /**
                      * @brief Executes the migration statements init operation.
                      */
-    void
+    c_orm_error_t
     migration_statements_init(struct MigrationStatements *out);
 
 /**
@@ -42,7 +42,7 @@ extern C_ORM_EXPORT /**
 extern C_ORM_EXPORT /**
                      * @brief Executes the migration statements free operation.
                      */
-    void
+    c_orm_error_t
     migration_statements_free(struct MigrationStatements *out);
 
 /**

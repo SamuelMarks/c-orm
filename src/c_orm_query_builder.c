@@ -100,8 +100,8 @@ c_orm_select_builder_compile(c_orm_select_builder_t *builder, char **out_sql) {
 }
 
 /** @brief Append where clause */
-static int append_where(c_orm_select_builder_t *builder, const char *column,
-                        const char *op) {
+static c_orm_error_t append_where(c_orm_select_builder_t *builder,
+                                  const char *column, const char *op) {
   c_orm_error_t rc;
 
   LOG_DEBUG("append_where: entry");
@@ -285,10 +285,11 @@ c_orm_select_where_ilike(c_orm_select_builder_t *builder, const char *column) {
 }
 
 /** @brief Build exists query */
-static int build_exists_query(c_orm_string_builder_t *sb,
-                              const c_orm_table_meta_t *meta, const char *path,
-                              const char *operator_str,
-                              const char *parent_alias, int depth) {
+static c_orm_error_t build_exists_query(c_orm_string_builder_t *sb,
+                                        const c_orm_table_meta_t *meta,
+                                        const char *path,
+                                        const char *operator_str,
+                                        const char *parent_alias, int depth) {
   c_orm_error_t rc;
   const char *dot;
 

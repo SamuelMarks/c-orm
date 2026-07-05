@@ -277,9 +277,9 @@ TEST test_sql_parser_errors(void) {
     t.n_table_constraints = 1;
     t.table_constraints = C_ORM_MALLOC(sizeof(struct sql_constraint_t));
     memset(t.table_constraints, 0, sizeof(struct sql_constraint_t));
-    t.table_constraints[0].reference_table = c_orm_strdup("ref_tbl");
-    t.table_constraints[0].reference_column = c_orm_strdup("ref_col");
-    t.table_constraints[0].default_value = c_orm_strdup("def_val");
+    c_orm_strdup("ref_tbl", &t.table_constraints[0].reference_table);
+    c_orm_strdup("ref_col", &t.table_constraints[0].reference_column);
+    c_orm_strdup("def_val", &t.table_constraints[0].default_value);
     sql_table_C_ORM_FREE(&t);
   }
 

@@ -201,7 +201,7 @@ extern C_ORM_EXPORT /**
                      * @brief Print an abstract struct for debugging.
                      * @param astruct The abstract struct.
                      */
-    void
+    c_orm_error_t
     cdd_c_abstract_print(const cdd_c_abstract_struct_t *astruct);
 
 /**

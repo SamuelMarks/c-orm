@@ -81,7 +81,7 @@ cdd_c_hydrate_router_get_last_error(const char **out_msg);
  * @brief Set the last routing error message for the current thread.
  * @param msg The error message to set.
  */
-C_ORM_EXPORT void cdd_c_hydrate_router_set_last_error(const char *msg);
+C_ORM_EXPORT c_orm_error_t cdd_c_hydrate_router_set_last_error(const char *msg);
 
 /**
  * @brief Register a specific generated struct mapping into the router.

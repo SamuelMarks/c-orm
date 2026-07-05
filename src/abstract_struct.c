@@ -220,7 +220,7 @@ cdd_c_abstract_struct_init_with_capacity(cdd_c_abstract_struct_t *astruct,
   return 0;
 }
 
-static int duplicate_string(const char *src, char **dest) {
+static c_orm_error_t duplicate_string(const char *src, char **dest) {
   size_t len;
   if (!src) {
     *dest = NULL;
@@ -234,8 +234,8 @@ static int duplicate_string(const char *src, char **dest) {
   return 0;
 }
 
-static int duplicate_blob(const unsigned char *src, size_t size,
-                          unsigned char **dest) {
+static c_orm_error_t duplicate_blob(const unsigned char *src, size_t size,
+                                    unsigned char **dest) {
   if (!src || size == 0) {
     *dest = NULL;
     return 0;
@@ -270,7 +270,8 @@ c_orm_error_t cdd_c_variant_free(cdd_c_variant_t *variant) {
   return 0;
 }
 
-static int copy_variant(cdd_c_variant_t *dest, const cdd_c_variant_t *src) {
+static c_orm_error_t copy_variant(cdd_c_variant_t *dest,
+                                  const cdd_c_variant_t *src) {
   dest->type = src->type;
   switch (src->type) {
   case CDD_C_VARIANT_TYPE_INT:
@@ -298,15 +299,20 @@ static int copy_variant(cdd_c_variant_t *dest, const cdd_c_variant_t *src) {
   return 0;
 }
 
-static unsigned long hash_string(const char *str) {
+static c_orm_error_t hash_string(const char *str, unsigned long *out_hash) {
   unsigned long hash = 5381;
   int c;
-  if (!str)
-    return 0;
+  if (!out_hash)
+    return C_ORM_ERROR_VALIDATION;
+  if (!str) {
+    *out_hash = 0;
+    return C_ORM_OK;
+  }
   while ((c = *str++)) {
     hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
   }
-  return hash;
+  *out_hash = hash;
+  return C_ORM_OK;
 }
 
 c_orm_error_t cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct,
@@ -315,10 +321,13 @@ c_orm_error_t cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct,
   size_t i;
   cdd_c_abstract_struct_kv_t *new_kvs = NULL;
   unsigned long khash;
+  c_orm_error_t err;
   if (!astruct || !key || !value)
     return EINVAL;
 
-  khash = hash_string(key);
+  err = hash_string(key, &khash);
+  if (err != C_ORM_OK)
+    return err;
 
   for (i = 0; i < astruct->count; ++i) {
     if (astruct->kvs[i].key_hash == khash &&
@@ -361,10 +370,13 @@ c_orm_error_t cdd_c_abstract_get(const cdd_c_abstract_struct_t *astruct,
                                  const char *key, cdd_c_variant_t **out_value) {
   size_t i;
   unsigned long khash;
+  c_orm_error_t err;
   if (!astruct || !key || !out_value)
     return EINVAL;
 
-  khash = hash_string(key);
+  err = hash_string(key, &khash);
+  if (err != C_ORM_OK)
+    return err;
 
   for (i = 0; i < astruct->count; ++i) {
     if (astruct->kvs[i].key_hash == khash &&
@@ -411,11 +423,11 @@ c_orm_error_t cdd_c_abstract_struct_free(cdd_c_abstract_struct_t *astruct) {
   return 0;
 }
 
-void cdd_c_abstract_print(const cdd_c_abstract_struct_t *astruct) {
+c_orm_error_t cdd_c_abstract_print(const cdd_c_abstract_struct_t *astruct) {
   size_t i;
   if (!astruct) {
     printf("NULL astruct\n");
-    return;
+    return C_ORM_ERROR_VALIDATION;
   }
   printf("{\n");
   for (i = 0; i < astruct->count; ++i) {
@@ -448,6 +460,7 @@ void cdd_c_abstract_print(const cdd_c_abstract_struct_t *astruct) {
     printf("\n");
   }
   printf("}\n");
+  return C_ORM_OK;
 }
 
 c_orm_error_t
@@ -941,7 +954,8 @@ c_orm_error_t cdd_c_abstract_to_specific(
           ((char *)out_struct + prop->offset)[prop->length - 1] = '\0';
         } else {
           {
-            char *_v = C_ORM_STRDUP(val->value.s_val);
+            char *_v;
+            C_ORM_STRDUP(val->value.s_val, &_v);
             memcpy((char *)out_struct + prop->offset, &_v, sizeof(char *));
           }
         }

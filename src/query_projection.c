@@ -21,21 +21,23 @@ c_orm_error_t cdd_c_query_projection_init(cdd_c_query_projection_t *proj) {
   proj->source_table = NULL;
   proj->mapping_meta.target_name = NULL;
   proj->mapping_meta.kind = CDD_C_MAPPING_KIND_SPECIFIC;
-  return 0;
+  return C_ORM_OK;
 }
 
-static int duplicate_string_qp(const char *src, char **dest) {
+static c_orm_error_t duplicate_string_qp(const char *src, char **dest) {
   size_t len;
+  if (!dest)
+    return C_ORM_ERROR_VALIDATION;
   if (!src) {
     *dest = NULL;
-    return 0;
+    return C_ORM_OK;
   }
   len = strlen(src);
   *dest = (char *)C_ORM_MALLOC(len + 1);
   if (!*dest)
     return -1;
   memcpy(*dest, src, len + 1);
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t
@@ -70,7 +72,7 @@ cdd_c_query_projection_add_field(cdd_c_query_projection_t *proj,
   proj->fields[proj->n_fields].is_secure = field->is_secure;
 
   proj->n_fields++;
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t cdd_c_query_projection_free(cdd_c_query_projection_t *proj) {
@@ -96,5 +98,5 @@ c_orm_error_t cdd_c_query_projection_free(cdd_c_query_projection_t *proj) {
   proj->capacity = 0;
   proj->source_table = NULL;
   proj->mapping_meta.target_name = NULL;
-  return 0;
+  return C_ORM_OK;
 }

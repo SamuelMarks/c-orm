@@ -17,7 +17,8 @@ extern "C" {
 #include <string.h>
 /* clang-format on */
 
-C_ORM_EXPORT int c_orm_sprintf(char *buf, size_t size, const char *format, ...);
+C_ORM_EXPORT c_orm_error_t c_orm_sprintf(char *buf, size_t size,
+                                         const char *format, ...);
 #define C_ORM_SPRINTF c_orm_sprintf
 
 #if defined(_MSC_VER)

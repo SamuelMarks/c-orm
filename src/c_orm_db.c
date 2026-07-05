@@ -81,8 +81,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_get_last_error_trace(c_orm_db_t *db,
  * @param cb Log callback function.
  * @param user_data User data to pass to the callback.
  */
-C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
-                                         void *user_data) {
+C_ORM_EXPORT c_orm_error_t c_orm_set_log_callback(c_orm_db_t *db,
+                                                  c_orm_log_cb cb,
+                                                  void *user_data) {
   LOG_DEBUG("c_orm_set_log_callback: entry");
   if (db) {
     db->log_cb = cb;
@@ -91,6 +92,7 @@ C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
     LOG_DEBUG("c_orm_set_log_callback: db is NULL");
   }
   LOG_DEBUG("c_orm_set_log_callback: exit");
+  return C_ORM_OK;
 }
 
 /**
@@ -98,8 +100,8 @@ C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
  * @param db Database instance.
  * @param threshold_ms Slow query threshold in milliseconds.
  */
-C_ORM_EXPORT void c_orm_set_slow_query_threshold(c_orm_db_t *db,
-                                                 uint32_t threshold_ms) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_set_slow_query_threshold(c_orm_db_t *db, uint32_t threshold_ms) {
   LOG_DEBUG("c_orm_set_slow_query_threshold: entry");
   if (db) {
     db->slow_query_threshold_ms = threshold_ms;
@@ -107,6 +109,7 @@ C_ORM_EXPORT void c_orm_set_slow_query_threshold(c_orm_db_t *db,
     LOG_DEBUG("c_orm_set_slow_query_threshold: db is NULL");
   }
   LOG_DEBUG("c_orm_set_slow_query_threshold: exit");
+  return C_ORM_OK;
 }
 
 /**
@@ -143,8 +146,9 @@ c_orm_get_telemetry(c_orm_db_t *db, c_orm_pool_telemetry_t *out_telemetry) {
  * @param cb Expire callback function.
  * @param user_data User data for the callback.
  */
-C_ORM_EXPORT void c_orm_set_expire_callback(c_orm_db_t *db, c_orm_expire_cb cb,
-                                            void *user_data) {
+C_ORM_EXPORT c_orm_error_t c_orm_set_expire_callback(c_orm_db_t *db,
+                                                     c_orm_expire_cb cb,
+                                                     void *user_data) {
   LOG_DEBUG("c_orm_set_expire_callback: entry");
   if (db) {
     db->expire_cb = cb;
@@ -153,6 +157,7 @@ C_ORM_EXPORT void c_orm_set_expire_callback(c_orm_db_t *db, c_orm_expire_cb cb,
     LOG_DEBUG("c_orm_set_expire_callback: db is NULL");
   }
   LOG_DEBUG("c_orm_set_expire_callback: exit");
+  return C_ORM_OK;
 }
 
 /**
@@ -183,9 +188,8 @@ c_orm_db_attach_identity_map(c_orm_db_t *db, c_orm_identity_map_t *map) {
  * @param hook Interceptor callback.
  * @param context User context.
  */
-C_ORM_EXPORT void c_orm_register_query_interceptor(c_orm_db_t *db,
-                                                   c_orm_interceptor_cb hook,
-                                                   void *context) {
+C_ORM_EXPORT c_orm_error_t c_orm_register_query_interceptor(
+    c_orm_db_t *db, c_orm_interceptor_cb hook, void *context) {
   LOG_DEBUG("c_orm_register_query_interceptor: entry");
   if (db) {
     db->query_interceptor = hook;
@@ -194,6 +198,7 @@ C_ORM_EXPORT void c_orm_register_query_interceptor(c_orm_db_t *db,
     LOG_DEBUG("c_orm_register_query_interceptor: db is NULL");
   }
   LOG_DEBUG("c_orm_register_query_interceptor: exit");
+  return C_ORM_OK;
 }
 
 /**
@@ -202,9 +207,8 @@ C_ORM_EXPORT void c_orm_register_query_interceptor(c_orm_db_t *db,
  * @param hook Interceptor callback.
  * @param context User context.
  */
-C_ORM_EXPORT void
-c_orm_register_hydration_interceptor(c_orm_db_t *db, c_orm_interceptor_cb hook,
-                                     void *context) {
+C_ORM_EXPORT c_orm_error_t c_orm_register_hydration_interceptor(
+    c_orm_db_t *db, c_orm_interceptor_cb hook, void *context) {
   LOG_DEBUG("c_orm_register_hydration_interceptor: entry");
   if (db) {
     db->hydration_interceptor = hook;
@@ -213,6 +217,7 @@ c_orm_register_hydration_interceptor(c_orm_db_t *db, c_orm_interceptor_cb hook,
     LOG_DEBUG("c_orm_register_hydration_interceptor: db is NULL");
   }
   LOG_DEBUG("c_orm_register_hydration_interceptor: exit");
+  return C_ORM_OK;
 }
 
 /**
@@ -222,10 +227,9 @@ c_orm_register_hydration_interceptor(c_orm_db_t *db, c_orm_interceptor_cb hook,
  * @param decrypt_hook Hook to decrypt fields.
  * @param context User context.
  */
-C_ORM_EXPORT void c_orm_register_crypto_hooks(c_orm_db_t *db,
-                                              c_orm_crypto_hook_t encrypt_hook,
-                                              c_orm_crypto_hook_t decrypt_hook,
-                                              void *context) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_register_crypto_hooks(c_orm_db_t *db, c_orm_crypto_hook_t encrypt_hook,
+                            c_orm_crypto_hook_t decrypt_hook, void *context) {
   LOG_DEBUG("c_orm_register_crypto_hooks: entry");
   if (db) {
     db->encrypt_hook = encrypt_hook;
@@ -235,6 +239,7 @@ C_ORM_EXPORT void c_orm_register_crypto_hooks(c_orm_db_t *db,
     LOG_DEBUG("c_orm_register_crypto_hooks: db is NULL");
   }
   LOG_DEBUG("c_orm_register_crypto_hooks: exit");
+  return C_ORM_OK;
 }
 
 /**
@@ -242,7 +247,8 @@ C_ORM_EXPORT void c_orm_register_crypto_hooks(c_orm_db_t *db,
  * @param db Database instance.
  * @param tz Timezone enum.
  */
-C_ORM_EXPORT void c_orm_set_timezone(c_orm_db_t *db, c_orm_timezone_t tz) {
+C_ORM_EXPORT c_orm_error_t c_orm_set_timezone(c_orm_db_t *db,
+                                              c_orm_timezone_t tz) {
   LOG_DEBUG("c_orm_set_timezone: entry");
   if (db) {
     db->timezone = tz;
@@ -250,4 +256,5 @@ C_ORM_EXPORT void c_orm_set_timezone(c_orm_db_t *db, c_orm_timezone_t tz) {
     LOG_DEBUG("c_orm_set_timezone: db is NULL");
   }
   LOG_DEBUG("c_orm_set_timezone: exit");
+  return C_ORM_OK;
 }

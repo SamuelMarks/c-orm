@@ -689,7 +689,7 @@ TEST test_abstract_struct_edge_types(void) {
 
   /* BLOB */
   v.type = CDD_C_VARIANT_TYPE_BLOB;
-  v.value.b_val.data = (unsigned char *)C_ORM_STRDUP("blobdata");
+  C_ORM_STRDUP("blobdata", (char **)&v.value.b_val.data);
   v.value.b_val.size = 8;
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct, "my_blob", &v));
   C_ORM_FREE(v.value.b_val.data);

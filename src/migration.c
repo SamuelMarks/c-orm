@@ -22,17 +22,18 @@
 /**
  * @brief Executes the migration statements init operation.
  */
-void migration_statements_init(struct MigrationStatements *out) {
+c_orm_error_t migration_statements_init(struct MigrationStatements *out) {
   if (out) {
     out->up_statement = NULL;
     out->down_statement = NULL;
   }
+  return C_ORM_OK;
 }
 
 /**
  * @brief Executes the migration statements free operation.
  */
-void migration_statements_free(struct MigrationStatements *out) {
+c_orm_error_t migration_statements_free(struct MigrationStatements *out) {
   if (out) {
     if (out->up_statement) {
       C_ORM_FREE(out->up_statement);
@@ -43,6 +44,7 @@ void migration_statements_free(struct MigrationStatements *out) {
       out->down_statement = NULL;
     }
   }
+  return C_ORM_OK;
 }
 
 /**

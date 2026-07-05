@@ -7,9 +7,10 @@
 #if defined(__clang__) || defined(__GNUC__)
 __attribute__((__format__(__printf__, 1, 2)))
 #endif
-int C_CDD_LOG_DEBUG(const char *fmt, ...);
+c_orm_error_t
+C_CDD_LOG_DEBUG(const char *fmt, ...);
 
-int C_CDD_LOG_DEBUG(const char *fmt, ...) {
+c_orm_error_t C_CDD_LOG_DEBUG(const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
 #if defined(__clang__)
@@ -29,7 +30,7 @@ int C_CDD_LOG_DEBUG(const char *fmt, ...) {
   return 0;
 }
 
-int c_orm_sprintf(char *buf, size_t size, const char *format, ...) {
+c_orm_error_t c_orm_sprintf(char *buf, size_t size, const char *format, ...) {
   int ret;
   va_list args;
   va_start(args, format);

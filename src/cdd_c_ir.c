@@ -48,15 +48,15 @@ c_orm_error_t cdd_c_ir_add_table(cdd_c_ir_t *ir,
   return 0;
 }
 
-static int duplicate_projection(cdd_c_query_projection_t *dest,
-                                const cdd_c_query_projection_t *src) {
+static c_orm_error_t duplicate_projection(cdd_c_query_projection_t *dest,
+                                          const cdd_c_query_projection_t *src) {
   size_t i;
   /* !dest and !src are checked implicitly or by callers */
   cdd_c_query_projection_init(dest);
   for (i = 0; i < src->n_fields; ++i) {
     if (cdd_c_query_projection_add_field(dest, &src->fields[i]) != 0) {
       cdd_c_query_projection_free(dest);
-      return -1;
+      return C_ORM_ERROR_MEMORY;
     }
   }
   if (src->source_table) {

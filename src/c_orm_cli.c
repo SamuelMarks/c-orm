@@ -27,7 +27,7 @@
  * @brief Prints the usage information.
  * @param prog The program name.
  */
-static void print_usage(const char *prog) {
+static c_orm_error_t print_usage(const char *prog) {
   LOG_DEBUG("print_usage: entry");
   printf("Usage: %s <command> [options]\n\n", prog);
   printf("Commands:\n");
@@ -46,16 +46,18 @@ static void print_usage(const char *prog) {
   printf("  --dir <path>              Migrations directory (default: "
          "./migrations)\n");
   LOG_DEBUG("print_usage: exit");
+  return C_ORM_OK;
 }
 
 /**
  * @brief Callback for migration logging.
  * @param msg The message to log.
  */
-static void log_cb(const char *msg) {
+static c_orm_error_t log_cb(const char *msg) {
   LOG_DEBUG("log_cb: entry");
   printf("[Migration] %s\n", msg);
   LOG_DEBUG("log_cb: exit");
+  return C_ORM_OK;
 }
 
 /**

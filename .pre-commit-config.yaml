@@ -19,6 +19,11 @@ repos:
         language: python
         pass_filenames: false
         types_or: [c, c++]
+      - id: compdb
+        name: Build Compilation Database
+        entry: env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S . -B build
+        language: system
+        pass_filenames: false
       - id: build-gcc
         name: Build (GCC)
         entry: python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" build gcc
@@ -63,6 +68,11 @@ repos:
         name: Valgrind (GCC)
         entry: python -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" valgrind gcc
         language: python
+        pass_filenames: false
+      - id: check-enum-returns
+        name: Check Enum Returns
+        entry: python3 scripts/check_enum_returns_clang.py . --build-dir build
+        language: system
         pass_filenames: false
       - id: update-shields
         name: Update README Shields

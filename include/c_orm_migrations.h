@@ -47,9 +47,10 @@ typedef struct {
  * @brief Context/options for migration execution.
  */
 typedef struct {
-  int dry_run;                     /**< If 1, do not execute, only print SQL */
-  void (*log_cb)(const char *msg); /**< Optional logger for migration steps */
-  void *user_data;                 /**< Passed to hooks */
+  int dry_run; /**< If 1, do not execute, only print SQL */
+  c_orm_error_t (*log_cb)(
+      const char *msg); /**< Optional logger for migration steps */
+  void *user_data;      /**< Passed to hooks */
   c_orm_error_t (*pre_migrate)(c_orm_db_t *db, const c_orm_migration_t *mig,
                                void *user_data);
   c_orm_error_t (*post_migrate)(c_orm_db_t *db, const c_orm_migration_t *mig,

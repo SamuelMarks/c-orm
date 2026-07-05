@@ -216,8 +216,8 @@ struct c_orm_db {
  * @param threshold_ms Milliseconds a query must take to be logged. Set 0 to
  * disable.
  */
-C_ORM_EXPORT void c_orm_set_slow_query_threshold(c_orm_db_t *db,
-                                                 uint32_t threshold_ms);
+C_ORM_EXPORT c_orm_error_t
+c_orm_set_slow_query_threshold(c_orm_db_t *db, uint32_t threshold_ms);
 
 /**
  * @brief Fetch current telemetry data from the database pool.
@@ -236,8 +236,9 @@ c_orm_get_telemetry(c_orm_db_t *db, c_orm_pool_telemetry_t *out_telemetry);
  * @param cb The callback function.
  * @param user_data Opaque pointer passed to the callback.
  */
-C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
-                                         void *user_data);
+C_ORM_EXPORT c_orm_error_t c_orm_set_log_callback(c_orm_db_t *db,
+                                                  c_orm_log_cb cb,
+                                                  void *user_data);
 
 /**
  * @brief Set the expiration callback for a database connection.
@@ -246,8 +247,9 @@ C_ORM_EXPORT void c_orm_set_log_callback(c_orm_db_t *db, c_orm_log_cb cb,
  * @param cb The callback function.
  * @param user_data Opaque pointer passed to the callback.
  */
-C_ORM_EXPORT void c_orm_set_expire_callback(c_orm_db_t *db, c_orm_expire_cb cb,
-                                            void *user_data);
+C_ORM_EXPORT c_orm_error_t c_orm_set_expire_callback(c_orm_db_t *db,
+                                                     c_orm_expire_cb cb,
+                                                     void *user_data);
 
 /**
  * @brief Register cryptographic hooks for transparent encryption/decryption of
@@ -258,10 +260,9 @@ C_ORM_EXPORT void c_orm_set_expire_callback(c_orm_db_t *db, c_orm_expire_cb cb,
  * @param decrypt_hook Callback function to decrypt data.
  * @param context Opaque user data for the crypto operations.
  */
-C_ORM_EXPORT void c_orm_register_crypto_hooks(c_orm_db_t *db,
-                                              c_orm_crypto_hook_t encrypt_hook,
-                                              c_orm_crypto_hook_t decrypt_hook,
-                                              void *context);
+C_ORM_EXPORT c_orm_error_t
+c_orm_register_crypto_hooks(c_orm_db_t *db, c_orm_crypto_hook_t encrypt_hook,
+                            c_orm_crypto_hook_t decrypt_hook, void *context);
 
 /**
  * @brief Configure timezone logic for mapping datetime conversions locally on
@@ -270,7 +271,8 @@ C_ORM_EXPORT void c_orm_register_crypto_hooks(c_orm_db_t *db,
  * @param db Database handle.
  * @param tz The timezone struct offset.
  */
-C_ORM_EXPORT void c_orm_set_timezone(c_orm_db_t *db, c_orm_timezone_t tz);
+C_ORM_EXPORT c_orm_error_t c_orm_set_timezone(c_orm_db_t *db,
+                                              c_orm_timezone_t tz);
 
 /**
  * @brief Configure the execution modality paradigm for this database

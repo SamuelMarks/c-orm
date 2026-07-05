@@ -30,9 +30,9 @@
  * @param[out] fk_buf Buffer to store foreign key reference string.
  * @param[in] fk_buf_size Size of the foreign key buffer.
  */
-static void check_db_schema(const struct StructField *field, int *is_pk,
-                            int *is_unique, int *is_index, char *fk_buf,
-                            size_t fk_buf_size) {
+static c_orm_error_t check_db_schema(const struct StructField *field,
+                                     int *is_pk, int *is_unique, int *is_index,
+                                     char *fk_buf, size_t fk_buf_size) {
   *is_pk = 0;
   *is_unique = 0;
   *is_index = 0;
@@ -97,6 +97,7 @@ static void check_db_schema(const struct StructField *field, int *is_pk,
       json_value_free(extras);
     }
   }
+  return C_ORM_OK;
 }
 
 /**
@@ -115,9 +116,11 @@ static void check_db_schema(const struct StructField *field, int *is_pk,
  * @param[out] slow_query_ms Pointer to an int that will receive the slow query
  * warning threshold.
  */
-static void check_cdd_annotations(const struct StructField *field,
-                                  int *is_shard_key, int *is_shard_hash,
-                                  int *is_track_telemetry, int *slow_query_ms) {
+static c_orm_error_t check_cdd_annotations(const struct StructField *field,
+                                           int *is_shard_key,
+                                           int *is_shard_hash,
+                                           int *is_track_telemetry,
+                                           int *slow_query_ms) {
   *is_shard_key = 0;
   *is_shard_hash = 0;
   *is_track_telemetry = 0;
@@ -143,6 +146,7 @@ static void check_cdd_annotations(const struct StructField *field,
       json_value_free(extras);
     }
   }
+  return C_ORM_OK;
 }
 
 static const char *openapi_type_to_c_orm_type(const struct StructField *field) {
@@ -203,8 +207,8 @@ static const char *openapi_type_to_c_type(const struct StructField *field) {
 /**
  * @brief Executes the openapi orm generate operation.
  */
-c_orm_error_t openapi_orm_generate(const struct OpenAPI_Spec *spec,
-                                   const struct OpenApiClientConfig *config) {
+C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
+    const struct OpenAPI_Spec *spec, const struct OpenApiClientConfig *config) {
   char path_h[1024];
   char path_c[1024];
   FILE *fp_h = NULL;

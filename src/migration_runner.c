@@ -320,7 +320,7 @@ static int is_applied(const char *version, char **applied_versions,
 /**
  * @brief Applies migration.
  */
-c_orm_error_t apply_migration(const char *filepath) {
+C_ORM_EXPORT c_orm_error_t apply_migration(const char *filepath) {
   struct MigrationStatements stmts;
   PGconn *conn;
   PGresult *res;
@@ -375,7 +375,7 @@ c_orm_error_t apply_migration(const char *filepath) {
 /**
  * @brief Executes the rollback migration operation.
  */
-c_orm_error_t rollback_migration(const char *filepath) {
+C_ORM_EXPORT c_orm_error_t rollback_migration(const char *filepath) {
   struct MigrationStatements stmts;
   PGconn *conn;
   PGresult *res;
@@ -428,7 +428,7 @@ c_orm_error_t rollback_migration(const char *filepath) {
 /**
  * @brief Executes the run pending migrations operation.
  */
-c_orm_error_t run_pending_migrations(const char *migrations_dir) {
+C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
   PGconn *conn;
   const char *db_url;
   c_orm_error_t rc;
@@ -552,7 +552,7 @@ c_orm_error_t run_pending_migrations(const char *migrations_dir) {
 /**
  * @brief Executes the rollback last migration operation.
  */
-c_orm_error_t rollback_last_migration(const char *migrations_dir) {
+C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
   PGconn *conn;
   const char *db_url;
   c_orm_error_t rc;
@@ -709,8 +709,8 @@ c_orm_error_t rollback_last_migration(const char *migrations_dir) {
 /**
  * @brief Executes the create migration file operation.
  */
-c_orm_error_t create_migration_file(const char *migrations_dir,
-                                    const char *name) {
+C_ORM_EXPORT c_orm_error_t create_migration_file(const char *migrations_dir,
+                                                 const char *name) {
   char *filepath;
   char *safe_name;
   time_t t;
@@ -774,7 +774,7 @@ c_orm_error_t create_migration_file(const char *migrations_dir,
 /**
  * @brief Executes the reset database operation.
  */
-c_orm_error_t reset_database(const char *migrations_dir) {
+C_ORM_EXPORT c_orm_error_t reset_database(const char *migrations_dir) {
   PGconn *conn;
   const char *db_url;
   PGresult *res;
@@ -815,7 +815,7 @@ c_orm_error_t reset_database(const char *migrations_dir) {
 /**
  * @brief Executes the dump schema operation.
  */
-c_orm_error_t dump_schema(const char *out_filepath) {
+C_ORM_EXPORT c_orm_error_t dump_schema(const char *out_filepath) {
   const char *db_url;
   char *cmd;
   size_t cmd_len;
@@ -856,8 +856,8 @@ c_orm_error_t dump_schema(const char *out_filepath) {
 /**
  * @brief Executes the setup test database operation.
  */
-c_orm_error_t setup_test_database(const char *db_name,
-                                  const char *migrations_dir) {
+C_ORM_EXPORT c_orm_error_t setup_test_database(const char *db_name,
+                                               const char *migrations_dir) {
   PGconn *conn;
   const char *db_url;
   char *create_db_query;
@@ -914,7 +914,7 @@ c_orm_error_t setup_test_database(const char *db_name,
 /**
  * @brief Executes the seed database operation.
  */
-c_orm_error_t seed_database(const char *seed_filepath) {
+C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath) {
   char *file_data;
   size_t file_size;
   PGconn *conn;
@@ -973,43 +973,43 @@ c_orm_error_t seed_database(const char *seed_filepath) {
 }
 #else  /* !(!defined(__EMSCRIPTEN__) && (defined(USE_LIBPQ_LINKED) ||          \
           defined(USE_LIBPQ_DYNAMIC))) */
-c_orm_error_t apply_migration(const char *filepath) {
+C_ORM_EXPORT c_orm_error_t apply_migration(const char *filepath) {
   (void)filepath;
   return ENOSYS;
 }
-c_orm_error_t rollback_migration(const char *filepath) {
+C_ORM_EXPORT c_orm_error_t rollback_migration(const char *filepath) {
   (void)filepath;
   return ENOSYS;
 }
-c_orm_error_t run_pending_migrations(const char *migrations_dir) {
+C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
   (void)migrations_dir;
   return ENOSYS;
 }
-c_orm_error_t rollback_last_migration(const char *migrations_dir) {
+C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
   (void)migrations_dir;
   return ENOSYS;
 }
-c_orm_error_t create_migration_file(const char *migrations_dir,
-                                    const char *name) {
+C_ORM_EXPORT c_orm_error_t create_migration_file(const char *migrations_dir,
+                                                 const char *name) {
   (void)migrations_dir;
   (void)name;
   return ENOSYS;
 }
-c_orm_error_t reset_database(const char *migrations_dir) {
+C_ORM_EXPORT c_orm_error_t reset_database(const char *migrations_dir) {
   (void)migrations_dir;
   return ENOSYS;
 }
-c_orm_error_t dump_schema(const char *out_filepath) {
+C_ORM_EXPORT c_orm_error_t dump_schema(const char *out_filepath) {
   (void)out_filepath;
   return ENOSYS;
 }
-c_orm_error_t setup_test_database(const char *db_name,
-                                  const char *migrations_dir) {
+C_ORM_EXPORT c_orm_error_t setup_test_database(const char *db_name,
+                                               const char *migrations_dir) {
   (void)db_name;
   (void)migrations_dir;
   return ENOSYS;
 }
-c_orm_error_t seed_database(const char *seed_filepath) {
+C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath) {
   (void)seed_filepath;
   return ENOSYS;
 }

@@ -83,23 +83,6 @@ C_ORM_EXPORT extern void *(*c_orm_realloc)(void *ptr, size_t size);
  * @brief Sets the allocator functions. Useful for testing across DLL
  * boundaries.
  */
-C_ORM_EXPORT void c_orm_set_allocators(void *(*m)(size_t),
-                                       void *(*r)(void *, size_t),
-                                       void (*f)(void *));
-
-#define C_ORM_MALLOC c_orm_malloc
-#define C_ORM_FREE c_orm_free
-#define C_ORM_REALLOC c_orm_realloc
-#endif
-
-/**
- * @brief Duplicates a string using c_orm_malloc.
- * @param s String to duplicate.
- * @return Duplicated string, or NULL on failure.
- */
-C_ORM_EXPORT char *c_orm_strdup(const char *s);
-#define C_ORM_STRDUP c_orm_strdup
-
 /**
  * @brief Data types supported by c-orm.
  */
@@ -119,6 +102,23 @@ typedef enum {
   C_ORM_ERROR_RECURSION,
   C_ORM_ERROR_READ_ONLY
 } c_orm_error_t;
+
+C_ORM_EXPORT c_orm_error_t c_orm_set_allocators(void *(*m)(size_t),
+                                                void *(*r)(void *, size_t),
+                                                void (*f)(void *));
+
+#define C_ORM_MALLOC c_orm_malloc
+#define C_ORM_FREE c_orm_free
+#define C_ORM_REALLOC c_orm_realloc
+#endif
+
+/**
+ * @brief Duplicates a string using c_orm_malloc.
+ * @param s String to duplicate.
+ * @return Duplicated string, or NULL on failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_strdup(const char *s, char **out);
+#define C_ORM_STRDUP c_orm_strdup
 
 typedef enum {
   C_ORM_TYPE_INT32,

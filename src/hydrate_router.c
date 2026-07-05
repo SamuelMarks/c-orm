@@ -35,7 +35,7 @@ c_orm_error_t cdd_c_hydrate_router_get_last_error(const char **out_msg) {
   return 0;
 }
 
-void cdd_c_hydrate_router_set_last_error(const char *msg) {
+c_orm_error_t cdd_c_hydrate_router_set_last_error(const char *msg) {
   if (!msg) {
     cdd_c_hydrate_error_msg[0] = '\0';
   } else {
@@ -43,6 +43,7 @@ void cdd_c_hydrate_router_set_last_error(const char *msg) {
                   sizeof(cdd_c_hydrate_error_msg) - 1);
     cdd_c_hydrate_error_msg[sizeof(cdd_c_hydrate_error_msg) - 1] = '\0';
   }
+  return C_ORM_OK;
 }
 
 c_orm_error_t cdd_c_hydrate_router_init(cdd_c_hydrate_router_t *router) {

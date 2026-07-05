@@ -869,9 +869,8 @@ C_ORM_EXPORT void c_orm_pool_destroy(c_orm_pool_t *pool);
  * @param hook The interceptor callback.
  * @param context Opaque user data for the plugin.
  */
-C_ORM_EXPORT void c_orm_register_query_interceptor(c_orm_db_t *db,
-                                                   c_orm_interceptor_cb hook,
-                                                   void *context);
+C_ORM_EXPORT c_orm_error_t c_orm_register_query_interceptor(
+    c_orm_db_t *db, c_orm_interceptor_cb hook, void *context);
 
 /**
  * @brief Register a hydration interceptor plugin (Step 196).
@@ -880,9 +879,8 @@ C_ORM_EXPORT void c_orm_register_query_interceptor(c_orm_db_t *db,
  * @param hook The interceptor callback.
  * @param context Opaque user data for the plugin.
  */
-C_ORM_EXPORT void
-c_orm_register_hydration_interceptor(c_orm_db_t *db, c_orm_interceptor_cb hook,
-                                     void *context);
+C_ORM_EXPORT c_orm_error_t c_orm_register_hydration_interceptor(
+    c_orm_db_t *db, c_orm_interceptor_cb hook, void *context);
 
 /**
  * @brief Async execution wrappers for libuv integration (Steps 207-210).

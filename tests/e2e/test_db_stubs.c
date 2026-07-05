@@ -88,10 +88,10 @@ static c_orm_error_t get_last_trace_mock(c_orm_db_t *db, const char **out) { (vo
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_db_attach_identity_map(c_orm_db_t *db, c_orm_identity_map_t *map);
-C_ORM_EXPORT void c_orm_register_query_interceptor(c_orm_db_t *db,
+C_ORM_EXPORT c_orm_error_t c_orm_register_query_interceptor(c_orm_db_t *db,
                                                    c_orm_interceptor_cb hook,
                                                    void *context);
-C_ORM_EXPORT void
+C_ORM_EXPORT c_orm_error_t
 c_orm_register_hydration_interceptor(c_orm_db_t *db, c_orm_interceptor_cb hook,
                                      void *context);
 
@@ -105,7 +105,7 @@ TEST test_c_orm_db_coverage(void) {
 
   /* call the hooks */
   test_hook(NULL, NULL, NULL);
-  if (crypto_enc_hook(NULL, 0, NULL, NULL, NULL)) {}
+  if (crypto_enc_hook(NULL, 0, NULL, NULL, NULL)) { return GREATEST_TEST_RES_PASS; }
   if (crypto_dec_hook(NULL, 0, NULL, NULL, NULL)) {}
   test_log_cb(NULL, NULL);
   test_expire_cb(NULL, NULL, NULL, NULL);
