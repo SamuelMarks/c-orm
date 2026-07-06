@@ -70,19 +70,6 @@ extern "C" {
 
 #define CMP_SECURE_FIELD true
 
-#ifndef C_ORM_TEST_ALLOCATOR
-#define C_ORM_MALLOC malloc
-#define C_ORM_FREE free
-#define C_ORM_REALLOC realloc
-#else
-C_ORM_EXPORT extern void *(*c_orm_malloc)(size_t size);
-C_ORM_EXPORT extern void (*c_orm_free)(void *ptr);
-C_ORM_EXPORT extern void *(*c_orm_realloc)(void *ptr, size_t size);
-
-/**
- * @brief Sets the allocator functions. Useful for testing across DLL
- * boundaries.
- */
 /**
  * @brief Data types supported by c-orm.
  */
@@ -102,6 +89,20 @@ typedef enum {
   C_ORM_ERROR_RECURSION,
   C_ORM_ERROR_READ_ONLY
 } c_orm_error_t;
+
+#ifndef C_ORM_TEST_ALLOCATOR
+#define C_ORM_MALLOC malloc
+#define C_ORM_FREE free
+#define C_ORM_REALLOC realloc
+#else
+C_ORM_EXPORT extern void *(*c_orm_malloc)(size_t size);
+C_ORM_EXPORT extern void (*c_orm_free)(void *ptr);
+C_ORM_EXPORT extern void *(*c_orm_realloc)(void *ptr, size_t size);
+
+/**
+ * @brief Sets the allocator functions. Useful for testing across DLL
+ * boundaries.
+ */
 
 C_ORM_EXPORT c_orm_error_t c_orm_set_allocators(void *(*m)(size_t),
                                                 void *(*r)(void *, size_t),
