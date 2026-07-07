@@ -77,6 +77,11 @@ TEST test_cli_migrate(void) {
   system("sqlite3 test_cli_exec.db \"INSERT INTO _c_orm_migrations (version, "
          "name, hash) VALUES ('1', 'test', 'hash');\"");
   system(CLI_CMD " status --db test_cli_exec.db" DEV_NULL);
+#ifdef _WIN32
+  system("mkdir test_migrations_dir 2>nul");
+#else
+  system("mkdir -p test_migrations_dir 2>/dev/null");
+#endif
   system("echo 'CREATE TABLE x (id INT);' > test_migrations_dir/1_test.up.sql");
   system("echo 'DROP TABLE x;' > test_migrations_dir/1_test.down.sql");
   system(CLI_CMD

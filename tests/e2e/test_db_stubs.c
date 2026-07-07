@@ -259,11 +259,14 @@ TEST test_codegen_coverage(void) {
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   {
-    const char *paths[] = {"tests/e2e/schema.sql", "../tests/e2e/schema.sql",
+    const char *paths[] = {"tests/e2e/schema.sql",
+                           "../tests/e2e/schema.sql",
                            "../../tests/e2e/schema.sql",
-                           "../../../tests/e2e/schema.sql"};
+                           "../../../tests/e2e/schema.sql",
+                           "../../../../tests/e2e/schema.sql",
+                           "../../../../../tests/e2e/schema.sql"};
     int i;
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < 6; i++) {
       schema_path = paths[i];
       f = fopen(schema_path, "r");
       if (f) {
