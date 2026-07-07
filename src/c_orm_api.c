@@ -16,6 +16,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 /* #include "abstract_struct.h" */
 /* clang-format on */
 static void c_orm_free_columns(const c_orm_table_meta_t *meta, void *obj) {
@@ -7600,7 +7603,6 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 }
 
 #ifdef __EMSCRIPTEN__
-#include <emscripten.h>
 
 void c_orm_wasm_init_fs(void (*callback)(int)) {
 #if defined(__clang__) || defined(__GNUC__)

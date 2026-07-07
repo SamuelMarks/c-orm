@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "c_orm_codegen.h"
+#include "cdd_c_ir.h"
 /* clang-format on */
 
 static int oom_countdown = 0;
@@ -66,8 +68,6 @@ static void do_uuid(void) {
   c_orm_uuid_v4(uuid_buf);
 }
 
-#include "c_orm_codegen.h"
-
 static void do_codegen(void) {
   system("echo 'CREATE TABLE t_oom (id int);' > oom_schema.sql");
   c_orm_codegen_generate("oom_schema.sql", ".");
@@ -100,8 +100,6 @@ TEST test_string_builder_oom(void) {
   oom_active = 0;
   PASS();
 }
-
-#include "cdd_c_ir.h"
 
 static void do_cdd_c_ir(void) {
   cdd_c_ir_t ir;

@@ -20,6 +20,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 /* #include "abstract_struct.h" */
 /* clang-format on */
 
@@ -1192,7 +1195,6 @@ static void run_all_suites(void) {
 }
 
 #ifdef __EMSCRIPTEN__
-#include <emscripten.h>
 
 static int g_argc;
 static char **g_argv;

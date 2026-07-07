@@ -1,11 +1,10 @@
+/* clang-format off */
 #include <errno.h>
-
+#include <string.h>
 #include "greatest.h"
 #include "orm_gen.h"
-/* clang-format off */
 #include "openapi/parse/openapi.h"
 /* clang-format on */
-#include <string.h>
 
 static int oom_active = 0;
 static int oom_countdown = 0;

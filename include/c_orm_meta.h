@@ -8,6 +8,12 @@
 
 /* clang-format off */
 #include <stddef.h>
+
+#ifdef __cplusplus
+#define C_ORM_IN_CPLUSPLUS 1
+extern "C" {
+#endif /* __cplusplus */
+
 #if defined(_MSC_VER)
 #if _MSC_VER < 1600
 typedef signed __int8 int8_t;
@@ -21,7 +27,7 @@ typedef unsigned __int64 uint64_t;
 #else
 #include <stdint.h>
 #endif
-#ifndef __cplusplus
+#ifndef C_ORM_IN_CPLUSPLUS
 #ifndef _STDBOOL_H
 #define _STDBOOL_H
 typedef unsigned char bool;
@@ -31,7 +37,7 @@ typedef unsigned char bool;
 #endif
 #else
 #include <stdint.h>
-#ifndef __cplusplus
+#ifndef C_ORM_IN_CPLUSPLUS
 #ifndef _STDBOOL_H
 #define _STDBOOL_H
 typedef unsigned char bool;
@@ -43,10 +49,6 @@ typedef unsigned char bool;
 
 #include <stdlib.h>
 /* clang-format on */
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 
 #ifndef C_ORM_EXPORT
 #if defined(_WIN32) || defined(__CYGWIN__)
