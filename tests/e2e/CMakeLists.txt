@@ -119,7 +119,7 @@ target_compile_definitions(c_orm_e2e_tests PRIVATE C_ORM_CLI_EXECUTABLE="$<TARGE
   target_link_libraries(c_orm_e2e_tests PRIVATE c-orm c-orm-async c_cdd ${C_ORM_SQLITE_TARGET})
 
 add_test(NAME e2e_test COMMAND c_orm_e2e_tests)
-if(WIN32 AND BUILD_SHARED_LIBS AND DEFINED CDD_C_PATH_ENV)
+if(WIN32 AND BUILD_SHARED_LIBS AND DEFINED CDD_C_PATH_ENV AND NOT CMAKE_CROSSCOMPILING)
     string(REPLACE ";" "\\;" CDD_C_PATH_ENV_ESCAPED "${CDD_C_PATH_ENV}")
     set_tests_properties(e2e_test PROPERTIES ENVIRONMENT "PATH=${CDD_C_PATH_ENV_ESCAPED}")
 endif()
