@@ -5,16 +5,14 @@ if(POLICY CMP0135)
 endif()
 
 # Fetch greatest.h
-set(GREATEST_H_URL "https://raw.githubusercontent.com/silentbicycle/greatest/master/greatest.h")
-set(GREATEST_H_DIR "${CMAKE_CURRENT_BINARY_DIR}/test_downloads")
-file(MAKE_DIRECTORY ${GREATEST_H_DIR})
-if(NOT EXISTS "${GREATEST_H_DIR}/greatest.h")
-    file(DOWNLOAD "${GREATEST_H_URL}" "${GREATEST_H_DIR}/greatest.h" STATUS GREATEST_STATUS)
-    list(GET GREATEST_STATUS 0 GREATEST_STATUS_CODE)
-    if(NOT GREATEST_STATUS_CODE EQUAL 0)
-        message(FATAL_ERROR "Failed to download greatest.h: ${GREATEST_STATUS}")
-    endif()
-endif()
+include(FetchContent)
+FetchContent_Declare(
+  greatest
+  GIT_REPOSITORY https://github.com/silentbicycle/greatest.git
+  GIT_TAG v1.5.0
+)
+FetchContent_MakeAvailable(greatest)
+set(GREATEST_H_DIR "${greatest_SOURCE_DIR}")
 
 if(WIN32 AND BUILD_SHARED_LIBS)
     if(CMAKE_HOST_WIN32)
