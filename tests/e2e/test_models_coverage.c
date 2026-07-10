@@ -237,7 +237,9 @@ TEST test_oauth2_models(void) {
 
 SUITE(models_coverage_suite) {
   c_orm_set_allocators(e2e_mock_malloc, realloc, free);
+
   RUN_TEST(test_users_models);
   RUN_TEST(test_posts_models);
   RUN_TEST(test_oauth2_models);
+  c_orm_set_allocators(malloc, realloc, free);
 }
