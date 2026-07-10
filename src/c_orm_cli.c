@@ -17,6 +17,9 @@
 #if defined(_WIN32) || defined(_WIN64)
 #include <direct.h>
 #define MKDIR(path) _mkdir(path)
+#if defined(_MSC_VER) && defined(_DEBUG)
+#include <crtdbg.h>
+#endif
 #else
 #include <sys/stat.h>
 #define MKDIR(path) mkdir(path, 0777)
@@ -73,6 +76,15 @@ int main(int argc, char **argv) {
   const char *dir_path = "./migrations";
   const char *arg_name = NULL;
   int i;
+
+#if defined(_MSC_VER) && defined(_DEBUG)
+  _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+#endif
 
   LOG_DEBUG("main: entry");
 
