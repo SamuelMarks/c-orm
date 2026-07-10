@@ -30,11 +30,31 @@ int main(void) {
   }
 
   /* Assume some legacy tables we don't have struct mappings for. */
-  c_orm_execute_raw(db,
-                    "CREATE TABLE events (event_name TEXT, metric INTEGER)");
-  c_orm_execute_raw(db, "INSERT INTO events VALUES ('click', 5)");
-  c_orm_execute_raw(db, "INSERT INTO events VALUES ('click', 2)");
-  c_orm_execute_raw(db, "INSERT INTO events VALUES ('impression', 10)");
+  err = c_orm_execute_raw(
+      db, "CREATE TABLE events (event_name TEXT, metric INTEGER)");
+  if (err != C_ORM_OK) {
+    printf("CREATE TABLE events error: %d\n", (int)err);
+    rc = 1;
+    return rc;
+  }
+  err = c_orm_execute_raw(db, "INSERT INTO events VALUES ('click', 5)");
+  if (err != C_ORM_OK) {
+    printf("INSERT events click 5 error: %d\n", (int)err);
+    rc = 1;
+    return rc;
+  }
+  err = c_orm_execute_raw(db, "INSERT INTO events VALUES ('click', 2)");
+  if (err != C_ORM_OK) {
+    printf("INSERT events click 2 error: %d\n", (int)err);
+    rc = 1;
+    return rc;
+  }
+  err = c_orm_execute_raw(db, "INSERT INTO events VALUES ('impression', 10)");
+  if (err != C_ORM_OK) {
+    printf("INSERT events impression 10 error: %d\n", (int)err);
+    rc = 1;
+    return rc;
+  }
 
   /* We execute a dynamic raw SQL statement containing aggregations missing
    * struct layouts. */

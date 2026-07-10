@@ -86,17 +86,38 @@ int main(void) {
   }
 
   printf("Creating tables...\n");
-  c_orm_execute_raw(
+  err = c_orm_execute_raw(
       db, "CREATE TABLE User (id INTEGER PRIMARY KEY, username TEXT)");
-  c_orm_execute_raw(db, "CREATE TABLE Post (id INTEGER PRIMARY KEY, title "
-                        "TEXT, user_id INTEGER)");
-  c_orm_execute_raw(db,
-                    "CREATE TABLE Role (id INTEGER PRIMARY KEY, name TEXT)");
-  c_orm_execute_raw(
+  if (err != C_ORM_OK) {
+    printf("c_orm_execute_raw err %d\n", (int)err);
+    return 1;
+  }
+  err =
+      c_orm_execute_raw(db, "CREATE TABLE Post (id INTEGER PRIMARY KEY, title "
+                            "TEXT, user_id INTEGER)");
+  if (err != C_ORM_OK) {
+    printf("c_orm_execute_raw err %d\n", (int)err);
+    return 1;
+  }
+  err = c_orm_execute_raw(
+      db, "CREATE TABLE Role (id INTEGER PRIMARY KEY, name TEXT)");
+  if (err != C_ORM_OK) {
+    printf("c_orm_execute_raw err %d\n", (int)err);
+    return 1;
+  }
+  err = c_orm_execute_raw(
       db, "CREATE TABLE user_roles (user_id INTEGER, role_id INTEGER)");
+  if (err != C_ORM_OK) {
+    printf("c_orm_execute_raw err %d\n", (int)err);
+    return 1;
+  }
 
-  c_orm_execute_raw(
+  err = c_orm_execute_raw(
       db, "INSERT INTO Role (id, name) VALUES (1, 'Admin'), (2, 'Editor')");
+  if (err != C_ORM_OK) {
+    printf("c_orm_execute_raw err %d\n", (int)err);
+    return 1;
+  }
 
   /* Insert nested User */
   memset(&new_user, 0, sizeof(new_user));
@@ -117,9 +138,19 @@ int main(void) {
     struct Role r;
     memset(&r, 0, sizeof(r));
     r.id = 1;
-    c_orm_attach(db, &user_m, &new_user, "roles", &r);
+    err = c_orm_attach(db, &user_m, &new_user, "roles", &r);
+    if (err != C_ORM_OK) {
+      printf("c_orm_attach roles 1 error: %d\n", (int)err);
+      rc = 1;
+      return rc;
+    }
     r.id = 2;
-    c_orm_attach(db, &user_m, &new_user, "roles", &r);
+    err = c_orm_attach(db, &user_m, &new_user, "roles", &r);
+    if (err != C_ORM_OK) {
+      printf("c_orm_attach roles 2 error: %d\n", (int)err);
+      rc = 1;
+      return rc;
+    }
   }
 
   printf("Fetching User with nested relationships natively...\n");

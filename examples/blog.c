@@ -67,8 +67,13 @@ int main(void) {
     }
   }
 
-  c_orm_execute_raw(db, "CREATE TABLE blog_posts (id INTEGER PRIMARY KEY, "
-                        "title TEXT, content TEXT, author_id INTEGER)");
+  err =
+      c_orm_execute_raw(db, "CREATE TABLE blog_posts (id INTEGER PRIMARY KEY, "
+                            "title TEXT, content TEXT, author_id INTEGER)");
+  if (err != C_ORM_OK) {
+    printf("c_orm_execute_raw err %d\n", (int)err);
+    return 1;
+  }
 
   memset(&post, 0, sizeof(post));
   post.id = 1;
