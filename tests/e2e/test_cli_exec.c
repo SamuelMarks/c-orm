@@ -2,6 +2,8 @@
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "c_orm_api.h"
+#include "sqlite3.h"
 /* clang-format on */
 
 #ifndef C_ORM_CLI_EXECUTABLE
@@ -36,7 +38,11 @@ TEST test_cli_no_args(void) {
 
 TEST test_cli_init(void) {
   int rc;
+#ifdef _WIN32
+  system("rmdir /S /Q test_migrations_dir_init 2>nul");
+#else
   system("rm -rf test_migrations_dir_init");
+#endif
   rc = system(CLI_CMD " init --dir test_migrations_dir_init" DEV_NULL);
   ASSERT_EQ(0, rc);
   rc = system(CLI_CMD " init --dir test_migrations_dir_init" DEV_NULL);
@@ -71,19 +77,38 @@ TEST test_cli_migrate(void) {
               " migrate --db :memory: --dir test_migrations_dir" DEV_NULL);
   ASSERT_EQ(0, rc);
 
-  system("sqlite3 test_cli_exec.db \"CREATE TABLE IF NOT EXISTS "
-         "_c_orm_migrations (id INTEGER PRIMARY KEY, version TEXT, name TEXT, "
-         "hash TEXT, applied_at DATETIME);\"");
-  system("sqlite3 test_cli_exec.db \"INSERT INTO _c_orm_migrations (version, "
-         "name, hash) VALUES ('1', 'test', 'hash');\"");
+  {
+    sqlite3 *db;
+    sqlite3_open("test_cli_exec.db", &db);
+    sqlite3_exec(
+        db,
+        "CREATE TABLE IF NOT EXISTS _c_orm_migrations (id INTEGER PRIMARY KEY, "
+        "version TEXT, name TEXT, hash TEXT, applied_at DATETIME);",
+        0, 0, 0);
+    sqlite3_exec(db,
+                 "INSERT INTO _c_orm_migrations (version, name, hash) VALUES "
+                 "('1', 'test', 'hash');",
+                 0, 0, 0);
+    sqlite3_close(db);
+  }
   system(CLI_CMD " status --db test_cli_exec.db" DEV_NULL);
 #ifdef _WIN32
   system("mkdir test_migrations_dir 2>nul");
 #else
   system("mkdir -p test_migrations_dir 2>/dev/null");
 #endif
-  system("echo 'CREATE TABLE x (id INT);' > test_migrations_dir/1_test.up.sql");
-  system("echo 'DROP TABLE x;' > test_migrations_dir/1_test.down.sql");
+  {
+    FILE *f1 = fopen("test_migrations_dir/1_test.up.sql", "w");
+    if (f1) {
+      fprintf(f1, "CREATE TABLE x (id INT);\n");
+      fclose(f1);
+    }
+    FILE *f2 = fopen("test_migrations_dir/1_test.down.sql", "w");
+    if (f2) {
+      fprintf(f2, "DROP TABLE x;\n");
+      fclose(f2);
+    }
+  }
   system(CLI_CMD
          " migrate --db test_cli_exec.db --dir test_migrations_dir" DEV_NULL);
 
@@ -105,8 +130,13 @@ TEST test_cli_status(void) {
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
 
-  system("rm -f bad_schema.db && sqlite3 bad_schema.db \"CREATE TABLE "
-         "_c_orm_migrations(id INTEGER);\"");
+  remove("bad_schema.db");
+  {
+    sqlite3 *db;
+    sqlite3_open("bad_schema.db", &db);
+    sqlite3_exec(db, "CREATE TABLE _c_orm_migrations(id INTEGER);", 0, 0, 0);
+    sqlite3_close(db);
+  }
   rc = system(CLI_CMD " status --db bad_schema.db" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);

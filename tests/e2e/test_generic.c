@@ -167,7 +167,7 @@ TEST test_c_orm_alloc(void) {
   PASS();
 }
 
-int C_CDD_LOG_DEBUG(const char *fmt, ...);
+C_ORM_EXPORT int C_CDD_LOG_DEBUG(const char *fmt, ...);
 TEST test_cdd_c_compat_log(void) {
   ASSERT_EQ(0, C_CDD_LOG_DEBUG("Test log\n"));
   PASS();

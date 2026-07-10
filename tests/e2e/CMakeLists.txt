@@ -22,7 +22,7 @@ if(WIN32 AND BUILD_SHARED_LIBS)
     endif()
     set(CDD_C_PATH_ENV "$ENV{PATH}")
 
-    foreach(tgt curl parson c89stringutils cfs c_cdd c-abstract-http ${C_ORM_SQLITE_TARGET} c-orm c_str_span)
+    foreach(tgt curl CURL::libcurl parson c89stringutils cfs c_cdd c-abstract-http ${C_ORM_SQLITE_TARGET} c-orm c_str_span)
         if(TARGET ${tgt})
             set(CDD_C_PATH_ENV "$<TARGET_FILE_DIR:${tgt}>${PATH_SEP}${CDD_C_PATH_ENV}")
         endif()

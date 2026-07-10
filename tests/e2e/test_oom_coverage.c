@@ -69,7 +69,13 @@ static void do_uuid(void) {
 }
 
 static void do_codegen(void) {
-  system("echo 'CREATE TABLE t_oom (id int);' > oom_schema.sql");
+  {
+    FILE *f = fopen("oom_schema.sql", "w");
+    if (f) {
+      fprintf(f, "CREATE TABLE t_oom (id int);\n");
+      fclose(f);
+    }
+  }
   c_orm_codegen_generate("oom_schema.sql", ".");
 }
 

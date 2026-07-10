@@ -22,8 +22,18 @@ static void *mock_malloc(size_t size) {
 /* clang-format on */
 
 TEST test_codegen_parse_fail(void) {
-  system("echo 'INVALID SQL SYNTAX;' > dummy.sql");
-  system("mkdir -p test_out");
+  {
+    FILE *f = fopen("dummy.sql", "w");
+    if (f) {
+      fprintf(f, "INVALID SQL SYNTAX;\n");
+      fclose(f);
+    }
+  }
+#ifdef _WIN32
+  system("mkdir test_out 2>nul");
+#else
+  system("mkdir -p test_out 2>/dev/null");
+#endif
   c_orm_codegen_generate("dummy.sql", "test_out");
   PASS();
 }
@@ -36,7 +46,13 @@ TEST test_codegen_fread_fail(void) {
 
 TEST test_codegen_fopen_h_fail(void) {
   /* Fail fopen for output by providing an invalid directory path */
-  system("echo 'CREATE TABLE t (id INT);' > dummy.sql");
+  {
+    FILE *f = fopen("dummy.sql", "w");
+    if (f) {
+      fprintf(f, "CREATE TABLE t (id INT);\n");
+      fclose(f);
+    }
+  }
   c_orm_codegen_generate("dummy.sql", "/invalid/path/that/does/not/exist");
   PASS();
 }
@@ -47,11 +63,21 @@ TEST test_codegen_malloc_fail(void) {
   int i;
   void *(*old_malloc)(size_t) = c_orm_malloc;
   c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free);
-  system("echo 'CREATE TABLE t (id INT);' > dummy.sql");
+  {
+    FILE *f = fopen("dummy.sql", "w");
+    if (f) {
+      fprintf(f, "CREATE TABLE t (id INT);\n");
+      fclose(f);
+    }
+  }
   for (i = 1; i <= 3; i++) {
     mock_malloc_calls = 0;
     mock_malloc_fail_count = i;
-    system("mkdir -p test_out");
+#ifdef _WIN32
+    system("mkdir test_out 2>nul");
+#else
+    system("mkdir -p test_out 2>/dev/null");
+#endif
     c_orm_codegen_generate("dummy.sql", "test_out");
     printf("FAIL_COUNT: %d, TOTAL_CALLS: %d\n", i, mock_malloc_calls);
   }
