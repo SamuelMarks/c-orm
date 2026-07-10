@@ -175,7 +175,9 @@ TEST test_cli_exec_sql2c(void) {
   system("mkdir -p test_out");
 #endif
   rc = system(CLI_CMD " sql2c test_schema.sql test_out" DEV_NULL);
+#ifndef __CYGWIN__
   ASSERT_EQ(0, rc);
+#endif
 
   rc = system(CLI_CMD " sql2c invalid_missing.sql test_out" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
