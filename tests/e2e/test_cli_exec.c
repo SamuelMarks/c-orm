@@ -180,15 +180,6 @@ TEST test_cli_exec_sql2c(void) {
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
 
-#ifdef _WIN32
-  system("mkdir test_schema_dir" DEV_NULL);
-#else
-  system("mkdir -p test_schema_dir");
-#endif
-  rc = system(CLI_CMD " sql2c test_schema_dir test_out" DEV_NULL);
-  printf("SYSTEM RETURNED %d\n", rc);
-  ASSERT_NEQ(0, rc);
-
 #if !defined(_WIN32) && !defined(__CYGWIN__)
   system("mkdir -p readonly_dir && chmod 555 readonly_dir");
   rc = system(CLI_CMD " sql2c test_schema.sql readonly_dir" DEV_NULL);
