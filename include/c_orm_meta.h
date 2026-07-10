@@ -399,4 +399,16 @@ typedef struct c_orm_identity_map {
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+/**
+ * @brief Free memory allocated by the c-orm library.
+ */
+C_ORM_EXPORT void c_orm_system_free(void *ptr);
+
+C_ORM_EXPORT c_orm_error_t c_orm_system_malloc(size_t size, void **out_ptr);
+C_ORM_EXPORT c_orm_error_t c_orm_system_calloc(size_t nmemb, size_t size,
+                                               void **out_ptr);
+C_ORM_EXPORT c_orm_error_t c_orm_system_realloc(void *ptr, size_t size,
+                                                void **out_ptr);
+
 #endif /* C_ORM_META_H */
