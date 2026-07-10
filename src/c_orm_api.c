@@ -7640,3 +7640,33 @@ void c_orm_wasm_init_fs(void (*callback)(int)) {
 #endif
 }
 #endif
+
+C_ORM_EXPORT void c_orm_system_free(void *ptr) {
+  if (ptr)
+    C_ORM_FREE(ptr);
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_system_malloc(size_t size, void **out_ptr) {
+  if (!out_ptr)
+    return C_ORM_ERROR_MEMORY;
+  *out_ptr = C_ORM_MALLOC(size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_system_calloc(size_t nmemb, size_t size,
+                                               void **out_ptr) {
+  if (!out_ptr)
+    return C_ORM_ERROR_MEMORY;
+  *out_ptr = C_ORM_MALLOC(nmemb * size);
+  if (*out_ptr)
+    memset(*out_ptr, 0, nmemb * size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_system_realloc(void *ptr, size_t size,
+                                                void **out_ptr) {
+  if (!out_ptr)
+    return C_ORM_ERROR_MEMORY;
+  *out_ptr = C_ORM_REALLOC(ptr, size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+}

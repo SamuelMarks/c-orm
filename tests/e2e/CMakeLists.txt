@@ -57,7 +57,7 @@ else()
     endif()
 
     add_library(e2e_models STATIC "${CMAKE_CURRENT_BINARY_DIR}/Models.c")
-    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/Models.c" PROPERTIES COMPILE_DEFINITIONS "malloc=e2e_mock_malloc;calloc=e2e_mock_calloc")
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/Models.c" PROPERTIES COMPILE_DEFINITIONS "")
 
     add_executable(c_orm_e2e_tests
     test_arena_uuid.c

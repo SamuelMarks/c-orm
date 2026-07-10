@@ -99,11 +99,12 @@ TEST test_cli_migrate(void) {
 #endif
   {
     FILE *f1 = fopen("test_migrations_dir/1_test.up.sql", "w");
+    FILE *f2;
     if (f1) {
       fprintf(f1, "CREATE TABLE x (id INT);\n");
       fclose(f1);
     }
-    FILE *f2 = fopen("test_migrations_dir/1_test.down.sql", "w");
+    f2 = fopen("test_migrations_dir/1_test.down.sql", "w");
     if (f2) {
       fprintf(f2, "DROP TABLE x;\n");
       fclose(f2);

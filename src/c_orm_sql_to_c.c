@@ -305,9 +305,10 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "  arr->capacity = initial_capacity;\n");
   fprintf(fp, "  if (initial_capacity > 0) {\n");
   fprintf(fp,
-          "    arr->data = (struct %s *)calloc(initial_capacity, sizeof(struct "
-          "%s));\n",
-          struct_name, struct_name);
+          "    if (c_orm_system_calloc(initial_capacity, sizeof(struct %s), "
+          "(void **)&arr->data) != C_ORM_OK) {\n        return "
+          "C_ORM_ERROR_MEMORY;\n      }\n",
+          struct_name);
   fprintf(fp, "    if (!arr->data) return C_ORM_ERROR_MEMORY;\n");
   fprintf(fp, "  } else {\n");
   fprintf(fp, "    arr->data = NULL;\n");
@@ -325,16 +326,16 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
     is_nullable(col, &nullable);
 
     if (is_str) {
-      fprintf(
-          fp,
-          "  if (item->%s) {\n    free(item->%s);\n    item->%s = NULL;\n  }\n",
-          col->name, col->name, col->name);
+      fprintf(fp,
+              "  if (item->%s) {\n    c_orm_system_free(item->%s);\n    "
+              "item->%s = NULL;\n  }\n",
+              col->name, col->name, col->name);
     } else if (nullable) {
       /* Free the allocated primitive pointer */
-      fprintf(
-          fp,
-          "  if (item->%s) {\n    free(item->%s);\n    item->%s = NULL;\n  }\n",
-          col->name, col->name, col->name);
+      fprintf(fp,
+              "  if (item->%s) {\n    c_orm_system_free(item->%s);\n    "
+              "item->%s = NULL;\n  }\n",
+              col->name, col->name, col->name);
     }
   }
   fprintf(fp, "}\n\n");
@@ -348,7 +349,7 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "    for (i = 0; i < arr->length; ++i) {\n");
   fprintf(fp, "      %s_free(&arr->data[i]);\n", struct_name);
   fprintf(fp, "    }\n");
-  fprintf(fp, "    free(arr->data);\n");
+  fprintf(fp, "    c_orm_system_free(arr->data);\n");
   fprintf(fp, "    arr->data = NULL;\n");
   fprintf(fp, "  }\n");
   fprintf(fp, "  arr->length = 0;\n");
@@ -372,12 +373,12 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
 
     if (is_str) {
       fprintf(fp, "  if (src->%s) {\n", col->name);
-      fprintf(fp, "    dest->%s = (char*)malloc(strlen(src->%s) + 1);\n",
+      fprintf(fp,
+              "    if (c_orm_system_malloc(strlen(src->%s) + 1, (void "
+              "**)&dest->%s) != C_ORM_OK) {\n",
               col->name, col->name);
-      fprintf(
-          fp,
-          "    if (!dest->%s) { %s_free(dest); return C_ORM_ERROR_MEMORY; }\n",
-          col->name, struct_name);
+      fprintf(fp, "      %s_free(dest); return C_ORM_ERROR_MEMORY;\n    }\n",
+              struct_name);
       fprintf(fp,
               "#if defined(_MSC_VER)\n    strcpy_s(dest->%s, strlen(src->%s) + "
               "1, src->%s);\n#else\n    strcpy(dest->%s, src->%s);\n#endif\n",
@@ -385,12 +386,12 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
       fprintf(fp, "  } else {\n    dest->%s = NULL;\n  }\n", col->name);
     } else if (nullable) {
       fprintf(fp, "  if (src->%s) {\n", col->name);
-      fprintf(fp, "    dest->%s = (%s*)malloc(sizeof(%s));\n", col->name,
-              c_type, c_type);
-      fprintf(
-          fp,
-          "    if (!dest->%s) { %s_free(dest); return C_ORM_ERROR_MEMORY; }\n",
-          col->name, struct_name);
+      fprintf(fp,
+              "    if (c_orm_system_malloc(sizeof(%s), (void **)&dest->%s) != "
+              "C_ORM_OK) {\n",
+              c_type, col->name);
+      fprintf(fp, "      %s_free(dest); return C_ORM_ERROR_MEMORY;\n    }\n",
+              struct_name);
       fprintf(fp, "    *dest->%s = *src->%s;\n", col->name, col->name);
       fprintf(fp, "  } else {\n    dest->%s = NULL;\n  }\n", col->name);
     } else {
@@ -814,18 +815,18 @@ sql_to_c_projection_free_emit(FILE *fp, const cdd_c_query_projection_t *proj,
     const cdd_c_query_projection_field_t *field = &proj->fields[i];
 
     if (field->is_array) {
-      fprintf(fp, "    if (obj->%s) free(obj->%s);\n", field->name,
-              field->name);
+      fprintf(fp, "    if (obj->%s) c_orm_system_c_orm_system_free(obj->%s);\n",
+              field->name, field->name);
     } else if (sql_type_is_string(field->type) && field->length == 0) {
       /* Only free if it's an unbounded pointer string */
       if (field->is_secure) {
         fprintf(fp,
                 "    if (obj->%s) { memset(obj->%s, 0, strlen(obj->%s)); "
-                "free(obj->%s); }\n",
+                "c_orm_system_c_orm_system_free(obj->%s); }\n",
                 field->name, field->name, field->name, field->name);
       } else {
-        fprintf(fp, "    if (obj->%s) free(obj->%s);\n", field->name,
-                field->name);
+        fprintf(fp, "    if (obj->%s) c_orm_system_free(obj->%s);\n",
+                field->name, field->name);
       }
     } else if (sql_type_is_string(field->type) && field->length > 0 &&
                field->is_secure) {
@@ -1209,7 +1210,7 @@ c_orm_error_t sql_to_c_projection_nested_array_emit(
 
   fprintf(fp, "    }\n");
 
-  fprintf(fp, "    free(arr->items);\n");
+  fprintf(fp, "    c_orm_system_free(arr->items);\n");
 
   fprintf(fp, "    arr->items = NULL;\n");
 
