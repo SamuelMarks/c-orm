@@ -8,5 +8,4 @@ on:
 
 jobs:
   build:
-    timeout-minutes: 15
     uses: SamuelMarks/c-ci/.github/workflows/c-cmake-ci.yml@master
