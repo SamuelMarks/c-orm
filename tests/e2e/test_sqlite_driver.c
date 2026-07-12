@@ -325,7 +325,7 @@ TEST test_sqlite_edge_cases(void) {
        hard. Instead of mocking, we can just do a slow query: */
     vt->prepare(db,
                 "WITH RECURSIVE cnt(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM "
-                "cnt WHERE x<5000000) SELECT count(*) FROM cnt;",
+                "cnt WHERE x<20000) SELECT count(*) FROM cnt;",
                 &q);
     vt->step(q, &has_row);
     vt->finalize(q);

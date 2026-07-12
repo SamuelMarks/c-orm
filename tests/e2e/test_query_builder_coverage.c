@@ -286,6 +286,8 @@ TEST test_query_builder_oom(void) {
     }
 
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -312,6 +314,8 @@ TEST test_query_builder_oom(void) {
       c_orm_select_builder_free(b);
     }
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -343,6 +347,8 @@ TEST test_query_builder_oom(void) {
     }
 
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -371,6 +377,8 @@ TEST test_query_builder_oom(void) {
       c_orm_select_builder_free(b);
     }
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -392,6 +400,8 @@ TEST test_query_builder_oom(void) {
       c_orm_select_builder_free(b);
     }
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -411,6 +421,8 @@ TEST test_query_builder_oom(void) {
       c_orm_insert_builder_free(ib);
     }
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
   }
 
   /* Exhaustive Realloc/Malloc OOM targeting append_where / IN / SET */
@@ -444,6 +456,8 @@ TEST test_query_builder_oom(void) {
     }
 
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -470,6 +484,8 @@ TEST test_query_builder_oom(void) {
       c_orm_select_builder_free(b);
     }
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -501,6 +517,8 @@ TEST test_query_builder_oom(void) {
     }
 
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -529,6 +547,8 @@ TEST test_query_builder_oom(void) {
       c_orm_select_builder_free(b);
     }
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -550,6 +570,8 @@ TEST test_query_builder_oom(void) {
       c_orm_select_builder_free(b);
     }
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -569,6 +591,8 @@ TEST test_query_builder_oom(void) {
       c_orm_insert_builder_free(ib);
     }
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
   }
 
   /* Exhaustive Realloc/Malloc OOM targeting append_where / IN / SET */
@@ -602,6 +626,8 @@ TEST test_query_builder_oom(void) {
     }
 
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -637,6 +663,8 @@ TEST test_query_builder_oom(void) {
     }
 
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -672,6 +700,8 @@ TEST test_query_builder_oom(void) {
     }
 
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -707,6 +737,8 @@ TEST test_query_builder_oom(void) {
     }
 
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -733,6 +765,8 @@ TEST test_query_builder_oom(void) {
       c_orm_select_builder_free(b);
     }
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -764,6 +798,8 @@ TEST test_query_builder_oom(void) {
     }
 
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -792,6 +828,8 @@ TEST test_query_builder_oom(void) {
       c_orm_select_builder_free(b);
     }
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -813,6 +851,8 @@ TEST test_query_builder_oom(void) {
       c_orm_select_builder_free(b);
     }
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -832,6 +872,8 @@ TEST test_query_builder_oom(void) {
       c_orm_insert_builder_free(ib);
     }
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
   }
 
   /* Exhaustive Realloc/Malloc OOM targeting append_where / IN / SET */
@@ -865,6 +907,8 @@ TEST test_query_builder_oom(void) {
     }
 
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -881,6 +925,8 @@ TEST test_query_builder_oom(void) {
     if (b)
       c_orm_select_builder_free(b);
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
   }
 
   for (i = 0; i < 150; i++) {
@@ -894,6 +940,8 @@ TEST test_query_builder_oom(void) {
     if (ub)
       c_orm_update_builder_free(ub);
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
   }
 
   /* Additional append tests */
@@ -911,6 +959,8 @@ TEST test_query_builder_oom(void) {
     if (ub)
       c_orm_update_builder_free(ub);
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
   }
 
   for (i = 0; i < 150; i++) {
@@ -927,6 +977,8 @@ TEST test_query_builder_oom(void) {
     if (b)
       c_orm_select_builder_free(b);
     oom_active = 0;
+    if (oom_countdown >= 0)
+      break;
   }
 
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
