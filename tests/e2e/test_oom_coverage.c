@@ -57,6 +57,8 @@ static void *mock_realloc_oom(void *ptr, size_t size) {
       alloc_count = 0;                                                         \
       test_func();                                                             \
       oom_active = 0;                                                          \
+      if (alloc_count <= i)                                                    \
+        break;                                                                 \
       /* If it succeeded without failing allocator, stop early to save time */ \
       if (alloc_count <= i)                                                    \
         break;                                                                 \
