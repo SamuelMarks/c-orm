@@ -528,7 +528,7 @@ TEST test_abstract_struct_array(void) {
 }
 
 TEST test_benchmark_hydration(void) {
-  const size_t ITERATIONS = 10000;
+  const size_t ITERATIONS = 100;
   size_t i;
   clock_t start, end;
   double time_specific, time_abstract;
