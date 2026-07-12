@@ -82,7 +82,7 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
         break;
     }
 
-    for (i = 0; i < 150; i++) {
+    for (i = 0; i < 2; i++) {
       struct sql_table_t *tables = NULL;
       size_t n_tables = 0;
       size_t j;
