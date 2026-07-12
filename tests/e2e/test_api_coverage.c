@@ -326,8 +326,6 @@ static void setup_vt(void) {
       g_malloc_fail = 0;                                                       \
       if (g_malloc_count <= i)                                                 \
         break;                                                                 \
-      if (g_malloc_count <= i)                                                 \
-        break;                                                                 \
     }                                                                          \
     g_malloc_fail = 0;                                                         \
     g_step_count = 0;                                                          \
@@ -347,8 +345,6 @@ static void setup_vt(void) {
       test_func();                                                             \
       free_tracked();                                                          \
       g_db_fail = 0;                                                           \
-      if (g_db_count <= i)                                                     \
-        break;                                                                 \
       if (g_db_count <= i)                                                     \
         break;                                                                 \
     }                                                                          \
