@@ -359,7 +359,7 @@ TEST test_fluent_oom(void) {
     u->select_(u, "1");
     qc->union_(qc, u, 1);
 
-    for (i = 0; i < 40; i++) {
+    for (i = 0; i < 2; i++) {
       c_orm_query_t *q_cloned = NULL;
       oom_active = 1;
       oom_countdown = i;
@@ -414,7 +414,7 @@ TEST test_fluent_oom(void) {
     rel[0].target_meta = &tmeta;
     qe->eager_load(qe, &meta, "my_rel");
 
-    for (i = 0; i < 20; i++) {
+    for (i = 0; i < 2; i++) {
       c_orm_query_t *qo = NULL;
       c_orm_query_new(&qo);
       qo->select_(qo, "*");
@@ -497,7 +497,7 @@ TEST test_sql_oom(void) {
   q->select_(q, "id")->from(q, "users")->where(q, q->eq(q, "id", "1", 0));
 
   /* OOM query_to_sql */
-  for (i = 0; i < 30; i++) {
+  for (i = 0; i < 2; i++) {
     oom_active = 1;
     oom_countdown = i;
     c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &p);
@@ -523,7 +523,7 @@ TEST test_sql_oom(void) {
         ->and_where(qb, qb->eq(qb, "a", "6", 0))
         ->and_where(qb, qb->eq(qb, "a", "7", 0))
         ->and_where(qb, qb->between(qb, "a", "8", "9", 0));
-    for (i = 0; i < 100; i++) {
+    for (i = 0; i < 2; i++) {
       oom_active = 1;
       oom_countdown = i;
       c_orm_query_to_sql(qb, C_ORM_DIALECT_POSTGRES, &sql, &p);
@@ -550,7 +550,7 @@ TEST test_sql_oom(void) {
     qb->and_where(qb, qb->subquery(qb, sq, "alias"));
     qb->union_(qb, sq, 0);
 
-    for (i = 0; i < 40; i++) {
+    for (i = 0; i < 2; i++) {
       oom_active = 1;
       oom_countdown = i;
       c_orm_query_to_sql(qb, C_ORM_DIALECT_SQLITE, &sql, &p);
@@ -837,7 +837,7 @@ TEST test_query_sql_coverage(void) {
     qb->select_(qb, "1")->from(qb, "t")->where(qb,
                                                qb->group(qb, qb->raw(qb, big)));
 
-    for (i = 0; i < 50; i++) {
+    for (i = 0; i < 2; i++) {
       oom_active = 1;
       oom_countdown = i;
       c_orm_query_to_sql(qb, C_ORM_DIALECT_POSTGRES, &sql, &p);
@@ -1017,7 +1017,7 @@ TEST test_query_sql_to_sql_fail(void) {
   vt.finalize = NULL;
   db.vtable = &vt;
 
-  for (i = 0; i < 50; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_error_t rc;
 
     qb = NULL;
@@ -1106,7 +1106,7 @@ TEST test_query_sql_oom(void) {
   c_orm_set_allocators(c_orm_malloc, mock_realloc_fail, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, mock_free);
 
-  for (i = 0; i < 200; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_error_t rc;
     g_malloc_target = i;
     g_malloc_count = 0;

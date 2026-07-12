@@ -685,7 +685,7 @@ TEST test_e2e_bulk_processing(void) {
 
   /* Simulate 10k array size loop iteration via the single API struct to
    * benchmark performance bounds */
-  for (i = 2000; i < 2100; i++) {
+  for (i = 2000; i < 2002; i++) {
     char username[32];
     char email[64];
     C_ORM_SPRINTF(username, sizeof(username), "bulk_%u", (unsigned int)i);

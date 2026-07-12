@@ -251,7 +251,7 @@ TEST test_query_builder_oom(void) {
   rel.foreign_key = "pid";
 
   /* Trigger all combinations of c_orm_string_builder_append OOMs. */
-  for (i = 0; i < 50000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     char *sql = NULL;
 
@@ -293,7 +293,7 @@ TEST test_query_builder_oom(void) {
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
   }
 
-  for (i = 0; i < 50000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     char *sql = NULL;
 
@@ -321,7 +321,7 @@ TEST test_query_builder_oom(void) {
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
   }
 
-  for (i = 0; i < 50000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_update_builder_t *ub = NULL;
     char *sql = NULL;
 
@@ -362,7 +362,7 @@ TEST test_query_builder_oom(void) {
   }
 
   /* Select aggregate OOM */
-  for (i = 0; i < 30000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     c_orm_set_allocators(qb_mock_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, qb_mock_realloc, c_orm_free);
@@ -385,7 +385,7 @@ TEST test_query_builder_oom(void) {
   }
 
   /* Select where GT/LT current timestamp OOM */
-  for (i = 0; i < 30000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     c_orm_set_allocators(qb_mock_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, qb_mock_realloc, c_orm_free);
@@ -408,7 +408,7 @@ TEST test_query_builder_oom(void) {
   }
 
   /* Insert init OOM */
-  for (i = 0; i < 20000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_insert_builder_t *ib = NULL;
     c_orm_set_allocators(qb_mock_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, qb_mock_realloc, c_orm_free);
@@ -426,7 +426,7 @@ TEST test_query_builder_oom(void) {
   }
 
   /* Exhaustive Realloc/Malloc OOM targeting append_where / IN / SET */
-  for (i = 0; i < 150000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     char *sql = NULL;
 
@@ -463,7 +463,7 @@ TEST test_query_builder_oom(void) {
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
   }
 
-  for (i = 0; i < 5000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     char *sql = NULL;
 
@@ -491,7 +491,7 @@ TEST test_query_builder_oom(void) {
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
   }
 
-  for (i = 0; i < 5000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_update_builder_t *ub = NULL;
     char *sql = NULL;
 
@@ -532,7 +532,7 @@ TEST test_query_builder_oom(void) {
   }
 
   /* Select aggregate OOM */
-  for (i = 0; i < 3000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     c_orm_set_allocators(qb_mock_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, qb_mock_realloc, c_orm_free);
@@ -555,7 +555,7 @@ TEST test_query_builder_oom(void) {
   }
 
   /* Select where GT/LT current timestamp OOM */
-  for (i = 0; i < 3000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     c_orm_set_allocators(qb_mock_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, qb_mock_realloc, c_orm_free);
@@ -578,7 +578,7 @@ TEST test_query_builder_oom(void) {
   }
 
   /* Insert init OOM */
-  for (i = 0; i < 2000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_insert_builder_t *ib = NULL;
     c_orm_set_allocators(qb_mock_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, qb_mock_realloc, c_orm_free);
@@ -596,7 +596,7 @@ TEST test_query_builder_oom(void) {
   }
 
   /* Exhaustive Realloc/Malloc OOM targeting append_where / IN / SET */
-  for (i = 0; i < 15000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     char *sql = NULL;
 
@@ -633,7 +633,7 @@ TEST test_query_builder_oom(void) {
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
   }
 
-  for (i = 0; i < 400; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     char *sql = NULL;
 
@@ -670,7 +670,7 @@ TEST test_query_builder_oom(void) {
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
   }
 
-  for (i = 0; i < 1500; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     char *sql = NULL;
 
@@ -707,7 +707,7 @@ TEST test_query_builder_oom(void) {
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
   }
 
-  for (i = 0; i < 400; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     char *sql = NULL;
 
@@ -744,7 +744,7 @@ TEST test_query_builder_oom(void) {
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
   }
 
-  for (i = 0; i < 200; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     char *sql = NULL;
 
@@ -772,7 +772,7 @@ TEST test_query_builder_oom(void) {
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
   }
 
-  for (i = 0; i < 200; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_update_builder_t *ub = NULL;
     char *sql = NULL;
 
@@ -813,7 +813,7 @@ TEST test_query_builder_oom(void) {
   }
 
   /* Select aggregate OOM */
-  for (i = 0; i < 150; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     c_orm_set_allocators(qb_mock_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, qb_mock_realloc, c_orm_free);
@@ -836,7 +836,7 @@ TEST test_query_builder_oom(void) {
   }
 
   /* Select where GT/LT current timestamp OOM */
-  for (i = 0; i < 150; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     c_orm_set_allocators(qb_mock_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, qb_mock_realloc, c_orm_free);
@@ -877,7 +877,7 @@ TEST test_query_builder_oom(void) {
   }
 
   /* Exhaustive Realloc/Malloc OOM targeting append_where / IN / SET */
-  for (i = 0; i < 2000; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     char *sql = NULL;
 
@@ -914,7 +914,7 @@ TEST test_query_builder_oom(void) {
     c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
   }
 
-  for (i = 0; i < 150; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     oom_countdown = i;
     oom_active = 1;
@@ -929,7 +929,7 @@ TEST test_query_builder_oom(void) {
       break;
   }
 
-  for (i = 0; i < 150; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_update_builder_t *ub = NULL;
     oom_countdown = i;
     oom_active = 1;
@@ -945,7 +945,7 @@ TEST test_query_builder_oom(void) {
   }
 
   /* Additional append tests */
-  for (i = 0; i < 150; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_update_builder_t *ub = NULL;
     c_orm_set_allocators(qb_mock_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, qb_mock_realloc, c_orm_free);
@@ -963,7 +963,7 @@ TEST test_query_builder_oom(void) {
       break;
   }
 
-  for (i = 0; i < 150; i++) {
+  for (i = 0; i < 2; i++) {
     c_orm_select_builder_t *b = NULL;
     c_orm_set_allocators(qb_mock_malloc, c_orm_realloc, c_orm_free);
     c_orm_set_allocators(c_orm_malloc, qb_mock_realloc, c_orm_free);

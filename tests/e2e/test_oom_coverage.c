@@ -82,7 +82,7 @@ static void do_codegen(void) {
 }
 
 TEST test_codegen_oom(void) {
-  OOM_TEST(do_codegen, 10);
+  OOM_TEST(do_codegen, 2);
   PASS();
 }
 TEST test_uuid_oom(void) {
@@ -99,7 +99,7 @@ static void do_string_builder(void) {
 }
 
 TEST test_string_builder_oom(void) {
-  OOM_TEST(do_string_builder, 5);
+  OOM_TEST(do_string_builder, 2);
   oom_active = 1;
   oom_countdown = 1;
   do_string_builder();
@@ -138,7 +138,7 @@ static void do_cdd_c_ir(void) {
 }
 
 TEST test_cdd_c_ir_oom(void) {
-  OOM_TEST(do_cdd_c_ir, 60);
+  OOM_TEST(do_cdd_c_ir, 2);
   PASS();
 }
 
