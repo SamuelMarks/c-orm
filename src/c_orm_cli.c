@@ -84,6 +84,14 @@ int main(int argc, char **argv) {
   _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
   _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
   _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+  _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
+#if defined(_WIN32) || defined(_WIN64)
+  {
+    extern
+        __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
+    SetErrorMode(0x0001 | 0x0002 | 0x8000);
+  }
 #endif
 
   LOG_DEBUG("main: entry");
