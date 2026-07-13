@@ -4,6 +4,14 @@
 #include "c_orm_safe_crt.h"
 /* clang-format on */
 
+/* Fix undefined reference to g_fail_io_after in cdd-c when built without tests
+ */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((weak)) volatile int g_fail_io_after = -1;
+#elif defined(_MSC_VER)
+C_ORM_EXPORT volatile int g_fail_io_after = -1;
+#endif
+
 #if defined(__clang__) || defined(__GNUC__)
 __attribute__((__format__(__printf__, 1, 2)))
 #endif
