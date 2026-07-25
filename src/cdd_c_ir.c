@@ -14,7 +14,7 @@
 
 c_orm_error_t cdd_c_ir_init(cdd_c_ir_t *ir) {
   if (!ir)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
   ir->tables = NULL;
   ir->n_tables = 0;
   ir->capacity_tables = 0;
@@ -30,14 +30,14 @@ c_orm_error_t cdd_c_ir_add_table(cdd_c_ir_t *ir,
   struct sql_table_t *new_tables;
   size_t new_cap;
   if (!ir || !table)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
 
   if (ir->n_tables >= ir->capacity_tables) {
     new_cap = ir->capacity_tables == 0 ? 4 : ir->capacity_tables * 2;
     new_tables = (struct sql_table_t *)C_ORM_REALLOC(
         ir->tables, new_cap * sizeof(struct sql_table_t));
     if (!new_tables)
-      return -1;
+      return C_ORM_ERROR_UNKNOWN;
     ir->tables = new_tables;
     ir->capacity_tables = new_cap;
   }
@@ -63,7 +63,7 @@ static c_orm_error_t duplicate_projection(cdd_c_query_projection_t *dest,
     dest->source_table = (char *)C_ORM_MALLOC(strlen(src->source_table) + 1);
     if (!dest->source_table) {
       cdd_c_query_projection_free(dest);
-      return -1;
+      return C_ORM_ERROR_UNKNOWN;
     }
     memcpy(dest->source_table, src->source_table,
            strlen(src->source_table) + 1);
@@ -87,20 +87,20 @@ c_orm_error_t cdd_c_ir_add_projection(cdd_c_ir_t *ir,
   cdd_c_query_projection_t *new_projs;
   size_t new_cap;
   if (!ir || !proj)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
 
   if (ir->n_projections >= ir->capacity_projections) {
     new_cap = ir->capacity_projections == 0 ? 4 : ir->capacity_projections * 2;
     new_projs = (cdd_c_query_projection_t *)C_ORM_REALLOC(
         ir->projections, new_cap * sizeof(cdd_c_query_projection_t));
     if (!new_projs)
-      return -1;
+      return C_ORM_ERROR_UNKNOWN;
     ir->projections = new_projs;
     ir->capacity_projections = new_cap;
   }
 
   if (duplicate_projection(&ir->projections[ir->n_projections], proj) != 0)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
 
   ir->n_projections++;
   return 0;
@@ -109,7 +109,7 @@ c_orm_error_t cdd_c_ir_add_projection(cdd_c_ir_t *ir,
 c_orm_error_t cdd_c_ir_free(cdd_c_ir_t *ir) {
   size_t i;
   if (!ir)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
 
   for (i = 0; i < ir->n_tables; ++i) {
     sql_table_C_ORM_FREE(&ir->tables[i]);
@@ -146,7 +146,7 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
   int in_select = 0;
 
   if (!sql_data || !out_ir)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
 
   span = az_span_create_from_str((char *)sql_data);
   rc = sql_lex(span, &list);

@@ -29,7 +29,7 @@ c_orm_error_t mock_hydrator(void *out_struct,
       return 0;
     }
   }
-  return -1;
+  return C_ORM_ERROR_UNKNOWN;
 }
 
 TEST test_hydrate_router_registration_and_dispatch(void) {

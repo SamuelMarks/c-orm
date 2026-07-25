@@ -26,7 +26,7 @@ static CDD_C_THREAD_LOCAL char cdd_c_hydrate_error_msg[512] = {0};
 
 c_orm_error_t cdd_c_hydrate_router_get_last_error(const char **out_msg) {
   if (!out_msg)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
   if (cdd_c_hydrate_error_msg[0] == '\0') {
     *out_msg = NULL;
   } else {
@@ -48,7 +48,7 @@ c_orm_error_t cdd_c_hydrate_router_set_last_error(const char *msg) {
 
 c_orm_error_t cdd_c_hydrate_router_init(cdd_c_hydrate_router_t *router) {
   if (!router)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
   router->routes = NULL;
   router->count = 0;
   router->capacity = 0;
@@ -64,7 +64,7 @@ cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
   size_t new_cap, i;
 
   if (!router || !hydrate_fn)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
 
   for (i = 0; i < router->count; ++i) {
     if (router->routes[i].query_id_hash == query_id_hash) {
@@ -80,7 +80,7 @@ cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
     new_routes = (cdd_c_hydrate_route_t *)C_ORM_REALLOC(
         router->routes, new_cap * sizeof(cdd_c_hydrate_route_t));
     if (!new_routes)
-      return -1;
+      return C_ORM_ERROR_UNKNOWN;
     router->routes = new_routes;
     router->capacity = new_cap;
   }
@@ -101,7 +101,7 @@ c_orm_error_t cdd_c_hydrate_router_dispatch(
 
   if (!router || !row || !out_struct) {
     cdd_c_hydrate_router_set_last_error("Invalid arguments to router_dispatch");
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
   }
 
   cdd_c_hydrate_router_set_last_error(NULL); /* Clear previous error */
@@ -121,12 +121,12 @@ c_orm_error_t cdd_c_hydrate_router_dispatch(
   /* Target not found - indicates consumer must utilize fallback
    * cdd_c_abstract_hydrate mechanics */
   cdd_c_hydrate_router_set_last_error("Route not found for query ID");
-  return -1;
+  return C_ORM_ERROR_UNKNOWN;
 }
 
 c_orm_error_t cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router) {
   if (!router)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
   if (router->routes)
     C_ORM_FREE(router->routes);
   router->routes = NULL;

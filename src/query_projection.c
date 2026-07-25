@@ -14,7 +14,7 @@
 
 c_orm_error_t cdd_c_query_projection_init(cdd_c_query_projection_t *proj) {
   if (!proj)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
   proj->fields = NULL;
   proj->n_fields = 0;
   proj->capacity = 0;
@@ -35,7 +35,7 @@ static c_orm_error_t duplicate_string_qp(const char *src, char **dest) {
   len = strlen(src);
   *dest = (char *)C_ORM_MALLOC(len + 1);
   if (!*dest)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
   memcpy(*dest, src, len + 1);
   return C_ORM_OK;
 }
@@ -46,24 +46,24 @@ cdd_c_query_projection_add_field(cdd_c_query_projection_t *proj,
   cdd_c_query_projection_field_t *new_fields;
   size_t new_cap;
   if (!proj || !field)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
 
   if (proj->n_fields >= proj->capacity) {
     new_cap = proj->capacity == 0 ? 4 : proj->capacity * 2;
     new_fields = (cdd_c_query_projection_field_t *)C_ORM_REALLOC(
         proj->fields, new_cap * sizeof(cdd_c_query_projection_field_t));
     if (!new_fields)
-      return -1;
+      return C_ORM_ERROR_UNKNOWN;
     proj->fields = new_fields;
     proj->capacity = new_cap;
   }
 
   if (duplicate_string_qp(field->name, &proj->fields[proj->n_fields].name) != 0)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
   if (duplicate_string_qp(field->original_name,
                           &proj->fields[proj->n_fields].original_name) != 0) {
     C_ORM_FREE(proj->fields[proj->n_fields].name);
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
   }
   proj->fields[proj->n_fields].type = field->type;
   proj->fields[proj->n_fields].is_aggregate = field->is_aggregate;
@@ -78,7 +78,7 @@ cdd_c_query_projection_add_field(cdd_c_query_projection_t *proj,
 c_orm_error_t cdd_c_query_projection_free(cdd_c_query_projection_t *proj) {
   size_t i;
   if (!proj)
-    return -1;
+    return C_ORM_ERROR_UNKNOWN;
 
   for (i = 0; i < proj->n_fields; ++i) {
     if (proj->fields[i].name)
