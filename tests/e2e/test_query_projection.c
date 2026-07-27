@@ -21,8 +21,8 @@ static void *mock_malloc_qp(size_t size) {
 TEST test_query_projection_init_free(void) {
   cdd_c_query_projection_t proj;
 
-  ASSERT_EQ((c_orm_error_t)-1, cdd_c_query_projection_init(NULL));
-  ASSERT_EQ((c_orm_error_t)-1, cdd_c_query_projection_free(NULL));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_query_projection_init(NULL));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_query_projection_free(NULL));
 
   ASSERT_EQ(0, cdd_c_query_projection_init(&proj));
   ASSERT_EQ(0, proj.n_fields);
@@ -46,8 +46,9 @@ TEST test_query_projection_add_field(void) {
   field.original_name = "test_field_orig";
   field.type = 4;
 
-  ASSERT_EQ((c_orm_error_t)-1, cdd_c_query_projection_add_field(NULL, &field));
-  ASSERT_EQ((c_orm_error_t)-1, cdd_c_query_projection_add_field(&proj, NULL));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            cdd_c_query_projection_add_field(NULL, &field));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_query_projection_add_field(&proj, NULL));
 
   /* Success path */
   ASSERT_EQ(0, cdd_c_query_projection_add_field(&proj, &field));
@@ -57,7 +58,8 @@ TEST test_query_projection_add_field(void) {
   /* OOM realloc */
   c_orm_set_allocators(c_orm_malloc, mock_realloc_qp, c_orm_free);
   proj.capacity = 1; /* force realloc on next add */
-  ASSERT_EQ((c_orm_error_t)-1, cdd_c_query_projection_add_field(&proj, &field));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            cdd_c_query_projection_add_field(&proj, &field));
   c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
 
   ASSERT_EQ(0, cdd_c_query_projection_free(&proj));
@@ -77,7 +79,8 @@ TEST test_query_projection_duplicate_string_oom(void) {
 
   c_orm_set_allocators(mock_malloc_qp, c_orm_realloc, c_orm_free);
   /* OOM on duplicate_string_qp name */
-  ASSERT_EQ((c_orm_error_t)-1, cdd_c_query_projection_add_field(&proj, &field));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            cdd_c_query_projection_add_field(&proj, &field));
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
 
   ASSERT_EQ(0, cdd_c_query_projection_free(&proj));
@@ -127,7 +130,8 @@ TEST test_query_projection_duplicate_string_oom_original_name(void) {
   alloc_count_qp = 0;
   c_orm_set_allocators(mock_malloc_qp_second, c_orm_realloc, c_orm_free);
   /* OOM on duplicate_string_qp original_name */
-  ASSERT_EQ((c_orm_error_t)-1, cdd_c_query_projection_add_field(&proj, &field));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            cdd_c_query_projection_add_field(&proj, &field));
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
 
   ASSERT_EQ(0, cdd_c_query_projection_free(&proj));

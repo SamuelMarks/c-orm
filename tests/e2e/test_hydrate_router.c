@@ -34,8 +34,8 @@ TEST test_mock_hydrator_null(void) {
 TEST test_hydrate_router_init_free(void) {
   cdd_c_hydrate_router_t router;
 
-  ASSERT_EQ((c_orm_error_t)-1, cdd_c_hydrate_router_init(NULL));
-  ASSERT_EQ((c_orm_error_t)-1, cdd_c_hydrate_router_free(NULL));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_hydrate_router_init(NULL));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_hydrate_router_free(NULL));
 
   ASSERT_EQ((c_orm_error_t)0, cdd_c_hydrate_router_init(&router));
   ASSERT_EQ((c_orm_error_t)0, router.count);
@@ -56,11 +56,11 @@ TEST test_hydrate_router_registration(void) {
   memset(&m1, 0, sizeof(m1));
   memset(&m2, 0, sizeof(m2));
 
-  ASSERT_EQ((c_orm_error_t)-1,
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
             cdd_c_hydrate_router_register(NULL, 1, &m1, mock_hydrator));
 
   ASSERT_EQ((c_orm_error_t)0, cdd_c_hydrate_router_init(&router));
-  ASSERT_EQ((c_orm_error_t)-1,
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
             cdd_c_hydrate_router_register(&router, 1, &m1, NULL));
 
   ASSERT_EQ((c_orm_error_t)0,
@@ -104,11 +104,11 @@ TEST test_hydrate_router_dispatch(void) {
   cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator);
   cdd_c_hydrate_router_register(&router, 2, &m1, mock_hydrator_err);
 
-  ASSERT_EQ((c_orm_error_t)-1,
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
             cdd_c_hydrate_router_dispatch(NULL, 1, &row, &out_val));
-  ASSERT_EQ((c_orm_error_t)-1,
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
             cdd_c_hydrate_router_dispatch(&router, 1, NULL, &out_val));
-  ASSERT_EQ((c_orm_error_t)-1,
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
             cdd_c_hydrate_router_dispatch(&router, 1, &row, NULL));
 
   /* Valid route */
@@ -120,7 +120,7 @@ TEST test_hydrate_router_dispatch(void) {
   ASSERT_EQ(NULL, err_msg);
 
   /* Missing route */
-  ASSERT_EQ((c_orm_error_t)-1,
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
             cdd_c_hydrate_router_dispatch(&router, 999, &row, &out_val));
   cdd_c_hydrate_router_get_last_error(&err_msg);
   ASSERT(err_msg != NULL);
@@ -134,7 +134,7 @@ TEST test_hydrate_router_dispatch(void) {
   ASSERT(strstr(err_msg, "Hydration function returned error") != NULL);
 
   /* Last error null check */
-  ASSERT_EQ((c_orm_error_t)-1, cdd_c_hydrate_router_get_last_error(NULL));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_hydrate_router_get_last_error(NULL));
 
   cdd_c_hydrate_router_free(&router);
   cdd_c_abstract_struct_free(&row);
@@ -156,7 +156,7 @@ TEST test_hydrate_router_register_oom(void) {
   ASSERT_EQ(0, cdd_c_hydrate_router_init(&router));
 
   c_orm_set_allocators(c_orm_malloc, mock_realloc_hydrate, c_orm_free);
-  ASSERT_EQ((c_orm_error_t)-1,
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
             cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator));
 
   c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
