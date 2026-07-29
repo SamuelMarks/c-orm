@@ -232,7 +232,7 @@ set_target_properties(c-orm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 target_compile_options(c-orm PRIVATE ${C_ORM_STRICT_OPTIONS})
 
 target_include_directories(c-orm SYSTEM PUBLIC include)
-target_link_libraries(c-orm PUBLIC c_cdd cfs parson c89stringutils)
+target_link_libraries(c-orm PUBLIC c_cdd cfs parson c89stringutils c_str_span)
 if(NOT WIN32 AND NOT EMSCRIPTEN)
     find_package(OpenSSL QUIET)
     if(OPENSSL_FOUND)
