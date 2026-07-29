@@ -233,6 +233,7 @@ target_compile_options(c-orm PRIVATE ${C_ORM_STRICT_OPTIONS})
 
 target_include_directories(c-orm SYSTEM PUBLIC include)
 target_link_libraries(c-orm PUBLIC c_cdd cfs parson c89stringutils c_str_span)
+target_include_directories(c-orm PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../cdd-c/include>" "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../cdd-c/src>")
 if(NOT WIN32 AND NOT EMSCRIPTEN)
     find_package(OpenSSL QUIET)
     if(OPENSSL_FOUND)

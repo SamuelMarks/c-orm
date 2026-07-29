@@ -1245,6 +1245,7 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
 
         rc = sql_parse_column_constraint(&state, &constraint);
         if (rc == C_ORM_ERROR_NOT_FOUND) {
+          rc = C_ORM_OK;
           break;
         }
         if (rc != C_ORM_OK) {
@@ -1264,7 +1265,13 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
               constraint_capacity * sizeof(struct sql_constraint_t));
           if (!new_constraints) {
             sql_constraint_free_internals(&constraint);
-            break;
+            {
+              c_orm_error_t _free_e = sql_table_C_ORM_FREE(table);
+              if (_free_e != C_ORM_OK)
+                return _free_e;
+            }
+            C_ORM_FREE(table);
+            return C_ORM_ERROR_MEMORY;
           }
           col.constraints = new_constraints;
         }
