@@ -48,6 +48,7 @@ typedef unsigned char bool;
 #endif
 
 #include <stdlib.h>
+#include "c_orm_no_discard.h"
 /* clang-format on */
 
 #ifndef C_ORM_EXPORT
@@ -75,7 +76,11 @@ typedef unsigned char bool;
 /**
  * @brief Data types supported by c-orm.
  */
-typedef enum {
+#if defined(_MSC_VER) && _MSC_VER >= 1700
+typedef _Check_return_ enum {
+#else
+typedef enum NO_DISCARD {
+#endif
   C_ORM_OK = 0,
   C_ORM_ERROR_MEMORY,
   C_ORM_ERROR_CONNECTION,

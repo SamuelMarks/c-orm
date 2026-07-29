@@ -35,9 +35,9 @@ __declspec(dllimport) int __stdcall QueryPerformanceFrequency(LARGE_INTEGER *lpF
 #ifdef C_ORM_ENABLE_SQLITE
 #if defined(_MSC_VER)
 #pragma warning(push)
-#pragma warning(disable                                                        \
-                : 4306) /* 'type cast' : conversion from 'int' to              \
-                           'sqlite3_destructor_type' of greater size */
+#pragma warning(                                                               \
+    disable : 4306) /* 'type cast' : conversion from 'int' to                  \
+                       'sqlite3_destructor_type' of greater size */
 #endif
 #endif
 
@@ -1115,7 +1115,7 @@ c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   if (out_vtable) {
     *out_vtable = NULL;
   }
-  rc = C_ORM_ERROR_UNKNOWN;
+  rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   LOG_DEBUG("c_orm_sqlite_get_vtable: exit (stub)");
   return rc;
 }

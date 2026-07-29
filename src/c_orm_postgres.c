@@ -994,7 +994,7 @@ c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
     *out_vtable = NULL;
   }
   LOG_DEBUG("c_orm_postgres_get_vtable: exit");
-  rc = C_ORM_ERROR_UNKNOWN;
+  rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   return rc;
 }
 

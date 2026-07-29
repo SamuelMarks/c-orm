@@ -78,10 +78,13 @@ c_orm_error_t parse_migration_file(const char *filepath,
   down_stmt = NULL;
 
   if (!filepath || !out) {
-    return EINVAL;
+    return C_ORM_ERROR_UNKNOWN;
   }
 
-  migration_statements_init(out);
+  rc = migration_statements_init(out);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
 
   cdd_rc = read_to_file(filepath, "rb", &file_data, &file_size);
   if (cdd_rc != 0) {
@@ -92,7 +95,7 @@ c_orm_error_t parse_migration_file(const char *filepath,
     if (file_data) {
       C_ORM_FREE(file_data);
     }
-    return 0;
+    return C_ORM_OK;
   }
 
   up_start = strstr(file_data, up_marker);
@@ -128,7 +131,7 @@ c_orm_error_t parse_migration_file(const char *filepath,
     up_stmt = (char *)C_ORM_MALLOC(up_len + 1);
     if (!up_stmt) {
       C_ORM_FREE(file_data);
-      return ENOMEM;
+      return C_ORM_ERROR_MEMORY;
     }
     memcpy(up_stmt, up_start, up_len);
     up_stmt[up_len] = '\0';
@@ -140,7 +143,7 @@ c_orm_error_t parse_migration_file(const char *filepath,
     if (!down_stmt) {
       C_ORM_FREE(file_data);
       migration_statements_free(out);
-      return ENOMEM;
+      return C_ORM_ERROR_MEMORY;
     }
     memcpy(down_stmt, down_start, down_len);
     down_stmt[down_len] = '\0';
@@ -148,5 +151,5 @@ c_orm_error_t parse_migration_file(const char *filepath,
   }
 
   C_ORM_FREE(file_data);
-  return 0;
+  return C_ORM_OK;
 }

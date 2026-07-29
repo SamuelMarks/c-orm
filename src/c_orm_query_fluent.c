@@ -448,9 +448,9 @@ static c_orm_error_t c_orm_query_clone(c_orm_query_t *q,
     return rc;
   }
 
-  if (c_orm_query_new(out_q) != 0) {
+  rc = c_orm_query_new(out_q);
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_query_clone: c_orm_query_new failed");
-    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
   (*out_q)->error = q->error;
@@ -1347,10 +1347,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_new(c_orm_query_t **out_query) {
     return rc;
   }
 
-  if (c_orm_arena_new(&q->arena) != 0) {
+  rc = c_orm_arena_new(&q->arena);
+  if (rc != C_ORM_OK) {
     C_ORM_FREE(q);
     LOG_DEBUG("c_orm_query_new: arena OOM");
-    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 

@@ -43,7 +43,7 @@ TEST test_oauth2_flat_json(void) {
       "{\"access_token\":\"abc\", \"refresh_token\": \"def\", \"token_type\": "
       "\"Bearer\", \"expires_in\": 3600, \"unknown\": 123}",
       &t);
-  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_STR_EQ("abc", t.access_token);
   ASSERT_STR_EQ("def", t.refresh_token);
   ASSERT_STR_EQ("Bearer", t.token_type);
@@ -169,7 +169,7 @@ TEST test_oauth2_init(void) {
   c_orm_driver_vtable_t my_pg_vt, my_my_vt;
 
   err = c_orm_sqlite_connect(":memory:", &db);
-  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
   orig_prep = mock_vt.prepare;
@@ -178,7 +178,7 @@ TEST test_oauth2_init(void) {
   mock_vt.step = my_oauth2_step;
 
   err = c_orm_oauth2_create_tables(db);
-  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   c_orm_postgres_get_vtable(&pg_vt);
   c_orm_mysql_get_vtable(&my_vt);
@@ -265,7 +265,7 @@ TEST test_oauth2_client(void) {
 
   is_valid = 0;
   err = c_orm_oauth2_verify_client(db, "no", "no", &is_valid);
-  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ(1, is_valid);
 
   is_valid = 0;
@@ -283,7 +283,7 @@ TEST test_oauth2_client(void) {
             c_orm_insert_generic(db, &c_orm_oauth2_client_meta, &client));
   is_valid = 0;
   err = c_orm_oauth2_verify_client(db, "pub", NULL, &is_valid);
-  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ(1, is_valid);
 
   memset(&user, 0, sizeof(user));

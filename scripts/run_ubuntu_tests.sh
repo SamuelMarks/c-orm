@@ -29,7 +29,7 @@ echo "Linux Clang | Static Lib | ANSI | Single-thread | LTO ON | System"
 echo "======================================================================"
 export CC=clang
 export CXX=clang++
-cmake -S . -B build_linux_clang_static -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DBUILD_SHARED_LIBS=OFF -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCDD_CHARSET=ANSI -DCDD_THREADING=OFF -DCDD_DEPS=SYSTEM -DC_CDD_BUILD_TESTS=ON -DC_ORM_BUILD_TESTS=ON -DC_ABSTRACT_HTTP_BUILD_TESTS=ON -DC_FS_BUILD_TESTS=ON -DBUILD_TESTING=ON -DCDD_MSVC_RTC=OFF -DCMAKE_C_FLAGS="-resource-dir /tmp/clang19" -DCMAKE_EXE_LINKER_FLAGS="-resource-dir /tmp/clang19"
+cmake -S . -B build_linux_clang_static -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DBUILD_SHARED_LIBS=OFF -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCDD_CHARSET=ANSI -DCDD_THREADING=OFF -DCDD_DEPS=SYSTEM -DC_CDD_BUILD_TESTS=ON -DC_ORM_BUILD_TESTS=ON -DC_ABSTRACT_HTTP_BUILD_TESTS=ON -DC_FS_BUILD_TESTS=ON -DBUILD_TESTING=ON -DCDD_MSVC_RTC=OFF -DCMAKE_C_FLAGS="" -DCMAKE_EXE_LINKER_FLAGS=""
 cmake --build build_linux_clang_static --config "${BUILD_TYPE}" --parallel 4
 cd build_linux_clang_static && ctest -C "${BUILD_TYPE}" --output-on-failure
 cd ..
@@ -39,7 +39,7 @@ echo "Linux Clang | Shared Lib | Unicode | Multi-thread | LTO OFF | Vcpkg"
 echo "======================================================================"
 export CC=clang
 export CXX=clang++
-cmake -S . -B build_linux_clang_shared -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DBUILD_SHARED_LIBS=ON -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF -DCDD_CHARSET=UNICODE -DCDD_THREADING=ON -DCDD_DEPS=VCPKG -DC_CDD_BUILD_TESTS=ON -DC_ORM_BUILD_TESTS=ON -DC_ABSTRACT_HTTP_BUILD_TESTS=ON -DC_FS_BUILD_TESTS=ON -DBUILD_TESTING=ON -DCDD_MSVC_RTC=OFF -DCMAKE_C_FLAGS="-resource-dir /tmp/clang19" -DCMAKE_EXE_LINKER_FLAGS="-resource-dir /tmp/clang19" -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake -DCMAKE_C_FLAGS="-resource-dir /tmp/clang19" -DCMAKE_EXE_LINKER_FLAGS="-resource-dir /tmp/clang19"
+cmake -S . -B build_linux_clang_shared -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DBUILD_SHARED_LIBS=ON -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF -DCDD_CHARSET=UNICODE -DCDD_THREADING=ON -DCDD_DEPS=VCPKG -DC_CDD_BUILD_TESTS=ON -DC_ORM_BUILD_TESTS=ON -DC_ABSTRACT_HTTP_BUILD_TESTS=ON -DC_FS_BUILD_TESTS=ON -DBUILD_TESTING=ON -DCDD_MSVC_RTC=OFF -DCMAKE_C_FLAGS="" -DCMAKE_EXE_LINKER_FLAGS="" -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake -DCMAKE_C_FLAGS="" -DCMAKE_EXE_LINKER_FLAGS=""
 cmake --build build_linux_clang_shared --config "${BUILD_TYPE}" --parallel 4
 cd build_linux_clang_shared && ctest -C "${BUILD_TYPE}" --output-on-failure
 cd ..

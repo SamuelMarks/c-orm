@@ -21,11 +21,11 @@ TEST test_postgres_stubs_edge_cases(void) {
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
   err = c_orm_postgres_get_vtable(&vt);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, err);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
   ASSERT(vt == NULL);
 
   err = c_orm_postgres_get_vtable(NULL);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, err);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
   err = c_orm_postgres_lo_create(NULL, &oid);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
@@ -54,11 +54,11 @@ TEST test_mysql_stubs_edge_cases(void) {
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
   err = c_orm_mysql_get_vtable(&vt);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, err);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
   ASSERT(vt == NULL);
 
   err = c_orm_mysql_get_vtable(NULL);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, err);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
   PASS();
 }

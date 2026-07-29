@@ -463,7 +463,8 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_store_token_secure(const c_orm_oauth2_token_t *token) {
   char *encrypted_access = NULL;
   char *encrypted_refresh = NULL;
-  c_orm_error_t err;
+  c_orm_error_t rc;
+  c_orm_error_t v_rc;
   FILE *f;
 
   LOG_DEBUG("c_orm_store_token_secure: entered");
@@ -473,19 +474,19 @@ c_orm_store_token_secure(const c_orm_oauth2_token_t *token) {
     return C_ORM_ERROR_VALIDATION;
   }
 
-  err = c_orm_oauth2_encrypt_token(
+  rc = c_orm_oauth2_encrypt_token(
       token->access_token ? token->access_token : "", &encrypted_access);
-  if (err != C_ORM_OK) {
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_store_token_secure: encrypt access error");
-    return err;
+    return rc;
   }
 
-  err = c_orm_oauth2_encrypt_token(
+  rc = c_orm_oauth2_encrypt_token(
       token->refresh_token ? token->refresh_token : "", &encrypted_refresh);
-  if (err != C_ORM_OK) {
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_store_token_secure: encrypt refresh error");
     C_ORM_FREE(encrypted_access);
-    return err;
+    return rc;
   }
 
 #if defined(_MSC_VER)
@@ -558,7 +559,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
   const c_orm_driver_vtable_t *sqlite_vt = NULL;
   const c_orm_driver_vtable_t *pg_vt = NULL;
   const c_orm_driver_vtable_t *my_vt = NULL;
-  c_orm_error_t err;
+  c_orm_error_t rc;
+  c_orm_error_t v_rc;
 
   LOG_DEBUG("c_orm_oauth2_create_tables: entered");
 
@@ -567,94 +569,117 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
     return C_ORM_ERROR_VALIDATION;
   }
 
-  err = c_orm_sqlite_get_vtable(&sqlite_vt);
-  (void)c_orm_postgres_get_vtable(&pg_vt);
-  (void)c_orm_mysql_get_vtable(&my_vt);
+  v_rc = c_orm_sqlite_get_vtable(&sqlite_vt);
+  if (v_rc != C_ORM_OK) {
+    if (v_rc != C_ORM_ERROR_NOT_IMPLEMENTED)
+      return v_rc;
+    sqlite_vt = NULL;
+  }
+  v_rc = c_orm_postgres_get_vtable(&pg_vt);
+  if (v_rc != C_ORM_OK) {
+    if (v_rc != C_ORM_ERROR_NOT_IMPLEMENTED)
+      return v_rc;
+    pg_vt = NULL;
+  }
+  v_rc = c_orm_mysql_get_vtable(&my_vt);
+  if (v_rc != C_ORM_OK) {
+    if (v_rc != C_ORM_ERROR_NOT_IMPLEMENTED)
+      return v_rc;
+    my_vt = NULL;
+  }
 
   if (sqlite_vt && db->vtable == sqlite_vt) {
-    err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS users ("
-                                "id TEXT PRIMARY KEY, "
-                                "username TEXT UNIQUE, "
-                                "password_hash TEXT, "
-                                "salt TEXT);");
-    if (err != C_ORM_OK) {
+    rc = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS users ("
+                               "id TEXT PRIMARY KEY, "
+                               "username TEXT UNIQUE, "
+                               "password_hash TEXT, "
+                               "salt TEXT);");
+    if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_oauth2_create_tables: users table creation error");
-      return err;
+      return rc;
     }
-    err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS tokens ("
-                                "access_token TEXT PRIMARY KEY, "
-                                "refresh_token TEXT, "
-                                "token_type TEXT, "
-                                "expires_in INTEGER, "
-                                "created_at INTEGER, "
-                                "user_id TEXT, "
-                                "scopes TEXT, "
-                                "FOREIGN KEY(user_id) REFERENCES users(id));");
-    if (err != C_ORM_OK) {
+    rc = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS tokens ("
+                               "access_token TEXT PRIMARY KEY, "
+                               "refresh_token TEXT, "
+                               "token_type TEXT, "
+                               "expires_in INTEGER, "
+                               "created_at INTEGER, "
+                               "user_id TEXT, "
+                               "scopes TEXT, "
+                               "FOREIGN KEY(user_id) REFERENCES users(id));");
+    if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_oauth2_create_tables: tokens table creation error");
-      return err;
+      return rc;
     }
-    err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS clients ("
-                                "id TEXT PRIMARY KEY, "
-                                "client_secret TEXT, "
-                                "redirect_uris TEXT, "
-                                "scopes TEXT, "
-                                "grant_types TEXT);");
-    if (err != C_ORM_OK) {
+    rc = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS clients ("
+                               "id TEXT PRIMARY KEY, "
+                               "client_secret TEXT, "
+                               "redirect_uris TEXT, "
+                               "scopes TEXT, "
+                               "grant_types TEXT);");
+    if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_oauth2_create_tables: clients table creation error");
-      return err;
+      return rc;
     }
-    err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS auth_codes ("
-                                "code TEXT PRIMARY KEY, "
-                                "client_id TEXT, "
-                                "redirect_uri TEXT, "
-                                "user_id TEXT, "
-                                "expires_at INTEGER, "
-                                "scopes TEXT);");
+    rc = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS auth_codes ("
+                               "code TEXT PRIMARY KEY, "
+                               "client_id TEXT, "
+                               "redirect_uri TEXT, "
+                               "user_id TEXT, "
+                               "expires_at INTEGER, "
+                               "scopes TEXT);");
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("c_orm_oauth2_create_tables: auth_codes table creation error");
+      return rc;
+    }
     LOG_DEBUG("c_orm_oauth2_create_tables: exiting");
-    return err;
+    return C_ORM_OK;
   } else {
-    err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS users ("
-                                "id VARCHAR(255) PRIMARY KEY, "
-                                "username VARCHAR(255) UNIQUE, "
-                                "password_hash VARCHAR(255), "
-                                "salt VARCHAR(255));");
-    if (err != C_ORM_OK) {
+    rc = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS users ("
+                               "id VARCHAR(255) PRIMARY KEY, "
+                               "username VARCHAR(255) UNIQUE, "
+                               "password_hash VARCHAR(255), "
+                               "salt VARCHAR(255));");
+    if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_oauth2_create_tables: users table creation error");
-      return err;
+      return rc;
     }
-    err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS tokens ("
-                                "access_token VARCHAR(255) PRIMARY KEY, "
-                                "refresh_token VARCHAR(255), "
-                                "token_type VARCHAR(255), "
-                                "expires_in INT, "
-                                "created_at BIGINT, "
-                                "user_id VARCHAR(255), "
-                                "scopes VARCHAR(255), "
-                                "FOREIGN KEY(user_id) REFERENCES users(id));");
-    if (err != C_ORM_OK) {
+    rc = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS tokens ("
+                               "access_token VARCHAR(255) PRIMARY KEY, "
+                               "refresh_token VARCHAR(255), "
+                               "token_type VARCHAR(255), "
+                               "expires_in INT, "
+                               "created_at BIGINT, "
+                               "user_id VARCHAR(255), "
+                               "scopes VARCHAR(255), "
+                               "FOREIGN KEY(user_id) REFERENCES users(id));");
+    if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_oauth2_create_tables: tokens table creation error");
-      return err;
+      return rc;
     }
-    err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS clients ("
-                                "id VARCHAR(255) PRIMARY KEY, "
-                                "client_secret VARCHAR(255), "
-                                "redirect_uris VARCHAR(255), "
-                                "scopes VARCHAR(255), "
-                                "grant_types VARCHAR(255));");
-    if (err != C_ORM_OK) {
+    rc = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS clients ("
+                               "id VARCHAR(255) PRIMARY KEY, "
+                               "client_secret VARCHAR(255), "
+                               "redirect_uris VARCHAR(255), "
+                               "scopes VARCHAR(255), "
+                               "grant_types VARCHAR(255));");
+    if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_oauth2_create_tables: clients table creation error");
-      return err;
+      return rc;
     }
-    err = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS auth_codes ("
-                                "code VARCHAR(255) PRIMARY KEY, "
-                                "client_id VARCHAR(255), "
-                                "redirect_uri VARCHAR(255), "
-                                "user_id VARCHAR(255), "
-                                "expires_at BIGINT, "
-                                "scopes VARCHAR(255));");
+    rc = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS auth_codes ("
+                               "code VARCHAR(255) PRIMARY KEY, "
+                               "client_id VARCHAR(255), "
+                               "redirect_uri VARCHAR(255), "
+                               "user_id VARCHAR(255), "
+                               "expires_at BIGINT, "
+                               "scopes VARCHAR(255));");
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("c_orm_oauth2_create_tables: auth_codes table creation error");
+      return rc;
+    }
     LOG_DEBUG("c_orm_oauth2_create_tables: exiting");
-    return err;
+    return C_ORM_OK;
   }
 }
 
@@ -837,7 +862,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_user_verify_credentials(c_orm_db_t *db,
                                                          const char *username,
                                                          const char *password,
                                                          int *out_is_valid) {
-  c_orm_error_t err;
+  c_orm_error_t rc;
+  c_orm_error_t v_rc;
   c_orm_user_t user;
 
   LOG_DEBUG("c_orm_user_verify_credentials: entered");
@@ -850,15 +876,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_user_verify_credentials(c_orm_db_t *db,
   *out_is_valid = 0;
   memset(&user, 0, sizeof(user));
 
-  err = c_orm_find_one_by_string(db, &c_orm_user_meta, "username", username,
-                                 &user);
-  if (err != C_ORM_OK) {
-    if (err == C_ORM_ERROR_NOT_FOUND) {
+  rc = c_orm_find_one_by_string(db, &c_orm_user_meta, "username", username,
+                                &user);
+  if (rc != C_ORM_OK) {
+    if (rc == C_ORM_ERROR_NOT_FOUND) {
       LOG_DEBUG("c_orm_user_verify_credentials: user not found");
       return C_ORM_OK; /* No user found, but query succeeded */
     }
     LOG_DEBUG("c_orm_user_verify_credentials: query error");
-    return err;
+    return rc;
   }
 
   if (user.password_hash) {
@@ -896,7 +922,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_verify_client(c_orm_db_t *db,
                                                       const char *client_id,
                                                       const char *client_secret,
                                                       int *out_is_valid) {
-  c_orm_error_t err;
+  c_orm_error_t rc;
+  c_orm_error_t v_rc;
   c_orm_oauth2_client_t client;
 
   LOG_DEBUG("c_orm_oauth2_verify_client: entered");
@@ -909,15 +936,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_verify_client(c_orm_db_t *db,
   *out_is_valid = 0;
   memset(&client, 0, sizeof(client));
 
-  err = c_orm_find_by_id_string(db, &c_orm_oauth2_client_meta, client_id,
-                                &client);
-  if (err != C_ORM_OK) {
-    if (err == C_ORM_ERROR_NOT_FOUND) {
+  rc = c_orm_find_by_id_string(db, &c_orm_oauth2_client_meta, client_id,
+                               &client);
+  if (rc != C_ORM_OK) {
+    if (rc == C_ORM_ERROR_NOT_FOUND) {
       LOG_DEBUG("c_orm_oauth2_verify_client: client not found");
       return C_ORM_OK;
     }
     LOG_DEBUG("c_orm_oauth2_verify_client: query error");
-    return err;
+    return rc;
   }
 
   if (client.client_secret && strlen(client.client_secret) > 0) {
@@ -958,7 +985,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_verify_client(c_orm_db_t *db,
 C_ORM_EXPORT c_orm_error_t
 c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
   c_orm_query_t *query;
-  c_orm_error_t err;
+  c_orm_error_t rc;
+  c_orm_error_t v_rc;
   int has_row;
 
   LOG_DEBUG("c_orm_oauth2_save_token: entered");
@@ -968,46 +996,77 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
     return C_ORM_ERROR_VALIDATION;
   }
 
-  err = c_orm_prepare_cached(db, c_orm_token_meta.query_insert, &query);
-  if (err != C_ORM_OK) {
+  rc = c_orm_prepare_cached(db, c_orm_token_meta.query_insert, &query);
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_save_token: prepare error");
-    return err;
+    return rc;
   }
 
-  db->vtable->bind_string(query, 1, token->access_token);
+  rc = db->vtable->bind_string(query, 1, token->access_token);
+  if (rc != C_ORM_OK)
+    goto out;
+
   if (token->refresh_token) {
-    db->vtable->bind_string(query, 2, token->refresh_token);
-  } else {
-    db->vtable->bind_null(query, 2);
+    rc = db->vtable->bind_string(query, 2, token->refresh_token);
+    if (rc != C_ORM_OK)
+      goto out;
+    rc = db->vtable->bind_null(query, 2);
+    if (rc != C_ORM_OK)
+      goto out;
   }
+
   if (token->token_type) {
-    db->vtable->bind_string(query, 3, token->token_type);
-  } else {
-    db->vtable->bind_null(query, 3);
+    rc = db->vtable->bind_string(query, 3, token->token_type);
+    if (rc != C_ORM_OK)
+      goto out;
+    rc = db->vtable->bind_null(query, 3);
+    if (rc != C_ORM_OK)
+      goto out;
   }
-  db->vtable->bind_int32(query, 4, token->expires_in);
-  db->vtable->bind_int64(query, 5, token->created_at);
+
+  rc = db->vtable->bind_int32(query, 4, token->expires_in);
+  if (rc != C_ORM_OK)
+    goto out;
+
+  rc = db->vtable->bind_int64(query, 5, token->created_at);
+  if (rc != C_ORM_OK)
+    goto out;
+
   if (token->user_id) {
-    db->vtable->bind_string(query, 6, token->user_id);
-  } else {
-    db->vtable->bind_null(query, 6);
+    rc = db->vtable->bind_string(query, 6, token->user_id);
+    if (rc != C_ORM_OK)
+      goto out;
+    rc = db->vtable->bind_null(query, 6);
+    if (rc != C_ORM_OK)
+      goto out;
   }
+
   if (token->scopes) {
-    db->vtable->bind_string(query, 7, token->scopes);
-  } else {
-    db->vtable->bind_null(query, 7);
+    rc = db->vtable->bind_string(query, 7, token->scopes);
+    if (rc != C_ORM_OK)
+      goto out;
+    rc = db->vtable->bind_null(query, 7);
+    if (rc != C_ORM_OK)
+      goto out;
   }
 
-  err = db->vtable->step(query, &has_row);
-  (void)c_orm_finalize_cached(db, query);
-
-  if (err == C_ORM_ERROR_NOT_FOUND) {
-    LOG_DEBUG("c_orm_oauth2_save_token: exiting (not found is ok)");
-    return C_ORM_OK;
+  rc = db->vtable->step(query, &has_row);
+  if (rc != C_ORM_OK) {
+    goto out;
   }
+
+out: {
+  c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+  if (_fin != C_ORM_OK) {
+    return _fin;
+  }
+  if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
+    return rc;
+  }
+}
 
   LOG_DEBUG("c_orm_oauth2_save_token: exiting");
-  return err;
+  return C_ORM_OK;
 }
 
 /**
@@ -1019,7 +1078,8 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
  */
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_get_token(
     c_orm_db_t *db, const char *access_token, c_orm_oauth2_token_t *out_token) {
-  c_orm_error_t err;
+  c_orm_error_t rc;
+  c_orm_error_t v_rc;
 
   LOG_DEBUG("c_orm_oauth2_get_token: entered");
 
@@ -1029,10 +1089,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_get_token(
   }
 
   memset(out_token, 0, sizeof(*out_token));
-  err = c_orm_find_by_id_string(db, &c_orm_token_meta, access_token, out_token);
+  rc = c_orm_find_by_id_string(db, &c_orm_token_meta, access_token, out_token);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
 
   LOG_DEBUG("c_orm_oauth2_get_token: exiting");
-  return err;
+  return C_ORM_OK;
 }
 
 /**
@@ -1043,7 +1106,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_get_token(
  */
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_revoke_token(c_orm_db_t *db,
                                                      const char *token_str) {
-  c_orm_error_t err;
+  c_orm_error_t rc;
+  c_orm_error_t v_rc;
 
   LOG_DEBUG("c_orm_oauth2_revoke_token: entered");
 
@@ -1052,10 +1116,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_revoke_token(c_orm_db_t *db,
     return C_ORM_ERROR_VALIDATION;
   }
 
-  err = c_orm_delete_by_id_string(db, &c_orm_token_meta, token_str);
+  rc = c_orm_delete_by_id_string(db, &c_orm_token_meta, token_str);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
 
   LOG_DEBUG("c_orm_oauth2_revoke_token: exiting");
-  return err;
+  return C_ORM_OK;
 }
 
 /**
@@ -1145,7 +1212,8 @@ c_orm_oauth2_validate_scope(const char *granted_scopes,
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
     c_orm_db_t *db, const c_orm_oauth2_auth_code_t *auth_code) {
   c_orm_query_t *query;
-  c_orm_error_t err;
+  c_orm_error_t rc;
+  c_orm_error_t v_rc;
   int has_row;
 
   LOG_DEBUG("c_orm_oauth2_save_auth_code: entered");
@@ -1155,45 +1223,73 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
     return C_ORM_ERROR_VALIDATION;
   }
 
-  err = c_orm_prepare_cached(db, c_orm_auth_code_meta.query_insert, &query);
-  if (err != C_ORM_OK) {
+  rc = c_orm_prepare_cached(db, c_orm_auth_code_meta.query_insert, &query);
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_save_auth_code: prepare error");
-    return err;
+    return rc;
   }
 
-  db->vtable->bind_string(query, 1, auth_code->code);
+  rc = db->vtable->bind_string(query, 1, auth_code->code);
+  if (rc != C_ORM_OK)
+    goto out;
+
   if (auth_code->client_id) {
-    db->vtable->bind_string(query, 2, auth_code->client_id);
-  } else {
-    db->vtable->bind_null(query, 2);
+    rc = db->vtable->bind_string(query, 2, auth_code->client_id);
+    if (rc != C_ORM_OK)
+      goto out;
+    rc = db->vtable->bind_null(query, 2);
+    if (rc != C_ORM_OK)
+      goto out;
   }
+
   if (auth_code->redirect_uri) {
-    db->vtable->bind_string(query, 3, auth_code->redirect_uri);
-  } else {
-    db->vtable->bind_null(query, 3);
+    rc = db->vtable->bind_string(query, 3, auth_code->redirect_uri);
+    if (rc != C_ORM_OK)
+      goto out;
+    rc = db->vtable->bind_null(query, 3);
+    if (rc != C_ORM_OK)
+      goto out;
   }
+
   if (auth_code->user_id) {
-    db->vtable->bind_string(query, 4, auth_code->user_id);
-  } else {
-    db->vtable->bind_null(query, 4);
+    rc = db->vtable->bind_string(query, 4, auth_code->user_id);
+    if (rc != C_ORM_OK)
+      goto out;
+    rc = db->vtable->bind_null(query, 4);
+    if (rc != C_ORM_OK)
+      goto out;
   }
-  db->vtable->bind_int64(query, 5, auth_code->expires_at);
+
+  rc = db->vtable->bind_int64(query, 5, auth_code->expires_at);
+  if (rc != C_ORM_OK)
+    goto out;
+
   if (auth_code->scopes) {
-    db->vtable->bind_string(query, 6, auth_code->scopes);
-  } else {
-    db->vtable->bind_null(query, 6);
+    rc = db->vtable->bind_string(query, 6, auth_code->scopes);
+    if (rc != C_ORM_OK)
+      goto out;
+    rc = db->vtable->bind_null(query, 6);
+    if (rc != C_ORM_OK)
+      goto out;
   }
 
-  err = db->vtable->step(query, &has_row);
-  (void)c_orm_finalize_cached(db, query);
-
-  if (err == C_ORM_ERROR_NOT_FOUND) {
-    LOG_DEBUG("c_orm_oauth2_save_auth_code: exiting (not found is ok)");
-    return C_ORM_OK;
+  rc = db->vtable->step(query, &has_row);
+  if (rc != C_ORM_OK) {
+    goto out;
   }
+
+out: {
+  c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+  if (_fin != C_ORM_OK) {
+    return _fin;
+  }
+  if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
+    return rc;
+  }
+}
 
   LOG_DEBUG("c_orm_oauth2_save_auth_code: exiting");
-  return err;
+  return C_ORM_OK;
 }
 
 /**
@@ -1205,7 +1301,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
  */
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
     c_orm_db_t *db, const char *code, c_orm_oauth2_auth_code_t *out_auth_code) {
-  c_orm_error_t err;
+  c_orm_error_t rc;
+  c_orm_error_t v_rc;
 
   LOG_DEBUG("c_orm_oauth2_consume_auth_code: entered");
 
@@ -1214,29 +1311,49 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
     return C_ORM_ERROR_VALIDATION;
   }
 
-  err = c_orm_transaction_begin(db);
-  if (err != C_ORM_OK) {
+  rc = c_orm_transaction_begin(db);
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: begin transaction error");
-    return err;
+    return rc;
   }
 
   memset(out_auth_code, 0, sizeof(*out_auth_code));
-  err = c_orm_find_by_id_string(db, &c_orm_auth_code_meta, code, out_auth_code);
+  rc = c_orm_find_by_id_string(db, &c_orm_auth_code_meta, code, out_auth_code);
 
-  if (err != C_ORM_OK) {
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: auth code not found");
-    (void)c_orm_transaction_rollback(db);
-    return err;
+    {
+      c_orm_error_t _rb = c_orm_transaction_rollback(db);
+      if (_rb != C_ORM_OK)
+        return _rb;
+    }
+
+    return rc;
   }
 
-  err = c_orm_delete_by_id_string(db, &c_orm_auth_code_meta, code);
-  if (err != C_ORM_OK) {
+  rc = c_orm_delete_by_id_string(db, &c_orm_auth_code_meta, code);
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: delete error");
-    (void)c_orm_transaction_rollback(db);
-    return err;
+    {
+      c_orm_error_t _rb = c_orm_transaction_rollback(db);
+      if (_rb != C_ORM_OK)
+        return _rb;
+    }
+
+    return rc;
   }
 
-  err = c_orm_transaction_commit(db);
+  rc = c_orm_transaction_commit(db);
+  if (rc != C_ORM_OK) {
+    LOG_DEBUG("c_orm_oauth2_consume_auth_code: commit failed");
+    {
+      c_orm_error_t _rb = c_orm_transaction_rollback(db);
+      if (_rb != C_ORM_OK)
+        return _rb;
+    }
+
+    return rc;
+  }
 
   LOG_DEBUG("c_orm_oauth2_consume_auth_code: exiting");
   return C_ORM_OK;
@@ -1251,7 +1368,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
 C_ORM_EXPORT c_orm_error_t
 c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
   c_orm_query_t *query;
-  c_orm_error_t err;
+  c_orm_error_t rc;
+  c_orm_error_t v_rc;
+
   int has_row;
 
   LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: entered");
@@ -1261,22 +1380,38 @@ c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
     return C_ORM_ERROR_VALIDATION;
   }
 
-  err = c_orm_prepare_cached(
+  rc = c_orm_prepare_cached(
       db, "DELETE FROM tokens WHERE created_at + expires_in < ?", &query);
-  if (err != C_ORM_OK) {
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: prepare error");
-    return err;
+    return rc;
   }
 
-  db->vtable->bind_int64(query, 1, current_time);
-  err = db->vtable->step(query, &has_row);
-  (void)c_orm_finalize_cached(db, query);
-
-  if (err == C_ORM_ERROR_NOT_FOUND) {
-    LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: exiting (not found is ok)");
-    return C_ORM_OK;
+  rc = db->vtable->bind_int64(query, 1, current_time);
+  if (rc != C_ORM_OK) {
+    LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: bind error");
+    {
+      c_orm_error_t tmp_rc = c_orm_finalize_cached(db, query);
+      if (tmp_rc != C_ORM_OK)
+        return tmp_rc;
+      return rc;
+    }
+  }
+  rc = db->vtable->step(query, &has_row);
+  if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
+    c_orm_error_t err = c_orm_finalize_cached(db, query);
+    if (err != C_ORM_OK) {
+      return err;
+    }
+    return rc;
+  }
+  {
+    c_orm_error_t err = c_orm_finalize_cached(db, query);
+    if (err != C_ORM_OK) {
+      return err;
+    }
   }
 
   LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: exiting");
-  return err;
+  return C_ORM_OK;
 }

@@ -80,7 +80,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     parse_sql_ddl(sql_data, &tables, &n_tables);
   }
 
-  LOG_DEBUG("NUM TABLES GENERATED: %d\n", (int)n_tables);
+  printf("NUM TABLES GENERATED: %d\n", (int)n_tables);
   h_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
   c_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
 
@@ -94,7 +94,43 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 #endif
   if (fp) {
     fprintf(fp, "#ifndef MODELS_H\n#define MODELS_H\n\n");
-    fprintf(fp, "#include \"c_orm_meta.h\"\n\n");
+    fprintf(fp, "/* clang-format off */\n");
+    fprintf(fp, "#include \"c_orm_meta.h\"\n");
+    fprintf(fp, "#if defined(_MSC_VER)\n"
+                "# if _MSC_VER < 1600\n"
+                "typedef signed __int8 int8_t;\n"
+                "typedef unsigned __int8 uint8_t;\n"
+                "typedef signed __int16 int16_t;\n"
+                "typedef unsigned __int16 uint16_t;\n"
+                "typedef signed __int32 int32_t;\n"
+                "typedef unsigned __int32 uint32_t;\n"
+                "typedef signed __int64 int64_t;\n"
+                "typedef unsigned __int64 uint64_t;\n"
+                "# else\n"
+                "#  include <stdint.h>\n"
+                "# endif\n"
+                "#  ifndef __cplusplus\n"
+                "#   ifndef _STDBOOL_H\n"
+                "#    define _STDBOOL_H\n"
+                "typedef unsigned char bool;\n"
+                "#    define true 1\n"
+                "#    define false 0\n"
+                "#   endif\n"
+                "#  endif\n"
+                "#else\n"
+                "# include <stdint.h>\n"
+                "# ifndef __cplusplus\n"
+                "#  ifndef _STDBOOL_H\n"
+                "#   define _STDBOOL_H\n"
+                "typedef unsigned char bool;\n"
+                "#   define true 1\n"
+                "#   define false 0\n"
+                "#  endif\n"
+                "# endif\n"
+                "#endif\n"
+                "#include <stddef.h>\n"
+                "/* clang-format on */\n\n");
+
     for (i = 0; i < n_tables; ++i) {
       sql_to_c_header_emit(fp, &tables[i]);
     }
@@ -113,6 +149,12 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
   fp = fopen(c_path, "wb");
 #endif
   if (fp) {
+    fprintf(fp, "/* clang-format off */\n");
+    fprintf(fp, "#include \"Models.h\"\n");
+    fprintf(fp, "#include <errno.h>\n");
+    fprintf(fp, "#include <stdlib.h>\n");
+    fprintf(fp, "#include <string.h>\n");
+    fprintf(fp, "/* clang-format on */\n\n");
     for (i = 0; i < n_tables; ++i) {
       sql_to_c_source_emit(fp, &tables[i], "Models.h");
     }

@@ -88,8 +88,8 @@ int main(int argc, char **argv) {
 #endif
 #if defined(_WIN32) || defined(_WIN64)
   {
-    extern __declspec(dllimport) unsigned int __stdcall SetErrorMode(
-        unsigned int);
+    extern
+        __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
     SetErrorMode(0x0001 | 0x0002 | 0x8000);
   }
 #endif

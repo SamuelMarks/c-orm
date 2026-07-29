@@ -124,13 +124,21 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   char table_name_upper[128];
   char struct_name[128];
   size_t i;
+  c_orm_error_t rc;
 
   if (!fp || !table || !table->name) {
+    printf("NAME NULL!\n");
     return C_ORM_ERROR_MEMORY;
   }
 
-  str_to_upper(table_name_upper, table->name);
-  str_to_title(struct_name, table->name);
+  rc = str_to_upper(table_name_upper, table->name);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+  rc = str_to_title(struct_name, table->name);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
 
   fprintf(fp, "/**\n");
   fprintf(fp, " * @file %s.h\n", table->name);
@@ -144,44 +152,6 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   fprintf(fp, "# ifdef __cplusplus\n");
   fprintf(fp, "extern \"C\" {\n");
   fprintf(fp, "# endif /* __cplusplus */\n\n");
-
-  fprintf(fp, "/* clang-format "
-              "off */\n");
-  fprintf(fp, "#if defined(_MSC_VER)\n"
-              "# if _MSC_VER < 1600\n"
-              "typedef signed __int8 int8_t;\n"
-              "typedef unsigned __int8 uint8_t;\n"
-              "typedef signed __int16 int16_t;\n"
-              "typedef unsigned __int16 uint16_t;\n"
-              "typedef signed __int32 int32_t;\n"
-              "typedef unsigned __int32 uint32_t;\n"
-              "typedef signed __int64 int64_t;\n"
-              "typedef unsigned __int64 uint64_t;\n"
-              "# else\n"
-              "#  include <stdint.h>\n"
-              "# endif\n"
-              "#  ifndef __cplusplus\n"
-              "#   ifndef _STDBOOL_H\n"
-              "#    define _STDBOOL_H\n"
-              "typedef unsigned char bool;\n"
-              "#    define true 1\n"
-              "#    define false 0\n"
-              "#   endif\n"
-              "#  endif\n"
-              "#else\n"
-              "# include <stdint.h>\n"
-              "# ifndef __cplusplus\n"
-              "#  ifndef _STDBOOL_H\n"
-              "#   define _STDBOOL_H\n"
-              "typedef unsigned char bool;\n"
-              "#   define true 1\n"
-              "#   define false 0\n"
-              "#  endif\n"
-              "# endif\n"
-              "#endif\n"
-              "#include <stddef.h>\n"
-              "/* clang-format "
-              "on */\n\n");
 
   /* Emit row struct */
   fprintf(fp, "/**\n");
@@ -277,22 +247,18 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   char *_ast_sql_type_to_c_type_1 = NULL;
   char struct_name[128];
   size_t i;
+  c_orm_error_t rc;
 
   if (!fp || !table || !table->name) {
+    printf("NAME NULL!\n");
     return C_ORM_ERROR_MEMORY;
   }
 
-  str_to_title(struct_name, table->name);
+  rc = str_to_title(struct_name, table->name);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
 
-  fprintf(fp, "\n");
-  fprintf(fp, "/* clang-format "
-              "off */\n");
-  fprintf(fp, "#include \"%s\"\n", header_name);
-  fprintf(fp, "#include <errno.h>\n");
-  fprintf(fp, "#include <stdlib.h>\n");
-  fprintf(fp, "#include <string.h>\n");
-  fprintf(fp, "/* clang-format "
-              "on */\n");
   fprintf(fp, "\n\n");
 
   /* Array init */

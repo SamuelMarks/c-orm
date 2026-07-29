@@ -23,8 +23,8 @@ struct _RTL_CRITICAL_SECTION;
 /** @brief Type definition for Windows CRITICAL_SECTION */
 typedef struct _RTL_CRITICAL_SECTION CRITICAL_SECTION;
 #endif
-__declspec(dllimport) void __stdcall
-InitializeCriticalSection(CRITICAL_SECTION *);
+__declspec(dllimport) void __stdcall InitializeCriticalSection(
+    CRITICAL_SECTION *);
 __declspec(dllimport) void __stdcall EnterCriticalSection(CRITICAL_SECTION *);
 __declspec(dllimport) void __stdcall LeaveCriticalSection(CRITICAL_SECTION *);
 __declspec(dllimport) void __stdcall DeleteCriticalSection(CRITICAL_SECTION *);
@@ -198,11 +198,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_disable_statement_caching(c_orm_db_t *db) {
   }
   cache = (c_orm_stmt_cache_t *)db->stmt_cache;
 
+  rc = C_ORM_OK;
   C_ORM_MUTEX_LOCK(cache->lock);
   entry = cache->head;
   while (entry) {
     next = entry->next;
-    db->vtable->finalize(entry->query);
+    rc = db->vtable->finalize(entry->query);
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("c_orm_disable_statement_caching: finalize failed");
+
+      C_ORM_MUTEX_UNLOCK(cache->lock);
+      return rc;
+    }
     C_ORM_FREE(entry->sql);
     C_ORM_FREE(entry);
     entry = next;
@@ -211,7 +218,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_disable_statement_caching(c_orm_db_t *db) {
   C_ORM_MUTEX_DESTROY(cache->lock);
   C_ORM_FREE(cache);
   db->stmt_cache = NULL;
-  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_disable_statement_caching: exit");
   return rc;
 }
@@ -242,6 +248,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
 
   if (!db->stmt_cache) {
     rc = db->vtable->prepare(db, sql, out_query);
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("c_orm_prepare_cached: direct prepare failed");
+      return rc;
+    }
     LOG_DEBUG("c_orm_prepare_cached: cache not enabled, direct prepare exit");
     return rc;
   }
@@ -294,9 +304,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
   err = db->vtable->prepare(db, sql, out_query);
   if (err != C_ORM_OK) {
     C_ORM_MUTEX_UNLOCK(cache->lock);
-    rc = err;
     LOG_DEBUG("c_orm_prepare_cached: prepare failed exit");
-    return rc;
+    return err;
   }
 
   /* Create cache entry */
@@ -348,7 +357,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
           cache->tail = evict->prev;
         }
 
-        db->vtable->finalize(evict->query);
+        rc = db->vtable->finalize(evict->query);
+        if (rc != C_ORM_OK) {
+          C_ORM_FREE(evict->sql);
+          C_ORM_FREE(evict);
+          cache->count--;
+
+          LOG_DEBUG("c_orm_prepare_cached: finalize failed during eviction");
+
+          C_ORM_MUTEX_UNLOCK(cache->lock);
+          return rc;
+        }
         C_ORM_FREE(evict->sql);
         C_ORM_FREE(evict);
         cache->count--;
@@ -387,6 +406,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
 
   if (!db->stmt_cache) {
     rc = db->vtable->finalize(query);
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("c_orm_finalize_cached: direct finalize failed");
+      return rc;
+    }
     LOG_DEBUG("c_orm_finalize_cached: cache not enabled, direct finalize exit");
     return rc;
   }
@@ -409,6 +432,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
 
   /* Query not managed by cache, finalize normally */
   rc = db->vtable->finalize(query);
+  if (rc != C_ORM_OK) {
+    LOG_DEBUG("c_orm_finalize_cached: normal finalize failed");
+    return rc;
+  }
   LOG_DEBUG("c_orm_finalize_cached: direct finalize exit");
   return rc;
 }

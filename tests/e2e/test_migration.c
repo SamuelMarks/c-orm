@@ -123,11 +123,11 @@ TEST test_parse_migration_file_inverted_markers(void) {
 TEST test_parse_migration_file_errors(void) {
   struct MigrationStatements stmts;
 
-  ASSERT_EQ(EINVAL, parse_migration_file(NULL, &stmts));
-  ASSERT_EQ(EINVAL, parse_migration_file("test.sql", NULL));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, parse_migration_file(NULL, &stmts));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, parse_migration_file("test.sql", NULL));
 
   /* file not found */
-  ASSERT_NEQ(0, parse_migration_file("nonexistent.sql", &stmts));
+  ASSERT_NEQ(C_ORM_OK, parse_migration_file("nonexistent.sql", &stmts));
 
   /* Empty file */
   {
@@ -183,12 +183,12 @@ TEST test_parse_migration_file_oom(void) {
   /* Force OOM on first alloc (up) */
   alloc_countdown = 0;
   c_orm_set_allocators(mock_malloc_migration, c_orm_realloc, c_orm_free);
-  ASSERT_EQ(ENOMEM, parse_migration_file(filename, &stmts));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
 
   /* Force OOM on second alloc (down) */
   alloc_countdown = 1;
   c_orm_set_allocators(mock_malloc_migration, c_orm_realloc, c_orm_free);
-  ASSERT_EQ(ENOMEM, parse_migration_file(filename, &stmts));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
 
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
   remove(filename);

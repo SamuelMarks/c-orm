@@ -218,18 +218,18 @@ TEST test_postgres_stub(void) {
 
   /* Coverage for null arg check if there is one */
   res = c_orm_postgres_get_vtable(NULL);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, res);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, res);
 
   /* It should fail to connect with an invalid URL */
   ASSERT_EQ(C_ORM_ERROR_CONNECTION,
             c_orm_postgres_connect("invalid_url", &pdb));
 #else
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, res);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, res);
   ASSERT_EQ(NULL, vtable);
 
   /* Coverage for null arg check if there is one */
   res = c_orm_postgres_get_vtable(NULL);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, res);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, res);
 
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, c_orm_postgres_connect("...", &pdb));
 #endif
@@ -246,7 +246,7 @@ TEST test_mysql_stub(void) {
 
   /* Coverage for null arg check if there is one */
   res = c_orm_mysql_get_vtable(NULL);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, res);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, res);
 
   /* Depending on system, connecting to 127.0.0.1 might succeed or fail. It
    * might return an error. */
@@ -254,12 +254,12 @@ TEST test_mysql_stub(void) {
       "invalid_url",
       &mdb); /* Call it for coverage, don't strictly assert connection state */
 #else
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, res);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, res);
   ASSERT_EQ(NULL, vtable);
 
   /* Coverage for null arg check if there is one */
   res = c_orm_mysql_get_vtable(NULL);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, res);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, res);
 
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, c_orm_mysql_connect("...", &mdb));
 #endif
@@ -1241,8 +1241,8 @@ int main(int argc, char **argv) {
 #endif
 #if defined(_WIN32) || defined(_WIN64)
   {
-    extern __declspec(dllimport) unsigned int __stdcall SetErrorMode(
-        unsigned int);
+    extern
+        __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
     SetErrorMode(0x0001 | 0x0002 | 0x8000);
   }
 #endif

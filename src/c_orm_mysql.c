@@ -1066,7 +1066,7 @@ c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   }
 
   LOG_DEBUG("c_orm_mysql_get_vtable (stub): exiting");
-  rc = C_ORM_ERROR_UNKNOWN;
+  rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   return rc;
 }
 

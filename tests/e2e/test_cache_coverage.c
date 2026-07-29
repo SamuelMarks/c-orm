@@ -163,7 +163,7 @@ TEST test_cache_disable(void) {
   c_orm_finalize_cached(&mock_db, q1); /* release */
 
   mock_finalize_fail = 1;
-  ASSERT_EQ(C_ORM_OK, c_orm_disable_statement_caching(&mock_db));
+  ASSERT_EQ(C_ORM_ERROR_SQL, c_orm_disable_statement_caching(&mock_db));
   mock_finalize_fail = 0;
 
   PASS();

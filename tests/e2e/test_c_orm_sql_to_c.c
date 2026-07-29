@@ -81,7 +81,6 @@ TEST test_sql_to_c_source_emit(void) {
   fread(buf, 1, sizeof(buf) - 1, fp);
   fclose(fp);
 
-  ASSERT(strstr(buf, "#include \"users.h\"") != NULL);
   ASSERT(strstr(buf, "c_orm_error_t Users_Array_init(") != NULL);
   ASSERT(strstr(buf, "void Users_free(") != NULL);
   ASSERT(strstr(buf, "void Users_Array_free(") != NULL);

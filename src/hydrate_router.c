@@ -32,7 +32,7 @@ c_orm_error_t cdd_c_hydrate_router_get_last_error(const char **out_msg) {
   } else {
     *out_msg = cdd_c_hydrate_error_msg;
   }
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t cdd_c_hydrate_router_set_last_error(const char *msg) {
@@ -52,7 +52,7 @@ c_orm_error_t cdd_c_hydrate_router_init(cdd_c_hydrate_router_t *router) {
   router->routes = NULL;
   router->count = 0;
   router->capacity = 0;
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t
@@ -71,7 +71,7 @@ cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
       /* Update existing route */
       router->routes[i].struct_meta = struct_meta;
       router->routes[i].hydrate_fn = hydrate_fn;
-      return 0;
+      return C_ORM_OK;
     }
   }
 
@@ -90,37 +90,55 @@ cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
   router->routes[router->count].hydrate_fn = hydrate_fn;
   router->count++;
 
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t cdd_c_hydrate_router_dispatch(
     const cdd_c_hydrate_router_t *router, c_orm_uint64_t query_id_hash,
     const cdd_c_abstract_struct_t *row, void *out_struct) {
   size_t i;
-  int res;
+  c_orm_error_t rc;
 
   if (!router || !row || !out_struct) {
-    cdd_c_hydrate_router_set_last_error("Invalid arguments to router_dispatch");
+    {
+      c_orm_error_t _e = cdd_c_hydrate_router_set_last_error(
+          "Invalid arguments to router_dispatch");
+      if (_e != C_ORM_OK)
+        return _e;
+    }
     return C_ORM_ERROR_UNKNOWN;
   }
 
-  cdd_c_hydrate_router_set_last_error(NULL); /* Clear previous error */
+  {
+    c_orm_error_t _e = cdd_c_hydrate_router_set_last_error(NULL);
+    if (_e != C_ORM_OK)
+      return _e;
+  } /* Clear previous error */
 
   for (i = 0; i < router->count; ++i) {
     if (router->routes[i].query_id_hash == query_id_hash) {
       /* Hand execution cleanly off to the codegen handler */
-      res = router->routes[i].hydrate_fn(out_struct, row);
-      if (res != 0) {
-        cdd_c_hydrate_router_set_last_error(
-            "Hydration function returned error");
+      rc = router->routes[i].hydrate_fn(out_struct, row);
+      if (rc != C_ORM_OK) {
+        {
+          c_orm_error_t _e = cdd_c_hydrate_router_set_last_error(
+              "Hydration function returned error");
+          if (_e != C_ORM_OK)
+            return _e;
+        }
       }
-      return res;
+      return rc;
     }
   }
 
   /* Target not found - indicates consumer must utilize fallback
    * cdd_c_abstract_hydrate mechanics */
-  cdd_c_hydrate_router_set_last_error("Route not found for query ID");
+  {
+    c_orm_error_t _e =
+        cdd_c_hydrate_router_set_last_error("Route not found for query ID");
+    if (_e != C_ORM_OK)
+      return _e;
+  }
   return C_ORM_ERROR_UNKNOWN;
 }
 
@@ -132,5 +150,5 @@ c_orm_error_t cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router) {
   router->routes = NULL;
   router->count = 0;
   router->capacity = 0;
-  return 0;
+  return C_ORM_OK;
 }
