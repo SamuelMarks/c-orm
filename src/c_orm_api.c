@@ -1777,9 +1777,7 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
               {
                 c_orm_error_t hyd_rc =
                     c_orm_hydrate_row(db, query, target_meta, new_struct);
-                if (hyd_rc == C_ORM_OK) {
-                  *(void **)target_data_ptr = new_struct;
-                } else {
+                if (hyd_rc != C_ORM_OK) {
                   c_orm_error_t _fin;
                   C_ORM_FREE(new_struct);
                   _fin = c_orm_finalize_cached(db, query);
@@ -1790,6 +1788,7 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                   c_orm_string_builder_free(sb);
                   return hyd_rc;
                 }
+                *(void **)target_data_ptr = new_struct;
               }
             }
           } else {
@@ -1822,11 +1821,7 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                   (char *)data + (count * target_meta->struct_size);
               c_orm_error_t hyd_rc =
                   c_orm_hydrate_row(db, query, target_meta, child_ptr);
-              if (hyd_rc == C_ORM_OK) {
-                arr->data = data;
-                arr->length = count + 1;
-                arr->capacity = cap;
-              } else {
+              if (hyd_rc != C_ORM_OK) {
                 c_orm_error_t _fin = c_orm_finalize_cached(db, query);
                 if (_fin != C_ORM_OK) {
                   c_orm_string_builder_free(sb);
@@ -1835,6 +1830,9 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                 c_orm_string_builder_free(sb);
                 return hyd_rc;
               }
+              arr->data = data;
+              arr->length = count + 1;
+              arr->capacity = cap;
             }
           }
         }
@@ -6172,17 +6170,18 @@ empty */
     *(void **)target_data_ptr = new_struct;
 
     rc = c_orm_query_fetch_one(db, q, target_meta, new_struct);
-    if (rc == C_ORM_OK) {
-      ctx->is_loaded = 1;
-    } else if (rc == C_ORM_ERROR_NOT_FOUND) {
-      C_ORM_FREE(new_struct);
-      *(void **)target_data_ptr = NULL;
-      rc = C_ORM_OK;
-    } else {
+    if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
       C_ORM_FREE(new_struct);
       *(void **)target_data_ptr = NULL;
       c_orm_query_free(q);
       return rc;
+    }
+    if (rc == C_ORM_OK) {
+      ctx->is_loaded = 1;
+    } else {
+      C_ORM_FREE(new_struct);
+      *(void **)target_data_ptr = NULL;
+      rc = C_ORM_OK;
     }
   } else {
     /* Array processing */
@@ -6197,11 +6196,12 @@ empty */
     }
 
     rc = c_orm_query_fetch_all(db, q, target_meta, target_data_ptr);
-    if (rc == C_ORM_OK) {
-      ctx->is_loaded = 1;
-    } else if (rc != C_ORM_ERROR_NOT_FOUND) {
+    if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
       c_orm_query_free(q);
       return rc;
+    }
+    if (rc == C_ORM_OK) {
+      ctx->is_loaded = 1;
     } else {
       rc = C_ORM_OK;
     }
@@ -6838,21 +6838,26 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
     const void *pk_ptr = (const char *)obj + pk_col->offset;
     if (pk_col->type == C_ORM_TYPE_INT32) {
       rc = db->vtable->bind_int32(query, bind_idx, *(const int32_t *)pk_ptr);
+      if (rc != C_ORM_OK) {
+        c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+        if (_fin != C_ORM_OK)
+          return _fin;
+        return rc;
+      }
     } else if (pk_col->type == C_ORM_TYPE_STRING) {
       rc = db->vtable->bind_string(query, bind_idx, *(const char **)pk_ptr);
+      if (rc != C_ORM_OK) {
+        c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+        if (_fin != C_ORM_OK)
+          return _fin;
+        return rc;
+      }
     } else {
       rc = C_ORM_ERROR_UNKNOWN;
-    }
-
-    if (rc != C_ORM_OK) {
       {
         c_orm_error_t _fin = c_orm_finalize_cached(db, query);
-        if (_fin != C_ORM_OK) {
+        if (_fin != C_ORM_OK)
           return _fin;
-        }
-      }
-      {
-        LOG_DEBUG("c_orm_update_partial: exit");
         return rc;
       }
     }
