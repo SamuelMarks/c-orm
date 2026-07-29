@@ -951,9 +951,11 @@ c_orm_find_by_id_int32(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     printf("DEBUG: c_orm_hydrate_row failed with rc %d\n", rc);
     fflush(stdout);
   }
-  rc = c_orm_finalize_cached(db, query);
-  if (rc != C_ORM_OK)
-    return rc;
+  {
+    c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+    if (_fin != C_ORM_OK)
+      return _fin;
+  }
   {
     LOG_DEBUG("c_orm_find_by_id_int32: exit");
     return rc;
@@ -1294,8 +1296,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
         *(void **)target_data_ptr = new_struct;
         ctx->is_loaded = 1;
       } else {
+        c_orm_error_t _fin;
         C_ORM_FREE(new_struct);
         *(void **)target_data_ptr = NULL;
+        _fin = c_orm_finalize_cached(db, query);
+        if (_fin != C_ORM_OK)
+          return _fin;
+        return rc;
       }
     } else {
       /* No matching child record */
@@ -1339,9 +1346,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
         if (rc == C_ORM_OK) {
           count++;
         } else {
-          rc = c_orm_finalize_cached(db, query);
-          if (rc != C_ORM_OK)
-            return rc;
+          c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+          if (_fin != C_ORM_OK)
+            return _fin;
           {
             LOG_DEBUG("c_orm_find_with_relation_int32: exit");
             return rc;
@@ -1679,9 +1686,9 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 
       rc = db->vtable->step(query, &has_row);
       if (rc != C_ORM_OK) {
-        rc = c_orm_finalize_cached(db, query);
-        if (rc != C_ORM_OK)
-          return rc;
+        c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+        if (_fin != C_ORM_OK)
+          return _fin;
         c_orm_string_builder_free(sb);
         {
           LOG_DEBUG("c_orm_find_all_with_relation: exit");
@@ -1743,8 +1750,13 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                 if (hyd_rc == C_ORM_OK) {
                   *(void **)target_data_ptr = new_struct;
                 } else {
+                  c_orm_error_t _fin;
                   C_ORM_FREE(new_struct);
-                  c_orm_finalize_cached(db, query);
+                  _fin = c_orm_finalize_cached(db, query);
+                  if (_fin != C_ORM_OK) {
+                    c_orm_string_builder_free(sb);
+                    return _fin;
+                  }
                   c_orm_string_builder_free(sb);
                   return hyd_rc;
                 }
@@ -1778,7 +1790,11 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                 arr->length = count + 1;
                 arr->capacity = cap;
               } else {
-                c_orm_finalize_cached(db, query);
+                c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+                if (_fin != C_ORM_OK) {
+                  c_orm_string_builder_free(sb);
+                  return _fin;
+                }
                 c_orm_string_builder_free(sb);
                 return hyd_rc;
               }
@@ -1790,13 +1806,15 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
         if (rc != C_ORM_OK)
           break;
       }
-      rc = c_orm_finalize_cached(db, query);
-      if (rc != C_ORM_OK)
-        return rc;
+      {
+        c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+        if (_fin != C_ORM_OK)
+          return _fin;
+      }
       c_orm_string_builder_free(sb);
       sb = NULL;
 
-      if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
+      if (rc != C_ORM_OK) {
         {
           LOG_DEBUG("c_orm_find_all_with_relation: exit");
           return rc;
@@ -5950,18 +5968,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
       if (meta->columns[i].type == C_ORM_TYPE_INT32 ||
           meta->columns[i].type == C_ORM_TYPE_INT64) {
         int64_t val = 0;
-        rc = get_int_field(meta, obj, rel->local_key, &val);
-        if (rc == C_ORM_ERROR_NOT_FOUND) {
+        c_orm_error_t _int_rc = get_int_field(meta, obj, rel->local_key, &val);
+        if (_int_rc == C_ORM_ERROR_NOT_FOUND) {
           {
             rc = C_ORM_OK;
             LOG_DEBUG("c_orm_load_relation_ext: exit");
             return rc;
           } /* Nullable FK is null, relation is inherently empty
              */
-        } else if (rc != C_ORM_OK) {
+        } else if (_int_rc != C_ORM_OK) {
           {
             LOG_DEBUG("c_orm_load_relation_ext: exit");
-            return rc;
+            return _int_rc;
           }
         }
         C_ORM_SPRINTF(local_val_str, sizeof(local_val_str), "%d", (int)val);
@@ -6116,10 +6134,12 @@ empty */
     }
     *(void **)target_data_ptr = new_struct;
 
-    rc = c_orm_query_fetch_one(db, q, target_meta, new_struct);
-    if (rc == C_ORM_OK) {
+    c_orm_error_t _fetch_rc =
+        c_orm_query_fetch_one(db, q, target_meta, new_struct);
+    if (_fetch_rc == C_ORM_OK) {
       ctx->is_loaded = 1;
-    } else if (rc == C_ORM_ERROR_NOT_FOUND) {
+      rc = C_ORM_OK;
+    } else if (_fetch_rc == C_ORM_ERROR_NOT_FOUND) {
       C_ORM_FREE(new_struct);
       *(void **)target_data_ptr = NULL;
       rc = C_ORM_OK;
@@ -6127,7 +6147,7 @@ empty */
       C_ORM_FREE(new_struct);
       *(void **)target_data_ptr = NULL;
       c_orm_query_free(q);
-      return rc;
+      return _fetch_rc;
     }
   } else {
     /* Array processing */
@@ -6141,12 +6161,14 @@ empty */
       arr->length = 0;
     }
 
-    rc = c_orm_query_fetch_all(db, q, target_meta, target_data_ptr);
-    if (rc == C_ORM_OK) {
+    c_orm_error_t _fetch_rc =
+        c_orm_query_fetch_all(db, q, target_meta, target_data_ptr);
+    if (_fetch_rc == C_ORM_OK) {
       ctx->is_loaded = 1;
-    } else if (rc != C_ORM_ERROR_NOT_FOUND) {
+      rc = C_ORM_OK;
+    } else if (_fetch_rc != C_ORM_ERROR_NOT_FOUND) {
       c_orm_query_free(q);
-      return rc;
+      return _fetch_rc;
     } else {
       rc = C_ORM_OK;
     }
@@ -6748,16 +6770,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
       if (strcmp(meta->columns[j].name, fields[i]) == 0) {
         /* Bind field directly using its metadata offset and type */
         const void *field_ptr = (const char *)obj + meta->columns[j].offset;
+        c_orm_error_t _bind_rc = C_ORM_OK;
         if (meta->columns[j].type == C_ORM_TYPE_STRING) {
-          rc = db->vtable->bind_string(query, bind_idx,
-                                       *(const char **)field_ptr);
+          _bind_rc = db->vtable->bind_string(query, bind_idx,
+                                             *(const char **)field_ptr);
         } else if (meta->columns[j].type == C_ORM_TYPE_INT32) {
-          rc = db->vtable->bind_int32(query, bind_idx,
-                                      *(const int32_t *)field_ptr);
+          _bind_rc = db->vtable->bind_int32(query, bind_idx,
+                                            *(const int32_t *)field_ptr);
         } else {
           /* Only basic types handled in partial update for now */
-          rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+          _bind_rc = C_ORM_ERROR_NOT_IMPLEMENTED;
         }
+        rc = _bind_rc;
         if (rc != C_ORM_OK) {
           {
             c_orm_error_t _fin = c_orm_finalize_cached(db, query);
@@ -7885,7 +7909,7 @@ c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
     }
   }
 
-  if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
+  if (rc != C_ORM_OK) {
     c_orm_error_t _fin;
     C_ORM_FREE(data);
     ((struct Generic_Array *)out_array)->data = NULL;

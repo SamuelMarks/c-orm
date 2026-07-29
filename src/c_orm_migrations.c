@@ -464,9 +464,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
     rc = db->vtable->step(q, &has_row);
     if (rc != C_ORM_OK) {
       c_orm_error_t fin_rc = c_orm_finalize_cached(db, q);
-      c_orm_migration_free_table_schema(meta);
-      if (fin_rc != C_ORM_OK)
+      if (fin_rc != C_ORM_OK) {
+        c_orm_migration_free_table_schema(meta);
         return fin_rc;
+      }
+      c_orm_migration_free_table_schema(meta);
       return rc;
     }
     if (!has_row) {
@@ -476,17 +478,21 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
     rc = db->vtable->get_string(q, 1, &col_name);
     if (rc != C_ORM_OK) {
       c_orm_error_t fin_rc = c_orm_finalize_cached(db, q);
-      c_orm_migration_free_table_schema(meta);
-      if (fin_rc != C_ORM_OK)
+      if (fin_rc != C_ORM_OK) {
+        c_orm_migration_free_table_schema(meta);
         return fin_rc;
+      }
+      c_orm_migration_free_table_schema(meta);
       return rc;
     }
     rc = db->vtable->get_string(q, 2, &col_type);
     if (rc != C_ORM_OK) {
       c_orm_error_t fin_rc = c_orm_finalize_cached(db, q);
-      c_orm_migration_free_table_schema(meta);
-      if (fin_rc != C_ORM_OK)
+      if (fin_rc != C_ORM_OK) {
+        c_orm_migration_free_table_schema(meta);
         return fin_rc;
+      }
+      c_orm_migration_free_table_schema(meta);
       return rc;
     }
 
@@ -647,9 +653,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
     rc = db->vtable->step(q, &has_row);
     if (rc != C_ORM_OK) {
       c_orm_error_t fin_rc = c_orm_finalize_cached(db, q);
-      c_orm_migration_free_array(migs, count);
-      if (fin_rc != C_ORM_OK)
+      if (fin_rc != C_ORM_OK) {
+        c_orm_migration_free_array(migs, count);
         return fin_rc;
+      }
+      c_orm_migration_free_array(migs, count);
       return rc;
     }
     if (!has_row) {
@@ -659,25 +667,31 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
     rc = db->vtable->get_string(q, 0, &version);
     if (rc != C_ORM_OK) {
       c_orm_error_t fin_rc = c_orm_finalize_cached(db, q);
-      c_orm_migration_free_array(migs, count);
-      if (fin_rc != C_ORM_OK)
+      if (fin_rc != C_ORM_OK) {
+        c_orm_migration_free_array(migs, count);
         return fin_rc;
+      }
+      c_orm_migration_free_array(migs, count);
       return rc;
     }
     rc = db->vtable->get_string(q, 1, &name);
     if (rc != C_ORM_OK) {
       c_orm_error_t fin_rc = c_orm_finalize_cached(db, q);
-      c_orm_migration_free_array(migs, count);
-      if (fin_rc != C_ORM_OK)
+      if (fin_rc != C_ORM_OK) {
+        c_orm_migration_free_array(migs, count);
         return fin_rc;
+      }
+      c_orm_migration_free_array(migs, count);
       return rc;
     }
     rc = db->vtable->get_string(q, 2, &hash);
     if (rc != C_ORM_OK) {
       c_orm_error_t fin_rc = c_orm_finalize_cached(db, q);
-      c_orm_migration_free_array(migs, count);
-      if (fin_rc != C_ORM_OK)
+      if (fin_rc != C_ORM_OK) {
+        c_orm_migration_free_array(migs, count);
         return fin_rc;
+      }
+      c_orm_migration_free_array(migs, count);
       return rc;
     }
 
