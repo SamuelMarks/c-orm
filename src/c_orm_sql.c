@@ -276,13 +276,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_parser_set_fail(int count) {
 
 static c_orm_error_t sql_parser_peek(struct SqlParserState *state,
                                      struct sql_token_t **_out_val) {
+  size_t c;
   if (g_parser_fail_countdown == 0) {
     g_parser_fail_countdown--;
     return C_ORM_ERROR_UNKNOWN;
   }
   if (g_parser_fail_countdown > 0)
     g_parser_fail_countdown--;
-  size_t c = state->cursor;
+  c = state->cursor;
   while (c < state->list->size &&
          state->list->tokens[c].kind == SQL_TOKEN_WHITESPACE) {
     c++;

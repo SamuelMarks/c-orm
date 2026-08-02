@@ -107,10 +107,10 @@ cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
   if (arr->count >= arr->capacity) {
     size_t new_cap;
     cdd_c_abstract_struct_t *new_items = NULL;
+    c_orm_error_t err;
     if (arr->capacity > ((size_t)-1) / 2)
       return EINVAL;
     new_cap = arr->capacity == 0 ? 4 : arr->capacity * 2;
-    c_orm_error_t err;
     if (new_cap > ((size_t)-1) / sizeof(cdd_c_abstract_struct_t))
       return EINVAL;
     err = cdd_c_realloc(arr->items, new_cap * sizeof(cdd_c_abstract_struct_t),
@@ -335,7 +335,6 @@ c_orm_error_t cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct,
   if (astruct->count >= astruct->capacity) {
     size_t new_cap;
     new_cap = astruct->capacity == 0 ? 4 : astruct->capacity * 2;
-    c_orm_error_t err;
     err = cdd_c_realloc(astruct->kvs,
                         new_cap * sizeof(cdd_c_abstract_struct_kv_t),
                         (void **)&new_kvs);

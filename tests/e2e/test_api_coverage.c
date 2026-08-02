@@ -2252,16 +2252,21 @@ TEST test_hydrate_set_null_field(void) {
 
   {
     /* Cover BLOB and POLYGON free in mega_meta */
-    char mega_buf[256];
+    union {
+      char buf[256];
+      void *ptr;
+      double d;
+    } mega_buf_u;
+    char *mega_buf = mega_buf_u.buf;
     c_orm_blob_t *blob_ptr;
     c_orm_polygon_t *poly_ptr;
-    memset(mega_buf, 0, sizeof(mega_buf));
+    memset(mega_buf, 0, 256);
 
-    blob_ptr = (c_orm_blob_t *)(mega_buf + 64);
+    blob_ptr = (c_orm_blob_t *)(void *)(mega_buf + 64);
     blob_ptr->data = malloc(8);
     blob_ptr->size = 8;
 
-    poly_ptr = (c_orm_polygon_t *)(mega_buf + 80);
+    poly_ptr = (c_orm_polygon_t *)(void *)(mega_buf + 80);
     poly_ptr->points = malloc(16);
     poly_ptr->num_points = 2;
 
@@ -2274,7 +2279,7 @@ TEST test_hydrate_set_null_field(void) {
     c_orm_hydrate_row_from(&db_mem, q, &mega_meta, mega_buf, 0);
 
     /* Allocate dummy data so test_free_meta_data hits the free branches */
-    *(char **)(mega_buf + 0) = malloc(1); /* string col */
+    *(char **)(void *)(mega_buf + 0) = malloc(1); /* string col */
     blob_ptr->data = malloc(1);
     blob_ptr->size = 1;
     poly_ptr->points = malloc(1);

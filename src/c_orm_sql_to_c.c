@@ -249,6 +249,7 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   char struct_name[128];
   size_t i;
   c_orm_error_t rc;
+  (void)header_name;
 
   if (!fp || !table) {
     printf("NAME NULL!\n");

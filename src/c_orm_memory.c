@@ -111,10 +111,12 @@ static c_orm_error_t mem_connect(const char *url, c_orm_db_t **out_db) {
  */
 static c_orm_error_t mem_disconnect(c_orm_db_t *db) {
   c_orm_error_t rc;
+  c_orm_memory_db_t *ctx;
+  mem_table_t *t;
   LOG_DEBUG("mem_disconnect: entry");
 
-  c_orm_memory_db_t *ctx = (c_orm_memory_db_t *)db->driver_data;
-  mem_table_t *t = ctx->tables;
+  ctx = (c_orm_memory_db_t *)db->driver_data;
+  t = ctx->tables;
   while (t) {
     mem_table_t *nt = t->next;
     mem_row_t *r = t->head;
@@ -311,6 +313,7 @@ static c_orm_error_t mem_bind_null(c_orm_query_t *query, int index) {
  */
 static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
   c_orm_error_t rc;
+  (void)query;
   LOG_DEBUG("mem_step: entry");
 
   *out_has_row = 0;

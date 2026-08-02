@@ -1352,10 +1352,12 @@ TEST query_sql_exhaustive_oom(void) {
   c_orm_ast_node_t *cond = NULL;
   char *sql = NULL;
   c_orm_query_params_t params;
-  memset(&params, 0, sizeof(params));
-
   c_orm_column_meta_t target_col[2];
   c_orm_table_meta_t meta;
+  c_orm_db_t db;
+  c_orm_driver_vtable_t vt;
+
+  memset(&params, 0, sizeof(params));
 
   memset(target_col, 0, sizeof(target_col));
   target_col[0].name = "id";
@@ -1367,8 +1369,6 @@ TEST query_sql_exhaustive_oom(void) {
   meta.columns = target_col;
   meta.num_columns = 2;
 
-  c_orm_db_t db;
-  c_orm_driver_vtable_t vt;
   memset(&db, 0, sizeof(db));
   memset(&vt, 0, sizeof(vt));
   vt.prepare = dummy_prepare;

@@ -219,7 +219,7 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
       "CREATE TABLE a (id UUID PRIMARY KEY, raw TEXT);",
       "CREATE TABLE bad (id INT PRIMARY KEY, FOREIGN KEY(fk) REFERENCES "
       "foo(id), UNIQUE(fk));",
-      // Truncated / malformed queries
+      /* Truncated / malformed queries */
       "CREATE TABLE", "CREATE TABLE x (", "CREATE TABLE x (id",
       "CREATE TABLE x (id INT", "CREATE TABLE x (id INT,",
       "CREATE TABLE x (id INT PRIMARY KEY",
