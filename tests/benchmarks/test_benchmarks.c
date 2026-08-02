@@ -15,6 +15,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(_MSC_VER)
+static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_t* function, const wchar_t* file, unsigned int line, size_t pReserved) {
+    (void)expression; (void)function; (void)file; (void)line; (void)pReserved;
+}
+#endif
 /* #include "abstract_struct.h" */
 /* clang-format on */
 
@@ -178,6 +184,10 @@ SUITE(benchmarks_suite) {
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
+#if defined(_MSC_VER)
+  _set_invalid_parameter_handler(my_invalid_parameter_handler);
+  _CrtSetReportMode(_CRT_ASSERT, 0);
+#endif
   GREATEST_MAIN_BEGIN();
   RUN_SUITE(benchmarks_suite);
   GREATEST_MAIN_END();

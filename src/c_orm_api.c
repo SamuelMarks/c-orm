@@ -2756,7 +2756,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
         LOG_DEBUG("c_orm_insert_batch_ext: exit");
         return rc;
       }
-      c_orm_string_builder_free(sb);
     }
 
     for (j = 0; j < actual_chunk; j++) {
@@ -3646,7 +3645,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
         LOG_DEBUG("c_orm_delete_batch: exit");
         return rc;
       }
-      c_orm_string_builder_free(sb);
     }
 
     for (j = 0; j < actual_chunk; j++) {
@@ -3923,7 +3921,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
         LOG_DEBUG("c_orm_update_batch: exit");
         return rc;
       }
-      c_orm_string_builder_free(sb);
     }
 
     /* Bind SET CASE WHEN params */

@@ -118,6 +118,14 @@ endif()
 endif()
 
 
+set(OLD_BUILD_TESTING_VAL "${BUILD_TESTING}")
+set(BUILD_TESTING OFF)
+set(C_CDD_BUILD_TESTS OFF)
+set(C_FS_BUILD_TESTS OFF)
+set(C_FS_BUILD_TESTING OFF)
+set(C_ABSTRACT_HTTP_BUILD_TESTING OFF)
+set(CDD_BUILD_TESTS OFF)
+
 if(TARGET c_str_span)
     # Target already populated natively
 elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-str-span/CMakeLists.txt")
@@ -193,6 +201,7 @@ else()
     FetchContent_MakeAvailable(cdd_c)
 endif()
 
+set(BUILD_TESTING "${OLD_BUILD_TESTING_VAL}")
 
 add_library(c-orm
     src/cdd_c_compat.c

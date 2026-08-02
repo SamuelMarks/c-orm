@@ -18,8 +18,18 @@
 #include "c_orm_sql.h"
 #include "greatest.h"
 #include <stdio.h>
+
+#if defined(_WIN32) || defined(_WIN64)
+extern __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
+#endif
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(_MSC_VER)
+static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_t* function, const wchar_t* file, unsigned int line, size_t pReserved) {
+    (void)expression; (void)function; (void)file; (void)line; (void)pReserved;
+}
+#endif
 #if defined(_MSC_VER) && defined(_DEBUG)
 #include <crtdbg.h>
 #endif
@@ -1212,6 +1222,10 @@ static void emscripten_test_callback(int err) {
             err);
   }
 
+#if defined(_MSC_VER)
+  _set_invalid_parameter_handler(my_invalid_parameter_handler);
+  _CrtSetReportMode(_CRT_ASSERT, 0);
+#endif
   GREATEST_MAIN_BEGIN();
   run_all_suites();
 
@@ -1240,13 +1254,13 @@ int main(int argc, char **argv) {
   _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
 #if defined(_WIN32) || defined(_WIN64)
-  {
-    extern
-        __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
-    SetErrorMode(0x0001 | 0x0002 | 0x8000);
-  }
+  { SetErrorMode(0x0001 | 0x0002 | 0x8000); }
 #endif
   (void)rc;
+#if defined(_MSC_VER)
+  _set_invalid_parameter_handler(my_invalid_parameter_handler);
+  _CrtSetReportMode(_CRT_ASSERT, 0);
+#endif
   GREATEST_MAIN_BEGIN();
   run_all_suites();
   GREATEST_MAIN_END();
