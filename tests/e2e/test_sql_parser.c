@@ -237,21 +237,21 @@ TEST test_sql_parser_errors(void) {
     sql_parse_table(&list, &tbl, &err);
   }
 
-  /* dummy schema */
   parse_sql_ddl("CREATE TABLE dummy (\n"
                 "  id INT PRIMARY KEY,\n"
                 "  num BIGINT,\n"
                 "  str VARCHAR(255) NOT NULL,\n"
-                "  txt TEXT,\n"
-                "  c CHAR,\n"
-                "  f FLOAT,\n"
-                "  d DOUBLE,\n"
+                "  txt TEXT DEFAULT dummy_ident,\n"
+                "  c CHAR DEFAULT FALSE,\n"
+                "  f FLOAT DEFAULT 0.0,\n"
+                "  d DOUBLE DEFAULT '0.0',\n"
                 "  dec DECIMAL,\n"
                 "  b BOOLEAN,\n"
                 "  dt DATE,\n"
                 "  ts TIMESTAMP,\n"
-                "  fk INT REFERENCES other(id)\n"
-                ");\n",
+                "  blob BLOB,\n"
+                "  pid INT REFERENCES p(id)\n"
+                ");",
                 &tables, &n_tables);
   test_cleanup_tables(&tables, &n_tables);
   parse_sql_ddl("CREATE TABLE t1 (id INT, PRIMARY KEY;", &tables, &n_tables);

@@ -53,9 +53,7 @@ static c_orm_error_t duplicate_projection(cdd_c_query_projection_t *dest,
   size_t i;
   c_orm_error_t rc;
   /* !dest and !src are checked implicitly or by callers */
-  rc = cdd_c_query_projection_init(dest);
-  if (rc != C_ORM_OK)
-    return rc;
+  cdd_c_query_projection_init(dest);
   for (i = 0; i < src->n_fields; ++i) {
     rc = cdd_c_query_projection_add_field(dest, &src->fields[i]);
     if (rc != C_ORM_OK) {
@@ -76,10 +74,12 @@ static c_orm_error_t duplicate_projection(cdd_c_query_projection_t *dest,
   if (src->mapping_meta.target_name) {
     dest->mapping_meta.target_name =
         (char *)C_ORM_MALLOC(strlen(src->mapping_meta.target_name) + 1);
-    if (dest->mapping_meta.target_name) {
-      memcpy(dest->mapping_meta.target_name, src->mapping_meta.target_name,
-             strlen(src->mapping_meta.target_name) + 1);
+    if (!dest->mapping_meta.target_name) {
+      cdd_c_query_projection_free(dest);
+      return C_ORM_ERROR_UNKNOWN;
     }
+    memcpy(dest->mapping_meta.target_name, src->mapping_meta.target_name,
+           strlen(src->mapping_meta.target_name) + 1);
   } else {
     dest->mapping_meta.target_name = NULL;
   }
@@ -182,7 +182,11 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
       if (in_table) {
         table = NULL;
         rc = sql_parse_table(&sublist, &table, &err);
-        if (rc == C_ORM_OK && table) {
+        if (rc != C_ORM_OK) {
+          sql_token_list_free(list);
+          return rc;
+        }
+        if (table) {
           rc = cdd_c_ir_add_table(out_ir, table);
           if (rc != C_ORM_OK) {
             C_ORM_FREE(table);
@@ -195,7 +199,11 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
       } else if (in_select) {
         proj = NULL;
         rc = sql_parse_select(&sublist, &proj, &err);
-        if (rc == C_ORM_OK && proj) {
+        if (rc != C_ORM_OK) {
+          sql_token_list_free(list);
+          return rc;
+        }
+        if (proj) {
           rc = cdd_c_ir_add_projection(out_ir, proj);
           if (rc != C_ORM_OK) {
             C_ORM_FREE(proj);

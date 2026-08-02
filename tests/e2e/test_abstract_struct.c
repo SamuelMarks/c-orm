@@ -859,6 +859,77 @@ TEST test_hydrate_null(void) {
   PASS();
 }
 
+#include "abstract_struct.h"
+#include "c_orm_safe_crt.h"
+#include <errno.h>
+#include <greatest.h>
+
+TEST test_abstract_struct_allocation_limits(void) {
+  cdd_c_abstract_struct_array_t arr;
+  cdd_c_abstract_struct_t astruct1, astruct2;
+  cdd_c_variant_t v;
+  char *json = NULL;
+
+  /* init array with huge size */
+  ASSERT_EQ(EINVAL,
+            (int)cdd_c_abstract_struct_array_init(
+                &arr, ((size_t)-1) / sizeof(cdd_c_abstract_struct_t) + 1));
+
+  /* arr_append integer overflow */
+  ASSERT_EQ(0, (int)cdd_c_abstract_struct_array_init(&arr, 1));
+  arr.capacity = ((size_t)-1) / 2 + 1; /* fake capacity */
+  arr.count = arr.capacity;
+  ASSERT_EQ(0, cdd_c_abstract_struct_init(&astruct1));
+  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_append(&arr, &astruct1));
+
+  arr.capacity = ((size_t)-1) / sizeof(cdd_c_abstract_struct_t);
+  if (arr.capacity <= ((size_t)-1) / 2) {
+    arr.capacity = ((size_t)-1) / sizeof(cdd_c_abstract_struct_t) - 1;
+    arr.count = arr.capacity;
+    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_append(&arr, &astruct1));
+  }
+  arr.capacity = 0;
+  arr.count = 0; /* clean up for free */
+  cdd_c_abstract_struct_array_free(&arr);
+  cdd_c_abstract_struct_free(&astruct1);
+
+  /* duplicate blob with huge size */
+  ASSERT_EQ(0, cdd_c_abstract_struct_init(&astruct1));
+  /* Bypass set and manually inject huge blob */
+  v.type = CDD_C_VARIANT_TYPE_INT;
+  v.value.i_val = 1;
+  ASSERT_EQ(0, cdd_c_abstract_set(&astruct1, "huge_blob", &v));
+  astruct1.kvs[0].value.type = CDD_C_VARIANT_TYPE_BLOB;
+  astruct1.kvs[0].value.value.b_val.data = (unsigned char *)"fake";
+  astruct1.kvs[0].value.value.b_val.size = (size_t)-1;
+  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_deep_copy(&astruct2, &astruct1));
+  astruct1.kvs[0].value.type = CDD_C_VARIANT_TYPE_NULL; /* prevent free crash */
+  cdd_c_abstract_struct_free(&astruct1);
+
+  /* null string in variant */
+  ASSERT_EQ(0, cdd_c_abstract_struct_init(&astruct1));
+  v.type = CDD_C_VARIANT_TYPE_INT;
+  v.value.i_val = 1;
+  ASSERT_EQ(0, cdd_c_abstract_set(&astruct1, "null_str", &v));
+  astruct1.kvs[0].value.type = CDD_C_VARIANT_TYPE_STRING;
+  astruct1.kvs[0].value.value.s_val = NULL;
+
+  v.type = CDD_C_VARIANT_TYPE_INT;
+  v.value.i_val = 1;
+  ASSERT_EQ(0, cdd_c_abstract_set(&astruct1, "null_blob", &v));
+  astruct1.kvs[1].value.type = CDD_C_VARIANT_TYPE_BLOB;
+  astruct1.kvs[1].value.value.b_val.data = NULL;
+  astruct1.kvs[1].value.value.b_val.size = 0;
+
+  ASSERT_EQ(0, (int)cdd_c_abstract_struct_deep_copy(&astruct2, &astruct1));
+  cdd_c_abstract_struct_free(&astruct1);
+  cdd_c_abstract_struct_free(&astruct2);
+
+  PASS();
+}
+
+#include "test_abstract_struct_oom.h"
+
 SUITE(abstract_struct_suite) {
   RUN_TEST(test_abstract_struct_memory_layout);
   RUN_TEST(test_variant_type_safety);
@@ -882,4 +953,6 @@ SUITE(abstract_struct_suite) {
   RUN_TEST(test_json_edge_cases);
   RUN_TEST(test_specific_edge_cases);
   RUN_TEST(test_hydrate_null);
+  RUN_TEST(test_abstract_struct_allocation_limits);
+  RUN_TEST(test_abstract_struct_oom_coverage);
 }

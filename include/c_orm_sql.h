@@ -193,6 +193,8 @@ C_ORM_EXPORT c_orm_error_t sql_lex(az_span source,
  * @param out_error Pointer to populate with error info on failure.
  * @return 0 on success, non-zero on error.
  */
+C_ORM_EXPORT c_orm_error_t c_orm_parser_set_fail(int count);
+
 C_ORM_EXPORT c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
                                            struct sql_table_t **out_table,
                                            struct sql_parse_error_t *out_error);

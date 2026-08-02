@@ -194,7 +194,50 @@ TEST test_parse_migration_file_oom(void) {
   remove(filename);
   PASS();
 }
+extern int c_orm_mock_migration_statements_init_fail;
+
+TEST test_parse_migration_file_empty_blocks(void) {
+  const char *filename = "test_empty_blocks.sql";
+  const char *content = "-- UP\n-- DOWN\n";
+  struct MigrationStatements stmts;
+  int rc;
+
+  rc = fs_write_to_file(filename, content);
+  ASSERT_EQ(0, rc);
+
+  rc = parse_migration_file(filename, &stmts);
+  ASSERT_EQ(0, rc);
+  ASSERT(stmts.up_statement != NULL);
+  ASSERT(stmts.down_statement != NULL);
+
+  migration_statements_free(&stmts);
+  remove(filename);
+
+  /* also test single empty marker at end of file */
+  content = "-- UP";
+  fs_write_to_file(filename, content);
+  rc = parse_migration_file(filename, &stmts);
+  ASSERT_EQ(0, rc);
+  migration_statements_free(&stmts);
+
+  content = "-- DOWN";
+  fs_write_to_file(filename, content);
+  rc = parse_migration_file(filename, &stmts);
+  ASSERT_EQ(0, rc);
+  migration_statements_free(&stmts);
+  remove(filename);
+
+  /* test init fail */
+  c_orm_mock_migration_statements_init_fail = 1;
+  rc = parse_migration_file("dummy.sql", &stmts);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  c_orm_mock_migration_statements_init_fail = 0;
+
+  PASS();
+}
+
 SUITE(migration_suite) {
+  RUN_TEST(test_parse_migration_file_empty_blocks);
   RUN_TEST(test_parse_migration_file_valid);
   RUN_TEST(test_parse_migration_file_no_down);
   RUN_TEST(test_parse_migration_file_no_markers);

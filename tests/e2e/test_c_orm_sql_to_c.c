@@ -94,8 +94,16 @@ TEST test_sql_to_c_source_emit(void) {
 }
 
 TEST test_sql_to_c_errors(void) {
+  struct sql_table_t empty_table = {0};
+  FILE *fp = fopen("dummy_err.h", "w");
+
   ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit(NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, sql_to_c_header_emit(fp, &empty_table));
+
   ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_source_emit(NULL, NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            sql_to_c_source_emit(fp, &empty_table, NULL));
+  fclose(fp);
   ASSERT_EQ(C_ORM_ERROR_MEMORY,
             sql_to_c_projection_struct_emit(NULL, NULL, NULL, NULL));
   ASSERT_EQ(C_ORM_ERROR_MEMORY,

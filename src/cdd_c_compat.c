@@ -15,7 +15,8 @@ C_ORM_EXPORT volatile int g_fail_io_after = -1;
 #if defined(__clang__) || defined(__GNUC__)
 __attribute__((__format__(__printf__, 1, 2)))
 #endif
-C_ORM_EXPORT c_orm_error_t C_CDD_LOG_DEBUG(const char *fmt, ...);
+C_ORM_EXPORT c_orm_error_t
+C_CDD_LOG_DEBUG(const char *fmt, ...);
 
 C_ORM_EXPORT c_orm_error_t C_CDD_LOG_DEBUG(const char *fmt, ...) {
   va_list args;

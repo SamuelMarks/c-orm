@@ -411,6 +411,10 @@ TEST test_c_to_sql_edge_cases(void) {
                                       C_TO_SQL_DIALECT_SQLITE, &up, &down));
   free(up);
   free(down);
+  ASSERT_EQ(0, cdd_c_meta_diff_to_sql("diff_table", &diff,
+                                      C_TO_SQL_DIALECT_MYSQL, &up, &down));
+  free(up);
+  free(down);
 
   cdd_c_meta_diff_free(&diff);
 

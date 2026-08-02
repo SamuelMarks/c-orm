@@ -307,6 +307,12 @@ static void setup_vt(void) {
   my_cols[mega_meta.num_columns].offset = 72;
   mega_meta.num_columns++;
 
+  my_cols[mega_meta.num_columns].name = "test_polygon";
+  my_cols[mega_meta.num_columns].type = C_ORM_TYPE_POLYGON;
+  my_cols[mega_meta.num_columns].is_secure = 0;
+  my_cols[mega_meta.num_columns].offset = 80;
+  mega_meta.num_columns++;
+
   /* Reset relations so they don't crash us */
   mega_meta.relations = NULL;
   mega_meta.num_relations = 0;
@@ -1531,6 +1537,8 @@ static void test_c_orm_deep_free(void) {
   (void)int_out;
   (void)str_arr;
   c_orm_deep_free(NULL, buf);
+  c_orm_deep_free((const struct cdd_c_meta *)&mega_meta, NULL);
+  c_orm_deep_free((const struct cdd_c_meta *)&mega_meta, buf);
 }
 static void test_c_orm_deep_copy(void) {
   char buf[1024] = {0};
@@ -2158,19 +2166,26 @@ TEST run_all_api(void) {
   TEST_DB(test_c_orm_find_all_generic, 2);
   TEST_OOM(test_c_orm_get_generic_string, 2);
   TEST_DB(test_c_orm_get_generic_string, 2);
+
+  /* Cover NULL branches in mocks */
+  mock_is_null(NULL, 0, NULL);
+  mock_prepare(NULL, NULL, NULL);
+  mock_step(NULL, NULL);
+  mock_get_string(NULL, 0, NULL);
+  mock_get_blob(NULL, 0, NULL, NULL);
+
+  {
+    const void *tmp_o;
+    size_t tmp_s;
+    mock_get_blob(NULL, 0, &tmp_o, NULL);
+    mock_get_blob(NULL, 0, NULL, &tmp_s);
+  }
+
   PASS();
 }
 
 static c_orm_error_t mock_get_int32_zero(c_orm_query_t *q, int index,
                                          int32_t *val) {
-  (void)q;
-  (void)index;
-  *val = 0;
-  return C_ORM_OK;
-}
-
-static c_orm_error_t mock_get_int64_zero(c_orm_query_t *q, int index,
-                                         int64_t *val) {
   (void)q;
   (void)index;
   *val = 0;
@@ -2223,7 +2238,7 @@ TEST test_hydrate_set_null_field(void) {
   vt.is_null = mock_is_null_true;
   vt.get_string = mock_get_string_null;
   vt.get_int32 = mock_get_int32_zero;
-  vt.get_int64 = mock_get_int64_zero;
+
   vt.get_double = mock_get_double_zero;
 
   u.username = (char *)malloc(10);
@@ -2234,6 +2249,39 @@ TEST test_hydrate_set_null_field(void) {
   vt.get_string = mock_get_string_null;
   c_orm_hydrate_row_from(&db_mem, q, &Users_meta, &u, 0);
   test_free_meta_data(&Users_meta, &u);
+
+  {
+    /* Cover BLOB and POLYGON free in mega_meta */
+    char mega_buf[256];
+    c_orm_blob_t *blob_ptr;
+    c_orm_polygon_t *poly_ptr;
+    memset(mega_buf, 0, sizeof(mega_buf));
+
+    blob_ptr = (c_orm_blob_t *)(mega_buf + 64);
+    blob_ptr->data = malloc(8);
+    blob_ptr->size = 8;
+
+    poly_ptr = (c_orm_polygon_t *)(mega_buf + 80);
+    poly_ptr->points = malloc(16);
+    poly_ptr->num_points = 2;
+
+    /* Make mega_meta columns nullable so they hit the NULL freeing branch */
+    my_cols[mega_meta.num_columns - 3].is_nullable = 1;
+    my_cols[mega_meta.num_columns - 2].is_nullable = 1;
+    my_cols[mega_meta.num_columns - 1].is_nullable = 1;
+
+    vt.is_null = mock_is_null_true;
+    c_orm_hydrate_row_from(&db_mem, q, &mega_meta, mega_buf, 0);
+
+    /* Allocate dummy data so test_free_meta_data hits the free branches */
+    *(char **)(mega_buf + 0) = malloc(1); /* string col */
+    blob_ptr->data = malloc(1);
+    blob_ptr->size = 1;
+    poly_ptr->points = malloc(1);
+    poly_ptr->num_points = 1;
+
+    test_free_meta_data(&mega_meta, mega_buf);
+  }
 
   PASS();
 }
@@ -2290,6 +2338,7 @@ SUITE(api_coverage_suite) {
   c_orm_set_allocators(mock_malloc_fail, c_orm_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, mock_realloc_fail, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, mock_free);
+  mock_free(NULL);
 
   RUN_TEST(run_all_api);
 

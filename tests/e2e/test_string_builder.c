@@ -29,6 +29,13 @@ static void *my_test_realloc(void *ptr, size_t size) {
 }
 #endif
 
+struct c_orm_string_builder {
+  char *buffer;
+  size_t length;
+  size_t capacity;
+  int valid;
+};
+
 TEST test_c_orm_string_builder(void) {
   c_orm_string_builder_t *sb = NULL;
   const char *str = NULL;
@@ -132,6 +139,15 @@ TEST test_c_orm_string_builder(void) {
 
   c_orm_string_builder_free(sb);
   c_orm_string_builder_free(NULL);
+
+  {
+    const char *empty_str = NULL;
+    c_orm_string_builder_t *manual_sb = malloc(sizeof(c_orm_string_builder_t));
+    manual_sb->buffer = NULL;
+    manual_sb->valid = 1;
+    c_orm_string_builder_get(manual_sb, &empty_str);
+    c_orm_string_builder_free(manual_sb);
+  }
 
 #ifdef C_ORM_TEST_ALLOCATOR
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);

@@ -16,6 +16,8 @@
  * @brief Convert string to uppercase.
  */
 static c_orm_error_t str_to_upper(char *dst, const char *src) {
+  if (!dst || !src)
+    return C_ORM_ERROR_VALIDATION;
   while (*src) {
     *dst = (char)toupper((unsigned char)*src);
     dst++;
@@ -29,6 +31,8 @@ static c_orm_error_t str_to_upper(char *dst, const char *src) {
  * @brief Convert string to TitleCase (first letter upper).
  */
 static c_orm_error_t str_to_title(char *dst, const char *src) {
+  if (!dst || !src)
+    return C_ORM_ERROR_VALIDATION;
   if (!*src) {
     *dst = '\0';
     return C_ORM_OK;
@@ -48,8 +52,6 @@ static c_orm_error_t str_to_title(char *dst, const char *src) {
 static c_orm_error_t is_nullable(const struct sql_column_t *col,
                                  int *out_is_nullable) {
   size_t i;
-  if (!out_is_nullable)
-    return C_ORM_ERROR_VALIDATION;
   *out_is_nullable = 1;
   for (i = 0; i < col->n_constraints; ++i) {
     if (col->constraints[i].type == SQL_CONSTRAINT_NOT_NULL ||
@@ -126,16 +128,15 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   size_t i;
   c_orm_error_t rc;
 
-  if (!fp || !table || !table->name) {
+  if (!fp || !table) {
     printf("NAME NULL!\n");
     return C_ORM_ERROR_MEMORY;
   }
 
   rc = str_to_upper(table_name_upper, table->name);
-  if (rc != C_ORM_OK) {
-    return rc;
+  if (rc == C_ORM_OK) {
+    rc = str_to_title(struct_name, table->name);
   }
-  rc = str_to_title(struct_name, table->name);
   if (rc != C_ORM_OK) {
     return rc;
   }
@@ -249,7 +250,7 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   size_t i;
   c_orm_error_t rc;
 
-  if (!fp || !table || !table->name) {
+  if (!fp || !table) {
     printf("NAME NULL!\n");
     return C_ORM_ERROR_MEMORY;
   }

@@ -36,7 +36,7 @@ static c_orm_error_t check_db_schema(const struct StructField *field,
   *is_pk = 0;
   *is_unique = 0;
   *is_index = 0;
-  if (fk_buf && fk_buf_size > 0)
+  if (fk_buf)
     fk_buf[0] = '\0';
 
   if (field->description[0]) {
@@ -46,7 +46,7 @@ static c_orm_error_t check_db_schema(const struct StructField *field,
       *is_unique = 1;
     if (strstr(field->description, "[INDEX]") != NULL)
       *is_index = 1;
-    if (fk_buf && fk_buf_size > 0) {
+    if (fk_buf) {
       char *fk_start = strstr(field->description, "[FK=");
       if (fk_start) {
         char *fk_end = strchr(fk_start, ']');
@@ -71,16 +71,13 @@ static c_orm_error_t check_db_schema(const struct StructField *field,
       if (obj) {
         JSON_Object *db = json_object_get_object(obj, "x-db-schema");
         if (db) {
-          if (json_object_has_value(db, "primary_key") &&
-              json_object_get_boolean(db, "primary_key") == 1)
+          if (json_object_get_boolean(db, "primary_key") == 1)
             *is_pk = 1;
-          if (json_object_has_value(db, "unique") &&
-              json_object_get_boolean(db, "unique") == 1)
+          if (json_object_get_boolean(db, "unique") == 1)
             *is_unique = 1;
-          if (json_object_has_value(db, "index") &&
-              json_object_get_boolean(db, "index") == 1)
+          if (json_object_get_boolean(db, "index") == 1)
             *is_index = 1;
-          if (fk_buf && fk_buf_size > 0 && json_object_has_value(db, "fk")) {
+          if (fk_buf && json_object_has_value(db, "fk")) {
             const char *fk = json_object_get_string(db, "fk");
             if (fk) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
@@ -131,14 +128,11 @@ static c_orm_error_t check_cdd_annotations(const struct StructField *field,
     if (extras) {
       JSON_Object *obj = json_value_get_object(extras);
       if (obj) {
-        if (json_object_has_value(obj, "x-cdd-shard-key") &&
-            json_object_get_boolean(obj, "x-cdd-shard-key") == 1)
+        if (json_object_get_boolean(obj, "x-cdd-shard-key") == 1)
           *is_shard_key = 1;
-        if (json_object_has_value(obj, "x-cdd-shard-hash") &&
-            json_object_get_boolean(obj, "x-cdd-shard-hash") == 1)
+        if (json_object_get_boolean(obj, "x-cdd-shard-hash") == 1)
           *is_shard_hash = 1;
-        if (json_object_has_value(obj, "x-cdd-track-telemetry") &&
-            json_object_get_boolean(obj, "x-cdd-track-telemetry") == 1)
+        if (json_object_get_boolean(obj, "x-cdd-track-telemetry") == 1)
           *is_track_telemetry = 1;
         if (json_object_has_value(obj, "x-cdd-slow-query"))
           *slow_query_ms = (int)json_object_get_number(obj, "x-cdd-slow-query");
@@ -333,7 +327,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     const char *struct_name = spec->defined_schema_names[i];
     const struct StructFields *sf = &spec->defined_schemas[i];
 
-    if (!struct_name || !sf)
+    if (!struct_name)
       continue;
 
     /* Generate C Struct */
@@ -404,7 +398,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     for (j = 0; j < sf->size; ++j) {
       const struct StructField *field = &sf->fields[j];
       int is_pk, is_unique, is_index;
-      char fk_buf[256];
+      char fk_buf[128];
       check_db_schema(field, &is_pk, &is_unique, &is_index, fk_buf,
                       sizeof(fk_buf));
 

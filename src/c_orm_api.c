@@ -4426,6 +4426,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_transaction_rollback(c_orm_db_t *db) {
   {
     LOG_DEBUG("c_orm_transaction_rollback: entry");
     rc = c_orm_execute_raw(db, "ROLLBACK");
+    printf("ROLLBACK rc = %d\n", rc);
     if (rc != C_ORM_OK)
       return rc;
 

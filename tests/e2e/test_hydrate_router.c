@@ -163,10 +163,60 @@ TEST test_hydrate_router_register_oom(void) {
   cdd_c_hydrate_router_free(&router);
   PASS();
 }
+extern int c_orm_mock_hydrate_router_set_last_error_fail;
+
+TEST test_hydrate_router_set_error_fail(void) {
+  cdd_c_hydrate_router_t router;
+  cdd_c_meta_t m1;
+  cdd_c_abstract_struct_t row;
+  int out_val = 0;
+
+  memset(&m1, 0, sizeof(m1));
+  cdd_c_abstract_struct_init(&row);
+  cdd_c_hydrate_router_init(&router);
+  cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator);
+  cdd_c_hydrate_router_register(&router, 2, &m1, mock_hydrator_err);
+
+  c_orm_mock_hydrate_router_set_last_error_fail = 1;
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            cdd_c_hydrate_router_dispatch(NULL, 1, &row, &out_val));
+  c_orm_mock_hydrate_router_set_last_error_fail = 2;
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            cdd_c_hydrate_router_dispatch(&router, 1, &row, &out_val));
+  c_orm_mock_hydrate_router_set_last_error_fail = 3;
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            cdd_c_hydrate_router_dispatch(&router, 2, &row, &out_val));
+  c_orm_mock_hydrate_router_set_last_error_fail = 4;
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            cdd_c_hydrate_router_dispatch(&router, 999, &row, &out_val));
+
+  /* Cover branches inside set_last_error */
+  c_orm_mock_hydrate_router_set_last_error_fail = 1;
+  cdd_c_hydrate_router_set_last_error(NULL);
+  cdd_c_hydrate_router_set_last_error("Something else");
+
+  c_orm_mock_hydrate_router_set_last_error_fail = 2;
+  cdd_c_hydrate_router_set_last_error(NULL);
+  cdd_c_hydrate_router_set_last_error("Something else");
+
+  c_orm_mock_hydrate_router_set_last_error_fail = 3;
+  cdd_c_hydrate_router_set_last_error(NULL);
+  cdd_c_hydrate_router_set_last_error("Something else");
+
+  c_orm_mock_hydrate_router_set_last_error_fail = 4;
+  cdd_c_hydrate_router_set_last_error(NULL);
+  cdd_c_hydrate_router_set_last_error("Something else");
+
+  c_orm_mock_hydrate_router_set_last_error_fail = 0;
+  cdd_c_hydrate_router_free(&router);
+  cdd_c_abstract_struct_free(&row);
+  PASS();
+}
 SUITE(hydrate_router_suite) {
   RUN_TEST(test_mock_hydrator_null);
   RUN_TEST(test_hydrate_router_init_free);
   RUN_TEST(test_hydrate_router_registration);
   RUN_TEST(test_hydrate_router_dispatch);
   RUN_TEST(test_hydrate_router_register_oom);
+  RUN_TEST(test_hydrate_router_set_error_fail);
 }

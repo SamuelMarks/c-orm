@@ -66,7 +66,6 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     if (fread(sql_data, 1, (size_t)sql_size, fp) != (size_t)sql_size &&
         ferror(fp)) {
       LOG_DEBUG("c_orm_codegen_generate: read error");
-      C_ORM_FREE(sql_data);
       fclose(fp);
       rc = C_ORM_ERROR_UNKNOWN;
       goto cleanup;

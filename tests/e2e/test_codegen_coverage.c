@@ -54,6 +54,9 @@ TEST test_codegen_fopen_h_fail(void) {
     }
   }
   c_orm_codegen_generate("dummy.sql", "/invalid/path/that/does/not/exist");
+
+  /* Test read error by passing a directory as schema file */
+  c_orm_codegen_generate(".", "test_out");
   PASS();
 }
 

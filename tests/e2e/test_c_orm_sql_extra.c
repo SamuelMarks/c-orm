@@ -203,3 +203,79 @@ enum greatest_test_res test_sql_parser_missing_keys(void) {
 
   PASS();
 }
+
+enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void);
+enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
+  void *(*old_malloc)(size_t) = c_orm_malloc;
+  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
+  void (*old_free)(void *) = c_orm_free;
+  int i, sql_idx;
+  const char *sqls[] = {
+      "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
+      "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true);",
+      "CREATE TABLE t (id INT, PRIMARY KEY (id), FOREIGN KEY (id) REFERENCES "
+      "x(id) ON DELETE CASCADE);",
+      "CREATE TABLE t2 (id INT UNIQUE, val FLOAT DEFAULT 3.14);",
+      "CREATE TABLE a (id UUID PRIMARY KEY, raw TEXT);",
+      "CREATE TABLE bad (id INT PRIMARY KEY, FOREIGN KEY(fk) REFERENCES "
+      "foo(id), UNIQUE(fk));",
+      // Truncated / malformed queries
+      "CREATE TABLE", "CREATE TABLE x (", "CREATE TABLE x (id",
+      "CREATE TABLE x (id INT", "CREATE TABLE x (id INT,",
+      "CREATE TABLE x (id INT PRIMARY KEY",
+      "CREATE TABLE x (id INT PRIMARY KEY,",
+      "CREATE TABLE x (id INT PRIMARY KEY, FOREIGN KEY",
+      "CREATE TABLE x (id INT PRIMARY KEY, FOREIGN KEY(",
+      "CREATE TABLE x (id INT PRIMARY KEY, FOREIGN KEY(a",
+      "CREATE TABLE x (id INT PRIMARY KEY, FOREIGN KEY(a)",
+      "CREATE TABLE x (id INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES",
+      "CREATE TABLE x (id INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES t",
+      "CREATE TABLE x (id INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES t(",
+      "CREATE TABLE x (id INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES t(b",
+      "CREATE TABLE x (id INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES t(b)",
+      "CREATE TABLE x (id INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES t(b) ON",
+      "CREATE TABLE x (id INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES t(b) ON "
+      "DELETE",
+      "CREATE TABLE x (id INT PRIMARY KEY, FOREIGN KEY(a) REFERENCES t(b) ON "
+      "DELETE CASCADE"};
+
+  c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail, mock_free);
+
+  for (sql_idx = 0; sql_idx < (int)(sizeof(sqls) / sizeof(sqls[0]));
+       sql_idx++) {
+    for (i = 0; i < 40; i++) {
+      az_span span = az_span_create_from_str((char *)sqls[sql_idx]);
+      struct sql_token_list_t *list = NULL;
+      struct sql_table_t *ast = NULL;
+      struct sql_parse_error_t err_info;
+
+      g_malloc_fail = 0;
+      if (sql_lex(span, &list) == 0 && list) {
+        g_malloc_target = i;
+        g_malloc_count = 0;
+        g_malloc_fail = 1;
+
+        if (sql_parse_table(list, &ast, &err_info) == 0 && ast) {
+          sql_table_C_ORM_FREE(ast);
+        }
+        sql_token_list_free(list);
+      }
+
+      if (sql_lex(span, &list) == 0 && list) {
+        c_orm_parser_set_fail(i);
+
+        if (sql_parse_table(list, &ast, &err_info) == 0 && ast) {
+          c_orm_parser_set_fail(-1);
+          sql_table_C_ORM_FREE(ast);
+        }
+        c_orm_parser_set_fail(-1);
+        sql_token_list_free(list);
+      }
+    }
+  }
+
+  g_malloc_fail = 0;
+
+  c_orm_set_allocators(old_malloc, old_realloc, old_free);
+  PASS();
+}

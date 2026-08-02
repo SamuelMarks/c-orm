@@ -34,6 +34,58 @@ static void *m_mock_malloc(size_t size) {
 }
 static void m_mock_free(void *ptr) { free(ptr); }
 
+TEST test_oauth2_json_edge_cases(void) {
+  c_orm_oauth2_token_t token;
+  memset(&token, 0, sizeof(token));
+
+  /* NULL checks */
+  c_orm_oauth2_token_parse_json(NULL, &token);
+  c_orm_oauth2_token_parse_json("{}", NULL);
+
+  /* JSON edge cases */
+  c_orm_oauth2_token_parse_json("{\"access_token\":\"123\\\"456\"}", &token);
+  if (token.access_token)
+    free(token.access_token);
+  token.access_token = NULL;
+
+  c_orm_oauth2_token_parse_json("{\"refresh_token\":\"abc\"}", &token);
+  if (token.refresh_token)
+    free(token.refresh_token);
+  token.refresh_token = NULL;
+
+  c_orm_oauth2_token_parse_json("{\"token_type\":\"bearer\"}", &token);
+  if (token.token_type)
+    free(token.token_type);
+  token.token_type = NULL;
+
+  c_orm_oauth2_token_parse_json("{\"expires_in\":3600}", &token);
+
+  /* Some bad formatting */
+  c_orm_oauth2_token_parse_json("{\"access_token\": ", &token);
+  if (token.access_token) {
+    free(token.access_token);
+    token.access_token = NULL;
+  }
+
+  c_orm_oauth2_token_parse_json("{\"access_token\": 123", &token);
+  if (token.access_token) {
+    free(token.access_token);
+    token.access_token = NULL;
+  }
+
+  c_orm_oauth2_token_parse_json("{\"access_token\": \"123", &token);
+  if (token.access_token) {
+    free(token.access_token);
+    token.access_token = NULL;
+  }
+
+  c_orm_oauth2_token_parse_json("{\"expires_in\": \"3600\"}", &token);
+  c_orm_oauth2_token_parse_json("{\"expires_in\": abc}", &token);
+  c_orm_oauth2_token_parse_json("{\"unknown_key\": \"val\"}", &token);
+
+  PASS();
+}
+
 TEST test_oauth2_flat_json(void) {
   c_orm_oauth2_token_t t;
   c_orm_error_t err;
@@ -108,11 +160,29 @@ TEST test_oauth2_crypto(void) {
 
   c_orm_store_token_secure(NULL);
 
-  /* hex parsing 'A'-'F' */
+  /* hex parsing 'A'-'F' and '0'-'9' */
   c_orm_oauth2_decrypt_token("ABCDEF", &out);
-  if (out)
+  if (out) {
     C_ORM_FREE(out);
+    out = NULL;
+  }
+  c_orm_oauth2_decrypt_token("0123456789", &out);
+  if (out) {
+    C_ORM_FREE(out);
+    out = NULL;
+  }
+  c_orm_oauth2_decrypt_token("!@#$zZgG  ", &out);
+  if (out) {
+    C_ORM_FREE(out);
+    out = NULL;
+  }
+
   c_orm_oauth2_get_current_timestamp(NULL);
+  {
+    int64_t ts;
+    c_orm_oauth2_get_current_timestamp(&ts);
+    c_orm_oauth2_calculate_expiration(ts, 3600, &ts);
+  }
 
   /* file open error */
   {
@@ -144,6 +214,8 @@ static c_orm_error_t my_oauth2_prep(c_orm_db_t *db_v, const char *sql,
   if (fail_sql == 4 && strstr(sql, "CREATE TABLE IF NOT EXISTS auth_codes"))
     return C_ORM_ERROR_SQL;
   if (fail_sql == 5 && strstr(sql, "SELECT"))
+    return C_ORM_ERROR_SQL;
+  if (fail_sql == 99 && strstr(sql, "COMMIT"))
     return C_ORM_ERROR_SQL;
   if (fail_sql == 6 && strstr(sql, "DELETE"))
     return C_ORM_ERROR_SQL;
@@ -236,6 +308,8 @@ TEST test_oauth2_init(void) {
     for (fail_sql = 1; fail_sql <= 4; fail_sql++) {
       c_orm_oauth2_create_tables(&db_generic);
     }
+    fail_sql = 0;
+    c_orm_oauth2_create_tables(&db_generic);
   }
   fail_sql = 0;
 
@@ -454,8 +528,9 @@ TEST test_oauth2_token(void) {
   t.access_token = "atk";
   t.refresh_token = "rtk";
   t.token_type = "Bearer";
-  t.user_id = "u1";
+  t.user_id = NULL;
   t.scopes = "read";
+  t.created_at = 9999999999;
   t.expires_in = 3600;
 
   c_orm_oauth2_save_token(db, &t);
@@ -655,6 +730,15 @@ TEST test_oauth2_null_args(void) {
   PASS();
 }
 
+TEST test_oauth2_valid_token(void) {
+  c_orm_oauth2_token_t t;
+  int i;
+  memset(&t, 0, sizeof(t));
+  t.created_at = 9999999999;
+  t.expires_in = 3600;
+  c_orm_oauth2_is_token_valid(&t, 0, &i);
+  PASS();
+}
 SUITE(oauth2_suite) {
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void (*old_free)(void *) = c_orm_free;
@@ -663,6 +747,7 @@ SUITE(oauth2_suite) {
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, m_mock_free);
 
   RUN_TEST(test_oauth2_flat_json);
+  RUN_TEST(test_oauth2_json_edge_cases);
   RUN_TEST(test_oauth2_crypto);
   RUN_TEST(test_oauth2_crypto_fail_open);
   RUN_TEST(test_oauth2_init);
@@ -672,6 +757,8 @@ SUITE(oauth2_suite) {
   RUN_TEST(test_oauth2_auth_code);
   RUN_TEST(test_oauth2_token);
   RUN_TEST(test_oauth2_null_args);
+
+  RUN_TEST(test_oauth2_valid_token);
 
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);

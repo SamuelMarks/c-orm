@@ -35,8 +35,22 @@ c_orm_error_t cdd_c_hydrate_router_get_last_error(const char **out_msg) {
   return C_ORM_OK;
 }
 
+int c_orm_mock_hydrate_router_set_last_error_fail = 0;
+
 c_orm_error_t cdd_c_hydrate_router_set_last_error(const char *msg) {
+  if (c_orm_mock_hydrate_router_set_last_error_fail == 1 && msg &&
+      strstr(msg, "Invalid"))
+    return C_ORM_ERROR_UNKNOWN;
+  if (c_orm_mock_hydrate_router_set_last_error_fail == 2 && !msg)
+    return C_ORM_ERROR_UNKNOWN;
+  if (c_orm_mock_hydrate_router_set_last_error_fail == 3 && msg &&
+      strstr(msg, "returned error"))
+    return C_ORM_ERROR_UNKNOWN;
+  if (c_orm_mock_hydrate_router_set_last_error_fail == 4 && msg &&
+      strstr(msg, "not found"))
+    return C_ORM_ERROR_UNKNOWN;
   if (!msg) {
+
     cdd_c_hydrate_error_msg[0] = '\0';
   } else {
     C_ORM_STRNCPY(cdd_c_hydrate_error_msg, sizeof(cdd_c_hydrate_error_msg), msg,

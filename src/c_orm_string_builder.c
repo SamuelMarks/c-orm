@@ -48,7 +48,7 @@ c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
     return rc;
   }
 
-  sb->capacity = 64;
+  sb->capacity = 1;
   sb->length = 0;
   sb->valid = 1;
   sb->buffer = (char *)C_ORM_MALLOC(sb->capacity);

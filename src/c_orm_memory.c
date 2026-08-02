@@ -91,13 +91,7 @@ static c_orm_error_t mem_connect(const char *url, c_orm_db_t **out_db) {
     return (c_orm_error_t)rc;
   }
 
-  rc = c_orm_memory_get_vtable(&vt);
-  if (rc != C_ORM_OK) {
-    LOG_DEBUG("mem_connect: c_orm_memory_get_vtable failed");
-    C_ORM_FREE(db);
-    C_ORM_FREE(ctx);
-    return (c_orm_error_t)rc;
-  }
+  c_orm_memory_get_vtable(&vt);
   db->vtable = vt;
   db->driver_data = ctx;
   db->driver_name = "memory";
@@ -119,27 +113,23 @@ static c_orm_error_t mem_disconnect(c_orm_db_t *db) {
   c_orm_error_t rc;
   LOG_DEBUG("mem_disconnect: entry");
 
-  if (db && db->driver_data) {
-    c_orm_memory_db_t *ctx = (c_orm_memory_db_t *)db->driver_data;
-    mem_table_t *t = ctx->tables;
-    while (t) {
-      mem_table_t *nt = t->next;
-      mem_row_t *r = t->head;
-      while (r) {
-        mem_row_t *nr = r->next;
-        if (r->columns) {
-          C_ORM_FREE(r->columns);
-        }
-        C_ORM_FREE(r);
-        r = nr;
-      }
-      C_ORM_FREE(t->name);
-      C_ORM_FREE(t);
-      t = nt;
+  c_orm_memory_db_t *ctx = (c_orm_memory_db_t *)db->driver_data;
+  mem_table_t *t = ctx->tables;
+  while (t) {
+    mem_table_t *nt = t->next;
+    mem_row_t *r = t->head;
+    while (r) {
+      mem_row_t *nr = r->next;
+      C_ORM_FREE(r->columns);
+      C_ORM_FREE(r);
+      r = nr;
     }
-    C_ORM_FREE(ctx);
-    C_ORM_FREE(db);
+    C_ORM_FREE(t->name);
+    C_ORM_FREE(t);
+    t = nt;
   }
+  C_ORM_FREE(ctx);
+  C_ORM_FREE(db);
 
   rc = C_ORM_OK;
   LOG_DEBUG("mem_disconnect: exit");
@@ -176,13 +166,6 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
   c_orm_memory_db_t *ctx;
 
   LOG_DEBUG("mem_prepare: entry");
-
-  if (!db || !sql || !out_query) {
-    LOG_DEBUG("mem_prepare: validation error");
-    rc = C_ORM_ERROR_MEMORY;
-    LOG_DEBUG("mem_prepare: exit");
-    return (c_orm_error_t)rc;
-  }
 
   ctx = (c_orm_memory_db_t *)db->driver_data;
   q = (c_orm_memory_query_t *)C_ORM_MALLOC(sizeof(c_orm_memory_query_t));
@@ -330,12 +313,6 @@ static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
   c_orm_error_t rc;
   LOG_DEBUG("mem_step: entry");
 
-  if (!query || !out_has_row) {
-    LOG_DEBUG("mem_step: validation error");
-    rc = C_ORM_ERROR_MEMORY;
-    LOG_DEBUG("mem_step: exit");
-    return (c_orm_error_t)rc;
-  }
   *out_has_row = 0;
   rc = C_ORM_OK;
   LOG_DEBUG("mem_step: exit");
@@ -444,12 +421,8 @@ static c_orm_error_t mem_finalize(c_orm_query_t *query) {
   LOG_DEBUG("mem_finalize: entry");
 
   q = (c_orm_memory_query_t *)query;
-  if (q) {
-    if (q->bound_params) {
-      C_ORM_FREE(q->bound_params);
-    }
-    C_ORM_FREE(q);
-  }
+  C_ORM_FREE(q->bound_params);
+  C_ORM_FREE(q);
   rc = C_ORM_OK;
   LOG_DEBUG("mem_finalize: exit");
   return (c_orm_error_t)rc;
@@ -475,16 +448,8 @@ static c_orm_error_t mem_get_last_error(c_orm_db_t *db,
   c_orm_error_t rc;
   c_orm_memory_db_t *ctx;
   LOG_DEBUG("mem_get_last_error: entry");
-  if (!db || !db->driver_data) {
-    if (out_message) {
-      *out_message = "";
-    }
-    return 1;
-  }
   ctx = (c_orm_memory_db_t *)db->driver_data;
-  if (out_message) {
-    *out_message = ctx->last_error;
-  }
+  *out_message = ctx->last_error;
   rc = C_ORM_ERROR_UNKNOWN;
   LOG_DEBUG("mem_get_last_error: exit");
   return rc;

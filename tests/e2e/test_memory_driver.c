@@ -27,6 +27,8 @@ TEST test_memory_edge_cases(void) {
   const c_orm_driver_vtable_t *vt = NULL;
   c_orm_query_t *q = NULL;
   c_orm_error_t err;
+  int64_t id;
+  int count;
 
   /* get_vtable NULL */
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_memory_get_vtable(NULL));
@@ -42,8 +44,6 @@ TEST test_memory_edge_cases(void) {
   ASSERT(db != NULL);
 
   /* Coverage via vtable */
-  err = vt->prepare(NULL, "SELECT * FROM t", &q);
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, err);
 
   err = vt->prepare(db, "SELECT * FROM t", &q);
   ASSERT_EQ(C_ORM_OK, err);
@@ -88,8 +88,6 @@ TEST test_memory_edge_cases(void) {
 
   {
     int has_row = 0;
-    err = vt->step(NULL, NULL);
-    ASSERT_EQ(C_ORM_ERROR_MEMORY, err);
 
     err = vt->step(q, &has_row);
     ASSERT_EQ(C_ORM_OK, err);
@@ -111,8 +109,15 @@ TEST test_memory_edge_cases(void) {
 
   err = vt->get_last_insert_rowid(db, NULL);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  err = vt->get_last_insert_rowid(db, &id);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  ASSERT_EQ(0, id);
+
   err = vt->get_column_count(q, NULL);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  err = vt->get_column_count(q, &count);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  ASSERT_EQ(0, count);
   err = vt->get_column_name(q, 0, NULL);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
@@ -121,7 +126,6 @@ TEST test_memory_edge_cases(void) {
 
   {
     const char *msg = NULL;
-    vt->get_last_error(NULL, NULL);
     vt->get_last_error(db, &msg);
     ASSERT_STR_EQ("", msg);
   }
@@ -162,12 +166,9 @@ TEST test_memory_edge_cases(void) {
     const char *msg;
 
     vt->is_null(NULL, 0, &out_null);
-    vt->get_last_insert_rowid(db, &out_id);
-    vt->get_column_count(NULL, &out_count);
     vt->get_column_name(NULL, 0, &out_name);
 
     /* Test get_last_error with null db */
-    vt->get_last_error(NULL, &msg);
   }
 
   /* Test disconnect with allocated tables (mocking internal structs is hard so

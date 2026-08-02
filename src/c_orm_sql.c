@@ -268,8 +268,20 @@ struct SqlParserState {
   struct sql_parse_error_t *out_error;
 };
 
+static int g_parser_fail_countdown = -1;
+C_ORM_EXPORT c_orm_error_t c_orm_parser_set_fail(int count) {
+  g_parser_fail_countdown = count;
+  return C_ORM_OK;
+}
+
 static c_orm_error_t sql_parser_peek(struct SqlParserState *state,
                                      struct sql_token_t **_out_val) {
+  if (g_parser_fail_countdown == 0) {
+    g_parser_fail_countdown--;
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  if (g_parser_fail_countdown > 0)
+    g_parser_fail_countdown--;
   size_t c = state->cursor;
   while (c < state->list->size &&
          state->list->tokens[c].kind == SQL_TOKEN_WHITESPACE) {
@@ -288,6 +300,12 @@ static c_orm_error_t sql_parser_peek(struct SqlParserState *state,
 }
 
 static c_orm_error_t sql_parser_consume(struct SqlParserState *state) {
+  if (g_parser_fail_countdown == 0) {
+    g_parser_fail_countdown--;
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  if (g_parser_fail_countdown > 0)
+    g_parser_fail_countdown--;
   while (state->cursor < state->list->size &&
          state->list->tokens[state->cursor].kind == SQL_TOKEN_WHITESPACE) {
     state->cursor++;
@@ -1430,6 +1448,8 @@ c_orm_error_t sql_parse_select(const struct sql_token_list_t *list,
   if (out_proj) {
     *out_proj = (struct CddCQueryProjection *)C_ORM_MALLOC(
         sizeof(struct CddCQueryProjection));
+    if (!*out_proj)
+      return C_ORM_ERROR_MEMORY;
     if (*out_proj) {
       {
         c_orm_error_t _e =
@@ -1453,6 +1473,8 @@ c_orm_error_t sql_parse_returning(const struct sql_token_list_t *list,
   if (out_proj) {
     *out_proj = (struct CddCQueryProjection *)C_ORM_MALLOC(
         sizeof(struct CddCQueryProjection));
+    if (!*out_proj)
+      return C_ORM_ERROR_MEMORY;
     if (*out_proj) {
       {
         c_orm_error_t _e =

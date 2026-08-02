@@ -251,16 +251,13 @@ TEST test_query_builder_oom(void) {
   rel.foreign_key = "pid";
 
   /* Trigger all combinations of c_orm_string_builder_append OOMs. */
-  for (i = 0; i < 2; i++) {
+  for (i = 0; i < 40; i++) {
     c_orm_select_builder_t *b = NULL;
     char *sql = NULL;
 
-    c_orm_set_allocators(qb_mock_malloc, c_orm_realloc, c_orm_free);
-    c_orm_set_allocators(c_orm_malloc, qb_mock_realloc, c_orm_free);
-    c_orm_set_allocators(c_orm_malloc, c_orm_realloc, qb_mock_free);
-
     oom_countdown = i;
     oom_active = 1;
+    c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, c_orm_free);
 
     if (c_orm_select_builder_init(&meta, &b) == 0 && b) {
       c_orm_select_where_eq(b, "id");
@@ -278,7 +275,7 @@ TEST test_query_builder_oom(void) {
 
       c_orm_select_builder_compile(b, &sql);
       if (sql)
-        C_ORM_FREE(sql);
+        c_orm_free(sql);
 
       c_orm_select_builder_free(b);
     } else if (b) {
@@ -286,11 +283,7 @@ TEST test_query_builder_oom(void) {
     }
 
     oom_active = 0;
-    if (oom_countdown >= 0)
-      break;
-    c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
-    c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
-    c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
+    c_orm_set_allocators(old_malloc, old_realloc, old_free);
   }
 
   for (i = 0; i < 2; i++) {
@@ -988,7 +981,170 @@ TEST test_query_builder_oom(void) {
   PASS();
 }
 
+TEST qb_exhaustive_oom_all(void) {
+  void *(*old_malloc)(size_t) = c_orm_malloc;
+  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
+  void (*old_free)(void *) = c_orm_free;
+  int pad, oom, extra;
+
+  for (extra = 0; extra < 5; extra++) {
+    c_orm_column_meta_t target_col;
+    c_orm_table_meta_t target_meta;
+    c_orm_relation_meta_t rel_arr[2];
+    char tgt_name[64];
+
+    memset(&target_col, 0, sizeof(target_col));
+    target_col.name = "id";
+    target_col.is_pk = 1;
+
+    memset(tgt_name, 'R', extra);
+    strcpy(tgt_name + extra, "target_tbl");
+
+    memset(&target_meta, 0, sizeof(target_meta));
+    target_meta.name = tgt_name;
+    target_meta.columns = &target_col;
+    target_meta.num_columns = 1;
+
+    memset(rel_arr, 0, sizeof(rel_arr));
+    rel_arr[0].field_name = "my_rel";
+    rel_arr[0].target_meta = &target_meta;
+    rel_arr[0].type = C_ORM_RELATION_ONE_TO_MANY;
+    rel_arr[0].local_key = "id";
+    rel_arr[0].foreign_key = "pid";
+
+    rel_arr[1].field_name = "m2m_rel";
+    rel_arr[1].target_meta = &target_meta;
+    rel_arr[1].type = C_ORM_RELATION_MANY_TO_MANY;
+    rel_arr[1].join_table = "join_tbl";
+    rel_arr[1].join_foreign_key = "fk";
+    rel_arr[1].join_local_key = "lk";
+    rel_arr[1].local_key = "id";
+    rel_arr[1].foreign_key = "pid";
+
+    for (pad = 0; pad < 512; pad++) {
+      char tname[513];
+      c_orm_table_meta_t meta;
+      memset(tname, 'T', pad);
+      tname[pad] = '\0';
+      memset(&meta, 0, sizeof(meta));
+      meta.name = tname;
+      meta.relations = rel_arr;
+      meta.num_relations = 2;
+
+      for (oom = 0; oom < 35; oom++) {
+        c_orm_select_builder_t *b = NULL;
+        c_orm_update_builder_t *ub = NULL;
+
+        if (c_orm_select_builder_init(&meta, &b) == 0 && b) {
+          c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, c_orm_free);
+          oom_countdown = oom;
+          oom_active = 1;
+          c_orm_select_where_in(b, "id9", 3);
+          oom_active = 0;
+          c_orm_set_allocators(old_malloc, old_realloc, old_free);
+          c_orm_select_builder_free(b);
+        }
+        if (c_orm_select_builder_init(&meta, &b) == 0 && b) {
+          c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, c_orm_free);
+          oom_countdown = oom;
+          oom_active = 1;
+          c_orm_select_where_relation(b, "m2m_rel.id", "=");
+          oom_active = 0;
+          c_orm_set_allocators(old_malloc, old_realloc, old_free);
+          c_orm_select_builder_free(b);
+        }
+        if (c_orm_select_builder_init(&meta, &b) == 0 && b) {
+          c_orm_select_order_by(b, "created_at", 1);
+          c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, c_orm_free);
+          oom_countdown = oom;
+          oom_active = 1;
+          c_orm_select_order_by(b, "updated_at", 0);
+          oom_active = 0;
+          c_orm_set_allocators(old_malloc, old_realloc, old_free);
+          c_orm_select_builder_free(b);
+        }
+        if (c_orm_update_builder_init(&meta, &ub) == 0 && ub) {
+          c_orm_update_where_eq(ub, "id");
+          c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, c_orm_free);
+          oom_countdown = oom;
+          oom_active = 1;
+          c_orm_update_where_eq(ub, "id2");
+          oom_active = 0;
+          c_orm_set_allocators(old_malloc, old_realloc, old_free);
+          c_orm_update_builder_free(ub);
+        }
+        if (c_orm_select_builder_init(&meta, &b) == 0 && b) {
+          c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, c_orm_free);
+          oom_countdown = oom;
+          oom_active = 1;
+          c_orm_select_where_gt_current_timestamp(b, "ts");
+          oom_active = 0;
+          c_orm_set_allocators(old_malloc, old_realloc, old_free);
+          c_orm_select_builder_free(b);
+        }
+        if (c_orm_select_builder_init(&meta, &b) == 0 && b) {
+          c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, c_orm_free);
+          oom_countdown = oom;
+          oom_active = 1;
+          c_orm_select_where_lt_current_timestamp(b, "ts");
+          oom_active = 0;
+          c_orm_set_allocators(old_malloc, old_realloc, old_free);
+          c_orm_select_builder_free(b);
+        }
+        if (c_orm_select_builder_init(&meta, &b) == 0 && b) {
+          c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, c_orm_free);
+          oom_countdown = oom;
+          oom_active = 1;
+          c_orm_select_group_by(b, "cat");
+          oom_active = 0;
+          c_orm_set_allocators(old_malloc, old_realloc, old_free);
+          c_orm_select_builder_free(b);
+        }
+        if (c_orm_select_builder_init(&meta, &b) == 0 && b) {
+          c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, c_orm_free);
+          oom_countdown = oom;
+          oom_active = 1;
+          c_orm_select_having(b, "COUNT(id) > 1");
+          oom_active = 0;
+          c_orm_set_allocators(old_malloc, old_realloc, old_free);
+          c_orm_select_builder_free(b);
+        }
+        if (c_orm_select_builder_init(&meta, &b) == 0 && b) {
+          c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, c_orm_free);
+          oom_countdown = oom;
+          oom_active = 1;
+          c_orm_select_limit(b, 10);
+          oom_active = 0;
+          c_orm_set_allocators(old_malloc, old_realloc, old_free);
+          c_orm_select_builder_free(b);
+        }
+        if (c_orm_select_builder_init(&meta, &b) == 0 && b) {
+          c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, c_orm_free);
+          oom_countdown = oom;
+          oom_active = 1;
+          c_orm_select_offset(b, 20);
+          oom_active = 0;
+          c_orm_set_allocators(old_malloc, old_realloc, old_free);
+          c_orm_select_builder_free(b);
+        }
+        if (c_orm_select_builder_init(&meta, &b) == 0 && b) {
+          c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, c_orm_free);
+          oom_countdown = oom;
+          oom_active = 1;
+          c_orm_select_aggregate(b, "COUNT", "col1", "count");
+          c_orm_select_aggregate(b, "SUM", "col2", "total");
+          oom_active = 0;
+          c_orm_set_allocators(old_malloc, old_realloc, old_free);
+          c_orm_select_builder_free(b);
+        }
+      }
+    }
+  }
+  PASS();
+}
+
 SUITE(query_builder_coverage_suite) {
   RUN_TEST(test_query_builder_coverage);
   RUN_TEST(test_query_builder_oom);
+  RUN_TEST(qb_exhaustive_oom_all);
 }

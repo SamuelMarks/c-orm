@@ -309,6 +309,13 @@ TEST test_cache_finalize_args(void) {
   ASSERT_EQ(C_ORM_OK,
             c_orm_finalize_cached(&mock_db, (c_orm_query_t *)not_in_cache));
 
+  /* finalize something not in cache with fail */
+  not_in_cache = (mock_query_t *)malloc(sizeof(mock_query_t));
+  mock_finalize_fail = 1;
+  ASSERT_EQ(C_ORM_ERROR_SQL,
+            c_orm_finalize_cached(&mock_db, (c_orm_query_t *)not_in_cache));
+  mock_finalize_fail = 0;
+
   c_orm_finalize_cached(&mock_db, q);
   c_orm_disable_statement_caching(&mock_db);
   PASS();

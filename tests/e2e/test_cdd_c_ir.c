@@ -98,9 +98,14 @@ TEST test_cdd_c_ir_parse_sql_failure(void) {
   ASSERT_EQ(C_ORM_OK,
             parse_sql_into_ir("select * from not_create_table;", &ir));
 
+  /* parser failure */
+  ASSERT(parse_sql_into_ir("CREATE TABLE x (id);", &ir) != C_ORM_OK);
+
   cdd_c_ir_free(&ir);
   PASS();
 }
+
+#include "test_cdd_c_ir_oom.h"
 
 SUITE(cdd_c_ir_suite) {
   RUN_TEST(test_cdd_c_ir_basic);
@@ -108,4 +113,5 @@ SUITE(cdd_c_ir_suite) {
   RUN_TEST(test_cdd_c_ir_projection);
   RUN_TEST(test_cdd_c_ir_alloc);
   RUN_TEST(test_cdd_c_ir_parse_sql_failure);
+  RUN_TEST(test_cdd_c_ir_oom);
 }

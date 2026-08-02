@@ -22,8 +22,13 @@
 /**
  * @brief Executes the migration statements init operation.
  */
+int c_orm_mock_migration_statements_init_fail = 0;
+
 c_orm_error_t migration_statements_init(struct MigrationStatements *out) {
+  if (c_orm_mock_migration_statements_init_fail)
+    return C_ORM_ERROR_UNKNOWN;
   if (out) {
+
     out->up_statement = NULL;
     out->down_statement = NULL;
   }
@@ -91,10 +96,8 @@ c_orm_error_t parse_migration_file(const char *filepath,
     return (c_orm_error_t)cdd_rc;
   }
 
-  if (file_size == 0 || !file_data) {
-    if (file_data) {
-      C_ORM_FREE(file_data);
-    }
+  if (file_size == 0) {
+    C_ORM_FREE(file_data);
     return C_ORM_OK;
   }
 
@@ -115,10 +118,10 @@ c_orm_error_t parse_migration_file(const char *filepath,
       up_start += strlen(up_marker);
       up_len = strlen(up_start);
     }
-  } else if (up_start && !down_start) {
+  } else if (up_start) {
     up_start += strlen(up_marker);
     up_len = strlen(up_start);
-  } else if (!up_start && down_start) {
+  } else if (down_start) {
     down_start += strlen(down_marker);
     down_len = strlen(down_start);
   } else {

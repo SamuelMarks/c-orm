@@ -305,18 +305,10 @@ TEST test_cli_sql2c(void) {
   rc = c_orm_cli_main(2, (char **)argv1);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
-  if (setjmp(cli_exit_env) == 0) {
-    rc = c_orm_cli_main(4, (char **)argv2);
-  } else {
-    rc = cli_exit_code;
-  }
+  rc = c_orm_cli_main(4, (char **)argv2);
   ASSERT_EQ(C_ORM_OK, rc);
 
-  if (setjmp(cli_exit_env) == 0) {
-    rc = c_orm_cli_main(4, (char **)argv3);
-  } else {
-    rc = cli_exit_code;
-  }
+  rc = c_orm_cli_main(4, (char **)argv3);
   printf("RC WAS %d\n", rc);
   printf("CLI MAIN RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);

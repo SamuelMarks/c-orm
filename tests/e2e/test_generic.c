@@ -164,6 +164,7 @@ TEST test_c_orm_alloc(void) {
   char *dup = (char *)1;
   ASSERT_EQ(0, c_orm_strdup(NULL, &dup));
   ASSERT_EQ(NULL, dup);
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_strdup("abc", NULL));
   PASS();
 }
 

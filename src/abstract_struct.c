@@ -31,22 +31,26 @@ static size_t cdd_c_memory_freed = 0;
 
 static c_orm_error_t cdd_c_malloc(size_t size, void **out_ptr) {
   void *ptr;
-  ptr = malloc(size);
+  ptr = C_ORM_MALLOC(size);
   if (ptr)
     cdd_c_memory_allocated += size;
-  else
+  else {
+    *out_ptr = NULL;
     return ENOMEM;
+  }
   *out_ptr = ptr;
   return 0;
 }
 
 static c_orm_error_t cdd_c_realloc(void *ptr, size_t size, void **out_ptr) {
   void *new_ptr;
-  new_ptr = realloc(ptr, size);
+  new_ptr = C_ORM_REALLOC(ptr, size);
   if (new_ptr && !ptr)
     cdd_c_memory_allocated += size; /* Rough estimate */
-  if (!new_ptr && size != 0)
+  if (!new_ptr && size != 0) {
+    *out_ptr = NULL;
     return ENOMEM;
+  }
   *out_ptr = new_ptr;
   return 0;
 }
@@ -54,7 +58,7 @@ static c_orm_error_t cdd_c_realloc(void *ptr, size_t size, void **out_ptr) {
 static void cdd_c_free(void *ptr) {
   if (ptr) {
     cdd_c_memory_freed++; /* Just tracking calls for simple detection */
-    free(ptr);
+    C_ORM_FREE(ptr);
   }
 }
 
@@ -84,9 +88,9 @@ cdd_c_abstract_struct_array_init(cdd_c_abstract_struct_array_t *arr,
   arr->count = 0;
   arr->capacity = capacity;
   if (capacity > 0) {
-    cdd_c_malloc(arr->capacity * sizeof(cdd_c_abstract_struct_t),
-                 (void **)&arr->items);
-    if (!arr->items)
+    if (cdd_c_malloc(arr->capacity * sizeof(cdd_c_abstract_struct_t),
+                     (void **)&arr->items) != 0 ||
+        !arr->items)
       return EINVAL;
     /* Initialize children to 0 counts so deep frees don't blow up on partial
      * errors */
@@ -106,11 +110,12 @@ cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
     if (arr->capacity > ((size_t)-1) / 2)
       return EINVAL;
     new_cap = arr->capacity == 0 ? 4 : arr->capacity * 2;
+    c_orm_error_t err;
     if (new_cap > ((size_t)-1) / sizeof(cdd_c_abstract_struct_t))
       return EINVAL;
-    cdd_c_realloc(arr->items, new_cap * sizeof(cdd_c_abstract_struct_t),
-                  (void **)&new_items);
-    if (!new_items)
+    err = cdd_c_realloc(arr->items, new_cap * sizeof(cdd_c_abstract_struct_t),
+                        (void **)&new_items);
+    if (err != C_ORM_OK || !new_items)
       return EINVAL;
     arr->items = new_items;
     arr->capacity = new_cap;
@@ -212,9 +217,9 @@ cdd_c_abstract_struct_init_with_capacity(cdd_c_abstract_struct_t *astruct,
   astruct->count = 0;
   astruct->capacity = capacity;
   if (capacity > 0) {
-    cdd_c_malloc(astruct->capacity * sizeof(cdd_c_abstract_struct_kv_t),
-                 (void **)&astruct->kvs);
-    if (!astruct->kvs)
+    if (cdd_c_malloc(astruct->capacity * sizeof(cdd_c_abstract_struct_kv_t),
+                     (void **)&astruct->kvs) != 0 ||
+        !astruct->kvs)
       return EINVAL;
   }
   return 0;
@@ -227,8 +232,7 @@ static c_orm_error_t duplicate_string(const char *src, char **dest) {
     return 0;
   }
   len = strlen(src);
-  cdd_c_malloc(len + 1, (void **)dest);
-  if (!*dest)
+  if (cdd_c_malloc(len + 1, (void **)dest) != 0 || !*dest)
     return EINVAL;
   memcpy(*dest, src, len + 1);
   return 0;
@@ -240,8 +244,7 @@ static c_orm_error_t duplicate_blob(const unsigned char *src, size_t size,
     *dest = NULL;
     return 0;
   }
-  cdd_c_malloc(size, (void **)dest);
-  if (!*dest)
+  if (cdd_c_malloc(size, (void **)dest) != 0 || !*dest)
     return EINVAL;
   memcpy(*dest, src, size);
   return 0;
@@ -302,12 +305,6 @@ static c_orm_error_t copy_variant(cdd_c_variant_t *dest,
 static c_orm_error_t hash_string(const char *str, unsigned long *out_hash) {
   unsigned long hash = 5381;
   int c;
-  if (!out_hash)
-    return C_ORM_ERROR_VALIDATION;
-  if (!str) {
-    *out_hash = 0;
-    return C_ORM_OK;
-  }
   while ((c = *str++)) {
     hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
   }
@@ -325,9 +322,7 @@ c_orm_error_t cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct,
   if (!astruct || !key || !value)
     return EINVAL;
 
-  err = hash_string(key, &khash);
-  if (err != C_ORM_OK)
-    return err;
+  hash_string(key, &khash);
 
   for (i = 0; i < astruct->count; ++i) {
     if (astruct->kvs[i].key_hash == khash &&
@@ -339,14 +334,12 @@ c_orm_error_t cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct,
 
   if (astruct->count >= astruct->capacity) {
     size_t new_cap;
-    if (astruct->capacity > ((size_t)-1) / 2)
-      return EINVAL;
     new_cap = astruct->capacity == 0 ? 4 : astruct->capacity * 2;
-    if (new_cap > ((size_t)-1) / sizeof(cdd_c_abstract_struct_kv_t))
-      return EINVAL;
-    cdd_c_realloc(astruct->kvs, new_cap * sizeof(cdd_c_abstract_struct_kv_t),
-                  (void **)&new_kvs);
-    if (!new_kvs)
+    c_orm_error_t err;
+    err = cdd_c_realloc(astruct->kvs,
+                        new_cap * sizeof(cdd_c_abstract_struct_kv_t),
+                        (void **)&new_kvs);
+    if (err != C_ORM_OK || !new_kvs)
       return EINVAL;
     astruct->kvs = new_kvs;
     astruct->capacity = new_cap;
@@ -374,9 +367,7 @@ c_orm_error_t cdd_c_abstract_get(const cdd_c_abstract_struct_t *astruct,
   if (!astruct || !key || !out_value)
     return EINVAL;
 
-  err = hash_string(key, &khash);
-  if (err != C_ORM_OK)
-    return err;
+  hash_string(key, &khash);
 
   for (i = 0; i < astruct->count; ++i) {
     if (astruct->kvs[i].key_hash == khash &&
@@ -395,8 +386,7 @@ cdd_c_abstract_struct_deep_copy(cdd_c_abstract_struct_t *dest,
   if (!dest || !src)
     return EINVAL;
 
-  if (cdd_c_abstract_struct_init(dest) != 0)
-    return EINVAL;
+  cdd_c_abstract_struct_init(dest);
 
   for (i = 0; i < src->count; ++i) {
     if (cdd_c_abstract_set(dest, src->kvs[i].key, &src->kvs[i].value) != 0) {
@@ -519,8 +509,7 @@ cdd_c_abstract_struct_from_json(const char *json_str,
   if (!json_str || !out_astruct)
     return EINVAL;
 
-  if (cdd_c_abstract_struct_init(out_astruct) != 0)
-    return EINVAL;
+  cdd_c_abstract_struct_init(out_astruct);
 
   root_val = json_parse_string(json_str);
   if (!root_val)
@@ -639,8 +628,7 @@ cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
   if (!out_astruct || !s)
     return EINVAL;
 
-  if (cdd_c_abstract_struct_init(out_astruct) != 0)
-    return EINVAL;
+  cdd_c_abstract_struct_init(out_astruct);
 
   n_cols = sqlite3_column_count(s);
   for (i = 0; i < n_cols; ++i) {
@@ -697,8 +685,7 @@ c_orm_error_t cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
   if (!out_astruct || !pq_res)
     return EINVAL;
 
-  if (cdd_c_abstract_struct_init(out_astruct) != 0)
-    return EINVAL;
+  cdd_c_abstract_struct_init(out_astruct);
 
   n_cols = PQnfields(pq_res);
   for (i = 0; i < n_cols; ++i) {
@@ -771,8 +758,7 @@ c_orm_error_t cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
   if (!out_astruct || !mysql_row || !mysql_fields)
     return EINVAL;
 
-  if (cdd_c_abstract_struct_init(out_astruct) != 0)
-    return EINVAL;
+  cdd_c_abstract_struct_init(out_astruct);
 
   for (i = 0; i < num_fields; ++i) {
     cdd_c_variant_t variant;
@@ -855,8 +841,7 @@ c_orm_error_t cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
   if (!out_astruct || !in_struct || !meta)
     return EINVAL;
 
-  if (cdd_c_abstract_struct_init(out_astruct) != 0)
-    return EINVAL;
+  cdd_c_abstract_struct_init(out_astruct);
 
   for (i = 0; i < meta->num_props; ++i) {
     const cdd_c_prop_meta_t *prop = &meta->props[i];
@@ -987,8 +972,7 @@ cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
     cdd_c_abstract_struct_t col_def;
     cdd_c_variant_t v_name, v_type, v_notnull, v_pk;
 
-    if (cdd_c_abstract_struct_init(&col_def) != 0)
-      continue;
+    cdd_c_abstract_struct_init(&col_def);
 
     v_name.type = CDD_C_VARIANT_TYPE_STRING;
     v_name.value.s_val = (char *)sqlite3_column_text(stmt, 1);
@@ -1046,8 +1030,7 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
     cdd_c_variant_t v_name, v_type, v_notnull;
     char *name_val, *type_val, *is_nullable_val;
 
-    if (cdd_c_abstract_struct_init(&col_def) != 0)
-      continue;
+    cdd_c_abstract_struct_init(&col_def);
 
     name_val = PQgetvalue(res, i, 0);
     type_val = PQgetvalue(res, i, 1);
@@ -1108,8 +1091,7 @@ cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
     char *null_val = row[2]; /* YES or NO */
     char *key_val = row[3];  /* PRI, MUL, etc */
 
-    if (cdd_c_abstract_struct_init(&col_def) != 0)
-      continue;
+    cdd_c_abstract_struct_init(&col_def);
 
     v_name.type = CDD_C_VARIANT_TYPE_STRING;
     v_name.value.s_val = name_val ? name_val : (char *)"";

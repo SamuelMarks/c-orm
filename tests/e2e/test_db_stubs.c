@@ -275,7 +275,7 @@ TEST test_codegen_coverage(void) {
       }
     }
   }
-  rc = c_orm_codegen_generate(schema_path, ".");
+  rc = c_orm_codegen_generate(schema_path, "test_out");
 
   ASSERT_EQ(C_ORM_OK, rc);
 

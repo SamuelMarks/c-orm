@@ -78,7 +78,7 @@ static void do_codegen(void) {
       fclose(f);
     }
   }
-  c_orm_codegen_generate("oom_schema.sql", ".");
+  c_orm_codegen_generate("oom_schema.sql", "test_out");
 }
 
 TEST test_codegen_oom(void) {
@@ -137,6 +137,53 @@ static void do_cdd_c_ir(void) {
   }
 }
 
+static void do_qb_oom(void) {
+  c_orm_select_builder_t *sb = NULL;
+  c_orm_insert_builder_t *ib = NULL;
+  c_orm_update_builder_t *ub = NULL;
+  c_orm_table_meta_t meta;
+  char *sql = NULL;
+  memset(&meta, 0, sizeof(meta));
+  meta.name = "12345678901234";
+
+  if (c_orm_select_builder_init(&meta, &sb) == C_ORM_OK && sb) {
+    int j;
+    for (j = 0; j < 50; j++)
+      c_orm_select_where_eq(sb, "1234567");
+    c_orm_select_builder_compile(sb, &sql);
+    if (sql) {
+      c_orm_free(sql);
+      sql = NULL;
+    }
+    c_orm_select_builder_free(sb);
+  }
+
+  if (c_orm_insert_builder_init(&meta, &ib) == C_ORM_OK && ib) {
+    c_orm_insert_builder_compile(ib, &sql);
+    if (sql) {
+      c_orm_free(sql);
+      sql = NULL;
+    }
+    c_orm_insert_builder_free(ib);
+  }
+
+  if (c_orm_update_builder_init(&meta, &ub) == C_ORM_OK && ub) {
+    c_orm_update_set(ub, "1234567");
+    c_orm_update_where_eq(ub, "1234567");
+    c_orm_update_builder_compile(ub, &sql);
+    if (sql) {
+      c_orm_free(sql);
+      sql = NULL;
+    }
+    c_orm_update_builder_free(ub);
+  }
+}
+
+TEST test_qb_oom(void) {
+  OOM_TEST(do_qb_oom, 300);
+  PASS();
+}
+
 TEST test_cdd_c_ir_oom(void) {
   OOM_TEST(do_cdd_c_ir, 2);
   PASS();
@@ -147,7 +194,7 @@ SUITE(oom_coverage_suite) {
   void (*old_free)(void *) = c_orm_free;
   void *(*old_realloc)(void *, size_t) = c_orm_realloc;
 
-  c_orm_set_allocators(mock_malloc_oom, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(mock_malloc_oom, mock_realloc_oom, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, mock_free_oom);
   c_orm_set_allocators(c_orm_malloc, mock_realloc_oom, c_orm_free);
   /* Not mocking realloc for now because I need mock_realloc_oom if used, but
@@ -157,6 +204,7 @@ SUITE(oom_coverage_suite) {
   RUN_TEST(test_uuid_oom);
   RUN_TEST(test_string_builder_oom);
   RUN_TEST(test_cdd_c_ir_oom);
+  RUN_TEST(test_qb_oom);
 
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);

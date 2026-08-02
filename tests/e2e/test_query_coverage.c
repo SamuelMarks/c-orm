@@ -1149,6 +1149,334 @@ TEST test_query_sql_oom(void) {
   PASS();
 }
 
+static int bind_fail_countdown = -1;
+static int step_fail_countdown = -1;
+static int fetch_fail_countdown = -1;
+static int fin_fail_countdown = -1;
+
+TEST fluent_exhaustive_oom(void) {
+  void *(*old_malloc)(size_t) = c_orm_malloc;
+  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
+  void (*old_free)(void *) = c_orm_free;
+  int oom, extra, i;
+
+  c_orm_column_meta_t target_col[2];
+  c_orm_table_meta_t target_meta;
+  c_orm_relation_meta_t rel_arr[2];
+  c_orm_table_meta_t meta;
+
+  memset(target_col, 0, sizeof(target_col));
+  target_col[0].name = "id";
+  target_col[0].is_pk = 1;
+  target_col[1].name = "val";
+
+  memset(&target_meta, 0, sizeof(target_meta));
+  target_meta.name = "target_tbl";
+  target_meta.columns = target_col;
+  target_meta.num_columns = 2;
+
+  memset(rel_arr, 0, sizeof(rel_arr));
+  rel_arr[0].field_name = "posts";
+  rel_arr[0].target_meta = &target_meta;
+  rel_arr[0].type = C_ORM_RELATION_ONE_TO_MANY;
+  rel_arr[0].local_key = "id";
+  rel_arr[0].foreign_key = "pid";
+
+  memset(&meta, 0, sizeof(meta));
+  meta.name = "test_table";
+  meta.columns = target_col;
+  meta.num_columns = 2;
+  meta.relations = rel_arr;
+  meta.num_relations = 1;
+
+  for (extra = 0; extra < 5; extra++) {
+    for (oom = 0; oom < 80; oom++) {
+      c_orm_query_t *query = NULL;
+      c_orm_query_t *cloned = NULL;
+      c_orm_query_t *subq = NULL;
+      c_orm_ast_node_t *cond = NULL;
+
+      c_orm_query_new(&subq);
+      if (subq)
+        subq->select_(subq, "*");
+
+      if (c_orm_query_new(&query) == C_ORM_OK) {
+        if (extra == 0) {
+          query->group_by(query, "id");
+          cond = query->eq(query, "id", "123", 0);
+          query->having(query, cond);
+          query->order_by(query, "id", 1);
+          query->limit(query, 10);
+          query->offset(query, 5);
+          cond = query->raw(query, "1=1");
+          cond = query->group(query, cond);
+          query->and_where(query, cond);
+          cond = query->subquery(query, subq, "sub");
+          query->and_where(query, cond);
+          query->union_(query, subq, 0);
+          query->with(query, "w", subq);
+        } else if (extra == 1) {
+          cond = query->func(query, "MAX", "id", "max_id");
+          query->and_where(query, cond);
+          cond = query->cast_(query, "id", "TEXT");
+          query->and_where(query, cond);
+          cond = query->between(query, "id", "1", "10", 0);
+          query->and_where(query, cond);
+          cond = query->exists(query, subq, 0);
+          query->and_where(query, cond);
+          cond = query->window(query, "ROW_NUMBER", "id", "id DESC", "rn");
+          query->and_where(query, cond);
+          cond = query->eq(query, "id", "123", 0);
+          query->join(query, "posts", "INNER JOIN", cond);
+        } else if (extra == 2) {
+          for (i = 0; i < 150; i++)
+            query->offset(query, i);
+        } else if (extra == 3) {
+          query->left_join(query, "posts", NULL);
+          query->right_join(query, "posts", NULL);
+          query->distinct(query);
+          query->from_alias(query, "users", "u");
+          cond = query->is_null(query, "id", 1);
+          query->and_where(query, cond);
+        }
+
+        c_orm_set_allocators(q_mock_malloc, q_mock_realloc, c_orm_free);
+        oom_countdown = oom;
+        oom_active = 1;
+
+        if (query->clone)
+          query->clone(query, &cloned);
+
+        oom_active = 0;
+        c_orm_set_allocators(old_malloc, old_realloc, old_free);
+
+        if (extra == 4) {
+          query->select_(query, "*");
+          c_orm_set_allocators(q_mock_malloc, q_mock_realloc, c_orm_free);
+          oom_countdown = oom;
+          oom_active = 1;
+          query->eager_load(query, &meta, "posts");
+          oom_active = 0;
+          c_orm_set_allocators(old_malloc, old_realloc, old_free);
+        }
+      }
+      if (cloned)
+        c_orm_query_free(cloned);
+      if (query)
+        c_orm_query_free(query);
+      if (subq)
+        c_orm_query_free(subq);
+    }
+  }
+  PASS();
+}
+
+static c_orm_error_t dummy_prepare(c_orm_db_t *db, const char *sql,
+                                   c_orm_query_t **out) {
+  (void)db;
+  (void)sql;
+  *out = (c_orm_query_t *)1;
+  return C_ORM_OK;
+}
+static c_orm_error_t dummy_bind_string(c_orm_query_t *q, int idx,
+                                       const char *s) {
+  (void)q;
+  (void)idx;
+  (void)s;
+  if (bind_fail_countdown == 0) {
+    bind_fail_countdown--;
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  bind_fail_countdown--;
+  return C_ORM_OK;
+}
+static c_orm_error_t dummy_step(c_orm_query_t *q, int *has_row) {
+  (void)q;
+  *has_row = 1;
+  if (step_fail_countdown == 0) {
+    step_fail_countdown--;
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  step_fail_countdown--;
+  return C_ORM_OK;
+}
+static c_orm_error_t dummy_finalize(c_orm_query_t *q) {
+  (void)q;
+  if (fin_fail_countdown == 0) {
+    fin_fail_countdown--;
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  fin_fail_countdown--;
+  return C_ORM_OK;
+}
+static c_orm_error_t dummy_get_int32(c_orm_query_t *query, int index,
+                                     int32_t *val) {
+  (void)query;
+  (void)index;
+  *val = 1;
+  if (fetch_fail_countdown == 0) {
+    fetch_fail_countdown--;
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  fetch_fail_countdown--;
+  return C_ORM_OK;
+}
+static c_orm_error_t dummy_get_string(c_orm_query_t *query, int index,
+                                      const char **val) {
+  (void)query;
+  (void)index;
+  *val = "abc";
+  return C_ORM_OK;
+}
+static c_orm_error_t dummy_get_double(c_orm_query_t *query, int index,
+                                      double *val) {
+  (void)query;
+  (void)index;
+  *val = 1.0;
+  return C_ORM_OK;
+}
+static c_orm_error_t dummy_is_null(c_orm_query_t *query, int index,
+                                   int *out_is_null) {
+  (void)query;
+  (void)index;
+  *out_is_null = 0;
+  return C_ORM_OK;
+}
+
+TEST query_sql_exhaustive_oom(void) {
+  void *(*old_malloc)(size_t) = c_orm_malloc;
+  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
+  void (*old_free)(void *) = c_orm_free;
+  int oom, extra, i;
+  c_orm_query_t *query = NULL;
+  c_orm_ast_node_t *cond = NULL;
+  char *sql = NULL;
+  c_orm_query_params_t params;
+  memset(&params, 0, sizeof(params));
+
+  c_orm_column_meta_t target_col[2];
+  c_orm_table_meta_t meta;
+
+  memset(target_col, 0, sizeof(target_col));
+  target_col[0].name = "id";
+  target_col[0].is_pk = 1;
+  target_col[1].name = "val";
+
+  memset(&meta, 0, sizeof(meta));
+  meta.name = "test_table";
+  meta.columns = target_col;
+  meta.num_columns = 2;
+
+  c_orm_db_t db;
+  c_orm_driver_vtable_t vt;
+  memset(&db, 0, sizeof(db));
+  memset(&vt, 0, sizeof(vt));
+  vt.prepare = dummy_prepare;
+  vt.bind_string = dummy_bind_string;
+  vt.step = dummy_step;
+  vt.finalize = dummy_finalize;
+  vt.get_int32 = dummy_get_int32;
+  vt.get_string = dummy_get_string;
+  vt.get_double = dummy_get_double;
+  vt.is_null = dummy_is_null;
+  db.vtable = &vt;
+
+  for (extra = 0; extra < 9; extra++) {
+    c_orm_query_t *subq = NULL;
+    c_orm_query_new(&subq);
+    if (subq)
+      subq->select_(subq, "*");
+
+    c_orm_query_new(&query);
+    query->select_(query, "*");
+    query->from(query, "t");
+
+    if (extra == 0) {
+      cond = query->between(query, "id", "1", "10", 0);
+      query->where(query, cond);
+    } else if (extra == 1) {
+      for (i = 0; i < 7; i++) {
+        char *buf = c_orm_malloc(16);
+        sprintf(buf, "c%d", i);
+        cond = query->eq(query, buf, "1", 0);
+        query->and_where(query, cond);
+      }
+      cond = query->between(query, "id", "1", "10", 0);
+      query->and_where(query, cond);
+    } else if (extra == 2) {
+      for (i = 0; i < 8; i++) {
+        char *buf = c_orm_malloc(16);
+        sprintf(buf, "c%d", i);
+        cond = query->eq(query, buf, "1", 0);
+        query->and_where(query, cond);
+      }
+      cond = query->eq(query, "id", "1", 0);
+      cond = query->group(query, cond);
+      query->and_where(query, cond);
+    } else if (extra == 3) {
+      cond = query->eq(query, "a", "1", 0);
+      query->where(query, cond);
+    } else if (extra == 4) {
+      query->limit(query, 10);
+    } else if (extra == 5) {
+      query->order_by(query, "id", 0);
+    } else if (extra == 6) {
+      cond = query->exists(query, subq, 0);
+      query->where(query, cond);
+      cond = query->exists(query, subq, 1);
+      query->and_where(query, cond);
+    } else if (extra == 7) {
+      cond = query->subquery(query, subq, "alias");
+      query->where(query, cond);
+    } else if (extra == 8) {
+      query->union_(query, subq, 0);
+      query->with(query, "alias", subq);
+    }
+
+    for (oom = 0; oom < 250; oom++) {
+      c_orm_set_allocators(q_mock_malloc, q_mock_realloc, c_orm_free);
+      oom_countdown = oom;
+      oom_active = 1;
+      fin_fail_countdown = -1;
+      bind_fail_countdown = -1;
+      step_fail_countdown = -1;
+      fetch_fail_countdown = -1;
+
+      if (extra == 3) {
+        c_orm_query_execute(&db, query);
+        fin_fail_countdown = oom % 2;
+        c_orm_query_execute(&db, query);
+        fin_fail_countdown = -1;
+        bind_fail_countdown = oom % 2;
+        c_orm_query_execute(&db, query);
+        bind_fail_countdown = -1;
+        step_fail_countdown = oom % 2;
+        c_orm_query_execute(&db, query);
+        step_fail_countdown = -1;
+      } else if (extra == 4) {
+        c_orm_query_fetch_one(&db, query, &meta, NULL);
+      } else if (extra == 5) {
+        c_orm_query_fetch_all(&db, query, &meta, NULL);
+      } else {
+        c_orm_query_params_init(&params);
+        c_orm_query_to_sql(query, C_ORM_DIALECT_SQLITE, &sql, &params);
+        if (sql) {
+          c_orm_free(sql);
+          sql = NULL;
+        }
+        c_orm_query_params_cleanup(&params);
+      }
+
+      oom_active = 0;
+      c_orm_set_allocators(old_malloc, old_realloc, old_free);
+    }
+    c_orm_query_free(query);
+    if (subq)
+      c_orm_query_free(subq);
+  }
+  PASS();
+}
+
 SUITE(query_fluent_coverage_suite) {
 
   void *(*old_malloc)(size_t) = c_orm_malloc;
@@ -1165,6 +1493,8 @@ SUITE(query_fluent_coverage_suite) {
   RUN_TEST(test_fluent_oom);
   RUN_TEST(test_query_sql_coverage);
   RUN_TEST(test_sql_oom);
+  RUN_TEST(fluent_exhaustive_oom);
+  RUN_TEST(query_sql_exhaustive_oom);
 
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);

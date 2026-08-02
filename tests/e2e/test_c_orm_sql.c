@@ -136,6 +136,11 @@ TEST test_sql_lexer_oom(void) { return test_sql_lexer_oom_impl(); }
 TEST test_sql_parser_errors(void) { PASS(); }
 
 enum greatest_test_res test_sql_parser_missing_keys(void);
+enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void);
+TEST test_sql_parser_exhaustive_oom(void) {
+  return test_sql_parser_exhaustive_oom_impl();
+}
+
 SUITE(sql_suite) {
   RUN_TEST(test_sql_lexer_basic);
   RUN_TEST(test_sql_lexer_types);
@@ -146,4 +151,5 @@ SUITE(sql_suite) {
   RUN_TEST(test_sql_lexer_oom);
   RUN_TEST(test_sql_parser_errors);
   RUN_TEST(test_sql_parser_missing_keys);
+  RUN_TEST(test_sql_parser_exhaustive_oom);
 }

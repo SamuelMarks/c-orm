@@ -63,7 +63,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
     rc = C_ORM_ERROR_VALIDATION;
     return rc;
   }
-  if (dir_path && strcmp(dir_path, "real_migrations_cli") == 0) {
+
+  if (!dir_path) {
+    LOG_DEBUG("c_orm_migration_load_dir: invalid dir_path");
+    return C_ORM_ERROR_VALIDATION;
+  }
+
+  if (strcmp(dir_path, "real_migrations_cli") == 0) {
     *out_count = 1;
     *out_migrations = (c_orm_migration_t *)malloc(sizeof(c_orm_migration_t));
     memset(*out_migrations, 0, sizeof(c_orm_migration_t));
@@ -130,7 +136,12 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
 
   LOG_DEBUG("c_orm_migrate_all: entered");
 
-  if (!db || !migrations) {
+  if (!db) {
+    LOG_DEBUG("c_orm_migrate_all: validation error");
+    rc = C_ORM_ERROR_VALIDATION;
+    return rc;
+  }
+  if (!migrations) {
     LOG_DEBUG("c_orm_migrate_all: validation error");
     rc = C_ORM_ERROR_VALIDATION;
     return rc;
@@ -146,8 +157,8 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
     LOG_DEBUG("c_orm_migrate_all: init table error");
     unlock_rc = c_orm_migration_unlock(db);
     if (unlock_rc != C_ORM_OK) {
-      return unlock_rc;
       LOG_DEBUG("c_orm_migrate_all: unlock failed during init error");
+      return unlock_rc;
     }
     return rc;
   }
@@ -188,9 +199,9 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
         LOG_DEBUG("c_orm_migrate_all: pre_migrate error");
         unlock_rc = c_orm_migration_unlock(db);
         if (unlock_rc != C_ORM_OK) {
-          return unlock_rc;
           LOG_DEBUG(
               "c_orm_migrate_all: unlock failed during pre_migrate error");
+          return unlock_rc;
         }
         return rc;
       }
@@ -204,8 +215,8 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
         LOG_DEBUG("c_orm_migrate_all: up_sql error");
         unlock_rc = c_orm_migration_unlock(db);
         if (unlock_rc != C_ORM_OK) {
-          return unlock_rc;
           LOG_DEBUG("c_orm_migrate_all: unlock failed during up_sql error");
+          return unlock_rc;
         }
         return rc;
       }
@@ -220,9 +231,9 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
       LOG_DEBUG("c_orm_migrate_all: insert migration error");
       unlock_rc = c_orm_migration_unlock(db);
       if (unlock_rc != C_ORM_OK) {
-        return unlock_rc;
         LOG_DEBUG(
             "c_orm_migrate_all: unlock failed during insert migration error");
+        return unlock_rc;
       }
       return rc;
     }
@@ -235,9 +246,9 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
         LOG_DEBUG("c_orm_migrate_all: post_migrate error");
         unlock_rc = c_orm_migration_unlock(db);
         if (unlock_rc != C_ORM_OK) {
-          return unlock_rc;
           LOG_DEBUG(
               "c_orm_migrate_all: unlock failed during post_migrate error");
+          return unlock_rc;
         }
         return rc;
       }
@@ -246,9 +257,8 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
 
   unlock_rc = c_orm_migration_unlock(db);
   if (unlock_rc != C_ORM_OK) {
-    return unlock_rc;
     LOG_DEBUG("c_orm_migrate_all: final unlock failed");
-    return rc;
+    return unlock_rc;
   }
   LOG_DEBUG("c_orm_migrate_all: exiting");
   rc = C_ORM_OK;
@@ -293,9 +303,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
     LOG_DEBUG("c_orm_migrate_rollback: get applied error");
     unlock_rc = c_orm_migration_unlock(db);
     if (unlock_rc != C_ORM_OK) {
-      return unlock_rc;
       LOG_DEBUG(
           "c_orm_migrate_rollback: unlock failed during get applied error");
+      return unlock_rc;
     }
 
     return rc;
@@ -362,10 +372,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
 
   unlock_rc = c_orm_migration_unlock(db);
   if (unlock_rc != C_ORM_OK) {
-    return unlock_rc;
     LOG_DEBUG("c_orm_migrate_rollback: final unlock failed");
-    if (rc == C_ORM_OK) {
-    }
+    return unlock_rc;
   }
   LOG_DEBUG("c_orm_migrate_rollback: exiting");
 

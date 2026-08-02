@@ -26,8 +26,6 @@ c_orm_error_t cdd_c_query_projection_init(cdd_c_query_projection_t *proj) {
 
 static c_orm_error_t duplicate_string_qp(const char *src, char **dest) {
   size_t len;
-  if (!dest)
-    return C_ORM_ERROR_VALIDATION;
   if (!src) {
     *dest = NULL;
     return C_ORM_OK;

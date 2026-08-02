@@ -35,9 +35,9 @@ __declspec(dllimport) int __stdcall QueryPerformanceFrequency(LARGE_INTEGER *lpF
 #ifdef C_ORM_ENABLE_SQLITE
 #if defined(_MSC_VER)
 #pragma warning(push)
-#pragma warning(disable                                                        \
-                : 4306) /* 'type cast' : conversion from 'int' to              \
-                           'sqlite3_destructor_type' of greater size */
+#pragma warning(                                                               \
+    disable : 4306) /* 'type cast' : conversion from 'int' to                  \
+                       'sqlite3_destructor_type' of greater size */
 #endif
 #endif
 

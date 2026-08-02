@@ -337,8 +337,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
  * @return The byte value.
  */
 static c_orm_error_t hex_to_byte(char c, unsigned char *out) {
-  if (!out)
-    return C_ORM_ERROR_VALIDATION;
   if (c >= '0' && c <= '9') {
     *out = (unsigned char)(c - '0');
     return C_ORM_OK;
@@ -569,24 +567,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
     return C_ORM_ERROR_VALIDATION;
   }
 
-  v_rc = c_orm_sqlite_get_vtable(&sqlite_vt);
-  if (v_rc != C_ORM_OK) {
-    if (v_rc != C_ORM_ERROR_NOT_IMPLEMENTED)
-      return v_rc;
-    sqlite_vt = NULL;
-  }
-  v_rc = c_orm_postgres_get_vtable(&pg_vt);
-  if (v_rc != C_ORM_OK) {
-    if (v_rc != C_ORM_ERROR_NOT_IMPLEMENTED)
-      return v_rc;
-    pg_vt = NULL;
-  }
-  v_rc = c_orm_mysql_get_vtable(&my_vt);
-  if (v_rc != C_ORM_OK) {
-    if (v_rc != C_ORM_ERROR_NOT_IMPLEMENTED)
-      return v_rc;
-    my_vt = NULL;
-  }
+  sqlite_vt = NULL;
+  c_orm_sqlite_get_vtable(&sqlite_vt);
+
+  pg_vt = NULL;
+  c_orm_postgres_get_vtable(&pg_vt);
+
+  my_vt = NULL;
+  c_orm_mysql_get_vtable(&my_vt);
 
   if (sqlite_vt && db->vtable == sqlite_vt) {
     rc = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS users ("
@@ -1010,6 +998,7 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
     rc = db->vtable->bind_string(query, 2, token->refresh_token);
     if (rc != C_ORM_OK)
       goto out;
+  } else {
     rc = db->vtable->bind_null(query, 2);
     if (rc != C_ORM_OK)
       goto out;
@@ -1019,6 +1008,7 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
     rc = db->vtable->bind_string(query, 3, token->token_type);
     if (rc != C_ORM_OK)
       goto out;
+  } else {
     rc = db->vtable->bind_null(query, 3);
     if (rc != C_ORM_OK)
       goto out;
@@ -1036,6 +1026,7 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
     rc = db->vtable->bind_string(query, 6, token->user_id);
     if (rc != C_ORM_OK)
       goto out;
+  } else {
     rc = db->vtable->bind_null(query, 6);
     if (rc != C_ORM_OK)
       goto out;
@@ -1045,6 +1036,7 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
     rc = db->vtable->bind_string(query, 7, token->scopes);
     if (rc != C_ORM_OK)
       goto out;
+  } else {
     rc = db->vtable->bind_null(query, 7);
     if (rc != C_ORM_OK)
       goto out;
@@ -1090,6 +1082,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_get_token(
 
   memset(out_token, 0, sizeof(*out_token));
   rc = c_orm_find_by_id_string(db, &c_orm_token_meta, access_token, out_token);
+  printf("c_orm_oauth2_get_token: c_orm_find_by_id_string returned %d\n", rc);
   if (rc != C_ORM_OK) {
     return rc;
   }
@@ -1237,6 +1230,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
     rc = db->vtable->bind_string(query, 2, auth_code->client_id);
     if (rc != C_ORM_OK)
       goto out;
+  } else {
     rc = db->vtable->bind_null(query, 2);
     if (rc != C_ORM_OK)
       goto out;
@@ -1246,6 +1240,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
     rc = db->vtable->bind_string(query, 3, auth_code->redirect_uri);
     if (rc != C_ORM_OK)
       goto out;
+  } else {
     rc = db->vtable->bind_null(query, 3);
     if (rc != C_ORM_OK)
       goto out;
@@ -1255,6 +1250,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
     rc = db->vtable->bind_string(query, 4, auth_code->user_id);
     if (rc != C_ORM_OK)
       goto out;
+  } else {
     rc = db->vtable->bind_null(query, 4);
     if (rc != C_ORM_OK)
       goto out;
@@ -1268,6 +1264,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
     rc = db->vtable->bind_string(query, 6, auth_code->scopes);
     if (rc != C_ORM_OK)
       goto out;
+  } else {
     rc = db->vtable->bind_null(query, 6);
     if (rc != C_ORM_OK)
       goto out;
@@ -1324,6 +1321,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: auth code not found");
     {
       c_orm_error_t _rb = c_orm_transaction_rollback(db);
+      printf("CONSUME RB: %d\n", _rb);
       if (_rb != C_ORM_OK)
         return _rb;
     }
@@ -1336,6 +1334,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: delete error");
     {
       c_orm_error_t _rb = c_orm_transaction_rollback(db);
+      printf("CONSUME RB: %d\n", _rb);
       if (_rb != C_ORM_OK)
         return _rb;
     }
@@ -1348,6 +1347,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: commit failed");
     {
       c_orm_error_t _rb = c_orm_transaction_rollback(db);
+      printf("CONSUME RB: %d\n", _rb);
       if (_rb != C_ORM_OK)
         return _rb;
     }
