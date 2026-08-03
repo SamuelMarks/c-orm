@@ -35,9 +35,21 @@ if(WIN32 AND BUILD_SHARED_LIBS)
     endif()
 
     string(REPLACE ";" "\\;" CDD_C_PATH_ENV_ESCAPED "${CDD_C_PATH_ENV}")
+    set(RUN_ENV_VARS PATH="${CDD_C_PATH_ENV_ESCAPED}")
+    if(CMAKE_CROSSCOMPILING AND CMAKE_CROSSCOMPILING_EMULATOR MATCHES "wine")
+        set(WINE_PATH_SEP ";")
+        set(CDD_C_WINEPATH "$ENV{WINEPATH}")
+        foreach(tgt curl CURL::libcurl parson c89stringutils cfs c_cdd c-abstract-http ${C_ORM_SQLITE_TARGET} c-orm c_str_span)
+            if(TARGET ${tgt})
+                set(CDD_C_WINEPATH "$<TARGET_FILE_DIR:${tgt}>${WINE_PATH_SEP}${CDD_C_WINEPATH}")
+            endif()
+        endforeach()
+        string(REPLACE ";" "\\;" FULL_WINEPATH_ESCAPED "${CDD_C_WINEPATH}")
+        list(APPEND RUN_ENV_VARS WINEPATH="${FULL_WINEPATH_ESCAPED}")
+    endif()
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-        COMMAND ${CMAKE_COMMAND} -E env PATH="${CDD_C_PATH_ENV_ESCAPED}" ${CLI_CMD} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E env ${RUN_ENV_VARS} ${CLI_CMD} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
         DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
         COMMENT "Generating C Models from schema.sql using c-orm-cli..."
     )
@@ -48,9 +60,24 @@ else()
         set(CLI_CMD_STATIC $<TARGET_FILE:c-orm-cli>)
     endif()
 
+    set(RUN_ENV_VARS "")
+    if(CMAKE_CROSSCOMPILING AND CMAKE_CROSSCOMPILING_EMULATOR MATCHES "wine")
+        # WINEPATH always uses semicolons to delimit paths
+        set(WINE_PATH_SEP ";")
+        set(CDD_C_WINEPATH "$ENV{WINEPATH}")
+        foreach(tgt curl CURL::libcurl parson c89stringutils cfs c_cdd c-abstract-http ${C_ORM_SQLITE_TARGET} c-orm c_str_span)
+            if(TARGET ${tgt})
+                set(CDD_C_WINEPATH "$<TARGET_FILE_DIR:${tgt}>${WINE_PATH_SEP}${CDD_C_WINEPATH}")
+            endif()
+        endforeach()
+
+        string(REPLACE ";" "\\;" FULL_WINEPATH_ESCAPED "${CDD_C_WINEPATH}")
+        list(APPEND RUN_ENV_VARS WINEPATH="${FULL_WINEPATH_ESCAPED}")
+    endif()
+
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-        COMMAND ${CLI_CMD_STATIC} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E env ${RUN_ENV_VARS} ${CLI_CMD_STATIC} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
         DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
         COMMENT "Generating C Models from schema.sql using c-orm-cli..."
     )
