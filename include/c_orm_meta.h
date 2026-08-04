@@ -79,7 +79,7 @@ typedef unsigned char bool;
 #if defined(_MSC_VER) && _MSC_VER >= 1700
 typedef _Check_return_ enum {
 #else
-typedef enum NO_DISCARD {
+typedef enum {
 #endif
   C_ORM_OK = 0,
   C_ORM_ERROR_MEMORY,
