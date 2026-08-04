@@ -1395,19 +1395,19 @@ TEST query_sql_exhaustive_oom(void) {
       cond = query->between(query, "id", "1", "10", 0);
       query->where(query, cond);
     } else if (extra == 1) {
+      static char bufs1[7][16];
       for (i = 0; i < 7; i++) {
-        char *buf = c_orm_malloc(16);
-        sprintf(buf, "c%d", i);
-        cond = query->eq(query, buf, "1", 0);
+        sprintf(bufs1[i], "c%d", i);
+        cond = query->eq(query, bufs1[i], "1", 0);
         query->and_where(query, cond);
       }
       cond = query->between(query, "id", "1", "10", 0);
       query->and_where(query, cond);
     } else if (extra == 2) {
+      static char bufs2[8][16];
       for (i = 0; i < 8; i++) {
-        char *buf = c_orm_malloc(16);
-        sprintf(buf, "c%d", i);
-        cond = query->eq(query, buf, "1", 0);
+        sprintf(bufs2[i], "c%d", i);
+        cond = query->eq(query, bufs2[i], "1", 0);
         query->and_where(query, cond);
       }
       cond = query->eq(query, "id", "1", 0);

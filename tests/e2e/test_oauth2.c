@@ -35,6 +35,7 @@ static void *m_mock_malloc(size_t size) {
 static void m_mock_free(void *ptr) { free(ptr); }
 
 TEST test_oauth2_json_edge_cases(void) {
+  c_orm_db_t *db = NULL;
   c_orm_oauth2_token_t token;
   memset(&token, 0, sizeof(token));
 
@@ -83,10 +84,15 @@ TEST test_oauth2_json_edge_cases(void) {
   c_orm_oauth2_token_parse_json("{\"expires_in\": abc}", &token);
   c_orm_oauth2_token_parse_json("{\"unknown_key\": \"val\"}", &token);
 
+  if (db && db->vtable && db->vtable->disconnect) {
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
   PASS();
 }
 
 TEST test_oauth2_flat_json(void) {
+  c_orm_db_t *db = NULL;
   c_orm_oauth2_token_t t;
   c_orm_error_t err;
 
@@ -118,10 +124,15 @@ TEST test_oauth2_flat_json(void) {
   c_orm_oauth2_token_parse_json("{\"key\": \"val\\",
                                 &t); /* trailing backslash in value */
 
+  if (db && db->vtable && db->vtable->disconnect) {
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
   PASS();
 }
 
 TEST test_oauth2_crypto(void) {
+  c_orm_db_t *db = NULL;
   char *out = NULL;
   int i;
   c_orm_oauth2_token_t t;
@@ -203,6 +214,10 @@ TEST test_oauth2_crypto(void) {
     remove("c_orm_token.dat");
   }
 
+  if (db && db->vtable && db->vtable->disconnect) {
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
   PASS();
 }
 
@@ -318,7 +333,10 @@ TEST test_oauth2_init(void) {
   }
   fail_sql = 0;
 
-  db->vtable->disconnect(db);
+  if (db && db->vtable && db->vtable->disconnect) {
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
   PASS();
 }
 
@@ -385,11 +403,15 @@ TEST test_oauth2_client(void) {
   c_orm_oauth2_verify_client(db, "no", "no", &is_valid);
   fail_sql = 0;
 
-  db->vtable->disconnect(db);
+  if (db && db->vtable && db->vtable->disconnect) {
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
   PASS();
 }
 
 TEST test_oauth2_scopes(void) {
+  c_orm_db_t *db = NULL;
   int is_valid;
   int i;
   c_orm_oauth2_validate_scope("a b c", "a b", &is_valid);
@@ -410,6 +432,10 @@ TEST test_oauth2_scopes(void) {
   c_orm_oauth2_is_token_valid(NULL, 0, NULL);
   c_orm_oauth2_calculate_expiration(0, 3600, NULL);
 
+  if (db && db->vtable && db->vtable->disconnect) {
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
   PASS();
 }
 TEST test_oauth2_auth_code(void) {
@@ -516,7 +542,10 @@ TEST test_oauth2_auth_code(void) {
   ac.scopes = NULL;
   c_orm_oauth2_save_auth_code(db, &ac);
 
-  db->vtable->disconnect(db);
+  if (db && db->vtable && db->vtable->disconnect) {
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
   PASS();
 }
 
@@ -629,11 +658,15 @@ TEST test_oauth2_token(void) {
   t.scopes = NULL;
   c_orm_oauth2_save_token(db, &t);
 
-  db->vtable->disconnect(db);
+  if (db && db->vtable && db->vtable->disconnect) {
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
   PASS();
 }
 
 TEST test_oauth2_crypto_fail_open(void) {
+  c_orm_db_t *db = NULL;
   c_orm_oauth2_token_t t;
   cfs_path p;
   cfs_size_t rm_out = 0;
@@ -653,6 +686,11 @@ TEST test_oauth2_crypto_fail_open(void) {
 #else
   _rmdir("c_orm_token.dat");
 #endif
+
+  if (db && db->vtable && db->vtable->disconnect) {
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
   PASS();
 }
 
@@ -688,6 +726,7 @@ static c_orm_error_t dummy_finalize(c_orm_query_t *query) {
 }
 
 TEST test_oauth2_init_non_sqlite(void) {
+  c_orm_db_t *db = NULL;
   c_orm_db_t db_dummy;
   c_orm_driver_vtable_t dummy_vt;
   c_orm_error_t err;
@@ -708,10 +747,16 @@ TEST test_oauth2_init_non_sqlite(void) {
   err = c_orm_oauth2_create_tables(&db_dummy);
 
   dummy_finalize(NULL);
+
+  if (db && db->vtable && db->vtable->disconnect) {
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
   PASS();
 }
 
 TEST test_oauth2_null_args(void) {
+  c_orm_db_t *db = NULL;
   c_orm_oauth2_save_token(NULL, NULL);
   c_orm_oauth2_get_token(NULL, NULL, NULL);
   c_orm_oauth2_revoke_token(NULL, NULL);
@@ -732,16 +777,27 @@ TEST test_oauth2_null_args(void) {
   c_orm_oauth2_token_parse_json(NULL, NULL);
   c_orm_user_verify_credentials(NULL, NULL, NULL, NULL);
   c_orm_oauth2_cleanup_expired_tokens(NULL, 0);
+
+  if (db && db->vtable && db->vtable->disconnect) {
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
   PASS();
 }
 
 TEST test_oauth2_valid_token(void) {
+  c_orm_db_t *db = NULL;
   c_orm_oauth2_token_t t;
   int i;
   memset(&t, 0, sizeof(t));
   t.created_at = 9999999999;
   t.expires_in = 3600;
   c_orm_oauth2_is_token_valid(&t, 0, &i);
+
+  if (db && db->vtable && db->vtable->disconnect) {
+    db->vtable->disconnect(db);
+    db = NULL;
+  }
   PASS();
 }
 SUITE(oauth2_suite) {

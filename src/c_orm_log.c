@@ -14,12 +14,9 @@ C_ORM_EXPORT void c_orm_log_debug(const char *fmt, ...) {
   va_start(args, fmt);
   fprintf(stderr, "[DEBUG] ");
 #if defined(__clang__) || defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
   vfprintf(stderr, fmt, args);
 #if defined(__clang__) || defined(__GNUC__)
-#pragma GCC diagnostic pop
 #endif
   fprintf(stderr, "\n");
   va_end(args);

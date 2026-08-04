@@ -55,7 +55,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
   sql_size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
-  if (sql_size > 0) {
+  if (sql_size > 0 && sql_size < 2147483647) {
     sql_data = (char *)C_ORM_MALLOC((size_t)sql_size + 1);
     if (!sql_data) {
       LOG_DEBUG("c_orm_codegen_generate: OOM");

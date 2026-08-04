@@ -96,7 +96,6 @@ static c_orm_error_t mock_reset(c_orm_query_t *query) {
 
 static c_orm_error_t mock_finalize(c_orm_query_t *query) {
   if (mock_finalize_fail) {
-    C_ORM_FREE(query); /* Free anyway to avoid memory leak in test */
     return C_ORM_ERROR_SQL;
   }
   C_ORM_FREE(query);
@@ -165,6 +164,9 @@ TEST test_cache_disable(void) {
   mock_finalize_fail = 1;
   ASSERT_EQ(C_ORM_ERROR_SQL, c_orm_disable_statement_caching(&mock_db));
   mock_finalize_fail = 0;
+
+  /* Clean up properly */
+  c_orm_disable_statement_caching(&mock_db);
 
   PASS();
 }
@@ -283,6 +285,7 @@ TEST test_cache_prepare_eviction(void) {
   mock_finalize_fail = 1;
   c_orm_prepare_cached(&mock_db, "SELECT 5", &q5); /* should evict q1 */
   mock_finalize_fail = 0;
+  C_ORM_FREE(q1); /* manually free since mock_finalize failed */
 
   /* Clean up all queries */
   c_orm_finalize_cached(&mock_db, q4);
@@ -315,6 +318,7 @@ TEST test_cache_finalize_args(void) {
   ASSERT_EQ(C_ORM_ERROR_SQL,
             c_orm_finalize_cached(&mock_db, (c_orm_query_t *)not_in_cache));
   mock_finalize_fail = 0;
+  free(not_in_cache);
 
   c_orm_finalize_cached(&mock_db, q);
   c_orm_disable_statement_caching(&mock_db);

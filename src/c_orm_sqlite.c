@@ -34,10 +34,6 @@ __declspec(dllimport) int __stdcall QueryPerformanceFrequency(LARGE_INTEGER *lpF
 
 #ifdef C_ORM_ENABLE_SQLITE
 #if defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(                                                               \
-    disable : 4306) /* 'type cast' : conversion from 'int' to                  \
-                       'sqlite3_destructor_type' of greater size */
 #endif
 #endif
 
@@ -171,7 +167,12 @@ static c_orm_error_t sqlite_disconnect(c_orm_db_t *db) {
   data = (struct sqlite_db_data *)db->driver_data;
   if (data) {
     if (data->db) {
-      sqlite3_close(data->db);
+      sqlite3_stmt *stmt;
+      while ((stmt = sqlite3_next_stmt(data->db, NULL)) != NULL) {
+        sqlite3_finalize(stmt);
+      }
+      sqlite3_close_v2(data->db);
+      data->db = NULL;
     }
     C_ORM_FREE(data);
   }
@@ -1216,5 +1217,4 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle) {
 #endif
 
 #if defined(_MSC_VER)
-#pragma warning(pop)
 #endif

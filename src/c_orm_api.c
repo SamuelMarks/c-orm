@@ -753,8 +753,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_by_composite_key(
   }
 
   rc = c_orm_hydrate_row(db, query, meta, out_struct);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+    if (_fin != C_ORM_OK)
+      return _fin;
     return rc;
+  }
   rc = c_orm_finalize_cached(db, query);
   if (rc != C_ORM_OK)
     return rc;
@@ -4583,8 +4587,12 @@ c_orm_find_by_id_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   }
 
   rc = c_orm_hydrate_row(db, query, meta, out_struct);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+    if (_fin != C_ORM_OK)
+      return _fin;
     return rc;
+  }
   rc = c_orm_finalize_cached(db, query);
   if (rc != C_ORM_OK)
     return rc;
@@ -4671,8 +4679,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_for_update_by_id_int32(
   }
 
   rc = c_orm_hydrate_row(db, query, meta, out_struct);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+    if (_fin != C_ORM_OK)
+      return _fin;
     return rc;
+  }
   rc = c_orm_finalize_cached(db, query);
   if (rc != C_ORM_OK)
     return rc;
@@ -4759,8 +4771,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_for_update_by_id_string(
   }
 
   rc = c_orm_hydrate_row(db, query, meta, out_struct);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+    if (_fin != C_ORM_OK)
+      return _fin;
     return rc;
+  }
   rc = c_orm_finalize_cached(db, query);
   if (rc != C_ORM_OK)
     return rc;
@@ -4890,8 +4906,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_one_by_string(
   c_orm_select_builder_free(builder);
 
   rc = c_orm_prepare_cached(db, sql, &query);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    C_ORM_FREE(sql);
     return rc;
+  }
 
   C_ORM_FREE(sql);
   if (rc != C_ORM_OK) {
@@ -4939,8 +4957,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_one_by_string(
   }
 
   rc = c_orm_hydrate_row(db, query, meta, out_struct);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+    if (_fin != C_ORM_OK)
+      return _fin;
     return rc;
+  }
   rc = c_orm_finalize_cached(db, query);
   if (rc != C_ORM_OK)
     return rc;
@@ -5128,11 +5150,8 @@ c_orm_validate_relations(const c_orm_table_meta_t **tables, size_t num_tables) {
 }
 
 #if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
 #endif
 
 /**
@@ -7826,8 +7845,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_get_generic(c_orm_db_t *db,
   }
 
   rc = c_orm_hydrate_row(db, query, meta, out_struct);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+    if (_fin != C_ORM_OK)
+      return _fin;
     return rc;
+  }
   rc = db->vtable->finalize(query);
   if (rc != C_ORM_OK)
     return rc;
@@ -8082,8 +8105,12 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   }
 
   rc = c_orm_hydrate_row(db, query, meta, out_struct);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    c_orm_error_t _fin = c_orm_finalize_cached(db, query);
+    if (_fin != C_ORM_OK)
+      return _fin;
     return rc;
+  }
   rc = db->vtable->finalize(query);
   if (rc != C_ORM_OK)
     return rc;
@@ -8098,12 +8125,6 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 void c_orm_wasm_init_fs(void (*callback)(int)) {
   c_orm_error_t rc = C_ORM_OK;
 #if defined(__clang__) || defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wc99-extensions"
-#pragma GCC diagnostic ignored "-Wc11-extensions"
-#pragma GCC diagnostic ignored "-Wdollar-in-identifier-extension"
-#pragma GCC diagnostic ignored "-Wvariadic-macro-arguments-omitted"
-#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 
   EM_ASM(
@@ -8128,7 +8149,6 @@ void c_orm_wasm_init_fs(void (*callback)(int)) {
       callback);
 
 #if defined(__clang__) || defined(__GNUC__)
-#pragma GCC diagnostic pop
 #endif
 }
 #endif

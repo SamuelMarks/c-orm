@@ -257,6 +257,7 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
 
         if (sql_parse_table(list, &ast, &err_info) == 0 && ast) {
           sql_table_C_ORM_FREE(ast);
+          c_orm_free(ast);
         }
         sql_token_list_free(list);
       }
@@ -267,6 +268,7 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
         if (sql_parse_table(list, &ast, &err_info) == 0 && ast) {
           c_orm_parser_set_fail(-1);
           sql_table_C_ORM_FREE(ast);
+          c_orm_free(ast);
         }
         c_orm_parser_set_fail(-1);
         sql_token_list_free(list);

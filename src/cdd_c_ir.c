@@ -189,6 +189,7 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
         if (table) {
           rc = cdd_c_ir_add_table(out_ir, table);
           if (rc != C_ORM_OK) {
+            sql_table_C_ORM_FREE(table);
             C_ORM_FREE(table);
             sql_token_list_free(list);
             return rc;
@@ -225,8 +226,10 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
     proj = NULL;
     {
       c_orm_error_t tmp = sql_parse_returning(list, &proj, &err);
-      if (tmp != C_ORM_OK)
+      if (tmp != C_ORM_OK) {
+        sql_token_list_free(list);
         return tmp;
+      }
     }
     if (proj) {
       rc = cdd_c_ir_add_projection(out_ir, proj);

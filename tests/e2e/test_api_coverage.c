@@ -2276,14 +2276,15 @@ TEST test_hydrate_set_null_field(void) {
     my_cols[mega_meta.num_columns - 1].is_nullable = 1;
 
     vt.is_null = mock_is_null_true;
+    test_free_meta_data(&mega_meta, mega_buf);
     c_orm_hydrate_row_from(&db_mem, q, &mega_meta, mega_buf, 0);
 
-    /* Allocate dummy data so test_free_meta_data hits the free branches */
-    *(char **)(void *)(mega_buf + 0) = malloc(1); /* string col */
-    blob_ptr->data = malloc(1);
-    blob_ptr->size = 1;
-    poly_ptr->points = malloc(1);
-    poly_ptr->num_points = 1;
+    if (blob_ptr->data)
+      free(blob_ptr->data);
+    if (poly_ptr->points)
+      free(poly_ptr->points);
+
+    /* Dummy data removed to fix leaks */
 
     test_free_meta_data(&mega_meta, mega_buf);
   }

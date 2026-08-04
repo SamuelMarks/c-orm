@@ -51,8 +51,6 @@ tmp_vcpkg/
 # AI Artifacts & Backups
 *_backup.*
 restored_*.txt
-*.bak
-*.tmp
 greatest.h
 
 llm.txt
@@ -63,7 +61,6 @@ include/libpq-fe.h
 # Added by cdd-c sync
 build*/
 out/
-*.log
 Testing/
 
 # -------------------------------------------------------------------------
@@ -71,28 +68,10 @@ Testing/
 # -------------------------------------------------------------------------
 
 # Any root level files ending in common script extensions you didn't commit
-/*.sh
-/*.ps1
-/*.bat
-/*.cmd
 
 # Patch & diff artifacts
-*.patch
-*.orig
-*.rej
-*.bak
-*.tmp
-*.temp
-*~
 
 # Debug & output logs
-debug_*.txt
-mallocs.txt
-lldb_out.txt
-lldb.log
-*.log
-*.out
-a.out
 
 # macOS / Windows OS artifacts
 .DS_Store

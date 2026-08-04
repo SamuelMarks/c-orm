@@ -31,6 +31,10 @@ static size_t cdd_c_memory_freed = 0;
 
 static c_orm_error_t cdd_c_malloc(size_t size, void **out_ptr) {
   void *ptr;
+  if (size == (size_t)-1 || size > 2147483647) {
+    *out_ptr = NULL;
+    return ENOMEM;
+  }
   ptr = C_ORM_MALLOC(size);
   if (ptr)
     cdd_c_memory_allocated += size;

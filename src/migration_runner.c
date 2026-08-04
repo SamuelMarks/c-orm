@@ -27,12 +27,9 @@
 
 #if defined(USE_LIBPQ_DYNAMIC)
 #if defined(_WIN32)
-#pragma warning(push)
-#pragma warning(disable : 4201 4214)
 #include "win_compat_sym.h"
 #include <winbase.h>
 #include <windef.h>
-#pragma warning(pop)
 #else
 #include <dlfcn.h>
 #endif

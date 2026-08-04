@@ -746,12 +746,16 @@ sql_parse_table_constraint(struct SqlParserState *state,
   out_constraint->n_columns = 0;
 
   rc = sql_parser_match_keyword(state, "PRIMARY", &match1);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    sql_constraint_free_internals(out_constraint);
     return rc;
+  }
   if (match1) {
     rc = sql_parser_match_keyword(state, "KEY", &match2);
-    if (rc != C_ORM_OK)
+    if (rc != C_ORM_OK) {
+      sql_constraint_free_internals(out_constraint);
       return rc;
+    }
     if (!match2) {
       {
         c_orm_error_t _e =
@@ -764,18 +768,24 @@ sql_parse_table_constraint(struct SqlParserState *state,
     out_constraint->type = SQL_CONSTRAINT_PRIMARY_KEY;
   } else {
     rc = sql_parser_match_keyword(state, "UNIQUE", &match1);
-    if (rc != C_ORM_OK)
+    if (rc != C_ORM_OK) {
+      sql_constraint_free_internals(out_constraint);
       return rc;
+    }
     if (match1) {
       out_constraint->type = SQL_CONSTRAINT_UNIQUE;
     } else {
       rc = sql_parser_match_keyword(state, "FOREIGN", &match1);
-      if (rc != C_ORM_OK)
+      if (rc != C_ORM_OK) {
+        sql_constraint_free_internals(out_constraint);
         return rc;
+      }
       if (match1) {
         rc = sql_parser_match_keyword(state, "KEY", &match2);
-        if (rc != C_ORM_OK)
+        if (rc != C_ORM_OK) {
+          sql_constraint_free_internals(out_constraint);
           return rc;
+        }
         if (!match2) {
           {
             c_orm_error_t _e =
@@ -791,8 +801,10 @@ sql_parse_table_constraint(struct SqlParserState *state,
   }
 
   rc = sql_parser_match_kind(state, SQL_TOKEN_LPAREN, NULL, &match1);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    sql_constraint_free_internals(out_constraint);
     return rc;
+  }
   if (!match1) {
     {
       c_orm_error_t _e =
@@ -807,8 +819,10 @@ sql_parse_table_constraint(struct SqlParserState *state,
   while (1) {
     const struct sql_token_t *col_tok = NULL;
     rc = sql_parser_match_kind(state, SQL_TOKEN_IDENTIFIER, &col_tok, &match1);
-    if (rc != C_ORM_OK)
+    if (rc != C_ORM_OK) {
+      sql_constraint_free_internals(out_constraint);
       return rc;
+    }
     if (!match1) {
       sql_constraint_free_internals(out_constraint);
       {
@@ -855,8 +869,10 @@ sql_parse_table_constraint(struct SqlParserState *state,
     }
 
     rc = sql_parser_match_kind(state, SQL_TOKEN_COMMA, NULL, &match1);
-    if (rc != C_ORM_OK)
+    if (rc != C_ORM_OK) {
+      sql_constraint_free_internals(out_constraint);
       return rc;
+    }
     if (match1) {
       continue;
     } else {
@@ -865,8 +881,10 @@ sql_parse_table_constraint(struct SqlParserState *state,
   }
 
   rc = sql_parser_match_kind(state, SQL_TOKEN_RPAREN, NULL, &match1);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    sql_constraint_free_internals(out_constraint);
     return rc;
+  }
   if (!match1) {
     sql_constraint_free_internals(out_constraint);
     {
@@ -880,8 +898,10 @@ sql_parse_table_constraint(struct SqlParserState *state,
 
   if (out_constraint->type == SQL_CONSTRAINT_FOREIGN_KEY) {
     rc = sql_parser_match_keyword(state, "REFERENCES", &match1);
-    if (rc != C_ORM_OK)
+    if (rc != C_ORM_OK) {
+      sql_constraint_free_internals(out_constraint);
       return rc;
+    }
     if (!match1) {
       sql_constraint_free_internals(out_constraint);
       {
@@ -896,8 +916,10 @@ sql_parse_table_constraint(struct SqlParserState *state,
       const struct sql_token_t *ref_table_tok = NULL;
       rc = sql_parser_match_kind(state, SQL_TOKEN_IDENTIFIER, &ref_table_tok,
                                  &match1);
-      if (rc != C_ORM_OK)
+      if (rc != C_ORM_OK) {
+        sql_constraint_free_internals(out_constraint);
         return rc;
+      }
       if (!match1) {
         sql_constraint_free_internals(out_constraint);
         {
@@ -927,14 +949,18 @@ sql_parse_table_constraint(struct SqlParserState *state,
     }
 
     rc = sql_parser_match_kind(state, SQL_TOKEN_LPAREN, NULL, &match1);
-    if (rc != C_ORM_OK)
+    if (rc != C_ORM_OK) {
+      sql_constraint_free_internals(out_constraint);
       return rc;
+    }
     if (match1) {
       const struct sql_token_t *ref_col_tok = NULL;
       rc = sql_parser_match_kind(state, SQL_TOKEN_IDENTIFIER, &ref_col_tok,
                                  &match1);
-      if (rc != C_ORM_OK)
+      if (rc != C_ORM_OK) {
+        sql_constraint_free_internals(out_constraint);
         return rc;
+      }
       if (!match1) {
         sql_constraint_free_internals(out_constraint);
         {
@@ -962,8 +988,10 @@ sql_parse_table_constraint(struct SqlParserState *state,
         out_constraint->reference_column = cname;
       }
       rc = sql_parser_match_kind(state, SQL_TOKEN_RPAREN, NULL, &match1);
-      if (rc != C_ORM_OK)
+      if (rc != C_ORM_OK) {
+        sql_constraint_free_internals(out_constraint);
         return rc;
+      }
       if (!match1) {
         sql_constraint_free_internals(out_constraint);
         {
@@ -1002,8 +1030,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
   }
 
   rc = sql_parser_match_keyword(&state, "CREATE", &match1);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    sql_table_C_ORM_FREE(table);
+    C_ORM_FREE(table);
     return rc;
+  }
   if (!match1) {
     {
       rc = sql_parser_set_error(&state, "Expected 'CREATE'");
@@ -1013,8 +1044,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
     }
   }
   rc = sql_parser_match_keyword(&state, "TABLE", &match1);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    sql_table_C_ORM_FREE(table);
+    C_ORM_FREE(table);
     return rc;
+  }
   if (!match1) {
     {
       rc = sql_parser_set_error(&state, "Expected 'TABLE'");
@@ -1024,8 +1058,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
     }
   }
   rc = sql_parser_match_kind(&state, SQL_TOKEN_IDENTIFIER, &name_tok, &match1);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    sql_table_C_ORM_FREE(table);
+    C_ORM_FREE(table);
     return rc;
+  }
   if (!match1) {
     {
       rc = sql_parser_set_error(&state, "Expected table name");
@@ -1064,8 +1101,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
   table->name[name_tok->length] = '\0';
 
   rc = sql_parser_match_kind(&state, SQL_TOKEN_LPAREN, NULL, &match1);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    sql_table_C_ORM_FREE(table);
+    C_ORM_FREE(table);
     return rc;
+  }
   if (!match1) {
     {
       c_orm_error_t _free_e = sql_table_C_ORM_FREE(table);
@@ -1148,8 +1188,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
       }
 
       rc = sql_parser_match_kind(&state, SQL_TOKEN_COMMA, NULL, &match1);
-      if (rc != C_ORM_OK)
+      if (rc != C_ORM_OK) {
+        sql_table_C_ORM_FREE(table);
+        C_ORM_FREE(table);
         return rc;
+      }
       if (match1) {
         continue;
       } else {
@@ -1160,8 +1203,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
     /* Must be a column definition */
     rc = sql_parser_match_kind(&state, SQL_TOKEN_IDENTIFIER, &col_name_tok,
                                &match1);
-    if (rc != C_ORM_OK)
+    if (rc != C_ORM_OK) {
+      sql_table_C_ORM_FREE(table);
+      C_ORM_FREE(table);
       return rc;
+    }
     if (!match1) {
       {
         c_orm_error_t _free_e = sql_table_C_ORM_FREE(table);
@@ -1269,6 +1315,14 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
             if (parse_rc == C_ORM_ERROR_NOT_FOUND) {
               break;
             }
+            C_ORM_FREE(col.name);
+            if (col.constraints) {
+              size_t _c;
+              for (_c = 0; _c < col.n_constraints; ++_c) {
+                sql_constraint_free_internals(&col.constraints[_c]);
+              }
+              C_ORM_FREE(col.constraints);
+            }
             {
               c_orm_error_t _free_e = sql_table_C_ORM_FREE(table);
               if (_free_e != C_ORM_OK)
@@ -1286,6 +1340,14 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
               constraint_capacity * sizeof(struct sql_constraint_t));
           if (!new_constraints) {
             sql_constraint_free_internals(&constraint);
+            C_ORM_FREE(col.name);
+            if (col.constraints) {
+              size_t _c;
+              for (_c = 0; _c < col.n_constraints; ++_c) {
+                sql_constraint_free_internals(&col.constraints[_c]);
+              }
+              C_ORM_FREE(col.constraints);
+            }
             {
               c_orm_error_t _free_e = sql_table_C_ORM_FREE(table);
               if (_free_e != C_ORM_OK)
@@ -1334,8 +1396,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
     }
 
     rc = sql_parser_match_kind(&state, SQL_TOKEN_COMMA, NULL, &match1);
-    if (rc != C_ORM_OK)
+    if (rc != C_ORM_OK) {
+      sql_table_C_ORM_FREE(table);
+      C_ORM_FREE(table);
       return rc;
+    }
     if (match1) {
       continue;
     } else {
@@ -1344,8 +1409,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
   }
 
   rc = sql_parser_match_kind(&state, SQL_TOKEN_RPAREN, NULL, &match1);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    sql_table_C_ORM_FREE(table);
+    C_ORM_FREE(table);
     return rc;
+  }
   if (!match1) {
     {
       c_orm_error_t _free_e = sql_table_C_ORM_FREE(table);
@@ -1363,8 +1431,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
   }
 
   rc = sql_parser_match_kind(&state, SQL_TOKEN_SEMICOLON, NULL, &match1);
-  if (rc != C_ORM_OK)
+  if (rc != C_ORM_OK) {
+    sql_table_C_ORM_FREE(table);
+    C_ORM_FREE(table);
     return rc;
+  }
   /* Optional semicolon */
 
   *out_table = table;
