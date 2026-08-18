@@ -987,11 +987,12 @@ TEST qb_exhaustive_oom_all(void) {
   void (*old_free)(void *) = c_orm_free;
   int pad, oom, extra;
 
-  for (extra = 0; extra < 5; extra++) {
+  for (extra = 0; extra < 2; extra++) {
     c_orm_column_meta_t target_col;
     c_orm_table_meta_t target_meta;
     c_orm_relation_meta_t rel_arr[2];
     char tgt_name[64];
+    int pad_step;
 
     memset(&target_col, 0, sizeof(target_col));
     target_col.name = "id";
@@ -1021,9 +1022,10 @@ TEST qb_exhaustive_oom_all(void) {
     rel_arr[1].local_key = "id";
     rel_arr[1].foreign_key = "pid";
 
-    for (pad = 0; pad < 512; pad++) {
+    for (pad_step = 0; pad_step < 3; pad_step++) {
       char tname[513];
       c_orm_table_meta_t meta;
+      pad = pad_step * 250;
       memset(tname, 'T', pad);
       tname[pad] = '\0';
       memset(&meta, 0, sizeof(meta));

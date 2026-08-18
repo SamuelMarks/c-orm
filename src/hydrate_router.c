@@ -35,7 +35,7 @@ c_orm_error_t cdd_c_hydrate_router_get_last_error(const char **out_msg) {
   return C_ORM_OK;
 }
 
-int c_orm_mock_hydrate_router_set_last_error_fail = 0;
+C_ORM_EXPORT int c_orm_mock_hydrate_router_set_last_error_fail = 0;
 
 c_orm_error_t cdd_c_hydrate_router_set_last_error(const char *msg) {
   if (c_orm_mock_hydrate_router_set_last_error_fail == 1 && msg &&

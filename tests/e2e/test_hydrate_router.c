@@ -163,7 +163,7 @@ TEST test_hydrate_router_register_oom(void) {
   cdd_c_hydrate_router_free(&router);
   PASS();
 }
-extern int c_orm_mock_hydrate_router_set_last_error_fail;
+C_ORM_EXPORT extern int c_orm_mock_hydrate_router_set_last_error_fail;
 
 TEST test_hydrate_router_set_error_fail(void) {
   cdd_c_hydrate_router_t router;

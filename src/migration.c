@@ -22,7 +22,7 @@
 /**
  * @brief Executes the migration statements init operation.
  */
-int c_orm_mock_migration_statements_init_fail = 0;
+C_ORM_EXPORT int c_orm_mock_migration_statements_init_fail = 0;
 
 c_orm_error_t migration_statements_init(struct MigrationStatements *out) {
   if (c_orm_mock_migration_statements_init_fail)

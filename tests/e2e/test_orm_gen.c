@@ -163,26 +163,26 @@ TEST test_orm_gen_basic(void) {
   ASSERT_EQ(EINVAL, openapi_orm_generate(&spec, &config));
 
   config.filename_base = "test_gen";
-  config.model_header = "/dev/null";
+  config.model_header = "invalid_dir/dev_null";
   {
     int rc_err = openapi_orm_generate(&spec, &config);
     ASSERT_EQ_FMT(EIO, rc_err, "%d");
   }
 
-  config.model_header = ".";
+  config.model_header = "invalid_dir/test2.h";
   {
     int rc_err = openapi_orm_generate(&spec, &config);
     ASSERT_EQ_FMT(EIO, rc_err, "%d");
   }
 
-  config.model_header = "/invalid/path/test.h";
+  config.model_header = "invalid_dir/path/test.h";
   {
     int rc_err = openapi_orm_generate(&spec, &config);
     ASSERT_EQ_FMT(EIO, rc_err, "%d");
   }
 
   config.model_header = NULL;
-  config.filename_base = "/invalid/path/test";
+  config.filename_base = "invalid_dir/path/test";
   {
     int rc_err = openapi_orm_generate(&spec, &config);
     ASSERT_EQ_FMT(EIO, rc_err, "%d");

@@ -194,7 +194,7 @@ TEST test_parse_migration_file_oom(void) {
   remove(filename);
   PASS();
 }
-extern int c_orm_mock_migration_statements_init_fail;
+C_ORM_EXPORT extern int c_orm_mock_migration_statements_init_fail;
 
 TEST test_parse_migration_file_empty_blocks(void) {
   const char *filename = "test_empty_blocks.sql";
