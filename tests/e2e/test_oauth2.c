@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(_MSC_VER)
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
