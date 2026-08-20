@@ -3,6 +3,7 @@
 #include "c_orm_safe_crt.h"
 #include <greatest.h>
 #include <errno.h>
+#include "test_cdd_c_ir_oom.h"
 /* clang-format on */
 
 TEST test_cdd_c_ir_basic(void) {
@@ -104,8 +105,6 @@ TEST test_cdd_c_ir_parse_sql_failure(void) {
   cdd_c_ir_free(&ir);
   PASS();
 }
-
-#include "test_cdd_c_ir_oom.h"
 
 SUITE(cdd_c_ir_suite) {
   RUN_TEST(test_cdd_c_ir_basic);

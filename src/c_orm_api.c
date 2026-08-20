@@ -8156,9 +8156,6 @@ void c_orm_wasm_init_fs(void (*callback)(int)) {
 /* WebAssembly/Emscripten requires identical function signatures for indirect
  * calls. By explicitly marking these EMSCRIPTEN_KEEPALIVE, we ensure they are
  * not DCE'd and their signatures are preserved. */
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
 C_ORM_EXPORT void c_orm_system_free(void *ptr) {
   if (ptr)
     C_ORM_FREE(ptr);

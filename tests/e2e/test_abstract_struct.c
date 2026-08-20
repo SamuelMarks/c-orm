@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <greatest.h>
 #include <time.h>
+#include "test_abstract_struct_oom.h"
 /* clang-format on */
 
 TEST test_abstract_struct_memory_layout(void) {
@@ -859,11 +860,6 @@ TEST test_hydrate_null(void) {
   PASS();
 }
 
-#include "abstract_struct.h"
-#include "c_orm_safe_crt.h"
-#include <errno.h>
-#include <greatest.h>
-
 TEST test_abstract_struct_allocation_limits(void) {
   cdd_c_abstract_struct_array_t arr;
   cdd_c_abstract_struct_t astruct1, astruct2;
@@ -927,8 +923,6 @@ TEST test_abstract_struct_allocation_limits(void) {
 
   PASS();
 }
-
-#include "test_abstract_struct_oom.h"
 
 SUITE(abstract_struct_suite) {
   RUN_TEST(test_abstract_struct_memory_layout);
