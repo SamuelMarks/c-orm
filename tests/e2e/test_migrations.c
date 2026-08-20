@@ -362,10 +362,17 @@ TEST test_migrations_oom(void) {
     int j;
     for (j = 0; j < 12; j++) {
       char buf[128];
+#if defined(_MSC_VER)
+      sprintf_s(buf, sizeof(buf),
+                "INSERT INTO _c_orm_migrations (version, name, hash) VALUES "
+                "('%d', 'n', 'h')",
+                200 + j);
+#else
       sprintf(buf,
               "INSERT INTO _c_orm_migrations (version, name, hash) VALUES "
               "('%d', 'n', 'h')",
               200 + j);
+#endif
       c_orm_execute_raw(db, buf);
     }
   }

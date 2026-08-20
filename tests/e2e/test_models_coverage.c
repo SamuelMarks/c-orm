@@ -50,9 +50,9 @@ TEST test_users_models(void) {
   memset(&u1, 0, sizeof(u1));
   u1.id = 1;
   u1.username = (char *)malloc(10);
-  strcpy(u1.username, "test");
+  C_ORM_STRCPY(u1.username, 10, "test");
   u1.email = (char *)malloc(10);
-  strcpy(u1.email, "e@ma.il");
+  C_ORM_STRCPY(u1.email, 10, "e@ma.il");
   u1.age = (int32_t *)malloc(sizeof(int32_t));
   *u1.age = 30;
   u1.score = (float *)malloc(sizeof(float));
@@ -60,7 +60,7 @@ TEST test_users_models(void) {
   u1.is_active = (bool *)malloc(sizeof(bool));
   *u1.is_active = true;
   u1.created_at = (char *)malloc(10);
-  strcpy(u1.created_at, "now");
+  C_ORM_STRCPY(u1.created_at, 10, "now");
 
   err = Users_deepcopy(NULL, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, err);
@@ -120,13 +120,13 @@ TEST test_posts_models(void) {
   memset(&p1, 0, sizeof(p1));
   p1.id = 1;
   p1.title = (char *)malloc(10);
-  strcpy(p1.title, "title");
+  C_ORM_STRCPY(p1.title, 10, "title");
   p1.content = (char *)malloc(10);
-  strcpy(p1.content, "content");
+  C_ORM_STRCPY(p1.content, 10, "content");
   p1.views = (int64_t *)malloc(sizeof(int64_t));
   *p1.views = 100;
   p1.published_date = (char *)malloc(10);
-  strcpy(p1.published_date, "date");
+  C_ORM_STRCPY(p1.published_date, 10, "date");
 
   err = Posts_deepcopy(NULL, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, err);
@@ -185,11 +185,11 @@ TEST test_oauth2_models(void) {
 
   memset(&t1, 0, sizeof(t1));
   t1.access_token = (char *)malloc(10);
-  strcpy(t1.access_token, "access");
+  C_ORM_STRCPY(t1.access_token, 10, "access");
   t1.refresh_token = (char *)malloc(10);
-  strcpy(t1.refresh_token, "refresh");
+  C_ORM_STRCPY(t1.refresh_token, 10, "refresh");
   t1.token_type = (char *)malloc(10);
-  strcpy(t1.token_type, "type");
+  C_ORM_STRCPY(t1.token_type, 10, "type");
   t1.expires_in = (int32_t *)malloc(sizeof(int32_t));
   *t1.expires_in = 3600;
   t1.created_at = (int64_t *)malloc(sizeof(int64_t));

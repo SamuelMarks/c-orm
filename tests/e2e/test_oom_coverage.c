@@ -125,7 +125,7 @@ static void do_cdd_c_ir(void) {
     if (cdd_c_query_projection_init(&proj) == 0) {
       proj.source_table = (char *)malloc(5);
       if (proj.source_table)
-        strcpy(proj.source_table, "test");
+        C_ORM_STRCPY(proj.source_table, 5, "test");
       cdd_c_query_projection_add_field(&proj, &field);
       cdd_c_ir_add_projection(&ir, &proj);
       cdd_c_query_projection_free(&proj);

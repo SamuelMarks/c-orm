@@ -999,7 +999,7 @@ TEST qb_exhaustive_oom_all(void) {
     target_col.is_pk = 1;
 
     memset(tgt_name, 'R', extra);
-    strcpy(tgt_name + extra, "target_tbl");
+    C_ORM_STRCPY(tgt_name + extra, sizeof(tgt_name) - extra, "target_tbl");
 
     memset(&target_meta, 0, sizeof(target_meta));
     target_meta.name = tgt_name;
