@@ -103,20 +103,16 @@ To utilize persistent `IDBFS` storage:
 
 ### Optimization & Diagnostics
 - `C_ORM_LTO`: Enable Link-Time Optimization (IPO) for maximum runtime performance.
-- `C_ORM_RUNTIME_CHECKS_RTC1`: Enable MSVC `/RTC1` (equivalent to `/RTCsu`).
-- `C_ORM_RUNTIME_CHECKS_RTCS`: Enable MSVC `/RTCs` (Stack Frame runtime checking).
-- `C_ORM_RUNTIME_CHECKS_RTCU`: Enable MSVC `/RTCu` (Uninitialized local usage checks).
+- `C_ORM_MSVC_RTC`: MSVC Runtime Checks (OFF, 1, s, u).
 - `C_ORM_STRICT_WARNINGS`: Enable `-Wall -Wextra -pedantic` (GCC/Clang) or `/W4 /WX` (MSVC).
 
 ### CRT & Linking (MSVC Specific)
-- `C_ORM_STATIC_CRT`: Use Static CRT (`/MT`, `/MTd`). Recommended for standalone distributions without dependency on vcredist.
-- `C_ORM_SHARED_CRT`: Use Shared CRT (`/MD`, `/MDd`).
+- `C_ORM_CRT_LINKAGE`: CRT Linkage (`static` for `/MT` or `/MTd`, `dynamic` for `/MD` or `/MDd`). Recommended `static` for standalone distributions without dependency on vcredist.
 - `BUILD_SHARED_LIBS`: Build `c-orm` as a dynamic shared library (`.dll` or `.so`) instead of a static library (`.lib` or `.a`).
 
 ### Character Sets & Threading
-- `C_ORM_UNICODE`: Define `UNICODE` and `_UNICODE` for wide-character Win32 API interactions.
-- `C_ORM_ANSI`: Define `_MBCS` for multi-byte character sets.
-- `C_ORM_MULTI_THREADED` (Default: ON): Enable internal thread-safety mechanisms (mutexes). Set to `OFF` for bare-metal single-threaded environments to save overhead.
+- `C_ORM_CHARSET`: Set to `UNICODE` (defines `UNICODE` and `_UNICODE`) or `ANSI` (defines `_MBCS`).
+- `C_ORM_THREADING` (Default: ON): Enable internal thread-safety mechanisms (mutexes). Set to `OFF` for bare-metal single-threaded environments to save overhead.
 
 ## Supported Compilers & Platforms
 
