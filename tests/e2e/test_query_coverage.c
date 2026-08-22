@@ -252,6 +252,8 @@ TEST test_fluent_oom(void) {
     c_orm_query_new(&oq);                                                      \
     oom_active = 1;                                                            \
     oom_countdown = 0;                                                         \
+    (void)sq;                                                                  \
+    (void)n;                                                                   \
     expr;                                                                      \
     oom_active = 0;                                                            \
     c_orm_query_free(oq);                                                      \
@@ -591,6 +593,7 @@ TEST test_query_sql_coverage(void) {
   } my_arr = {NULL, 0, 0};
 
   size_t res_count = 0;
+  (void)res_count;
 
   c_orm_query_t *q = NULL;
   char *sql = NULL;

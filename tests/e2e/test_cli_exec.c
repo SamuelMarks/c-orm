@@ -38,6 +38,7 @@ TEST test_cli_no_args(void) {
 
 TEST test_cli_init(void) {
   int rc;
+  (void)rc;
 #ifdef _WIN32
   system("rmdir /S /Q test_migrations_dir_init 2>nul");
 #else
@@ -67,6 +68,7 @@ TEST test_cli_generate(void) {
 
 TEST test_cli_migrate(void) {
   int rc;
+  (void)rc;
 #if !defined(_WIN32) && !defined(__CYGWIN__)
   unsetenv("C_ORM_DB_URL");
   rc = system(CLI_CMD " migrate" DEV_NULL);
@@ -125,6 +127,8 @@ TEST test_cli_rollback(void) {
 
 TEST test_cli_status(void) {
   int rc;
+  (void)rc;
+
 #if !defined(_WIN32) && !defined(__CYGWIN__)
   unsetenv("C_ORM_DB_URL");
   rc = system(CLI_CMD " status" DEV_NULL);
@@ -145,6 +149,7 @@ TEST test_cli_status(void) {
   rc = system(CLI_CMD " status --db /root/invalid.db" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
+  (void)rc;
 #endif
   PASS();
 }
@@ -159,6 +164,7 @@ TEST test_cli_unknown(void) {
 #ifndef __EMSCRIPTEN__
 TEST test_cli_exec_sql2c(void) {
   int rc;
+  (void)rc;
   FILE *f;
   f = fopen("test_schema.sql", "w");
   if (f) {

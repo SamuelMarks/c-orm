@@ -259,6 +259,8 @@ TEST test_oauth2_init(void) {
   const c_orm_driver_vtable_t *my_vt;
   c_orm_error_t err;
   c_orm_driver_vtable_t my_pg_vt, my_my_vt;
+  (void)my_pg_vt;
+  (void)my_my_vt;
 
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -670,6 +672,8 @@ TEST test_oauth2_crypto_fail_open(void) {
   c_orm_oauth2_token_t t;
   cfs_path p;
   cfs_size_t rm_out = 0;
+  (void)p;
+  (void)rm_out;
   memset(&t, 0, sizeof(t));
   t.access_token = "abc";
   t.refresh_token = "def";

@@ -760,6 +760,8 @@ TEST test_json_edge_cases(void) {
 TEST test_specific_edge_cases(void) {
   mock_specific_row_t specific_out, specific_in;
   cdd_c_abstract_struct_t astruct_in, astruct_out;
+  (void)specific_in;
+  (void)astruct_out;
   cdd_c_prop_meta_t p1, p2, p3;
   cdd_c_meta_t meta;
   cdd_c_prop_meta_t props[3];
@@ -866,6 +868,7 @@ TEST test_abstract_struct_allocation_limits(void) {
   cdd_c_variant_t v;
   char *json = NULL;
 
+  (void)json;
   /* init array with huge size */
   ASSERT_EQ(EINVAL,
             (int)cdd_c_abstract_struct_array_init(

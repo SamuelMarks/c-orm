@@ -1017,7 +1017,6 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
   struct sql_table_t *table = NULL;
   const struct sql_token_t *name_tok = NULL;
   c_orm_error_t rc;
-  int err;
   int match1 = 0;
 
   state.list = list;

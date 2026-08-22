@@ -71,7 +71,7 @@ repos:
         pass_filenames: false
       - id: check-enum-returns
         name: Check Enum Returns
-        entry: python3 scripts/check_enum_returns_clang.py . --build-dir build
+        entry: python3 scripts/check_enum_returns_clang.py . --build-dir build --exclude-files src/c_orm_alloc.c
         language: system
         pass_filenames: false
       - id: update-shields

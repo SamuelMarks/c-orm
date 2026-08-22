@@ -65,7 +65,6 @@ if(MSVC AND MSVC_VERSION LESS 1600)
 endif()
 
 if(MSVC)
-  add_compile_options(/wd4715 /wd4013 /wd4701 /wd4047 /wd4018 /wd4146 /wd4244 /wd4267 /wd4101 /wd4090 /wd4232 /wd4189 /wd4703 /wd4005)
 endif()
 
 # Step 278: Static Analysis Integration
@@ -86,7 +85,7 @@ if(MSVC)
 elseif(CMAKE_C_COMPILER_ID MATCHES "Watcom")
     set(C_ORM_STRICT_OPTIONS -w4 -we)
 else()
-    set(C_ORM_STRICT_OPTIONS -Wall -Wextra -pedantic -Wno-long-long -Wno-error=unused-value -std=c90 -Wdeclaration-after-statement -Wmissing-prototypes)
+    set(C_ORM_STRICT_OPTIONS -Wall -Wextra -pedantic -Werror -std=c90 -Wdeclaration-after-statement -Wmissing-prototypes)
 endif()
 
 if(EMSCRIPTEN)
@@ -407,7 +406,7 @@ target_include_directories(c_orm_benchmarks PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}/tests/e2e/test_downloads
 )
 if(MSVC)
-    target_compile_definitions(c_orm_benchmarks PRIVATE _CRT_SECURE_NO_WARNINGS)
+
 endif()
 target_link_libraries(c_orm_benchmarks PRIVATE c-orm)
 endif()
@@ -417,18 +416,15 @@ if(C_ORM_BUILD_EXAMPLES)
 add_executable(c_orm_example_blog examples/blog.c)
 target_link_libraries(c_orm_example_blog PRIVATE c-orm)
 if(MSVC)
-    target_compile_definitions(c_orm_example_blog PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
 add_executable(c_orm_example_relationships examples/relationships.c)
 target_link_libraries(c_orm_example_relationships PRIVATE c-orm)
 if(MSVC)
-    target_compile_definitions(c_orm_example_relationships PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 add_executable(c_orm_example_dashboard examples/dashboard.c)
 target_link_libraries(c_orm_example_dashboard PRIVATE c-orm c_cdd)
 if(MSVC)
-    target_compile_definitions(c_orm_example_dashboard PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 endif()
 
@@ -447,7 +443,6 @@ if(EMSCRIPTEN)
     target_link_options(c-orm-cli PRIVATE "SHELL:-s NODERAWFS=1" "SHELL:-s USE_PTHREADS=1" "SHELL:-s STACK_SIZE=5MB")
 endif()
 if(MSVC)
-    target_compile_definitions(c-orm-cli PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
 if(WIN32 AND BUILD_SHARED_LIBS)

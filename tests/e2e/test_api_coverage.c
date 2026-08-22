@@ -418,6 +418,7 @@ static void test_c_orm_validate(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_validate(&mega_meta, buf);
 }
 static void test_c_orm_find_by_id_int32(void) {
@@ -444,6 +445,7 @@ static void test_c_orm_find_by_id_int32(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_find_by_id_int32(&g_db, &mega_meta, 1, buf);
 }
 static void test_c_orm_find_by_composite_key(void) {
@@ -470,6 +472,7 @@ static void test_c_orm_find_by_composite_key(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_find_by_composite_key(&g_db, &mega_meta, 1, NULL, buf);
 }
 static void test_c_orm_update_by_composite_key(void) {
@@ -496,6 +499,7 @@ static void test_c_orm_update_by_composite_key(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_update_by_composite_key(&g_db, &mega_meta, 1, NULL, buf);
 }
 static void test_c_orm_delete_by_composite_key(void) {
@@ -522,6 +526,7 @@ static void test_c_orm_delete_by_composite_key(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_delete_by_composite_key(&g_db, &mega_meta, 1, NULL);
 }
 static void test_c_orm_find_all(void) {
@@ -548,6 +553,7 @@ static void test_c_orm_find_all(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_find_all(&g_db, &mega_meta, buf);
 }
 static void test_c_orm_insert(void) {
@@ -574,6 +580,7 @@ static void test_c_orm_insert(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_insert(&g_db, &mega_meta, buf);
 }
 static void test_c_orm_save(void) {
@@ -600,6 +607,7 @@ static void test_c_orm_save(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_save(&g_db, &mega_meta, buf);
 }
 static void test_c_orm_update(void) {
@@ -626,6 +634,7 @@ static void test_c_orm_update(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_update(&g_db, &mega_meta, buf);
 }
 static void test_c_orm_delete(void) {
@@ -652,6 +661,7 @@ static void test_c_orm_delete(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_delete(&g_db, &mega_meta, buf);
 }
 static void test_c_orm_delete_by_id_int32(void) {
@@ -678,6 +688,7 @@ static void test_c_orm_delete_by_id_int32(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_delete_by_id_int32(&g_db, &mega_meta, 1);
 }
 static void test_c_orm_delete_by_id_string(void) {
@@ -704,6 +715,7 @@ static void test_c_orm_delete_by_id_string(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_delete_by_id_string(&g_db, &mega_meta, "test");
 }
 static void test_c_orm_update_partial(void) {
@@ -730,6 +742,7 @@ static void test_c_orm_update_partial(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_update_partial(&g_db, &mega_meta, buf, str_arr, 1);
 }
 static void test_c_orm_exists_int32(void) {
@@ -756,6 +769,7 @@ static void test_c_orm_exists_int32(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_exists_int32(&g_db, &mega_meta, 1, &int_out);
 }
 static void test_c_orm_exists_string(void) {
@@ -782,6 +796,7 @@ static void test_c_orm_exists_string(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_exists_string(&g_db, &mega_meta, "test", &int_out);
 }
 static void test_c_orm_find_all_paginated(void) {
@@ -808,6 +823,7 @@ static void test_c_orm_find_all_paginated(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_find_all_paginated(&g_db, &mega_meta, buf, 1, 1);
 }
 static void test_c_orm_delete_all(void) {
@@ -834,6 +850,7 @@ static void test_c_orm_delete_all(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_delete_all(&g_db, &mega_meta);
 }
 static void test_c_orm_find_by_id_string(void) {
@@ -860,6 +877,7 @@ static void test_c_orm_find_by_id_string(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_find_by_id_string(&g_db, &mega_meta, "test", buf);
 }
 static void test_c_orm_find_for_update_by_id_string(void) {
@@ -886,6 +904,7 @@ static void test_c_orm_find_for_update_by_id_string(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_find_for_update_by_id_string(&g_db, &mega_meta, "test", buf);
 }
 static void test_c_orm_find_for_update_by_id_int32(void) {
@@ -912,6 +931,7 @@ static void test_c_orm_find_for_update_by_id_int32(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_find_for_update_by_id_int32(&g_db, &mega_meta, 1, buf);
 }
 static void test_c_orm_find_one_by_string(void) {
@@ -938,6 +958,7 @@ static void test_c_orm_find_one_by_string(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_find_one_by_string(&g_db, &mega_meta, "test", "test", buf);
 }
 static void test_c_orm_hydrate_all(void) {
@@ -964,6 +985,7 @@ static void test_c_orm_hydrate_all(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_hydrate_all(&g_db, (c_orm_query_t *)1, &mega_meta, buf);
 }
 static void test_c_orm_hydrate_row_from(void) {
@@ -990,6 +1012,7 @@ static void test_c_orm_hydrate_row_from(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_hydrate_row_from(&g_db, (c_orm_query_t *)1, &mega_meta, buf, 1);
 }
 static void test_c_orm_hydrate_row(void) {
@@ -1016,6 +1039,7 @@ static void test_c_orm_hydrate_row(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_hydrate_row(&g_db, (c_orm_query_t *)1, &mega_meta, buf);
 }
 static void test_c_orm_hydrate_cache_row(void) {
@@ -1042,6 +1066,7 @@ static void test_c_orm_hydrate_cache_row(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_hydrate_cache_row(&g_db, &mega_meta, buf, &void_ptr);
 }
 static void test_c_orm_execute_raw(void) {
@@ -1068,6 +1093,7 @@ static void test_c_orm_execute_raw(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_execute_raw(&g_db, "test");
 }
 static void test_c_orm_transaction_begin(void) {
@@ -1094,6 +1120,7 @@ static void test_c_orm_transaction_begin(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_transaction_begin(&g_db);
 }
 static void test_c_orm_transaction_commit(void) {
@@ -1120,6 +1147,7 @@ static void test_c_orm_transaction_commit(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_transaction_commit(&g_db);
 }
 static void test_c_orm_transaction_rollback(void) {
@@ -1146,6 +1174,7 @@ static void test_c_orm_transaction_rollback(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_transaction_rollback(&g_db);
 }
 static void test_c_orm_savepoint_create(void) {
@@ -1172,6 +1201,7 @@ static void test_c_orm_savepoint_create(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_savepoint_create(&g_db, "test");
 }
 static void test_c_orm_savepoint_rollback(void) {
@@ -1198,6 +1228,7 @@ static void test_c_orm_savepoint_rollback(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_savepoint_rollback(&g_db, "test");
 }
 static void test_c_orm_savepoint_release(void) {
@@ -1224,6 +1255,7 @@ static void test_c_orm_savepoint_release(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_savepoint_release(&g_db, "test");
 }
 static void test_c_orm_get_field_value(void) {
@@ -1250,6 +1282,7 @@ static void test_c_orm_get_field_value(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_get_field_value(&mega_meta, buf, "test", NULL);
 }
 static void test_c_orm_set_field_value(void) {
@@ -1276,6 +1309,7 @@ static void test_c_orm_set_field_value(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_set_field_value(&mega_meta, buf, "test", NULL);
 }
 static void test_c_orm_hydrate_abstract_all(void) {
@@ -1302,6 +1336,7 @@ static void test_c_orm_hydrate_abstract_all(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_hydrate_abstract_all(&g_db, (c_orm_query_t *)1, NULL);
 }
 static void test_c_orm_find_all_abstract(void) {
@@ -1328,6 +1363,7 @@ static void test_c_orm_find_all_abstract(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_find_all_abstract(&g_db, "test", NULL);
 }
 static void test_c_orm_abstract_free(void) {
@@ -1354,6 +1390,7 @@ static void test_c_orm_abstract_free(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_abstract_free(NULL);
 }
 static void test_c_orm_to_json(void) {
@@ -1380,6 +1417,7 @@ static void test_c_orm_to_json(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_to_json(&mega_meta, buf, &str_ptr);
 }
 static void test_c_orm_from_json(void) {
@@ -1406,6 +1444,7 @@ static void test_c_orm_from_json(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_from_json(&mega_meta, "test", buf);
 }
 static void test_c_orm_to_dict(void) {
@@ -1432,6 +1471,7 @@ static void test_c_orm_to_dict(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_to_dict(&mega_meta, buf, NULL);
 }
 static void test_c_orm_from_dict(void) {
@@ -1458,6 +1498,7 @@ static void test_c_orm_from_dict(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_from_dict(&mega_meta, NULL, buf);
 }
 static void test_c_orm_abstract_to_json(void) {
@@ -1484,6 +1525,7 @@ static void test_c_orm_abstract_to_json(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_abstract_to_json(NULL, &str_ptr);
 }
 static void test_c_orm_abstract_from_json(void) {
@@ -1510,6 +1552,7 @@ static void test_c_orm_abstract_from_json(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_abstract_from_json("test", NULL);
 }
 static void test_c_orm_deep_free(void) {
@@ -1536,6 +1579,7 @@ static void test_c_orm_deep_free(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_deep_free(NULL, buf);
   c_orm_deep_free((const struct cdd_c_meta *)&mega_meta, NULL);
   c_orm_deep_free((const struct cdd_c_meta *)&mega_meta, buf);
@@ -1564,6 +1608,7 @@ static void test_c_orm_deep_copy(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_deep_copy(NULL, buf, buf);
 }
 static void test_c_orm_insert_async(void) {
@@ -1590,6 +1635,7 @@ static void test_c_orm_insert_async(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_insert_async(&g_db, &mega_meta, buf, dummy_cb, NULL);
 }
 static void test_c_orm_find_all_async(void) {
@@ -1616,6 +1662,7 @@ static void test_c_orm_find_all_async(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_find_all_async(&g_db, &mega_meta, buf, dummy_cb, NULL);
 }
 static void test_c_orm_hydrate_routed(void) {
@@ -1642,6 +1689,7 @@ static void test_c_orm_hydrate_routed(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_hydrate_routed(&g_db, (c_orm_query_t *)1, 1, buf);
 }
 static void test_c_orm_config_sqlite_pragma(void) {
@@ -1668,6 +1716,7 @@ static void test_c_orm_config_sqlite_pragma(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_config_sqlite_pragma(&g_db, "test");
 }
 static void test_c_orm_config_postgres_set(void) {
@@ -1694,6 +1743,7 @@ static void test_c_orm_config_postgres_set(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_config_postgres_set(&g_db, "test");
 }
 static void test_c_orm_config_mysql_session(void) {
@@ -1720,6 +1770,7 @@ static void test_c_orm_config_mysql_session(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_config_mysql_session(&g_db, "test");
 }
 static void test_c_orm_shard_manager_init(void) {
@@ -1746,6 +1797,7 @@ static void test_c_orm_shard_manager_init(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_shard_manager_init(1, &sm_ptr);
 }
 static void test_c_orm_escape_string(void) {
@@ -1772,6 +1824,7 @@ static void test_c_orm_escape_string(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_escape_string(&g_db, "test", buf, 1);
 }
 static void test_c_orm_enable_statement_caching(void) {
@@ -1798,6 +1851,7 @@ static void test_c_orm_enable_statement_caching(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_enable_statement_caching(&g_db, 1);
   g_db.stmt_cache = NULL;
 }
@@ -1825,6 +1879,7 @@ static void test_c_orm_disable_statement_caching(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_enable_statement_caching(&g_db, 10);
   c_orm_disable_statement_caching(&g_db);
   g_db.stmt_cache = NULL;
@@ -1853,6 +1908,7 @@ static void test_c_orm_lazy_load(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_lazy_load(&g_db, &mega_meta, buf, "test");
 }
 static void test_c_orm_lazy_load_paginated(void) {
@@ -1879,6 +1935,7 @@ static void test_c_orm_lazy_load_paginated(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_lazy_load_paginated(&g_db, &mega_meta, buf, "test", 1, 1);
 }
 static void test_c_orm_prepare_cached(void) {
@@ -1905,6 +1962,7 @@ static void test_c_orm_prepare_cached(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_prepare_cached(&g_db, "test", &q_ptr);
 }
 static void test_c_orm_finalize_cached(void) {
@@ -1931,6 +1989,7 @@ static void test_c_orm_finalize_cached(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_finalize_cached(&g_db, (c_orm_query_t *)1);
 }
 static void test_c_orm_insert_generic(void) {
@@ -1957,6 +2016,7 @@ static void test_c_orm_insert_generic(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_insert_generic(&g_db, &mega_meta, buf);
 }
 static void test_c_orm_get_generic(void) {
@@ -1983,6 +2043,7 @@ static void test_c_orm_get_generic(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_get_generic(&g_db, &mega_meta, 1, buf);
 }
 static void test_c_orm_find_all_generic(void) {
@@ -2009,6 +2070,7 @@ static void test_c_orm_find_all_generic(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_find_all_generic(&g_db, &mega_meta, &void_ptr, &sz_ptr);
 }
 static void test_c_orm_get_generic_string(void) {
@@ -2035,6 +2097,7 @@ static void test_c_orm_get_generic_string(void) {
   (void)sz_ptr;
   (void)int_out;
   (void)str_arr;
+  (void)buf;
   c_orm_get_generic_string(&g_db, &mega_meta, "test", buf);
 }
 TEST run_all_api(void) {

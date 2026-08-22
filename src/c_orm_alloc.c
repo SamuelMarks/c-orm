@@ -10,20 +10,26 @@
 /* clang-format on */
 
 #ifdef C_ORM_TEST_ALLOCATOR
+static void *default_malloc(size_t size) { return malloc(size); }
+static void default_free(void *ptr) { free(ptr); }
+static void *default_realloc(void *ptr, size_t size) {
+  return realloc(ptr, size);
+}
+
 /**
  * @brief Global pointer for malloc override.
  */
-C_ORM_EXPORT void *(*c_orm_malloc)(size_t size) = malloc;
+C_ORM_EXPORT void *(*c_orm_malloc)(size_t size) = default_malloc;
 
 /**
  * @brief Global pointer for free override.
  */
-C_ORM_EXPORT void (*c_orm_free)(void *ptr) = free;
+C_ORM_EXPORT void (*c_orm_free)(void *ptr) = default_free;
 
 /**
  * @brief Global pointer for realloc override.
  */
-C_ORM_EXPORT void *(*c_orm_realloc)(void *ptr, size_t size) = realloc;
+C_ORM_EXPORT void *(*c_orm_realloc)(void *ptr, size_t size) = default_realloc;
 
 C_ORM_EXPORT c_orm_error_t c_orm_set_allocators(void *(*m)(size_t),
                                                 void *(*r)(void *, size_t),

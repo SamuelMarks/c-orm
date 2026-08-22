@@ -110,7 +110,6 @@ target_include_directories(c_orm_e2e_tests PRIVATE
 )
 
 if(MSVC)
-    target_compile_definitions(c_orm_e2e_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
 if(EMSCRIPTEN)

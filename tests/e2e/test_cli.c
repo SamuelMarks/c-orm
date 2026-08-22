@@ -103,7 +103,6 @@ TEST test_cli_no_args(void) {
 
 TEST test_cli_init(void) {
   c_orm_error_t rc;
-  const char *argv_init[] = {"c-orm-cli", "init", "--dir", "."};
   const char *argv_dir_no_arg[] = {"c-orm-cli", "init", "--dir"};
   const char *argv[] = {"c-orm-cli", "init", "--dir",
                         "test_migrations_dir_cli"};
@@ -268,7 +267,6 @@ TEST test_cli_status(void) {
 }
 
 TEST test_cli_log(void) {
-  c_orm_error_t rc;
   log_cb("test log");
   PASS();
 }

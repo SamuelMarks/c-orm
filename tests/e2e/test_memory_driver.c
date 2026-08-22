@@ -164,6 +164,9 @@ TEST test_memory_edge_cases(void) {
     int out_count;
     const char *out_name;
     const char *msg;
+    (void)msg;
+    (void)out_count;
+    (void)out_id;
 
     vt->is_null(NULL, 0, &out_null);
     vt->get_column_name(NULL, 0, &out_name);

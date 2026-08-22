@@ -350,7 +350,6 @@ TEST test_c_to_sql_edge_cases(void) {
   cdd_c_meta_diff_t diff;
   char buf[4096];
   FILE *fp;
-  int rc;
   char *up = NULL, *down = NULL;
 
   /* C Type fallback and struct mapping edges */

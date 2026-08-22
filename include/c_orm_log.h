@@ -24,10 +24,18 @@ extern "C" {
  * @param ... The format arguments.
  */
 #ifdef DEBUG
-C_ORM_EXPORT void c_orm_log_debug(const char *fmt, ...);
+#if defined(__clang__) || defined(__GNUC__)
+__attribute__((__format__(__printf__, 1, 2)))
+#endif
+C_ORM_EXPORT void
+c_orm_log_debug(const char *fmt, ...);
 #define LOG_DEBUG c_orm_log_debug
 #else
-C_ORM_EXPORT void c_orm_log_debug(const char *fmt, ...);
+#if defined(__clang__) || defined(__GNUC__)
+__attribute__((__format__(__printf__, 1, 2)))
+#endif
+C_ORM_EXPORT void
+c_orm_log_debug(const char *fmt, ...);
 #define LOG_DEBUG 1 ? (void)0 : c_orm_log_debug
 #endif /* DEBUG */
 #endif /* !LOG_DEBUG */

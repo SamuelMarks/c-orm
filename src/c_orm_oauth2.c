@@ -462,7 +462,6 @@ c_orm_store_token_secure(const c_orm_oauth2_token_t *token) {
   char *encrypted_access = NULL;
   char *encrypted_refresh = NULL;
   c_orm_error_t rc;
-  c_orm_error_t v_rc;
   FILE *f;
 
   LOG_DEBUG("c_orm_store_token_secure: entered");
@@ -558,7 +557,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
   const c_orm_driver_vtable_t *pg_vt = NULL;
   const c_orm_driver_vtable_t *my_vt = NULL;
   c_orm_error_t rc;
-  c_orm_error_t v_rc;
 
   LOG_DEBUG("c_orm_oauth2_create_tables: entered");
 
@@ -851,7 +849,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_user_verify_credentials(c_orm_db_t *db,
                                                          const char *password,
                                                          int *out_is_valid) {
   c_orm_error_t rc;
-  c_orm_error_t v_rc;
   c_orm_user_t user;
 
   LOG_DEBUG("c_orm_user_verify_credentials: entered");
@@ -911,7 +908,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_verify_client(c_orm_db_t *db,
                                                       const char *client_secret,
                                                       int *out_is_valid) {
   c_orm_error_t rc;
-  c_orm_error_t v_rc;
   c_orm_oauth2_client_t client;
 
   LOG_DEBUG("c_orm_oauth2_verify_client: entered");
@@ -974,7 +970,6 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
   c_orm_query_t *query;
   c_orm_error_t rc;
-  c_orm_error_t v_rc;
   int has_row;
 
   LOG_DEBUG("c_orm_oauth2_save_token: entered");
@@ -1071,7 +1066,6 @@ out: {
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_get_token(
     c_orm_db_t *db, const char *access_token, c_orm_oauth2_token_t *out_token) {
   c_orm_error_t rc;
-  c_orm_error_t v_rc;
 
   LOG_DEBUG("c_orm_oauth2_get_token: entered");
 
@@ -1100,7 +1094,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_get_token(
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_revoke_token(c_orm_db_t *db,
                                                      const char *token_str) {
   c_orm_error_t rc;
-  c_orm_error_t v_rc;
 
   LOG_DEBUG("c_orm_oauth2_revoke_token: entered");
 
@@ -1206,7 +1199,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
     c_orm_db_t *db, const c_orm_oauth2_auth_code_t *auth_code) {
   c_orm_query_t *query;
   c_orm_error_t rc;
-  c_orm_error_t v_rc;
   int has_row;
 
   LOG_DEBUG("c_orm_oauth2_save_auth_code: entered");
@@ -1299,7 +1291,6 @@ out: {
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
     c_orm_db_t *db, const char *code, c_orm_oauth2_auth_code_t *out_auth_code) {
   c_orm_error_t rc;
-  c_orm_error_t v_rc;
 
   LOG_DEBUG("c_orm_oauth2_consume_auth_code: entered");
 
@@ -1369,7 +1360,6 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
   c_orm_query_t *query;
   c_orm_error_t rc;
-  c_orm_error_t v_rc;
 
   int has_row;
 

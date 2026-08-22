@@ -366,7 +366,6 @@ c_orm_error_t cdd_c_abstract_get(const cdd_c_abstract_struct_t *astruct,
                                  const char *key, cdd_c_variant_t **out_value) {
   size_t i;
   unsigned long khash;
-  c_orm_error_t err;
   if (!astruct || !key || !out_value)
     return EINVAL;
 
