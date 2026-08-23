@@ -33,7 +33,7 @@ TEST test_write_struct_to_sql_create_table(void) {
   sf.size = 3;
   sf.fields = fields;
 
-  fp = tmpfile();
+  C_ORM_TMPFILE(&fp);
   ASSERT(fp != NULL);
 
   rc = write_struct_to_sql_create_table(fp, "users", &sf,
@@ -364,7 +364,7 @@ TEST test_c_to_sql_edge_cases(void) {
   sf.size = 2;
   sf.fields = fields;
 
-  fp = tmpfile();
+  C_ORM_TMPFILE(&fp);
   ASSERT_EQ(0, write_struct_to_sql_create_table(fp, "test", &sf,
                                                 C_TO_SQL_DIALECT_MYSQL));
   rewind(fp);
@@ -374,7 +374,7 @@ TEST test_c_to_sql_edge_cases(void) {
   ASSERT(strstr(buf, "unknown_field BLOB") != NULL);
 
   /* Dialect type maps */
-  fp = tmpfile();
+  C_ORM_TMPFILE(&fp);
   C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "double");
   C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "bool");
   ASSERT_EQ(0, write_struct_to_sql_create_table(fp, "test", &sf,

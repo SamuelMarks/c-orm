@@ -442,6 +442,7 @@ include(GNUInstallDirs)
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 # Phase 4: CLI
 add_executable(c-orm-cli src/c_orm_cli.c)
+target_compile_options(c-orm-cli PRIVATE ${C_ORM_STRICT_OPTIONS})
 target_link_libraries(c-orm-cli PRIVATE c-orm)
 if(EMSCRIPTEN)
     target_link_options(c-orm-cli PRIVATE "SHELL:-s NODERAWFS=1" "SHELL:-s USE_PTHREADS=1" "SHELL:-s STACK_SIZE=5MB")

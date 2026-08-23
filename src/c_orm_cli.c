@@ -81,10 +81,13 @@ static c_orm_error_t log_cb(const char *msg) {
  * @return 0 on success, non-zero on failure.
  */
 int main(int argc, char **argv) {
+#if defined(_MSC_VER)
+  char *env_db_str = NULL;
+#endif
   c_orm_error_t rc;
   const char *command = NULL;
   const char *db_str = NULL;
-  char *env_db_str = NULL;
+
   const char *dir_path = "./migrations";
   const char *arg_name = NULL;
   int i;

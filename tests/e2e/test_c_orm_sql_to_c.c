@@ -28,7 +28,7 @@ TEST test_sql_to_c_header_emit(void) {
   err = sql_parse_table(list, &table, &err_info);
   ASSERT_EQ(0, err);
 
-  fp = tmpfile();
+  C_ORM_TMPFILE(&fp);
   ASSERT(fp != NULL);
 
   err = sql_to_c_header_emit(fp, table);
@@ -72,7 +72,7 @@ TEST test_sql_to_c_source_emit(void) {
   err = sql_parse_table(list, &table, &err_info);
   ASSERT_EQ(0, err);
 
-  fp = tmpfile();
+  C_ORM_TMPFILE(&fp);
   ASSERT(fp != NULL);
 
   err = sql_to_c_source_emit(fp, table, "users.h");
@@ -131,9 +131,10 @@ TEST test_sql_to_c_errors(void) {
 }
 
 TEST test_sql_to_c_projections(void) {
-  FILE *fp = tmpfile();
+  FILE *fp;
   cdd_c_query_projection_t proj;
   c_orm_uint64_t out_hash;
+  C_ORM_TMPFILE(&fp);
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 2;
@@ -166,8 +167,9 @@ TEST test_sql_to_c_projections(void) {
 }
 
 TEST test_sql_to_c_polymorphic(void) {
-  FILE *fp = tmpfile();
+  FILE *fp;
   cdd_c_query_projection_t proj;
+  C_ORM_TMPFILE(&fp);
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 1;
@@ -185,8 +187,9 @@ TEST test_sql_to_c_polymorphic(void) {
 }
 
 TEST test_sql_to_c_union(void) {
-  FILE *fp = tmpfile();
+  FILE *fp;
   cdd_c_query_projection_t projs[2];
+  C_ORM_TMPFILE(&fp);
   memset(projs, 0, sizeof(projs));
 
   projs[0].n_fields = 1;
@@ -210,8 +213,9 @@ TEST test_sql_to_c_union(void) {
 }
 
 TEST test_sql_to_c_bitmask_sizes(void) {
-  FILE *fp = tmpfile();
+  FILE *fp;
   cdd_c_query_projection_t proj;
+  C_ORM_TMPFILE(&fp);
   memset(&proj, 0, sizeof(proj));
 
   /* 0 fields */
@@ -243,9 +247,10 @@ TEST test_sql_to_c_bitmask_sizes(void) {
 }
 
 TEST test_sql_to_c_projection_types(void) {
-  FILE *fp = tmpfile();
+  FILE *fp;
   cdd_c_query_projection_t proj;
   c_orm_uint64_t hash;
+  C_ORM_TMPFILE(&fp);
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 4;
@@ -277,9 +282,10 @@ TEST test_sql_to_c_projection_types(void) {
 }
 
 TEST test_sql_to_c_edge_cases(void) {
-  FILE *fp = tmpfile();
+  FILE *fp;
   cdd_c_query_projection_t proj;
   cdd_c_query_projection_t projs[1];
+  C_ORM_TMPFILE(&fp);
   memset(&proj, 0, sizeof(proj));
   memset(projs, 0, sizeof(projs));
 
