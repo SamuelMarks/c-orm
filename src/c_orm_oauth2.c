@@ -493,7 +493,7 @@ c_orm_store_token_secure(const c_orm_oauth2_token_t *token) {
     f = NULL;
   }
 #else
-  f = fopen("c_orm_token.dat", "w");
+  C_ORM_FOPEN(&f, "c_orm_token.dat", "w");
 #endif
 
   if (!f) {

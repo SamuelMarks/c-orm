@@ -102,13 +102,14 @@ TEST test_cli_migrate(void) {
   system("mkdir -p test_migrations_dir 2>/dev/null");
 #endif
   {
-    FILE *f1 = fopen("test_migrations_dir/1_test.up.sql", "w");
+    FILE *f1;
     FILE *f2;
+    C_ORM_FOPEN(&f1, "test_migrations_dir/1_test.up.sql", "w");
     if (f1) {
       fprintf(f1, "CREATE TABLE x (id INT);\n");
       fclose(f1);
     }
-    f2 = fopen("test_migrations_dir/1_test.down.sql", "w");
+    C_ORM_FOPEN(&f2, "test_migrations_dir/1_test.down.sql", "w");
     if (f2) {
       fprintf(f2, "DROP TABLE x;\n");
       fclose(f2);
@@ -168,7 +169,7 @@ TEST test_cli_exec_sql2c(void) {
   int rc;
   FILE *f;
   (void)rc;
-  f = fopen("test_schema.sql", "w");
+  C_ORM_FOPEN(&f, "test_schema.sql", "w");
   if (f) {
     fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
     fclose(f);

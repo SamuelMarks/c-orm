@@ -74,7 +74,8 @@ static void do_uuid(void) {
 
 static void do_codegen(void) {
   {
-    FILE *f = fopen("oom_schema.sql", "w");
+    FILE *f;
+    C_ORM_FOPEN(&f, "oom_schema.sql", "w");
     if (f) {
       fprintf(f, "CREATE TABLE t_oom (id int);\n");
       fclose(f);

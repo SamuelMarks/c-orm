@@ -45,7 +45,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 #if defined(_MSC_VER)
   fopen_s(&fp, schema_file, "rb");
 #else
-  fp = fopen(schema_file, "rb");
+  C_ORM_FOPEN(&fp, schema_file, "rb");
 #endif
   if (!fp) {
     LOG_DEBUG("c_orm_codegen_generate: failed to open schema_file");
@@ -91,7 +91,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 #if defined(_MSC_VER)
   fopen_s(&fp, h_path, "wb");
 #else
-  fp = fopen(h_path, "wb");
+  C_ORM_FOPEN(&fp, h_path, "wb");
 #endif
   if (fp) {
     fprintf(fp, "#ifndef MODELS_H\n#define MODELS_H\n\n");
@@ -148,7 +148,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 #if defined(_MSC_VER)
   fopen_s(&fp, c_path, "wb");
 #else
-  fp = fopen(c_path, "wb");
+  C_ORM_FOPEN(&fp, c_path, "wb");
 #endif
   if (fp) {
     fprintf(fp, "/* clang-format "

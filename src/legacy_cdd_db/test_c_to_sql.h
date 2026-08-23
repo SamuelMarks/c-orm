@@ -43,7 +43,7 @@ TEST test_write_struct_to_sql_create_table(void) {
   sf.size = 3;
   sf.fields = fields;
 
-  fp = fopen("test_c_to_sql.txt", "w+");
+  C_ORM_FOPEN(&fp, "test_c_to_sql.txt", "w+");
   ASSERT(fp != NULL);
 
   rc = write_struct_to_sql_create_table(fp, "users", &sf,

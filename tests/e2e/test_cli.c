@@ -286,7 +286,7 @@ TEST test_cli_sql2c(void) {
 #else
   system("mkdir -p test_out");
 #endif
-  f = fopen("test_schema.sql", "w");
+  C_ORM_FOPEN(&f, "test_schema.sql", "w");
   if (f) {
     fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
     fclose(f);

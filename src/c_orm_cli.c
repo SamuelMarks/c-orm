@@ -154,7 +154,7 @@ int main(int argc, char **argv) {
     C_ORM_SPRINTF(down_file, sizeof(down_file), "%s/%s.down.sql", dir_path,
                   arg_name);
 
-    fp = fopen(up_file, "w");
+    C_ORM_FOPEN(&fp, up_file, "w");
     if (fp) {
       fclose(fp);
       printf("Created %s\n", up_file);
@@ -162,7 +162,7 @@ int main(int argc, char **argv) {
       LOG_DEBUG("main: OOM or IO error opening up_file");
     }
 
-    fp = fopen(down_file, "w");
+    C_ORM_FOPEN(&fp, down_file, "w");
     if (fp) {
       fclose(fp);
       printf("Created %s\n", down_file);

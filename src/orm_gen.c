@@ -247,12 +247,12 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
 #if defined(_MSC_VER)
   fopen_s(&fp_h, path_h, "w");
 #else
-  fp_h = fopen(path_h, "w");
+  C_ORM_FOPEN(&fp_h, path_h, "w");
 #endif
 #if defined(_MSC_VER)
   fopen_s(&fp_c, path_c, "w");
 #else
-  fp_c = fopen(path_c, "w");
+  C_ORM_FOPEN(&fp_c, path_c, "w");
 #endif
 #endif
 
@@ -642,7 +642,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
 #if defined(_MSC_VER)
     fopen_s(&fp_test, test_path, "w");
 #else
-    fp_test = fopen(test_path, "w");
+    C_ORM_FOPEN(&fp_test, test_path, "w");
 #endif
 #endif
     if (fp_test) {

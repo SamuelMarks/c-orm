@@ -270,7 +270,7 @@ TEST test_codegen_coverage(void) {
     int i;
     for (i = 0; i < 6; i++) {
       schema_path = paths[i];
-      f = fopen(schema_path, "r");
+      C_ORM_FOPEN(&f, schema_path, "r");
       if (f) {
         fclose(f);
         break;

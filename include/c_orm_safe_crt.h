@@ -31,11 +31,14 @@ c_orm_sprintf(char *buf, size_t size, const char *format, ...);
 #define C_ORM_STRNCPY(dest, size, src, count) strncpy_s(dest, size, src, count)
 #define C_ORM_STRCAT(dest, size, src) strcat_s(dest, size, src)
 #define C_ORM_STRTOLL(nptr, endptr, base) _strtoi64(nptr, endptr, base)
+#define C_ORM_FOPEN(fp_ptr, filename, mode) fopen_s(fp_ptr, filename, mode)
 #else
 #define C_ORM_STRCPY(dest, size, src) strcpy(dest, src)
 #define C_ORM_STRNCPY(dest, size, src, count) strncpy(dest, src, count)
 #define C_ORM_STRCAT(dest, size, src) strcat(dest, src)
 #define C_ORM_STRTOLL(nptr, endptr, base) strtoll(nptr, endptr, base)
+#define C_ORM_FOPEN(fp_ptr, filename, mode)                                    \
+  (*(fp_ptr) = fopen(filename, mode), *(fp_ptr) == NULL ? 1 : 0)
 #endif
 
 #if defined(_MSC_VER)
