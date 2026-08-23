@@ -26,8 +26,10 @@ static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_
 extern __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
 #include <direct.h>
 #define MKDIR(path) _mkdir(path)
-#if defined(_MSC_VER) && defined(_DEBUG)
+#if defined(_MSC_VER)
 #include <crtdbg.h>
+#endif
+#if defined(_MSC_VER) && defined(_DEBUG)
 #endif
 #else
 #include <sys/stat.h>
@@ -81,7 +83,8 @@ static c_orm_error_t log_cb(const char *msg) {
 int main(int argc, char **argv) {
   c_orm_error_t rc;
   const char *command = NULL;
-  const char *db_str;
+  const char *db_str = NULL;
+  char *env_db_str = NULL;
   const char *dir_path = "./migrations";
   const char *arg_name = NULL;
   int i;
@@ -105,7 +108,15 @@ int main(int argc, char **argv) {
 #endif
   LOG_DEBUG("main: entry");
 
+#if defined(_MSC_VER)
+  {
+    size_t sz = 0;
+    _dupenv_s(&env_db_str, &sz, "C_ORM_DB_URL");
+    db_str = env_db_str;
+  }
+#else
   db_str = getenv("C_ORM_DB_URL");
+#endif
 
   if (argc < 2) {
     print_usage(argv[0]);
@@ -113,7 +124,7 @@ int main(int argc, char **argv) {
     LOG_DEBUG("main: missing command");
     LOG_DEBUG("main: exit");
     printf("RETURNING RC %d\n", rc);
-    return rc;
+    goto cleanup;
   }
 
   command = argv[1];
@@ -147,7 +158,7 @@ int main(int argc, char **argv) {
       LOG_DEBUG("main: create requires migration name");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
-      return rc;
+      goto cleanup;
     }
 
     C_ORM_SPRINTF(up_file, sizeof(up_file), "%s/%s.up.sql", dir_path, arg_name);
@@ -181,7 +192,7 @@ int main(int argc, char **argv) {
       LOG_DEBUG("main: sql2c requires arguments");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
-      return rc;
+      goto cleanup;
     }
     printf("SQL2C CALLED WITH %s AND %s\n", argv[2], argv[3]);
     rc = c_orm_codegen_generate(argv[2], argv[3]);
@@ -189,7 +200,7 @@ int main(int argc, char **argv) {
     if (rc != 0) {
       printf("Failed to generate code from schema.\n");
       printf("RETURNING RC %d\n", rc);
-      return rc;
+      goto cleanup;
     } else {
       printf("Code generation successful.\n");
     }
@@ -208,7 +219,7 @@ int main(int argc, char **argv) {
       LOG_DEBUG("main: DB string required for migrate");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
-      return rc;
+      goto cleanup;
     }
 
     err = c_orm_sqlite_connect(db_str, &db);
@@ -219,7 +230,7 @@ int main(int argc, char **argv) {
       LOG_DEBUG("main: failed connecting to db in migrate");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
-      return rc;
+      goto cleanup;
     }
 
     memset(&opts, 0, sizeof(opts));
@@ -250,7 +261,7 @@ int main(int argc, char **argv) {
       LOG_DEBUG("main: DB string required for status");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
-      return rc;
+      goto cleanup;
     }
 
     err = c_orm_sqlite_connect(db_str, &db);
@@ -261,7 +272,7 @@ int main(int argc, char **argv) {
       LOG_DEBUG("main: failed connecting to db in status");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
-      return rc;
+      goto cleanup;
     }
 
     c_orm_migration_init_table(db);
@@ -283,7 +294,7 @@ int main(int argc, char **argv) {
       LOG_DEBUG("main: failed to fetch migration status");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
-      return rc;
+      goto cleanup;
     }
     if (db->vtable && db->vtable->disconnect)
       db->vtable->disconnect(db);
@@ -294,12 +305,16 @@ int main(int argc, char **argv) {
     LOG_DEBUG("main: unknown command");
     LOG_DEBUG("main: exit");
     printf("RETURNING RC %d\n", rc);
-    return rc;
+    goto cleanup;
   }
 
   rc = C_ORM_OK;
   LOG_DEBUG("main: exit");
   printf("RETURNING RC %d\n", rc);
+cleanup:
+#if defined(_MSC_VER)
+  free(env_db_str);
+#endif
   return rc;
 }
 

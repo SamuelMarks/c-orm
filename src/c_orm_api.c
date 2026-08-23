@@ -247,8 +247,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
           int year, month, day, hour, min, sec;
           /* A real driver would pass raw timestamp objects. This string
            * approach tests dynamic mapping offsets. */
-          if (sscanf(val, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &min,
-                     &sec) == 6) {
+          if (C_ORM_SSCANF(val, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour,
+                           &min, &sec) == 6) {
             tm_val.tm_year = year - 1900;
             tm_val.tm_mon = month - 1;
             tm_val.tm_mday = day;
@@ -2399,8 +2399,8 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
           db->timezone.offset_minutes != 0) {
         struct tm tm_val = {0};
         int year, month, day, hour, min, sec;
-        if (sscanf(str_val, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour,
-                   &min, &sec) == 6) {
+        if (C_ORM_SSCANF(str_val, "%d-%d-%d %d:%d:%d", &year, &month, &day,
+                         &hour, &min, &sec) == 6) {
           tm_val.tm_year = year - 1900;
           tm_val.tm_mon = month - 1;
           tm_val.tm_mday = day;

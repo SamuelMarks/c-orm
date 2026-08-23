@@ -1158,6 +1158,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_open(
     c_orm_db_t *db, const char *db_name, const char *table, const char *column,
     int64_t row_id, int is_read_write, void **out_blob_handle) {
   c_orm_error_t rc;
+  (void)db;
+  (void)db_name;
+  (void)table;
+  (void)column;
+  (void)row_id;
+  (void)is_read_write;
+  (void)out_blob_handle;
   LOG_DEBUG("c_orm_sqlite_blob_open: entry (stub)");
   rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   LOG_DEBUG("c_orm_sqlite_blob_open: exit (stub)");
@@ -1177,6 +1184,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_read(void *blob_handle,
                                                   void *buffer, int n,
                                                   int offset) {
   c_orm_error_t rc;
+  (void)blob_handle;
+  (void)buffer;
+  (void)n;
+  (void)offset;
   LOG_DEBUG("c_orm_sqlite_blob_read: entry (stub)");
   rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   LOG_DEBUG("c_orm_sqlite_blob_read: exit (stub)");
@@ -1196,6 +1207,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
                                                    const void *buffer, int n,
                                                    int offset) {
   c_orm_error_t rc;
+  (void)blob_handle;
+  (void)buffer;
+  (void)n;
+  (void)offset;
   LOG_DEBUG("c_orm_sqlite_blob_write: entry (stub)");
   rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   LOG_DEBUG("c_orm_sqlite_blob_write: exit (stub)");
@@ -1210,6 +1225,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
  */
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle) {
   c_orm_error_t rc;
+  (void)blob_handle;
   LOG_DEBUG("c_orm_sqlite_blob_close: entry (stub)");
   rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   LOG_DEBUG("c_orm_sqlite_blob_close: exit (stub)");
