@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "hydrate_router.h"
@@ -220,3 +222,6 @@ SUITE(hydrate_router_suite) {
   RUN_TEST(test_hydrate_router_register_oom);
   RUN_TEST(test_hydrate_router_set_error_fail);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

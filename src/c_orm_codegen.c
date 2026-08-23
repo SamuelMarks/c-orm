@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_codegen.c
  * @brief Implementation of the c_orm code generation.
@@ -96,41 +98,40 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     fprintf(fp, "/* clang-format "
                 "off */\n");
     fprintf(fp, "#include \"c_orm_meta.h\"\n");
-    fprintf(fp, "#if defined(_MSC_VER)\n"
-                "# if _MSC_VER < 1600\n"
-                "typedef signed __int8 int8_t;\n"
-                "typedef unsigned __int8 uint8_t;\n"
-                "typedef signed __int16 int16_t;\n"
-                "typedef unsigned __int16 uint16_t;\n"
-                "typedef signed __int32 int32_t;\n"
-                "typedef unsigned __int32 uint32_t;\n"
-                "typedef signed __int64 int64_t;\n"
-                "typedef unsigned __int64 uint64_t;\n"
-                "# else\n"
-                "#  include <stdint.h>\n"
-                "# endif\n"
-                "#  ifndef __cplusplus\n"
-                "#   ifndef _STDBOOL_H\n"
-                "#    define _STDBOOL_H\n"
-                "typedef unsigned char bool;\n"
-                "#    define true 1\n"
-                "#    define false 0\n"
-                "#   endif\n"
-                "#  endif\n"
-                "#else\n"
-                "# include <stdint.h>\n"
-                "# ifndef __cplusplus\n"
-                "#  ifndef _STDBOOL_H\n"
-                "#   define _STDBOOL_H\n"
-                "typedef unsigned char bool;\n"
-                "#   define true 1\n"
-                "#   define false 0\n"
-                "#  endif\n"
-                "# endif\n"
-                "#endif\n"
-                "#include <stddef.h>\n"
-                "/* clang-format "
-                "on */\n\n");
+    fputs("#if defined(_MSC_VER)\n", fp);
+    fputs("# if _MSC_VER < 1600\n", fp);
+    fputs("typedef signed __int8 int8_t;\n", fp);
+    fputs("typedef unsigned __int8 uint8_t;\n", fp);
+    fputs("typedef signed __int16 int16_t;\n", fp);
+    fputs("typedef unsigned __int16 uint16_t;\n", fp);
+    fputs("typedef signed __int32 int32_t;\n", fp);
+    fputs("typedef unsigned __int32 uint32_t;\n", fp);
+    fputs("typedef signed __int64 int64_t;\n", fp);
+    fputs("typedef unsigned __int64 uint64_t;\n", fp);
+    fputs("# else\n", fp);
+    fputs("#  include <stdint.h>\n", fp);
+    fputs("# endif\n", fp);
+    fputs("#  ifndef __cplusplus\n", fp);
+    fputs("#   ifndef _STDBOOL_H\n", fp);
+    fputs("#    define _STDBOOL_H\n", fp);
+    fputs("typedef unsigned char bool;\n", fp);
+    fputs("#    define true 1\n", fp);
+    fputs("#    define false 0\n", fp);
+    fputs("#   endif\n", fp);
+    fputs("#  endif\n", fp);
+    fputs("#else\n", fp);
+    fputs("# include <stdint.h>\n", fp);
+    fputs("# ifndef __cplusplus\n", fp);
+    fputs("#  ifndef _STDBOOL_H\n", fp);
+    fputs("#   define _STDBOOL_H\n", fp);
+    fputs("typedef unsigned char bool;\n", fp);
+    fputs("#   define true 1\n", fp);
+    fputs("#   define false 0\n", fp);
+    fputs("#  endif\n", fp);
+    fputs("# endif\n", fp);
+    fputs("#endif\n", fp);
+    fputs("#include <stddef.h>\n", fp);
+    fputs("/* clang-format on */\n\n", fp);
 
     for (i = 0; i < n_tables; ++i) {
       sql_to_c_header_emit(fp, &tables[i]);
@@ -204,3 +205,6 @@ cleanup:
   LOG_DEBUG("c_orm_codegen_generate: exit");
   return (c_orm_error_t)rc;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

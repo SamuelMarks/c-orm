@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include <stdarg.h>
 #include <stdio.h>
@@ -35,3 +37,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_sprintf(char *buf, size_t size,
   va_end(args);
   return ret;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

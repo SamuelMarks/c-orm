@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_struct.h"
@@ -188,3 +190,6 @@ int main(void) {
     { return rc; }
   }
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

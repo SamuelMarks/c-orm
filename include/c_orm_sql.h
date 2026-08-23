@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file sql.h
  * @brief Parses SQL DDL into an AST.
@@ -254,3 +256,6 @@ C_ORM_EXPORT c_orm_error_t sql_parse_returning(
 #endif /* __cplusplus */
 
 #endif /* C_CDD_SQL_PARSER_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

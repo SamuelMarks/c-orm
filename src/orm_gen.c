@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file orm_gen.c
  * @brief Implementation of ORM wrapper generation.
@@ -681,3 +683,6 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
 
   return 0;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

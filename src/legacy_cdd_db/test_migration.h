@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 #ifndef TEST_MIGRATION_H
 #define TEST_MIGRATION_H
 
@@ -108,3 +110,6 @@ SUITE(migration_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_MIGRATION_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

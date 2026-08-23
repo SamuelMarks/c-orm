@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file migration_runner.c
  * @brief Implementation of database migrations logic using libpq.
@@ -1012,3 +1014,6 @@ C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath) {
 }
 #endif /* !(!defined(__EMSCRIPTEN__) && (defined(USE_LIBPQ_LINKED) ||          \
           defined(USE_LIBPQ_DYNAMIC))) */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

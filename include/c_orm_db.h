@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_db.h
  * @brief Core interfaces and vtables for c-orm drivers.
@@ -291,3 +293,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_set_modality(c_orm_db_t *db,
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_DB_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

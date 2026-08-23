@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file migration.c
  * @brief Implementation of SQL migration file parser.
@@ -156,3 +158,6 @@ c_orm_error_t parse_migration_file(const char *filepath,
   C_ORM_FREE(file_data);
   return C_ORM_OK;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_sql_to_c.h"
@@ -404,3 +406,6 @@ SUITE(sql_to_c_suite) {
   RUN_TEST(test_sql_to_c_projection_types);
   RUN_TEST(test_sql_to_c_edge_cases);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

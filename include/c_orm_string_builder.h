@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_string_builder.h
  * @brief Dynamic string builder for safe SQL generation.
@@ -68,3 +70,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_STRING_BUILDER_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

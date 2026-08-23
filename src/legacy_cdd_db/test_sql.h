@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file test_sql.h
  * @brief Tests for the SQL DDL Lexer.
@@ -223,3 +225,6 @@ SUITE(sql_suite) {
 #endif /* __cplusplus */
 
 #endif /* C_CDD_TEST_SQL_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

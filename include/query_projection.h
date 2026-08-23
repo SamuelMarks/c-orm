@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file query_projection.h
  * @brief CDD_C query projection AST representation
@@ -97,3 +99,6 @@ extern C_ORM_EXPORT /**
 #endif /* __cplusplus */
 
 #endif /* C_CDD_CLASSES_PARSE_QUERY_PROJECTION_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

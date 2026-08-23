@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file abstract_struct.h
  * @brief CDD_C generic representation (dynamic dictionary/array)
@@ -380,3 +382,6 @@ C_ORM_EXPORT c_orm_error_t cdd_c_abstract_to_specific(
 #endif /* __cplusplus */
 
 #endif /* C_CDD_CLASSES_PARSE_ABSTRACT_STRUCT_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file test_abstract_struct.c
  * @brief Tests for abstract_struct generic representations.
@@ -227,7 +229,7 @@ TEST test_abstract_struct_conversion2(void) {
   /* Build Abstract */
   ASSERT_EQ(0, cdd_c_abstract_struct_init(&astruct_in));
   v_in.type = CDD_C_VARIANT_TYPE_INT;
-  v_in.value.i_val = 10000000000LL;
+  v_in.value.i_val = (((c_orm_int64_t)0x2) << 32) | 0x540BE400;
   cdd_c_abstract_set(&astruct_in, "big_id", &v_in);
   v_in.type = CDD_C_VARIANT_TYPE_FLOAT;
   v_in.value.f_val = 3.14f;
@@ -240,12 +242,12 @@ TEST test_abstract_struct_conversion2(void) {
   memset(&specific_out, 0, sizeof(specific_out));
   ASSERT_EQ(0,
             cdd_c_abstract_to_specific(&specific_out, &astruct_in, &meta, 1));
-  ASSERT_EQ(10000000000LL, specific_out.big_id);
+  ASSERT_EQ((((c_orm_int64_t)0x2) << 32) | 0x540BE400, specific_out.big_id);
   ASSERT_EQ((float)3.14f, specific_out.small_ratio);
   ASSERT_STR_EQ("Dynamic String Content", specific_out.dyn_str);
 
   /* Specific to Abstract */
-  specific_in.big_id = 20000000000LL;
+  specific_in.big_id = (((c_orm_int64_t)0x4) << 32) | 0xA817C800;
   specific_in.small_ratio = 2.71f;
   specific_in.dyn_str = specific_out.dyn_str; /* reuse string */
 
@@ -760,11 +762,11 @@ TEST test_json_edge_cases(void) {
 TEST test_specific_edge_cases(void) {
   mock_specific_row_t specific_out, specific_in;
   cdd_c_abstract_struct_t astruct_in, astruct_out;
-  (void)specific_in;
-  (void)astruct_out;
   cdd_c_prop_meta_t p1, p2, p3;
   cdd_c_meta_t meta;
   cdd_c_prop_meta_t props[3];
+  (void)specific_in;
+  (void)astruct_out;
 
   p1.name = "id";
   p1.type = "C_ORM_TYPE_INT32";
@@ -953,3 +955,6 @@ SUITE(abstract_struct_suite) {
   RUN_TEST(test_abstract_struct_allocation_limits);
   RUN_TEST(test_abstract_struct_oom_coverage);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

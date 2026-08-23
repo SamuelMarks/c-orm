@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "greatest.h"
 #include <stdio.h>
@@ -164,8 +166,8 @@ TEST test_cli_unknown(void) {
 #ifndef __EMSCRIPTEN__
 TEST test_cli_exec_sql2c(void) {
   int rc;
-  (void)rc;
   FILE *f;
+  (void)rc;
   f = fopen("test_schema.sql", "w");
   if (f) {
     fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
@@ -223,3 +225,6 @@ SUITE(cli_exec_suite) {
   RUN_TEST(test_cli_exec_sql2c);
 #endif
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

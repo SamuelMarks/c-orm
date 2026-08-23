@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file migration.h
  * @brief Parser and representation for SQL migration files.
@@ -68,3 +70,6 @@ extern C_ORM_EXPORT /**
 #endif /* __cplusplus */
 
 #endif /* C_CDD_MIGRATION_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

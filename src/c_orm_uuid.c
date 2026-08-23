@@ -1,4 +1,5 @@
-
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 
 /**
  * @file c_orm_uuid.c
@@ -58,3 +59,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_uuid_v4(char out_uuid[37]) {
   rc = C_ORM_OK;
   return (c_orm_error_t)rc;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

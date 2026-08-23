@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_memory.c
  * @brief Memory driver implementation for testing and simple in-memory
@@ -554,3 +556,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_memory_connect(const char *url,
                                                 c_orm_db_t **out_db) {
   return mem_connect(url, out_db);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

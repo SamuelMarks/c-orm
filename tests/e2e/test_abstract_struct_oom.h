@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 
 static int astruct_oom_countdown = 0;
 static int astruct_oom_active = 0;
@@ -151,3 +153,6 @@ TEST test_abstract_struct_oom_coverage(void) {
 
   PASS();
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file test_abstract_struct.h
  * @brief Tests for abstract_struct generic representations.
@@ -611,3 +613,6 @@ SUITE(abstract_struct_suite) {
 #endif /* __cplusplus */
 
 #endif /* C_CDD_TEST_ABSTRACT_STRUCT_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

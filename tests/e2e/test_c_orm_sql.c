@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_sql.h"
@@ -153,3 +155,6 @@ SUITE(sql_suite) {
   RUN_TEST(test_sql_parser_missing_keys);
   RUN_TEST(test_sql_parser_exhaustive_oom);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

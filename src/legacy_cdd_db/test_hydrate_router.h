@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file test_hydrate_router.h
  * @brief Tests for dynamic struct routing.
@@ -76,3 +78,6 @@ SUITE(hydrate_router_suite) {
 #endif /* __cplusplus */
 
 #endif /* C_CDD_TEST_HYDRATE_ROUTER_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

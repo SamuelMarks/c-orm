@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file hydrate_router.h
  * @brief Dynamic runtime routing API for C-ORM struct hydration.
@@ -124,3 +126,6 @@ cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router);
 #endif /* __cplusplus */
 
 #endif /* C_CDD_CLASSES_PARSE_HYDRATE_ROUTER_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

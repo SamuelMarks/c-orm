@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "migration.h"
@@ -247,3 +249,6 @@ SUITE(migration_suite) {
   RUN_TEST(test_migration_runner_stubs);
   RUN_TEST(test_parse_migration_file_oom);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

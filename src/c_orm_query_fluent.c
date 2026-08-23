@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_query_fluent.c
  * @brief Implementation of fluent AST-based query builder.
@@ -1416,3 +1418,6 @@ C_ORM_EXPORT void c_orm_query_free(c_orm_query_t *query) {
   }
   LOG_DEBUG("c_orm_query_free: exit");
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

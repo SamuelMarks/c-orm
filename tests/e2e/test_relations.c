@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_struct.h"
@@ -1000,3 +1002,6 @@ SUITE(relations_suite) {
   RUN_TEST(test_c_orm_deeply_nested_eager_loads);
   RUN_TEST(test_c_orm_self_referencing_tree);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

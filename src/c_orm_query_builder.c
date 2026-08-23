@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_query_builder.c
  * @brief Implementation of dynamic SQL query builder.
@@ -981,3 +983,6 @@ c_orm_update_builder_compile(c_orm_update_builder_t *builder, char **out_sql) {
   rc = *out_sql ? C_ORM_OK : C_ORM_ERROR_UNKNOWN;
   return rc;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "cdd_c_ir.h"
 #include "c_orm_safe_crt.h"
@@ -114,3 +116,6 @@ SUITE(cdd_c_ir_suite) {
   RUN_TEST(test_cdd_c_ir_parse_sql_failure);
   RUN_TEST(test_cdd_c_ir_oom);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 
 static int ir_oom_countdown = 0;
 static int ir_oom_active = 0;
@@ -171,3 +173,6 @@ TEST test_cdd_c_ir_oom(void) {
 
   PASS();
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

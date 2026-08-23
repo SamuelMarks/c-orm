@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_ast.h"
 #include "c_orm_uuid.h"
@@ -96,3 +98,6 @@ SUITE(arena_uuid_suite) {
   RUN_TEST(test_arena_coverage);
   RUN_TEST(test_uuid_coverage);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

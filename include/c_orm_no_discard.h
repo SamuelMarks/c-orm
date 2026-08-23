@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 #ifndef C_ORM_NO_DISCARD_H
 #define C_ORM_NO_DISCARD_H
 
@@ -20,3 +22,6 @@ extern "C" {
 #endif
 
 #endif /* C_ORM_NO_DISCARD_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

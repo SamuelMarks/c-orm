@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "Models.h"
 #include "c_orm_api.h"
@@ -243,3 +245,6 @@ SUITE(models_coverage_suite) {
   RUN_TEST(test_oauth2_models);
   c_orm_set_allocators(malloc, realloc, free);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

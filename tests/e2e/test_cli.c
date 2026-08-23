@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
@@ -11,15 +13,6 @@
 #include <string.h>
 
 #include <setjmp.h>
-static jmp_buf cli_exit_env;
-static int cli_exit_code = 0;
-
-/* We redefine exit to avoid exiting the test suite */
-#define exit(code)                                                             \
-  do {                                                                         \
-    cli_exit_code = (code);                                                    \
-    longjmp(cli_exit_env, 1);                                                  \
-  } while (0)
 
 #include "c_orm_migrations.h"
 
@@ -81,7 +74,6 @@ int c_orm_cli_main(int argc, char **argv);
 #include "../../src/c_orm_cli.c"
 /* clang-format on */
 #undef main
-#undef exit
 
 TEST test_cli_help(void) {
   c_orm_error_t rc;
@@ -328,3 +320,6 @@ SUITE(cli_suite) {
   RUN_TEST(test_cli_sql2c);
 #endif
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

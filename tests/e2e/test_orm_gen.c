@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include <errno.h>
 #include <string.h>
@@ -222,3 +224,6 @@ TEST test_orm_gen_basic(void) {
 }
 
 SUITE(orm_gen_suite) { RUN_TEST(test_orm_gen_basic); }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

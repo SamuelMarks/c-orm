@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_async.c
  * @brief Implementation of high-level asynchronous API for c-orm.
@@ -84,3 +86,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(
   LOG_DEBUG("c_orm_find_all_async: exit");
   return rc;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

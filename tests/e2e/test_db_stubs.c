@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_db.h"
@@ -310,3 +312,6 @@ SUITE(db_stubs_suite) {
 #endif
   RUN_TEST(test_modality_coverage);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

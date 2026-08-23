@@ -1,4 +1,5 @@
-
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 
 /* clang-format off */
 #include "c_orm_api.h"
@@ -226,3 +227,6 @@ SUITE(inline_macros_suite) {
   RUN_TEST(test_inline_macros_crud);
   RUN_TEST(test_spatial_crud);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

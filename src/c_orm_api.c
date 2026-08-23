@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_api.c
  * @brief Implementation of high-level API for c-orm.
@@ -2356,7 +2358,7 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
       continue;
     }
 
-    if (skip_clean && flags && !(((*flags) & (1ULL << i)) != 0)) {
+    if (skip_clean && flags && !(((*flags) & (((uint64_t)1) << i)) != 0)) {
       /* Field is not dirty, but our pre-compiled templates need all parameters
          bound. Phase 3 dynamic queries handles partial updates. For
          pre-compiled we MUST bind. To truly use dirty tracking we need dynamic
@@ -8185,3 +8187,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_system_realloc(void *ptr, size_t size,
   *out_ptr = C_ORM_REALLOC(ptr, size);
   return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

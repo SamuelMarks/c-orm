@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_postgres.h
  * @brief PostgreSQL driver implementation for c-orm.
@@ -93,3 +95,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd);
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_POSTGRES_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

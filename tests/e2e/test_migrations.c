@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
@@ -580,3 +582,6 @@ SUITE(migrations_suite) {
   c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

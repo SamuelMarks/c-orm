@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_alloc.c
  * @brief Memory allocation wrappers for c-orm.
@@ -58,3 +60,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_strdup(const char *s, char **out_dup) {
   *out_dup = dup;
   return dup ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

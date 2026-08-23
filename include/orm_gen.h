@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 #ifndef C_CDD_ROUTES_EMIT_ORM_GEN_H
 #define C_CDD_ROUTES_EMIT_ORM_GEN_H
 
@@ -30,3 +32,6 @@ extern C_ORM_EXPORT /**
 #endif /* __cplusplus */
 
 #endif /* C_CDD_ROUTES_EMIT_ORM_GEN_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

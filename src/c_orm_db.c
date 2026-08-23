@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_db.c
  * @brief Core interfaces and vtables implementation.
@@ -258,3 +260,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_set_timezone(c_orm_db_t *db,
   LOG_DEBUG("c_orm_set_timezone: exit");
   return C_ORM_OK;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

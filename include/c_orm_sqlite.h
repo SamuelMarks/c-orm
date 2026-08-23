@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_sqlite.h
  * @brief SQLite3 driver implementation for c-orm.
@@ -78,3 +80,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle);
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_SQLITE_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

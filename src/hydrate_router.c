@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file hydrate_router.c
  * @brief Implementation of dynamic runtime routing APIs for C-ORM struct
@@ -166,3 +168,6 @@ c_orm_error_t cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router) {
   router->capacity = 0;
   return C_ORM_OK;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file sql.c
  * @brief Parses SQL DDL into an AST.
@@ -1557,3 +1559,6 @@ c_orm_error_t sql_parse_returning(const struct sql_token_list_t *list,
   }
   return 0;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

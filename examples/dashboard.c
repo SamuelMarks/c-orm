@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /*
  * dashboard.c - c-orm Dashboard Example (Step 283)
  * Demonstrates using the dynamic abstract fallback router API.
@@ -88,3 +90,6 @@ int main(void) {
     { return rc; }
   }
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

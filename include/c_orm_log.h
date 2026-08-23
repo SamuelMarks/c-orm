@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_log.h
  * @brief Logging utilities and debug macros for c-orm.
@@ -45,3 +47,6 @@ c_orm_log_debug(const char *fmt, ...);
 #endif /* __cplusplus */
 
 #endif /* C_ORM_LOG_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

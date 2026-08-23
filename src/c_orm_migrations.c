@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_migrations.c
  * @brief Implementation of database migrations for c-orm.
@@ -906,3 +908,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_unlock(c_orm_db_t *db) {
   LOG_DEBUG("c_orm_migration_unlock: exiting");
   return rc;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

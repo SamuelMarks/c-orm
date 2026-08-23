@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_string_builder.c
  * @brief Implementation of dynamic string builder.
@@ -205,3 +207,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
   LOG_DEBUG("c_orm_string_builder_len: exit");
   return rc;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

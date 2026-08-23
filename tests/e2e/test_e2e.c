@@ -1,4 +1,5 @@
-
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 
 /* The generated models */
 
@@ -1265,4 +1266,7 @@ int main(int argc, char **argv) {
   run_all_suites();
   GREATEST_MAIN_END();
 }
+#endif
+
+#if defined(__clang__) || defined(__GNUC__)
 #endif

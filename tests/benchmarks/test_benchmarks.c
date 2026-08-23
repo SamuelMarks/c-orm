@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file test_benchmarks.c
  * @brief Profiling and benchmarking suite for c-orm parsing performance bounds.
@@ -192,3 +194,6 @@ int main(int argc, char **argv) {
   RUN_SUITE(benchmarks_suite);
   GREATEST_MAIN_END();
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

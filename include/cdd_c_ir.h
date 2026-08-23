@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file cdd_c_ir.h
  * @brief Top-level Intermediate Representation for CDD-C
@@ -84,3 +86,6 @@ extern C_ORM_EXPORT /**
 #endif /* __cplusplus */
 
 #endif /* C_CDD_CLASSES_PARSE_CDD_C_IR_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

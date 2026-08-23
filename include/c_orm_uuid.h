@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_uuid.h
  * @brief UUID generation utilities for c-orm.
@@ -28,3 +30,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_uuid_v4(char out_uuid[37]);
 #endif /* __cplusplus */
 
 #endif /* C_ORM_UUID_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

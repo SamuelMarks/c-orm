@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_c_to_sql.h"
 #include "c_orm_safe_crt.h"
@@ -437,3 +439,6 @@ cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
 
   return 0;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

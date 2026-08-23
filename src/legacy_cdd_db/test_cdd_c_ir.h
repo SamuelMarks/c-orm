@@ -1,6 +1,12 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #ifndef TEST_CDD_C_IR_H
 #define TEST_CDD_C_IR_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <greatest.h>
 #include "../../classes/parse/cdd_c_ir.h"
@@ -99,3 +105,10 @@ TEST test_cdd_c_ir_alloc(void) {
   cdd_c_ir_free(&ir);
   PASS();
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif
+#ifdef __cplusplus
+}
+#endif
+#endif

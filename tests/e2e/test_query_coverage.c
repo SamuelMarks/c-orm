@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_ast.h"
@@ -593,8 +595,6 @@ TEST test_query_sql_coverage(void) {
   } my_arr = {NULL, 0, 0};
 
   size_t res_count = 0;
-  (void)res_count;
-
   c_orm_query_t *q = NULL;
   char *sql = NULL;
   c_orm_query_params_t p;
@@ -619,6 +619,7 @@ TEST test_query_sql_coverage(void) {
   c_orm_driver_vtable_t mock_vt;
   c_orm_query_t *q_emp = NULL;
   c_orm_query_t *q_inv = NULL;
+  (void)res_count;
 
   c_orm_query_new(&q);
   c_orm_query_params_init(&p);
@@ -1511,3 +1512,6 @@ SUITE(query_fluent_coverage_suite) {
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
   c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

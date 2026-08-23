@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "Models.h"
 #include "c_orm_api.h"
@@ -180,3 +182,6 @@ SUITE(generic_suite) {
   RUN_TEST(test_c_orm_alloc);
   RUN_TEST(test_cdd_c_compat_log);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

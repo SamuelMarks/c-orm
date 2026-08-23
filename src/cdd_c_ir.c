@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file cdd_c_ir.c
  * @brief Implementation of the top-level Intermediate Representation for CDD-C
@@ -246,3 +248,6 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
   sql_token_list_free(list);
   return C_ORM_OK;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

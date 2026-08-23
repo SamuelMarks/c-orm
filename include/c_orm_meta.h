@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_meta.h
  * @brief Core definitions and structures for c-orm.
@@ -352,7 +354,7 @@ typedef uint64_t c_orm_dirty_flags_t;
  * @param bit_index The index of the field to flag as dirty.
  */
 #define C_ORM_SET_FIELD_DIRTY(obj, bit_index)                                  \
-  ((obj)->dirty_flags |= (1ULL << (bit_index)))
+  ((obj)->dirty_flags |= (((c_orm_uint64_t)1) << (bit_index)))
 
 /**
  * @brief Helper macro to mark a field as clean.
@@ -360,7 +362,7 @@ typedef uint64_t c_orm_dirty_flags_t;
  * @param bit_index The index of the field to flag as clean.
  */
 #define C_ORM_CLEAR_FIELD_DIRTY(obj, bit_index)                                \
-  ((obj)->dirty_flags &= ~(1ULL << (bit_index)))
+  ((obj)->dirty_flags &= ~(((c_orm_uint64_t)1) << (bit_index)))
 
 /**
  * @brief Helper macro to check if a field is dirty.
@@ -368,7 +370,7 @@ typedef uint64_t c_orm_dirty_flags_t;
  * @param bit_index The index of the field to check.
  */
 #define C_ORM_IS_FIELD_DIRTY(obj, bit_index)                                   \
-  (((obj)->dirty_flags & (1ULL << (bit_index))) != 0)
+  (((obj)->dirty_flags & (((c_orm_uint64_t)1) << (bit_index))) != 0)
 
 /**
  * @brief Represents a single cached object entry in the Identity Map.
@@ -417,3 +419,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_system_realloc(void *ptr, size_t size,
                                                 void **out_ptr);
 
 #endif /* C_ORM_META_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

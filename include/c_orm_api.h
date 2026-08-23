@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_api.h
  * @brief High-level API for c-orm: find, insert, update, delete.
@@ -1326,3 +1328,6 @@ C_ORM_EXPORT void c_orm_wasm_init_fs(void (*callback)(int));
 #endif /* __cplusplus */
 
 #endif /* C_ORM_API_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

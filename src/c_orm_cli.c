@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_cli.c
  * @brief Command line interface for C-ORM migrations and tools.
@@ -300,3 +302,6 @@ int main(int argc, char **argv) {
   printf("RETURNING RC %d\n", rc);
   return rc;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file migration_runner.h
  * @brief Logic for applying and rolling back SQL migrations.
@@ -151,3 +153,6 @@ extern C_ORM_EXPORT /**
 #endif /* __cplusplus */
 
 #endif /* C_CDD_MIGRATION_RUNNER_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

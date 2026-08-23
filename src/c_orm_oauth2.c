@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_oauth2.c
  * @brief Implementation of OAuth 2.0 and User schemas support.
@@ -1405,3 +1407,6 @@ c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
   LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: exiting");
   return C_ORM_OK;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

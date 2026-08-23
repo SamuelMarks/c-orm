@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_ast.h"
@@ -174,3 +176,6 @@ SUITE(ast_suite) {
   RUN_TEST(test_c_orm_ast_to_sql_postgres);
   RUN_TEST(test_c_orm_ast_depth_limit);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

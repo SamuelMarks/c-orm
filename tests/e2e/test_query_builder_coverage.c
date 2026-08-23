@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_query_builder.h"
@@ -1150,3 +1152,6 @@ SUITE(query_builder_coverage_suite) {
   RUN_TEST(test_query_builder_oom);
   RUN_TEST(qb_exhaustive_oom_all);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

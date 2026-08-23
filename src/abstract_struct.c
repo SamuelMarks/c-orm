@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file abstract_struct.c
  * @brief Implementation of CDD_C generic representation.
@@ -1122,3 +1124,6 @@ cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
   return EINVAL;
 #endif
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

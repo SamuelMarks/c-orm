@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file query_projection.c
  * @brief Implementation of CDD_C query projection AST representation
@@ -98,3 +100,6 @@ c_orm_error_t cdd_c_query_projection_free(cdd_c_query_projection_t *proj) {
   proj->mapping_meta.target_name = NULL;
   return C_ORM_OK;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

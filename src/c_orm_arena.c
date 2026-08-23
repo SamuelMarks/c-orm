@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_arena.c
  * @brief Implementation of memory arena for AST nodes.
@@ -143,3 +145,6 @@ C_ORM_EXPORT void c_orm_arena_free(c_orm_arena_t *arena) {
   C_ORM_FREE(arena);
   LOG_DEBUG("c_orm_arena_free: exit");
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

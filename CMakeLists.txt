@@ -11,6 +11,10 @@ if(POLICY CMP0091)
 endif()
 
 project(c-orm VERSION 0.1.0 LANGUAGES C)
+
+if(APPLE)
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "10.10" CACHE STRING "Minimum OS X deployment version" FORCE)
+endif()
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UPPER)
 string(REPLACE "-" "_" PROJECT_NAME_SAFE "${PROJECT_NAME_UPPER}")
 

@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_sql.h"
@@ -281,3 +283,6 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
   c_orm_set_allocators(old_malloc, old_realloc, old_free);
   PASS();
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

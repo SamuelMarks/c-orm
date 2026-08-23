@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_sql.h"
@@ -96,3 +98,6 @@ SUITE(codegen_coverage_suite) {
   RUN_TEST(test_codegen_fopen_c_fail);
   RUN_TEST(test_codegen_malloc_fail);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

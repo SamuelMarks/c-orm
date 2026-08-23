@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file cdd_c_orm_meta.h
  * @brief Common definitions and enums for cdd-c struct meta-data.
@@ -43,3 +45,6 @@ typedef struct cdd_c_meta {
 #endif /* __cplusplus */
 
 #endif /* C_CDD_C_ORM_META_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "query_projection.h"
@@ -162,3 +164,6 @@ SUITE(query_projection_suite) {
   RUN_TEST(test_query_projection_duplicate_string_oom_original_name);
   RUN_TEST(test_query_projection_add_field_cap_expansion);
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

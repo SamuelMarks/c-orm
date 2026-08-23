@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /* clang-format off */
 #include "c_orm_log.h"
 #include "c_orm_string_builder.h"
@@ -158,3 +160,6 @@ TEST test_c_orm_string_builder(void) {
 }
 
 SUITE(string_builder_suite) { RUN_TEST(test_c_orm_string_builder); }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

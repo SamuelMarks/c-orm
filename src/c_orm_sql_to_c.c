@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file sql_to_c.c
  * @brief Emits C structures and array containers from SQL DDL AST.
@@ -669,12 +671,12 @@ sql_to_c_projection_struct_emit(FILE *fp, const cdd_c_query_projection_t *proj,
   if (out_hash) {
     /* Simplified fast query string hash simulation for external routing
      * metadata tag ID */
-    c_orm_uint64_t hash = 14695981039346656037ULL;
+    c_orm_uint64_t hash = (((c_orm_uint64_t)0xCBF29CE4) << 32) | 0x84222325;
     const char *s = struct_name; /* In reality we hash the actual SELECT AST,
                                     simplified for mock */
     while (*s) {
       hash ^= (unsigned char)(*s++);
-      hash *= 1099511628211ULL;
+      hash *= (((c_orm_uint64_t)0x100) << 32) | 0x000001B3;
     }
     *out_hash = hash;
 
@@ -1425,3 +1427,6 @@ c_orm_error_t sql_to_c_projection_polymorphic_struct_emit(
 
   return C_ORM_OK;
 }
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

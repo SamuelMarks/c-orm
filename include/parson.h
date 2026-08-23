@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /*
  SPDX-License-Identifier: MIT
 
@@ -332,4 +334,7 @@ int json_boolean(const JSON_Value *value);
 }
 #endif /* __cplusplus */
 
+#endif
+
+#if defined(__clang__) || defined(__GNUC__)
 #endif

@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_struct.h
  * @brief Macro definitions for Diesel/Serde style fully-typed struct mapping.
@@ -352,3 +354,6 @@ extern "C" {
 #endif /* __cplusplus */
 
 #endif /* C_ORM_STRUCT_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

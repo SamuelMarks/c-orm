@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_memory.h
  * @brief Ephemeral Memory driver implementation for c-orm.
@@ -33,3 +35,6 @@ c_orm_memory_get_vtable(const c_orm_driver_vtable_t **out_vtable);
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_MEMORY_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

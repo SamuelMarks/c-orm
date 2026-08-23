@@ -1,3 +1,5 @@
+#if defined(__clang__) || defined(__GNUC__)
+#endif
 /**
  * @file c_orm_migrations.h
  * @brief Schema migration system for c-orm.
@@ -183,3 +185,6 @@ C_ORM_EXPORT void c_orm_migration_free_table_schema(cdd_c_meta_t *schema);
 #endif /* __cplusplus */
 
 #endif /* C_ORM_MIGRATIONS_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif
