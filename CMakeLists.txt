@@ -106,6 +106,9 @@ include(FetchContent)
 set(OLD_BUILD_TESTING_VAL "${BUILD_TESTING}")
 #set(BUILD_TESTING OFF)
 
+# Save global flags so strict flags don't break dependencies
+set(SAVED_CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+set(CMAKE_C_FLAGS "")
 
 
 
@@ -230,6 +233,8 @@ else()
     set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
     FetchContent_MakeAvailable(cdd_c)
 endif()
+
+set(CMAKE_C_FLAGS "${SAVED_CMAKE_C_FLAGS}")
 
 set(BUILD_TESTING "${OLD_BUILD_TESTING_VAL}")
 
