@@ -1401,11 +1401,7 @@ TEST query_sql_exhaustive_oom(void) {
     } else if (extra == 1) {
       static char bufs1[7][16];
       for (i = 0; i < 7; i++) {
-#if defined(_MSC_VER)
-        sprintf_s(bufs1[i], sizeof(bufs1[i]), "c%d", i);
-#else
-        sprintf(bufs1[i], "c%d", i);
-#endif
+        C_ORM_SPRINTF(bufs1[i], sizeof(bufs1[i]), "c%d", i);
         cond = query->eq(query, bufs1[i], "1", 0);
         query->and_where(query, cond);
       }
@@ -1414,11 +1410,7 @@ TEST query_sql_exhaustive_oom(void) {
     } else if (extra == 2) {
       static char bufs2[8][16];
       for (i = 0; i < 8; i++) {
-#if defined(_MSC_VER)
-        sprintf_s(bufs2[i], sizeof(bufs2[i]), "c%d", i);
-#else
-        sprintf(bufs2[i], "c%d", i);
-#endif
+        C_ORM_SPRINTF(bufs2[i], sizeof(bufs2[i]), "c%d", i);
         cond = query->eq(query, bufs2[i], "1", 0);
         query->and_where(query, cond);
       }
