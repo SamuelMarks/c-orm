@@ -21,9 +21,15 @@
 #ifdef C_ORM_ENABLE_POSTGRESQL
 
 #if defined(_MSC_VER)
-#define INT64_FORMAT "%I64d"
+#define C_ORM_INT64_FORMAT "%I64d"
+#define C_ORM_INT64_CAST __int64
+#elif defined(__x86_64__) || defined(__aarch64__) ||                           \
+    (defined(__APPLE__) && defined(__MACH__))
+#define C_ORM_INT64_FORMAT "%ld"
+#define C_ORM_INT64_CAST long
 #else
-#define INT64_FORMAT "%lld"
+#define C_ORM_INT64_FORMAT "%lld"
+#define C_ORM_INT64_CAST long long
 #endif
 
 /** @brief Postgres DB data */
@@ -396,7 +402,7 @@ static c_orm_error_t postgres_bind_int64(c_orm_query_t *query, int index,
     return (c_orm_error_t)rc;
   }
   free_param(query->data, index);
-  C_ORM_SPRINTF(buf, sizeof(buf), INT64_FORMAT, (c_orm_int64_t)val);
+  C_ORM_SPRINTF(buf, sizeof(buf), C_ORM_INT64_FORMAT, (C_ORM_INT64_CAST)val);
   query->data->param_values[index - 1] = orm_strdup(buf);
   if (!query->data->param_values[index - 1]) {
     LOG_DEBUG("postgres_bind_int64: OOM");

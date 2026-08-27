@@ -681,13 +681,20 @@ sql_to_c_projection_struct_emit(FILE *fp, const cdd_c_query_projection_t *proj,
     *out_hash = hash;
 
 #if defined(_MSC_VER)
-#define UINT64_FORMAT "%I64u"
+#define C_ORM_UINT64_FORMAT "%I64u"
+#define C_ORM_UINT64_CAST unsigned __int64
+#elif defined(__x86_64__) || defined(__aarch64__) ||                           \
+    (defined(__APPLE__) && defined(__MACH__))
+#define C_ORM_UINT64_FORMAT "%lu"
+#define C_ORM_UINT64_CAST unsigned long
 #else
-#define UINT64_FORMAT "%llu"
+#define C_ORM_UINT64_FORMAT "%llu"
+#define C_ORM_UINT64_CAST unsigned long long
 #endif
-    fprintf(fp, "\n/* Auto-generated Route Hash ID Tag: " UINT64_FORMAT " */\n",
-            hash);
-#undef UINT64_FORMAT
+    fprintf(fp, "\n/* Auto-generated Route Hash ID Tag: " C_ORM_UINT64_FORMAT " */\n",
+            (C_ORM_UINT64_CAST)hash);
+#undef C_ORM_UINT64_CAST
+#undef C_ORM_UINT64_FORMAT
   }
 
   fprintf(fp, "/**\n");

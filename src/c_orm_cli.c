@@ -102,7 +102,9 @@ int main(int argc, char **argv) {
   _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
 #if defined(_WIN32) || defined(_WIN64)
-  { SetErrorMode(0x0001 | 0x0002 | 0x8000); }
+  {
+    SetErrorMode(0x0001 | 0x0002 | 0x8000);
+  }
 #endif
 
 #if defined(_MSC_VER)
