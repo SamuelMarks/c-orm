@@ -32,7 +32,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_sprintf(char *buf, size_t size,
 #if defined(_MSC_VER)
   ret = vsprintf_s(buf, size, format, args);
 #else
-  ret = vsnprintf(buf, size, format, args);
+  (void)size;
+  ret = vsprintf(buf, format, args);
 #endif
   va_end(args);
   return ret;

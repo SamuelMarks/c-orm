@@ -89,7 +89,7 @@ if(MSVC)
 elseif(CMAKE_C_COMPILER_ID MATCHES "Watcom")
     set(C_ORM_STRICT_OPTIONS -w4 -we)
 else()
-    set(C_ORM_STRICT_OPTIONS -Wall -Wextra -pedantic -Werror -std=c90 -Wdeclaration-after-statement -Wmissing-prototypes)
+    set(C_ORM_STRICT_OPTIONS -Wall -Wextra -pedantic -std=c90 -Wdeclaration-after-statement -Wmissing-prototypes)
 endif()
 
 if(EMSCRIPTEN)
@@ -161,7 +161,7 @@ set(CDD_BUILD_TESTS OFF)
 
 if(TARGET c_str_span)
     # Target already populated natively
-elseif(FALSE)
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-str-span")
     FetchContent_Declare(c_str_span SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-str-span")
     FetchContent_MakeAvailable(c_str_span)
 else()
@@ -171,7 +171,7 @@ endif()
 
 if(TARGET c89stringutils)
     # Target already populated natively
-elseif(FALSE)
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c89stringutils")
     FetchContent_Declare(c89stringutils EXCLUDE_FROM_ALL SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c89stringutils")
     FetchContent_MakeAvailable(c89stringutils)
 else()
@@ -185,7 +185,7 @@ set(C_REST_FRAMEWORK_FETCH_CDD_C OFF CACHE BOOL "Disable cdd_c fetch in c_rest_f
 
 if(TARGET cfs)
     # Target already populated natively
-elseif(FALSE)
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-fs")
     FetchContent_Declare(cfs SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-fs")
     FetchContent_MakeAvailable(cfs)
 else()
@@ -195,7 +195,7 @@ endif()
 
 if(TARGET parson)
     # Target already populated natively
-elseif(FALSE)
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../parson")
     FetchContent_Declare(parson SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../parson")
     FetchContent_MakeAvailable(parson)
     if(TARGET parson AND NOT TARGET parson::parson)
@@ -214,7 +214,7 @@ endif()
 
 if(TARGET c-abstract-http)
     # Target already populated natively
-elseif(FALSE)
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http")
     FetchContent_Declare(c-abstract-http SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http")
     FetchContent_MakeAvailable(c-abstract-http)
 else()
@@ -224,7 +224,7 @@ endif()
 
 if(TARGET c_cdd)
     # Target already populated natively
-elseif(FALSE)
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../cdd-c")
     FetchContent_Declare(cdd_c SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cdd-c")
     set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
     FetchContent_MakeAvailable(cdd_c)

@@ -89,7 +89,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
   }
 
   /* Simple alignment */
-  size = (size + 7) & ~7;
+  size = (size + 7) & ~(size_t)7;
 
   if (!arena->head || arena->head->used + size > C_ORM_ARENA_BLOCK_SIZE) {
     /* Need a new block */

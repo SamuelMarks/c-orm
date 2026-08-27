@@ -375,7 +375,7 @@ static c_orm_error_t build_exists_query(c_orm_string_builder_t *sb,
     return rc;
   } else {
     char rel_name[64];
-    size_t len = dot - path;
+    size_t len = (size_t)(dot - path);
     const c_orm_relation_meta_t *rel = NULL;
     size_t i;
     char target_alias[32];
@@ -658,7 +658,7 @@ c_orm_select_aggregate(c_orm_select_builder_t *builder, const char *func,
   } else {
     from_pos = strstr(current_sql, " FROM ");
     if (from_pos) {
-      size_t prefix_len = from_pos - current_sql;
+      size_t prefix_len = (size_t)(from_pos - current_sql);
       extra_len = strlen(func) + strlen(column) + strlen(alias) + 32;
       new_sql = (char *)C_ORM_MALLOC(strlen(current_sql) + extra_len);
       if (!new_sql) {
