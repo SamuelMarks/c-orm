@@ -1,6 +1,11 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 
+/* clang-format off */
+#include <stddef.h>
+#include <stdlib.h>
+/* clang-format on */
+
 static int ir_oom_countdown = 0;
 static int ir_oom_active = 0;
 static void *(*old_malloc_ir)(size_t) = NULL;

@@ -1014,11 +1014,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
  * relation.
  */
 #define C_ORM_LAZY_LOAD(DB, OBJ, META, REL_INDEX, PTR_VAR)                     \
-  do {                                                                         \
+  for (;;) {                                                                   \
     if (!(OBJ)->PTR_VAR) {                                                     \
       c_orm_load_relation((DB), (OBJ), (META), (REL_INDEX));                   \
     }                                                                          \
-  } while (0)
+    break;                                                                     \
+  }
 
 /**
  * @brief Add support for SQLite specific PRAGMAs via ORM config (Step 200).

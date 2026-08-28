@@ -131,7 +131,9 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     fputs("# endif\n", fp);
     fputs("#endif\n", fp);
     fputs("#include <stddef.h>\n", fp);
-    fputs("/* clang-format on */\n\n", fp);
+    fputs("/* clang-format "
+          "on */\n\n",
+          fp);
 
     for (i = 0; i < n_tables; ++i) {
       sql_to_c_header_emit(fp, &tables[i]);

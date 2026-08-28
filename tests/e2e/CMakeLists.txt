@@ -35,13 +35,13 @@ if(WIN32 AND BUILD_SHARED_LIBS)
     endif()
 
     string(REPLACE ";" "\\;" CDD_C_PATH_ENV_ESCAPED "${CDD_C_PATH_ENV}")
-    set(RUN_ENV_VARS PATH="${CDD_C_PATH_ENV_ESCAPED}")
+    set(RUN_ENV_VARS PATH="$<TARGET_FILE_DIR:c-orm>\;${CDD_C_PATH_ENV_ESCAPED}\;C:/msys64/mingw64/bin")
     if(CMAKE_CROSSCOMPILING AND CMAKE_CROSSCOMPILING_EMULATOR MATCHES "wine")
     endif()
 
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-        COMMAND ${CMAKE_COMMAND} -E env ${RUN_ENV_VARS} ${CLI_CMD} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+        COMMAND ${CLI_CMD} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
         DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
         COMMENT "Generating C Models from schema.sql using c-orm-cli..."
     )

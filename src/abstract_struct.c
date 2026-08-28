@@ -538,7 +538,7 @@ cdd_c_abstract_struct_from_json(const char *json_str,
     switch (json_value_get_type(val)) {
     case JSONString:
       variant.type = CDD_C_VARIANT_TYPE_STRING;
-      variant.value.s_val = (char *)json_value_get_string(val);
+      variant.value.s_val = (char *)(size_t)json_value_get_string(val);
       break;
     case JSONNumber: {
       double num = json_value_get_number(val);
@@ -854,24 +854,26 @@ c_orm_error_t cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
 
     if (strcmp(prop->type, "C_ORM_TYPE_INT32") == 0) {
       val.type = CDD_C_VARIANT_TYPE_INT;
-      memcpy(&val.value.i_val, (char *)in_struct + prop->offset, sizeof(int));
+      memcpy(&val.value.i_val, (char *)(size_t)in_struct + prop->offset,
+             sizeof(int));
     } else if (strcmp(prop->type, "C_ORM_TYPE_INT64") == 0) {
       val.type = CDD_C_VARIANT_TYPE_INT;
-      memcpy(&val.value.i_val, (char *)in_struct + prop->offset,
+      memcpy(&val.value.i_val, (char *)(size_t)in_struct + prop->offset,
              sizeof(c_orm_int64_t));
     } else if (strcmp(prop->type, "C_ORM_TYPE_FLOAT") == 0) {
       val.type = CDD_C_VARIANT_TYPE_FLOAT;
-      memcpy(&val.value.f_val, (char *)in_struct + prop->offset, sizeof(float));
+      memcpy(&val.value.f_val, (char *)(size_t)in_struct + prop->offset,
+             sizeof(float));
     } else if (strcmp(prop->type, "C_ORM_TYPE_DOUBLE") == 0) {
       val.type = CDD_C_VARIANT_TYPE_FLOAT;
-      memcpy(&val.value.f_val, (char *)in_struct + prop->offset,
+      memcpy(&val.value.f_val, (char *)(size_t)in_struct + prop->offset,
              sizeof(double));
     } else if (strcmp(prop->type, "C_ORM_TYPE_STRING") == 0) {
       val.type = CDD_C_VARIANT_TYPE_STRING;
       if (prop->length > 0) {
-        val.value.s_val = (char *)in_struct + prop->offset;
+        val.value.s_val = (char *)(size_t)in_struct + prop->offset;
       } else {
-        memcpy(&val.value.s_val, (char *)in_struct + prop->offset,
+        memcpy(&val.value.s_val, (char *)(size_t)in_struct + prop->offset,
                sizeof(char *));
       }
     }

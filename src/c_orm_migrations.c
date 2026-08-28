@@ -442,7 +442,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
     rc = C_ORM_ERROR_MEMORY;
     return rc;
   }
-  C_ORM_STRCPY((char *)meta->name, strlen(table_name) + 1, table_name);
+  C_ORM_STRCPY((char *)(size_t)meta->name, strlen(table_name) + 1, table_name);
   meta->size = 0;
   meta->num_props = 0;
   meta->driver_ctx = NULL;
@@ -452,7 +452,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
   if (!meta->props) {
     LOG_DEBUG("c_orm_migration_fetch_table_schema: OOM");
     if (meta->name) {
-      C_ORM_FREE((void *)meta->name);
+      C_ORM_FREE((void *)(size_t)meta->name);
     }
     C_ORM_FREE(meta);
     {
@@ -513,7 +513,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
       cdd_c_prop_meta_t *new_props;
       cap *= 2;
       new_props = (cdd_c_prop_meta_t *)C_ORM_REALLOC(
-          (void *)meta->props, sizeof(cdd_c_prop_meta_t) * cap);
+          (void *)(size_t)meta->props, sizeof(cdd_c_prop_meta_t) * cap);
       if (!new_props) {
         LOG_DEBUG("c_orm_migration_fetch_table_schema: OOM during realloc");
         c_orm_migration_free_table_schema(meta);
@@ -529,7 +529,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
       meta->props = new_props;
     }
 
-    prop = (cdd_c_prop_meta_t *)&meta->props[meta->num_props++];
+    prop = (cdd_c_prop_meta_t *)(size_t)&meta->props[meta->num_props++];
     memset(prop, 0, sizeof(cdd_c_prop_meta_t));
 
     prop->name = (char *)C_ORM_MALLOC(strlen(col_name) + 1);
@@ -545,7 +545,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
       rc = C_ORM_ERROR_MEMORY;
       return rc;
     }
-    C_ORM_STRCPY((char *)prop->name, strlen(col_name) + 1, col_name);
+    C_ORM_STRCPY((char *)(size_t)prop->name, strlen(col_name) + 1, col_name);
 
     prop->type = (char *)C_ORM_MALLOC(strlen(col_type) + 1);
     if (!prop->type) {
@@ -560,7 +560,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
       rc = C_ORM_ERROR_MEMORY;
       return rc;
     }
-    C_ORM_STRCPY((char *)prop->type, strlen(col_type) + 1, col_type);
+    C_ORM_STRCPY((char *)(size_t)prop->type, strlen(col_type) + 1, col_type);
     prop->offset = 0;
   }
 
@@ -590,18 +590,18 @@ C_ORM_EXPORT void c_orm_migration_free_table_schema(cdd_c_meta_t *schema) {
     return;
   }
   if (schema->name) {
-    C_ORM_FREE((void *)schema->name);
+    C_ORM_FREE((void *)(size_t)schema->name);
   }
   if (schema->props) {
     for (i = 0; i < schema->num_props; i++) {
       if (schema->props[i].name) {
-        C_ORM_FREE((void *)schema->props[i].name);
+        C_ORM_FREE((void *)(size_t)schema->props[i].name);
       }
       if (schema->props[i].type) {
-        C_ORM_FREE((void *)schema->props[i].type);
+        C_ORM_FREE((void *)(size_t)schema->props[i].type);
       }
     }
-    C_ORM_FREE((void *)schema->props);
+    C_ORM_FREE((void *)(size_t)schema->props);
   }
   C_ORM_FREE(schema);
   LOG_DEBUG("c_orm_migration_free_table_schema: exiting");

@@ -568,7 +568,7 @@ TEST test_oauth2_token(void) {
   t.token_type = "Bearer";
   t.user_id = NULL;
   t.scopes = "read";
-  t.created_at = 9999999999;
+  t.created_at = 2000000000;
   t.expires_in = 3600;
 
   c_orm_oauth2_save_token(db, &t);
@@ -796,7 +796,7 @@ TEST test_oauth2_valid_token(void) {
   c_orm_oauth2_token_t t;
   int i;
   memset(&t, 0, sizeof(t));
-  t.created_at = 9999999999;
+  t.created_at = 2000000000;
   t.expires_in = 3600;
   c_orm_oauth2_is_token_valid(&t, 0, &i);
 

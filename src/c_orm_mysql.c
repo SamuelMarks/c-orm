@@ -19,18 +19,6 @@
 
 #ifdef C_ORM_ENABLE_MYSQL
 
-#if defined(_MSC_VER)
-#define C_ORM_INT64_FORMAT "%I64d"
-#define C_ORM_INT64_CAST __int64
-#elif defined(__x86_64__) || defined(__aarch64__) ||                           \
-    (defined(__APPLE__) && defined(__MACH__))
-#define C_ORM_INT64_FORMAT "%ld"
-#define C_ORM_INT64_CAST long
-#else
-#define C_ORM_INT64_FORMAT "%lld"
-#define C_ORM_INT64_CAST long long
-#endif
-
 /**
  * @brief Internal data for MySQL connection.
  */

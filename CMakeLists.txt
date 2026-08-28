@@ -89,7 +89,7 @@ if(MSVC)
 elseif(CMAKE_C_COMPILER_ID MATCHES "Watcom")
     set(C_ORM_STRICT_OPTIONS -w4 -we)
 else()
-    set(C_ORM_STRICT_OPTIONS -Wall -Wextra -pedantic -std=c90 -Wdeclaration-after-statement -Wmissing-prototypes)
+    set(C_ORM_STRICT_OPTIONS -Wall -Wextra -Werror -pedantic -std=c90 -Wdeclaration-after-statement -Wmissing-prototypes -Wstrict-prototypes -Wold-style-definition -Wshadow -Wcast-qual -Wwrite-strings -Wformat=2 -Wnested-externs -Wunreachable-code)
 endif()
 
 if(EMSCRIPTEN)

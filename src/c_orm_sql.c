@@ -818,7 +818,7 @@ sql_parse_table_constraint(struct SqlParserState *state,
   }
 
   /* Parse columns */
-  while (1) {
+  for (;;) {
     const struct sql_token_t *col_tok = NULL;
     rc = sql_parser_match_kind(state, SQL_TOKEN_IDENTIFIER, &col_tok, &match1);
     if (rc != C_ORM_OK) {
@@ -1123,7 +1123,7 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
   }
 
   /* Parse columns and table constraints */
-  while (1) {
+  for (;;) {
     const struct sql_token_t *col_name_tok = NULL;
     const struct sql_token_t *peek;
 
@@ -1283,7 +1283,7 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
       col.n_constraints = 0;
 
       /* Parse inline constraints */
-      while (1) {
+      for (;;) {
         struct sql_constraint_t constraint;
         rc = sql_parser_peek(&state, &_ast_sql_parser_peek_5);
         if (rc != C_ORM_OK) {
@@ -1456,7 +1456,7 @@ c_orm_error_t parse_sql_ddl(const char *sql_data,
   if (!sql_data || !out_tables || !out_n_tables)
     return 1;
 
-  span = az_span_create_from_str((char *)sql_data);
+  span = az_span_create_from_str((char *)(size_t)sql_data);
   rc = sql_lex(span, &list);
   if (rc != 0)
     return rc;

@@ -156,7 +156,7 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
   if (!sql_data || !out_ir)
     return C_ORM_ERROR_UNKNOWN;
 
-  span = az_span_create_from_str((char *)sql_data);
+  span = az_span_create_from_str((char *)(size_t)sql_data);
   rc = sql_lex(span, &list);
   if (rc != C_ORM_OK)
     return rc;

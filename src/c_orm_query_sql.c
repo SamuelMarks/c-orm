@@ -19,21 +19,23 @@
 C_ORM_EXPORT unsigned int cdd_c_sql_parser_max_depth = 100;
 
 #define APPEND(str)                                                            \
-  do {                                                                         \
+  for (;;) {                                                                   \
     c_orm_error_t _err = c_orm_string_builder_append(sb, (str));               \
     if (_err != C_ORM_OK) {                                                    \
       return _err;                                                             \
     }                                                                          \
-  } while (0)
+    break;                                                                     \
+  }
 
 #define APPEND_SQL(str)                                                        \
-  do {                                                                         \
+  for (;;) {                                                                   \
     c_orm_error_t _err = c_orm_string_builder_append(sb, (str));               \
     if (_err != C_ORM_OK) {                                                    \
       (void)c_orm_string_builder_free(sb);                                     \
       return _err;                                                             \
     }                                                                          \
-  } while (0)
+    break;                                                                     \
+  }
 /**
  * @brief Initializes query parameters.
  *

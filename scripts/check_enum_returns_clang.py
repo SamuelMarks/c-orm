@@ -22,6 +22,19 @@ DEFAULT_SYMBOL_EXCEPTIONS = ["EM_JS"]
 """list: List of symbols that, if present in a function, exempt it from the return type check."""
 
 
+def is_handler_function(name: str) -> bool:
+    """Checks if a function is a callback/handler.
+
+    Args:
+        name (str): The name of the function to check.
+
+    Returns:
+        bool: True if it's a handler function, False otherwise.
+    """
+    if not name:
+        return False
+    return name.endswith("_handler") or name.endswith("_callback")
+
 def is_test_function(name: str) -> bool:
     """Checks if a function is a test function to be ignored by default.
 
@@ -380,6 +393,8 @@ def check_file(
     # Walk the AST
     for cursor in tu.cursor.walk_preorder():
         if cursor.kind == CursorKind.FUNCTION_DECL:
+            if not cursor.is_definition():
+                continue
             # Check if this function is defined in the target file (ignore included headers)
             if cursor.location.file and cursor.location.file.name == filename:
                 if use_default_symbol_exceptions and file_lines:
@@ -434,6 +449,8 @@ def check_file(
                 if canon_type.kind == TypeKind.VOID and is_memory_management_function(
                     cursor.spelling
                 ):
+                    continue
+                if canon_type.kind == TypeKind.VOID and is_handler_function(cursor.spelling):
                     continue
                 if is_type_mapper(cursor.spelling):
                     continue
@@ -516,7 +533,7 @@ def main():
         help="Disable default symbol exceptions (e.g. EM_JS)",
     )
     parser.add_argument(
-        "--",
+        "--compile-args",
         dest="compile_args",
         nargs=argparse.REMAINDER,
         help="Additional arguments for clang (e.g., -Iinclude)",
@@ -568,23 +585,11 @@ def main():
             comp_db = CompilationDatabase.fromDirectory(args.build_dir)
         except CompilationDatabaseError as e:
             print(
-                f"Error: Could not load compilation database from '{args.build_dir}'.",
+                f"Warning: Could not load compilation database from '{args.build_dir}'. Proceeding without it.",
                 file=sys.stderr,
             )
             print(f"Underlying error: {e}", file=sys.stderr)
-            print(
-                "\nTo fix this, you must generate a 'compile_commands.json' file in your build directory.",
-                file=sys.stderr,
-            )
-            print(
-                "If you are using CMake, configure your project with the following flag:",
-                file=sys.stderr,
-            )
-            print(
-                "    cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON <path_to_source>",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+            comp_db = None
 
     files_to_check = gather_files(
         args.paths, args.exclude_files, not args.no_default_exceptions

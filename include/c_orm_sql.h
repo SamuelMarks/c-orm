@@ -15,13 +15,8 @@ extern "C" {
 /* clang-format off */
 #include "c_orm_db.h"
 #include <stddef.h>
-
-#if defined(__GNUC__) || defined(__clang__)
-#endif
 #include <c_str_span.h>
 /* clang-format on */
-#if defined(__GNUC__) || defined(__clang__)
-#endif
 
 /*
  * Phase 1: AST Node Structs

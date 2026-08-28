@@ -33,27 +33,30 @@ __declspec(dllimport) void __stdcall DeleteCriticalSection(CRITICAL_SECTION *);
 
 /** @brief Macro to initialize a mutex on Windows */
 #define C_ORM_MUTEX_INIT(m)                                                    \
-  do {                                                                         \
+  for (;;) {                                                                   \
     (m) = C_ORM_MALLOC(64);                                                    \
     if (m) {                                                                   \
       InitializeCriticalSection((CRITICAL_SECTION *)(m));                      \
     }                                                                          \
-  } while (0)
+    break;                                                                     \
+  }
 /** @brief Macro to lock a mutex on Windows */
 #define C_ORM_MUTEX_LOCK(m) EnterCriticalSection((CRITICAL_SECTION *)(m))
 /** @brief Macro to unlock a mutex on Windows */
 #define C_ORM_MUTEX_UNLOCK(m) LeaveCriticalSection((CRITICAL_SECTION *)(m))
 /** @brief Macro to destroy a mutex on Windows */
 #define C_ORM_MUTEX_DESTROY(m)                                                 \
-  do {                                                                         \
+  for (;;) {                                                                   \
     DeleteCriticalSection((CRITICAL_SECTION *)(m));                            \
     C_ORM_FREE((m));                                                           \
-  } while (0)
+    break;                                                                     \
+  }
 #elif defined(EMSCRIPTEN_NO_THREADS)
 #define C_ORM_MUTEX_INIT(m)                                                    \
-  do {                                                                         \
+  for (;;) {                                                                   \
     (m) = C_ORM_MALLOC(1);                                                     \
-  } while (0)
+    break;                                                                     \
+  }
 #define C_ORM_MUTEX_LOCK(m) ((void)0)
 #define C_ORM_MUTEX_UNLOCK(m) ((void)0)
 #define C_ORM_MUTEX_DESTROY(m) C_ORM_FREE((m))
@@ -82,22 +85,24 @@ int (*c_orm_mutex_destroy_ptr)(pthread_mutex_t *) = pthread_mutex_destroy;
 
 /** @brief Macro to initialize a mutex on POSIX */
 #define C_ORM_MUTEX_INIT(m)                                                    \
-  do {                                                                         \
+  for (;;) {                                                                   \
     (m) = C_ORM_MALLOC(sizeof(pthread_mutex_t));                               \
     if (m) {                                                                   \
       C_ORM_MUTEX_INIT_IMPL(m);                                                \
     }                                                                          \
-  } while (0)
+    break;                                                                     \
+  }
 /** @brief Macro to lock a mutex on POSIX */
 #define C_ORM_MUTEX_LOCK(m) C_ORM_MUTEX_LOCK_IMPL(m)
 /** @brief Macro to unlock a mutex on POSIX */
 #define C_ORM_MUTEX_UNLOCK(m) C_ORM_MUTEX_UNLOCK_IMPL(m)
 /** @brief Macro to destroy a mutex on POSIX */
 #define C_ORM_MUTEX_DESTROY(m)                                                 \
-  do {                                                                         \
+  for (;;) {                                                                   \
     C_ORM_MUTEX_DESTROY_IMPL(m);                                               \
     C_ORM_FREE((m));                                                           \
-  } while (0)
+    break;                                                                     \
+  }
 #endif
 
 /**
