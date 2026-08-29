@@ -33,20 +33,26 @@ typedef unsigned __int64 uint64_t;
 #ifndef C_ORM_IN_CPLUSPLUS
 #ifndef _STDBOOL_H
 #define _STDBOOL_H
+#endif
+#undef bool
+#undef true
+#undef false
 typedef int bool;
 #define true 1
 #define false 0
-#endif
 #endif
 #else
 #include <stdint.h>
 #ifndef C_ORM_IN_CPLUSPLUS
 #ifndef _STDBOOL_H
 #define _STDBOOL_H
+#endif
+#undef bool
+#undef true
+#undef false
 typedef int bool;
 #define true 1
 #define false 0
-#endif
 #endif
 #endif
 

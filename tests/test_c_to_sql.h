@@ -78,7 +78,7 @@ TEST test_write_struct_to_sql_create_table(void) {
 #if defined(_MSC_VER)
   fopen_s(&fp, "test_c_to_sql.txt", "w+");
 #else
-  (*&fp = fopen("test_c_to_sql.txt", "w+"), *&fp == NULL ? 1 : 0);
+  fp = fopen("test_c_to_sql.txt", "w+");
 #endif
 
   ASSERT(fp != NULL);

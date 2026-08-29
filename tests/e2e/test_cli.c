@@ -318,7 +318,7 @@ TEST test_cli_sql2c(void) {
 #if defined(_MSC_VER)
   fopen_s(&f, "test_schema.sql", "w");
 #else
-  (*&f = fopen("test_schema.sql", "w"), *&f == NULL ? 1 : 0);
+  f = fopen("test_schema.sql", "w");
 #endif
 
   if (f) {

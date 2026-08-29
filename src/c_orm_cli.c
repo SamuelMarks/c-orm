@@ -101,7 +101,9 @@ int main(int argc, char **argv) {
   _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
 #if defined(_WIN32) || defined(_WIN64)
-  { SetErrorMode(0x0001 | 0x0002 | 0x8000); }
+  {
+    SetErrorMode(0x0001 | 0x0002 | 0x8000);
+  }
 #endif
 
 #if defined(_MSC_VER)
@@ -179,7 +181,7 @@ int main(int argc, char **argv) {
 #if defined(_MSC_VER)
     fopen_s(&fp, up_file, "w");
 #else
-    (*&fp = fopen(up_file, "w"), *&fp == NULL ? 1 : 0);
+    fp = fopen(up_file, "w");
 #endif
 
     if (fp) {
@@ -192,7 +194,7 @@ int main(int argc, char **argv) {
 #if defined(_MSC_VER)
     fopen_s(&fp, down_file, "w");
 #else
-    (*&fp = fopen(down_file, "w"), *&fp == NULL ? 1 : 0);
+    fp = fopen(down_file, "w");
 #endif
 
     if (fp) {

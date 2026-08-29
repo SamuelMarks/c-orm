@@ -273,7 +273,7 @@ TEST test_codegen_coverage(void) {
 #if defined(_MSC_VER)
       fopen_s(&f, schema_path, "r");
 #else
-      (*&f = fopen(schema_path, "r"), *&f == NULL ? 1 : 0);
+      f = fopen(schema_path, "r");
 #endif
 
       if (f) {

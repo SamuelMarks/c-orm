@@ -46,7 +46,7 @@ struct postgres_query_data {
 
 /** @brief Generate unique statement name */
 static int generate_stmt_name(char *buf, size_t size) {
-  c_orm_error_t rc;
+  int rc;
   static int counter = 0;
   LOG_DEBUG("generate_stmt_name: entry");
 #if defined(_MSC_VER)

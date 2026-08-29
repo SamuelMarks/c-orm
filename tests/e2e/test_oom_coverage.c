@@ -78,7 +78,7 @@ static void do_codegen(void) {
 #if defined(_MSC_VER)
     fopen_s(&f, "oom_schema.sql", "w");
 #else
-    (*&f = fopen("oom_schema.sql", "w"), *&f == NULL ? 1 : 0);
+    f = fopen("oom_schema.sql", "w");
 #endif
 
     if (f) {

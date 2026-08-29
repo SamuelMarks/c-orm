@@ -125,7 +125,7 @@ static c_orm_error_t sqlite_connect(const char *url, c_orm_db_t **out_db) {
   }
   memset(data, 0, sizeof(struct sqlite_db_data));
 
-  rc = sqlite3_open(url, &data->db);
+  rc = (c_orm_error_t)sqlite3_open(url, &data->db);
   if (rc != SQLITE_OK) {
     sqlite3_close(data->db); /* clean up if needed */
     C_ORM_FREE(data);
@@ -244,7 +244,8 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
 
   printf("sqlite_prepare: before prepare_v2\n");
   fflush(stdout);
-  rc = sqlite3_prepare_v2(db_data->db, sql, -1, &q_data->stmt, NULL);
+  rc = (c_orm_error_t)sqlite3_prepare_v2(db_data->db, sql, -1, &q_data->stmt,
+                                         NULL);
   printf("DEBUG: sqlite_prepare allocated stmt %p for sql %s\n",
          (void *)q_data->stmt, sql);
   fflush(stdout);
@@ -292,7 +293,7 @@ static c_orm_error_t sqlite_bind_int32(c_orm_query_t *query, int index,
   }
   printf("sqlite_bind_int32: calling sqlite3_bind_int\n");
   fflush(stdout);
-  rc = sqlite3_bind_int(query->data->stmt, index, val);
+  rc = (c_orm_error_t)sqlite3_bind_int(query->data->stmt, index, val);
   printf("sqlite_bind_int32: rc=%d\n", rc);
   fflush(stdout);
   if (rc != SQLITE_OK) {
@@ -326,7 +327,7 @@ static c_orm_error_t sqlite_bind_int64(c_orm_query_t *query, int index,
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
-  rc = sqlite3_bind_int64(query->data->stmt, index, val);
+  rc = (c_orm_error_t)sqlite3_bind_int64(query->data->stmt, index, val);
   if (rc != SQLITE_OK) {
     printf("sqlite_bind_int64: failed, calling set_error\n");
     fflush(stdout);
@@ -358,7 +359,7 @@ static c_orm_error_t sqlite_bind_double(c_orm_query_t *query, int index,
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
-  rc = sqlite3_bind_double(query->data->stmt, index, val);
+  rc = (c_orm_error_t)sqlite3_bind_double(query->data->stmt, index, val);
   if (rc != SQLITE_OK) {
     set_error(query->data->db, NULL);
     LOG_DEBUG("sqlite_bind_double: bind failed");
@@ -387,7 +388,8 @@ static c_orm_error_t sqlite_bind_string(c_orm_query_t *query, int index,
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
-  rc = sqlite3_bind_text(query->data->stmt, index, val, -1, SQLITE_TRANSIENT);
+  rc = (c_orm_error_t)sqlite3_bind_text(query->data->stmt, index, val, -1,
+                                        SQLITE_TRANSIENT);
   if (rc != SQLITE_OK) {
     set_error(query->data->db, NULL);
     LOG_DEBUG("sqlite_bind_string: bind failed");
@@ -418,11 +420,11 @@ static c_orm_error_t sqlite_bind_blob(c_orm_query_t *query, int index,
     return (c_orm_error_t)rc;
   }
 #if defined(__CYGWIN__)
-  rc = sqlite3_bind_blob(query->data->stmt, index, val, (sqlite3_uint64)size,
-                         SQLITE_TRANSIENT);
+  rc = (c_orm_error_t)sqlite3_bind_blob(query->data->stmt, index, val,
+                                        (sqlite3_uint64)size, SQLITE_TRANSIENT);
 #else
-  rc = sqlite3_bind_blob(query->data->stmt, index, val, (int)size,
-                         SQLITE_TRANSIENT);
+  rc = (c_orm_error_t)sqlite3_bind_blob(query->data->stmt, index, val,
+                                        (int)size, SQLITE_TRANSIENT);
 #endif
   if (rc != SQLITE_OK) {
     set_error(query->data->db, NULL);
@@ -450,7 +452,7 @@ static c_orm_error_t sqlite_bind_null(c_orm_query_t *query, int index) {
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
-  rc = sqlite3_bind_null(query->data->stmt, index);
+  rc = (c_orm_error_t)sqlite3_bind_null(query->data->stmt, index);
   if (rc != SQLITE_OK) {
     set_error(query->data->db, NULL);
     LOG_DEBUG("sqlite_bind_null: bind failed");
@@ -508,7 +510,7 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
     return (c_orm_error_t)rc;
   }
 
-  rc = sqlite3_step(query->data->stmt);
+  rc = (c_orm_error_t)sqlite3_step(query->data->stmt);
 
   if (query->data->db && query->data->db->slow_query_threshold_ms > 0) {
 #if defined(_WIN32) || defined(_WIN64)
@@ -1018,9 +1020,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_open(
     rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
-  rc = sqlite3_blob_open(((struct sqlite_db_data *)db->driver_data)->db,
-                         db_name ? db_name : "main", table, column, row_id,
-                         is_read_write, (sqlite3_blob **)out_blob_handle);
+  rc = (c_orm_error_t)sqlite3_blob_open(
+      ((struct sqlite_db_data *)db->driver_data)->db,
+      db_name ? db_name : "main", table, column, row_id, is_read_write,
+      (sqlite3_blob **)out_blob_handle);
   if (rc != SQLITE_OK) {
     LOG_DEBUG("c_orm_sqlite_blob_open: open failed");
     rc = C_ORM_ERROR_UNKNOWN;
@@ -1050,7 +1053,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_read(void *blob_handle,
     rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
-  rc = sqlite3_blob_read((sqlite3_blob *)blob_handle, buffer, n, offset);
+  rc = (c_orm_error_t)sqlite3_blob_read((sqlite3_blob *)blob_handle, buffer, n,
+                                        offset);
   if (rc != SQLITE_OK) {
     LOG_DEBUG("c_orm_sqlite_blob_read: read failed");
     rc = C_ORM_ERROR_UNKNOWN;
@@ -1080,7 +1084,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
     rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
-  rc = sqlite3_blob_write((sqlite3_blob *)blob_handle, buffer, n, offset);
+  rc = (c_orm_error_t)sqlite3_blob_write((sqlite3_blob *)blob_handle, buffer, n,
+                                         offset);
   if (rc != SQLITE_OK) {
     LOG_DEBUG("c_orm_sqlite_blob_write: write failed");
     rc = C_ORM_ERROR_UNKNOWN;

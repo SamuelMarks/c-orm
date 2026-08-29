@@ -503,7 +503,7 @@ c_orm_store_token_secure(const c_orm_oauth2_token_t *token) {
 #if defined(_MSC_VER)
   fopen_s(&f, "c_orm_token.dat", "w");
 #else
-  (*&f = fopen("c_orm_token.dat", "w"), *&f == NULL ? 1 : 0);
+  f = fopen("c_orm_token.dat", "w");
 #endif
 
 #endif

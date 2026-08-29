@@ -8330,35 +8330,27 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 }
 
 #ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+EM_JS(void, c_orm_wasm_init_fs_impl, (void (*cb)(int)), {
+  if (!FS.analyzePath('/data').exists) {
+    FS.mkdir('/data');
+  }
+  FS.mount(IDBFS, {}, '/data');
+  FS.syncfs(
+      true, function(rc) {
+        if (cb) {
+          if (typeof dynCall_vi != 'undefined') {
+            dynCall_vi(cb, rc ? 1 : 0);
+          } else if (typeof Module != 'undefined' && Module['dynCall_vi']) {
+            Module['dynCall_vi'](cb, rc ? 1 : 0);
+          }
+        }
+      });
+});
 
 void c_orm_wasm_init_fs(void (*callback)(int)) {
-  c_orm_error_t rc = C_ORM_OK;
-#if defined(__clang__) || defined(__GNUC__)
-#endif
-
-  EM_ASM(
-      {
-        if (!FS.analyzePath('/data').exists) {
-          FS.mkdir('/data');
-        }
-        FS.mount(IDBFS, {}, '/data');
-        FS.syncfs(
-            true, function(rc) {
-              var cb = $0;
-              if (cb) {
-                if (typeof dynCall_vi != 'undefined') {
-                  dynCall_vi(cb, rc ? 1 : 0);
-                } else if (typeof Module != 'undefined' &&
-                           Module['dynCall_vi']) {
-                  Module['dynCall_vi'](cb, rc ? 1 : 0);
-                }
-              }
-            });
-      },
-      callback);
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif
+  c_orm_wasm_init_fs_impl(callback);
 }
 #endif
 

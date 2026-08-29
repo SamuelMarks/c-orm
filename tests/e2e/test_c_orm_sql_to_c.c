@@ -30,7 +30,7 @@ TEST test_sql_to_c_header_emit(void) {
 #if defined(_MSC_VER)
   tmpfile_s(&fp);
 #else
-  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+  fp = tmpfile();
 #endif
 
   ASSERT(fp != NULL);
@@ -79,7 +79,7 @@ TEST test_sql_to_c_source_emit(void) {
 #if defined(_MSC_VER)
   tmpfile_s(&fp);
 #else
-  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+  fp = tmpfile();
 #endif
 
   ASSERT(fp != NULL);
@@ -110,7 +110,7 @@ TEST test_sql_to_c_errors(void) {
 #if defined(_MSC_VER)
   fopen_s(&fp, "dummy_err.h", "w");
 #else
-  (*&fp = fopen("dummy_err.h", "w"), *&fp == NULL ? 1 : 0);
+  fp = fopen("dummy_err.h", "w");
 #endif
 
   ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit(NULL, NULL));
@@ -150,7 +150,7 @@ TEST test_sql_to_c_projections(void) {
 #if defined(_MSC_VER)
   tmpfile_s(&fp);
 #else
-  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+  fp = tmpfile();
 #endif
 
   memset(&proj, 0, sizeof(proj));
@@ -190,7 +190,7 @@ TEST test_sql_to_c_polymorphic(void) {
 #if defined(_MSC_VER)
   tmpfile_s(&fp);
 #else
-  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+  fp = tmpfile();
 #endif
 
   memset(&proj, 0, sizeof(proj));
@@ -215,7 +215,7 @@ TEST test_sql_to_c_union(void) {
 #if defined(_MSC_VER)
   tmpfile_s(&fp);
 #else
-  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+  fp = tmpfile();
 #endif
 
   memset(projs, 0, sizeof(projs));
@@ -246,7 +246,7 @@ TEST test_sql_to_c_bitmask_sizes(void) {
 #if defined(_MSC_VER)
   tmpfile_s(&fp);
 #else
-  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+  fp = tmpfile();
 #endif
 
   memset(&proj, 0, sizeof(proj));
@@ -286,7 +286,7 @@ TEST test_sql_to_c_projection_types(void) {
 #if defined(_MSC_VER)
   tmpfile_s(&fp);
 #else
-  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+  fp = tmpfile();
 #endif
 
   memset(&proj, 0, sizeof(proj));
@@ -326,7 +326,7 @@ TEST test_sql_to_c_edge_cases(void) {
 #if defined(_MSC_VER)
   tmpfile_s(&fp);
 #else
-  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+  fp = tmpfile();
 #endif
 
   memset(&proj, 0, sizeof(proj));

@@ -107,8 +107,7 @@ TEST test_cli_migrate(void) {
 #if defined(_MSC_VER)
     fopen_s(&f1, "test_migrations_dir/1_test.up.sql", "w");
 #else
-    (*&f1 = fopen("test_migrations_dir/1_test.up.sql", "w"),
-     *&f1 == NULL ? 1 : 0);
+    f1 = fopen("test_migrations_dir/1_test.up.sql", "w");
 #endif
 
     if (f1) {
@@ -118,8 +117,7 @@ TEST test_cli_migrate(void) {
 #if defined(_MSC_VER)
     fopen_s(&f2, "test_migrations_dir/1_test.down.sql", "w");
 #else
-    (*&f2 = fopen("test_migrations_dir/1_test.down.sql", "w"),
-     *&f2 == NULL ? 1 : 0);
+    f2 = fopen("test_migrations_dir/1_test.down.sql", "w");
 #endif
 
     if (f2) {
@@ -184,7 +182,7 @@ TEST test_cli_exec_sql2c(void) {
 #if defined(_MSC_VER)
   fopen_s(&f, "test_schema.sql", "w");
 #else
-  (*&f = fopen("test_schema.sql", "w"), *&f == NULL ? 1 : 0);
+  f = fopen("test_schema.sql", "w");
 #endif
 
   if (f) {

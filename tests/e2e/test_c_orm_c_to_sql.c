@@ -68,7 +68,7 @@ TEST test_write_struct_to_sql_create_table(void) {
 #if defined(_MSC_VER)
   tmpfile_s(&fp);
 #else
-  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+  fp = tmpfile();
 #endif
 
   ASSERT(fp != NULL);
@@ -429,7 +429,7 @@ TEST test_c_to_sql_edge_cases(void) {
 #if defined(_MSC_VER)
   tmpfile_s(&fp);
 #else
-  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+  fp = tmpfile();
 #endif
 
   ASSERT_EQ(0, write_struct_to_sql_create_table(fp, "test", &sf,
@@ -444,7 +444,7 @@ TEST test_c_to_sql_edge_cases(void) {
 #if defined(_MSC_VER)
   tmpfile_s(&fp);
 #else
-  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+  fp = tmpfile();
 #endif
 
 #if defined(_MSC_VER)

@@ -29,7 +29,7 @@ TEST test_codegen_parse_fail(void) {
 #if defined(_MSC_VER)
     fopen_s(&f, "dummy.sql", "w");
 #else
-    (*&f = fopen("dummy.sql", "w"), *&f == NULL ? 1 : 0);
+    f = fopen("dummy.sql", "w");
 #endif
 
     if (f) {
@@ -59,7 +59,7 @@ TEST test_codegen_fopen_h_fail(void) {
 #if defined(_MSC_VER)
     fopen_s(&f, "dummy.sql", "w");
 #else
-    (*&f = fopen("dummy.sql", "w"), *&f == NULL ? 1 : 0);
+    f = fopen("dummy.sql", "w");
 #endif
 
     if (f) {
@@ -85,7 +85,7 @@ TEST test_codegen_malloc_fail(void) {
 #if defined(_MSC_VER)
     fopen_s(&f, "dummy.sql", "w");
 #else
-    (*&f = fopen("dummy.sql", "w"), *&f == NULL ? 1 : 0);
+    f = fopen("dummy.sql", "w");
 #endif
 
     if (f) {

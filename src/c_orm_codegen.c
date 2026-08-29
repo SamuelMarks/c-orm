@@ -47,7 +47,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 #if defined(_MSC_VER)
   fopen_s(&fp, schema_file, "rb");
 #else
-  (*&fp = fopen(schema_file, "rb"), *&fp == NULL ? 1 : 0);
+  fp = fopen(schema_file, "rb");
 #endif
 
 #endif
@@ -107,7 +107,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 #if defined(_MSC_VER)
   fopen_s(&fp, h_path, "wb");
 #else
-  (*&fp = fopen(h_path, "wb"), *&fp == NULL ? 1 : 0);
+  fp = fopen(h_path, "wb");
 #endif
 
 #endif
@@ -171,7 +171,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 #if defined(_MSC_VER)
   fopen_s(&fp, c_path, "wb");
 #else
-  (*&fp = fopen(c_path, "wb"), *&fp == NULL ? 1 : 0);
+  fp = fopen(c_path, "wb");
 #endif
 
 #endif
