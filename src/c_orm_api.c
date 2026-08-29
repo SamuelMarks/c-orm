@@ -2003,7 +2003,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relations_int32(
     size_t rel_idx;
 
     if (dot) {
-      size_t len = dot - path;
+      size_t len = (size_t)(dot - path);
       if (len >= sizeof(first_rel))
         len = sizeof(first_rel) - 1;
       C_ORM_STRNCPY(first_rel, sizeof(first_rel), path, len);
@@ -2104,7 +2104,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_with_relations(
       char first_rel[64];
 
       if (dot) {
-        size_t len = dot - path;
+        size_t len = (size_t)(dot - path);
         if (len >= sizeof(first_rel))
           len = sizeof(first_rel) - 1;
         C_ORM_STRNCPY(first_rel, sizeof(first_rel), path, len);
@@ -5784,7 +5784,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_str(
 
   /* djb2 string hash */
   for (p = pk_str; *p; p++) {
-    hash_index = ((hash_index << 5) + hash_index) + *p;
+    hash_index = ((hash_index << 5) + hash_index) + (size_t)(*p);
   }
   hash_index = hash_index % bucket->num_buckets;
 
@@ -6153,16 +6153,16 @@ empty */
     if (desc_pos) {
       is_desc = 1;
       C_ORM_STRNCPY(order_col, sizeof(order_col), rel->order_by,
-                    desc_pos - rel->order_by);
-      order_col[desc_pos - rel->order_by] = '\0';
+                    (size_t)(desc_pos - rel->order_by));
+      order_col[(size_t)(desc_pos - rel->order_by)] = '\0';
     } else {
       const char *asc_pos = strstr(rel->order_by, " ASC");
       if (!asc_pos)
         asc_pos = strstr(rel->order_by, " asc");
       if (asc_pos) {
         C_ORM_STRNCPY(order_col, sizeof(order_col), rel->order_by,
-                      asc_pos - rel->order_by);
-        order_col[asc_pos - rel->order_by] = '\0';
+                      (size_t)(asc_pos - rel->order_by));
+        order_col[(size_t)(asc_pos - rel->order_by)] = '\0';
       } else {
         C_ORM_STRCPY(order_col, sizeof(order_col), rel->order_by);
       }
@@ -6501,7 +6501,7 @@ c_orm_shard_route_hash(c_orm_shard_manager_t *manager, const char *routing_key,
 
   /* djb2 string hash algorithm to deterministically route key across nodes */
   for (p = routing_key; *p; p++) {
-    hash_index = ((hash_index << 5) + hash_index) + *p;
+    hash_index = ((hash_index << 5) + hash_index) + (size_t)(*p);
   }
 
   hash_index = hash_index % manager->num_shards;

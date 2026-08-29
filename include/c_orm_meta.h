@@ -403,10 +403,6 @@ typedef struct c_orm_identity_map {
   c_orm_identity_bucket_t *buckets; /**< Head of the bucket list */
 } c_orm_identity_map_t;
 
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
 /**
  * @brief Free memory allocated by the c-orm library.
  */
@@ -417,6 +413,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_system_calloc(size_t nmemb, size_t size,
                                                void **out_ptr);
 C_ORM_EXPORT c_orm_error_t c_orm_system_realloc(void *ptr, size_t size,
                                                 void **out_ptr);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* C_ORM_META_H */
 

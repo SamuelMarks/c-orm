@@ -312,7 +312,7 @@ static c_orm_error_t hash_string(const char *str, unsigned long *out_hash) {
   unsigned long hash = 5381;
   int c;
   while ((c = *str++)) {
-    hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+    hash = ((hash << 5) + hash) + (unsigned long)c; /* hash * 33 + c */
   }
   *out_hash = hash;
   return C_ORM_OK;

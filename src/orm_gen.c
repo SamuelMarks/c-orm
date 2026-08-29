@@ -55,12 +55,13 @@ static c_orm_error_t check_db_schema(const struct StructField *field,
         if (fk_end && (size_t)(fk_end - fk_start - 4) < fk_buf_size) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-          strncpy_s(fk_buf, fk_buf_size, fk_start + 4, fk_end - fk_start - 4);
+          strncpy_s(fk_buf, fk_buf_size, fk_start + 4,
+                    (size_t)(fk_end - fk_start - 4));
 #else
-          C_ORM_STRNCPY(fk_buf, fk_end - fk_start - 4 + 1, fk_start + 4,
-                        fk_end - fk_start - 4);
+          C_ORM_STRNCPY(fk_buf, (size_t)(fk_end - fk_start - 4 + 1),
+                        fk_start + 4, (size_t)(fk_end - fk_start - 4));
 #endif
-          fk_buf[fk_end - fk_start - 4] = '\0';
+          fk_buf[(size_t)(fk_end - fk_start - 4)] = '\0';
         }
       }
     }

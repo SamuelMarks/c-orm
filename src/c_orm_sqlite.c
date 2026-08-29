@@ -418,8 +418,13 @@ static c_orm_error_t sqlite_bind_blob(c_orm_query_t *query, int index,
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
+#if defined(__CYGWIN__)
+  rc = sqlite3_bind_blob(query->data->stmt, index, val, (sqlite3_uint64)size,
+                         SQLITE_TRANSIENT);
+#else
   rc = sqlite3_bind_blob(query->data->stmt, index, val, (int)size,
                          SQLITE_TRANSIENT);
+#endif
   if (rc != SQLITE_OK) {
     set_error(query->data->db, NULL);
     LOG_DEBUG("sqlite_bind_blob: bind failed");
@@ -513,8 +518,8 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
               (double)freq.QuadPart;
 #else
     gettimeofday(&end_time, NULL);
-    elapsed = (end_time.tv_sec - start_time.tv_sec) * 1000.0;
-    elapsed += (end_time.tv_usec - start_time.tv_usec) / 1000.0;
+    elapsed = (double)(end_time.tv_sec - start_time.tv_sec) * 1000.0;
+    elapsed += (double)(end_time.tv_usec - start_time.tv_usec) / 1000.0;
 #endif
   }
 
