@@ -2,7 +2,6 @@
 #endif
 /* clang-format off */
 #include "cdd_c_ir.h"
-#include "c_orm_safe_crt.h"
 #include <greatest.h>
 #include <errno.h>
 #include "test_cdd_c_ir_oom.h"

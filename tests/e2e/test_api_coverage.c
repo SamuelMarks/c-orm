@@ -2307,7 +2307,12 @@ TEST test_hydrate_set_null_field(void) {
   vt.get_double = mock_get_double_zero;
 
   u.username = (char *)malloc(10);
-  C_ORM_STRCPY(u.username, 10, "old");
+#if defined(_MSC_VER)
+  strcpy_s(u.username, 10, "old");
+#else
+  strcpy(u.username, "old");
+#endif
+
   c_orm_hydrate_row_from(&db_mem, q, &Users_meta, &u, 0);
 
   vt.is_null = mock_is_null_false;

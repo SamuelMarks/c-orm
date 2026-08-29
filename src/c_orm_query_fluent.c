@@ -6,7 +6,6 @@
  */
 
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "c_orm_ast.h"
 #include "c_orm_db.h"
 #include "c_orm_log.h"
@@ -1014,8 +1013,13 @@ c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
     q->error = 1;
     return q;
   }
-  C_ORM_SPRINTF(on_cond, 128, "%s.%s = %s.%s", meta->name, rel->local_key,
-                rel->target_meta->name, rel->foreign_key);
+#if defined(_MSC_VER)
+  sprintf_s(on_cond, 128, "%s.%s = %s.%s", meta->name, rel->local_key,
+            rel->target_meta->name, rel->foreign_key);
+#else
+  sprintf(on_cond, "%s.%s = %s.%s", meta->name, rel->local_key,
+          rel->target_meta->name, rel->foreign_key);
+#endif
 
   q->left_join(q, rel->target_meta->name, q->raw(q, on_cond));
   C_ORM_FREE(on_cond);
@@ -1034,8 +1038,13 @@ c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
         *p++ = ' ';
       }
       first = 0;
-      w = C_ORM_SPRINTF(p, (size_t)(4096 - (size_t)(p - columns)), "%s.%s",
-                        meta->name, meta->columns[col_i].name);
+#if defined(_MSC_VER)
+      w = sprintf_s(p, (size_t)(4096 - (size_t)(p - columns)), "%s.%s",
+                    meta->name, meta->columns[col_i].name);
+#else
+      w = sprintf(p, "%s.%s", meta->name, meta->columns[col_i].name);
+#endif
+
       p += w;
     }
 
@@ -1045,10 +1054,17 @@ c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
         *p++ = ' ';
       }
       first = 0;
-      w = C_ORM_SPRINTF(p, (size_t)(4096 - (size_t)(p - columns)),
-                        "%s.%s AS %s_%s", rel->target_meta->name,
-                        rel->target_meta->columns[col_i].name, relation_name,
-                        rel->target_meta->columns[col_i].name);
+#if defined(_MSC_VER)
+      w = sprintf_s(p, (size_t)(4096 - (size_t)(p - columns)), "%s.%s AS %s_%s",
+                    rel->target_meta->name,
+                    rel->target_meta->columns[col_i].name, relation_name,
+                    rel->target_meta->columns[col_i].name);
+#else
+      w = sprintf(p, "%s.%s AS %s_%s", rel->target_meta->name,
+                  rel->target_meta->columns[col_i].name, relation_name,
+                  rel->target_meta->columns[col_i].name);
+#endif
+
       p += w;
     }
 

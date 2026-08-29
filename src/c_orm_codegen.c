@@ -6,7 +6,6 @@
  */
 
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "c_orm_codegen.h"
 #include "c_orm_log.h"
 #include "c_orm_sql.h"
@@ -45,7 +44,12 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 #if defined(_MSC_VER)
   fopen_s(&fp, schema_file, "rb");
 #else
-  C_ORM_FOPEN(&fp, schema_file, "rb");
+#if defined(_MSC_VER)
+  fopen_s(&fp, schema_file, "rb");
+#else
+  (*&fp = fopen(schema_file, "rb"), *&fp == NULL ? 1 : 0);
+#endif
+
 #endif
   if (!fp) {
     LOG_DEBUG("c_orm_codegen_generate: failed to open schema_file");
@@ -85,13 +89,27 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
   h_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
   c_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
 
-  C_ORM_SPRINTF(h_path, strlen(output_dir) + 32, "%s/Models.h", output_dir);
-  C_ORM_SPRINTF(c_path, strlen(output_dir) + 32, "%s/Models.c", output_dir);
+#if defined(_MSC_VER)
+  sprintf_s(h_path, strlen(output_dir) + 32, "%s/Models.h", output_dir);
+#else
+  sprintf(h_path, "%s/Models.h", output_dir);
+#endif
+
+#if defined(_MSC_VER)
+  sprintf_s(c_path, strlen(output_dir) + 32, "%s/Models.c", output_dir);
+#else
+  sprintf(c_path, "%s/Models.c", output_dir);
+#endif
 
 #if defined(_MSC_VER)
   fopen_s(&fp, h_path, "wb");
 #else
-  C_ORM_FOPEN(&fp, h_path, "wb");
+#if defined(_MSC_VER)
+  fopen_s(&fp, h_path, "wb");
+#else
+  (*&fp = fopen(h_path, "wb"), *&fp == NULL ? 1 : 0);
+#endif
+
 #endif
   if (fp) {
     fprintf(fp, "#ifndef MODELS_H\n#define MODELS_H\n\n");
@@ -150,7 +168,12 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 #if defined(_MSC_VER)
   fopen_s(&fp, c_path, "wb");
 #else
-  C_ORM_FOPEN(&fp, c_path, "wb");
+#if defined(_MSC_VER)
+  fopen_s(&fp, c_path, "wb");
+#else
+  (*&fp = fopen(c_path, "wb"), *&fp == NULL ? 1 : 0);
+#endif
+
 #endif
   if (fp) {
     fprintf(fp, "/* clang-format "

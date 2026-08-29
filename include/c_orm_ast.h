@@ -8,14 +8,14 @@
 #ifndef C_ORM_AST_H
 #define C_ORM_AST_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include "c_orm_api.h"
 #include <stddef.h>
 /* clang-format on */
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 
 /**
  * @brief Node types for the Query AST.

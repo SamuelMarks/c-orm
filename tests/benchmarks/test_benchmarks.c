@@ -8,7 +8,6 @@
 /* Included from e2e tests */
 
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "Models.h"
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
@@ -117,11 +116,18 @@ TEST benchmark_ast_vs_string_concat(void) {
   /* String concat */
   for (i = 0; i < iters; i++) {
     char sql[512];
-    C_ORM_SPRINTF(
-        sql, sizeof(sql),
-        "SELECT id, name, email FROM users WHERE age > %d AND status = "
-        "'%s' ORDER BY created_at DESC LIMIT %d",
-        18, "active", 10);
+#if defined(_MSC_VER)
+    sprintf_s(sql, sizeof(sql),
+              "SELECT id, name, email FROM users WHERE age > %d AND status = "
+              "'%s' ORDER BY created_at DESC LIMIT %d",
+              18, "active", 10);
+#else
+    sprintf(sql,
+            "SELECT id, name, email FROM users WHERE age > %d AND status = "
+            "'%s' ORDER BY created_at DESC LIMIT %d",
+            18, "active", 10);
+#endif
+
     (void)sql;
   }
 

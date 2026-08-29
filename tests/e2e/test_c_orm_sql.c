@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "c_orm_sql.h"
 #include <greatest.h>
 #include <stdlib.h>

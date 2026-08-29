@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "c_orm_c_to_sql.h"
 #include <string.h>
 #include <stdlib.h>
@@ -18,22 +17,60 @@ TEST test_write_struct_to_sql_create_table(void) {
 
   memset(buf, 0, sizeof(buf));
   memset(fields, 0, sizeof(fields));
-  C_ORM_STRCPY(fields[0].name, sizeof(fields[0].name), "id");
-  C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "integer");
+#if defined(_MSC_VER)
+  strcpy_s(fields[0].name, sizeof(fields[0].name), "id");
+#else
+  strcpy(fields[0].name, "id");
+#endif
+
+#if defined(_MSC_VER)
+  strcpy_s(fields[0].type, sizeof(fields[0].type), "integer");
+#else
+  strcpy(fields[0].type, "integer");
+#endif
+
   fields[0].required = 1;
 
-  C_ORM_STRCPY(fields[1].name, sizeof(fields[1].name), "username");
-  C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "string");
-  C_ORM_STRCPY(fields[1].description, sizeof(fields[1].description),
-               "@unique @notnull");
+#if defined(_MSC_VER)
+  strcpy_s(fields[1].name, sizeof(fields[1].name), "username");
+#else
+  strcpy(fields[1].name, "username");
+#endif
 
-  C_ORM_STRCPY(fields[2].name, sizeof(fields[2].name), "company_id");
-  C_ORM_STRCPY(fields[2].type, sizeof(fields[2].type), "integer");
+#if defined(_MSC_VER)
+  strcpy_s(fields[1].type, sizeof(fields[1].type), "string");
+#else
+  strcpy(fields[1].type, "string");
+#endif
+
+#if defined(_MSC_VER)
+  strcpy_s(fields[1].description, sizeof(fields[1].description),
+           "@unique @notnull");
+#else
+  strcpy(fields[1].description, "@unique @notnull");
+#endif
+
+#if defined(_MSC_VER)
+  strcpy_s(fields[2].name, sizeof(fields[2].name), "company_id");
+#else
+  strcpy(fields[2].name, "company_id");
+#endif
+
+#if defined(_MSC_VER)
+  strcpy_s(fields[2].type, sizeof(fields[2].type), "integer");
+#else
+  strcpy(fields[2].type, "integer");
+#endif
 
   sf.size = 3;
   sf.fields = fields;
 
-  C_ORM_TMPFILE(&fp);
+#if defined(_MSC_VER)
+  tmpfile_s(&fp);
+#else
+  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+#endif
+
   ASSERT(fp != NULL);
 
   rc = write_struct_to_sql_create_table(fp, "users", &sf,
@@ -356,15 +393,45 @@ TEST test_c_to_sql_edge_cases(void) {
 
   /* C Type fallback and struct mapping edges */
   memset(fields, 0, sizeof(fields));
-  C_ORM_STRCPY(fields[0].name, sizeof(fields[0].name), "unknown_field");
-  C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "unknown_type");
-  C_ORM_STRCPY(fields[1].name, sizeof(fields[1].name), "id");
-  C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "int");
-  C_ORM_STRCPY(fields[1].description, sizeof(fields[1].description), "@pk");
+#if defined(_MSC_VER)
+  strcpy_s(fields[0].name, sizeof(fields[0].name), "unknown_field");
+#else
+  strcpy(fields[0].name, "unknown_field");
+#endif
+
+#if defined(_MSC_VER)
+  strcpy_s(fields[0].type, sizeof(fields[0].type), "unknown_type");
+#else
+  strcpy(fields[0].type, "unknown_type");
+#endif
+
+#if defined(_MSC_VER)
+  strcpy_s(fields[1].name, sizeof(fields[1].name), "id");
+#else
+  strcpy(fields[1].name, "id");
+#endif
+
+#if defined(_MSC_VER)
+  strcpy_s(fields[1].type, sizeof(fields[1].type), "int");
+#else
+  strcpy(fields[1].type, "int");
+#endif
+
+#if defined(_MSC_VER)
+  strcpy_s(fields[1].description, sizeof(fields[1].description), "@pk");
+#else
+  strcpy(fields[1].description, "@pk");
+#endif
+
   sf.size = 2;
   sf.fields = fields;
 
-  C_ORM_TMPFILE(&fp);
+#if defined(_MSC_VER)
+  tmpfile_s(&fp);
+#else
+  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+#endif
+
   ASSERT_EQ(0, write_struct_to_sql_create_table(fp, "test", &sf,
                                                 C_TO_SQL_DIALECT_MYSQL));
   rewind(fp);
@@ -374,9 +441,24 @@ TEST test_c_to_sql_edge_cases(void) {
   ASSERT(strstr(buf, "unknown_field BLOB") != NULL);
 
   /* Dialect type maps */
-  C_ORM_TMPFILE(&fp);
-  C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "double");
-  C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "bool");
+#if defined(_MSC_VER)
+  tmpfile_s(&fp);
+#else
+  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+#endif
+
+#if defined(_MSC_VER)
+  strcpy_s(fields[0].type, sizeof(fields[0].type), "double");
+#else
+  strcpy(fields[0].type, "double");
+#endif
+
+#if defined(_MSC_VER)
+  strcpy_s(fields[1].type, sizeof(fields[1].type), "bool");
+#else
+  strcpy(fields[1].type, "bool");
+#endif
+
   ASSERT_EQ(0, write_struct_to_sql_create_table(fp, "test", &sf,
                                                 C_TO_SQL_DIALECT_MYSQL));
   rewind(fp);

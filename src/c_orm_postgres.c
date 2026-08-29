@@ -6,7 +6,6 @@
  */
 
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "c_orm_postgres.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,7 +49,12 @@ static int generate_stmt_name(char *buf, size_t size) {
   c_orm_error_t rc;
   static int counter = 0;
   LOG_DEBUG("generate_stmt_name: entry");
-  rc = C_ORM_SPRINTF(buf, size, "c_orm_stmt_%d", ++counter);
+#if defined(_MSC_VER)
+  rc = sprintf_s(buf, size, "c_orm_stmt_%d", ++counter);
+#else
+  rc = sprintf(buf, "c_orm_stmt_%d", ++counter);
+#endif
+
   LOG_DEBUG("generate_stmt_name: exit");
   return rc;
 }
@@ -90,7 +94,12 @@ static char *rewrite_query(const char *sql, int *out_param_count) {
     if (*p == '?') {
       int num_len;
       count++;
-      num_len = C_ORM_SPRINTF(num_buf, sizeof(num_buf), "$%d", count);
+#if defined(_MSC_VER)
+      num_len = sprintf_s(num_buf, sizeof(num_buf), "$%d", count);
+#else
+      num_len = sprintf(num_buf, "$%d", count);
+#endif
+
       memcpy(q, num_buf, num_len);
       q += num_len;
       p++;
@@ -291,7 +300,11 @@ static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
     rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
-  C_ORM_STRCPY(q_data->stmt_name, strlen(stmt_name) + 1, stmt_name);
+#if defined(_MSC_VER)
+  strcpy_s(q_data->stmt_name, strlen(stmt_name) + 1, stmt_name);
+#else
+  strcpy(q_data->stmt_name, stmt_name);
+#endif
 
   q_data->param_count = param_count;
   if (param_count > 0) {
@@ -346,7 +359,11 @@ static char *orm_strdup(const char *s) {
   len = strlen(s);
   dup = (char *)C_ORM_MALLOC(len + 1);
   if (dup) {
-    C_ORM_STRCPY(dup, len + 1, s);
+#if defined(_MSC_VER)
+    strcpy_s(dup, len + 1, s);
+#else
+    strcpy(dup, s);
+#endif
   }
   LOG_DEBUG("orm_strdup: exit");
   return dup;
@@ -365,7 +382,12 @@ static c_orm_error_t postgres_bind_int32(c_orm_query_t *query, int index,
     return (c_orm_error_t)rc;
   }
   free_param(query->data, index);
-  C_ORM_SPRINTF(buf, sizeof(buf), "%d", (int)val);
+#if defined(_MSC_VER)
+  sprintf_s(buf, sizeof(buf), "%d", (int)val);
+#else
+  sprintf(buf, "%d", (int)val);
+#endif
+
   query->data->param_values[index - 1] = orm_strdup(buf);
   if (!query->data->param_values[index - 1]) {
     LOG_DEBUG("postgres_bind_int32: OOM");
@@ -391,7 +413,12 @@ static c_orm_error_t postgres_bind_int64(c_orm_query_t *query, int index,
     return (c_orm_error_t)rc;
   }
   free_param(query->data, index);
-  C_ORM_SPRINTF(buf, sizeof(buf), C_ORM_INT64_FORMAT, (C_ORM_INT64_CAST)val);
+#if defined(_MSC_VER)
+  sprintf_s(buf, sizeof(buf), C_ORM_INT64_FORMAT, (C_ORM_INT64_CAST)val);
+#else
+  sprintf(buf, C_ORM_INT64_FORMAT, (C_ORM_INT64_CAST)val);
+#endif
+
   query->data->param_values[index - 1] = orm_strdup(buf);
   if (!query->data->param_values[index - 1]) {
     LOG_DEBUG("postgres_bind_int64: OOM");
@@ -417,7 +444,12 @@ static c_orm_error_t postgres_bind_double(c_orm_query_t *query, int index,
     return (c_orm_error_t)rc;
   }
   free_param(query->data, index);
-  C_ORM_SPRINTF(buf, sizeof(buf), "%.17g", val);
+#if defined(_MSC_VER)
+  sprintf_s(buf, sizeof(buf), "%.17g", val);
+#else
+  sprintf(buf, "%.17g", val);
+#endif
+
   query->data->param_values[index - 1] = orm_strdup(buf);
   if (!query->data->param_values[index - 1]) {
     LOG_DEBUG("postgres_bind_double: OOM");

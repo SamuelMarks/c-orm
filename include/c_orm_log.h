@@ -8,15 +8,15 @@
 #ifndef C_ORM_LOG_H
 #define C_ORM_LOG_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include "c_orm_api.h"
 #include <stdio.h>
 #include <stdarg.h>
 /* clang-format on */
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 
 #ifndef LOG_DEBUG
 /**
@@ -45,7 +45,6 @@ c_orm_log_debug(const char *fmt, ...);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_ORM_LOG_H */
 
 #if defined(__clang__) || defined(__GNUC__)

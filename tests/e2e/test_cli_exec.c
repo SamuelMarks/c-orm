@@ -104,12 +104,24 @@ TEST test_cli_migrate(void) {
   {
     FILE *f1;
     FILE *f2;
-    C_ORM_FOPEN(&f1, "test_migrations_dir/1_test.up.sql", "w");
+#if defined(_MSC_VER)
+    fopen_s(&f1, "test_migrations_dir/1_test.up.sql", "w");
+#else
+    (*&f1 = fopen("test_migrations_dir/1_test.up.sql", "w"),
+     *&f1 == NULL ? 1 : 0);
+#endif
+
     if (f1) {
       fprintf(f1, "CREATE TABLE x (id INT);\n");
       fclose(f1);
     }
-    C_ORM_FOPEN(&f2, "test_migrations_dir/1_test.down.sql", "w");
+#if defined(_MSC_VER)
+    fopen_s(&f2, "test_migrations_dir/1_test.down.sql", "w");
+#else
+    (*&f2 = fopen("test_migrations_dir/1_test.down.sql", "w"),
+     *&f2 == NULL ? 1 : 0);
+#endif
+
     if (f2) {
       fprintf(f2, "DROP TABLE x;\n");
       fclose(f2);
@@ -169,7 +181,12 @@ TEST test_cli_exec_sql2c(void) {
   int rc;
   FILE *f;
   (void)rc;
-  C_ORM_FOPEN(&f, "test_schema.sql", "w");
+#if defined(_MSC_VER)
+  fopen_s(&f, "test_schema.sql", "w");
+#else
+  (*&f = fopen("test_schema.sql", "w"), *&f == NULL ? 1 : 0);
+#endif
+
   if (f) {
     fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
     fclose(f);

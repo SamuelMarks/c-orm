@@ -1000,7 +1000,11 @@ TEST qb_exhaustive_oom_all(void) {
     target_col.is_pk = 1;
 
     memset(tgt_name, 'R', extra);
-    C_ORM_STRCPY(tgt_name + extra, sizeof(tgt_name) - extra, "target_tbl");
+#if defined(_MSC_VER)
+    strcpy_s(tgt_name + extra, sizeof(tgt_name) - extra, "target_tbl");
+#else
+    strcpy(tgt_name + extra, "target_tbl");
+#endif
 
     memset(&target_meta, 0, sizeof(target_meta));
     target_meta.name = tgt_name;

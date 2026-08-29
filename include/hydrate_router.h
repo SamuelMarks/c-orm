@@ -20,7 +20,6 @@ extern "C" {
 
 /* clang-format off */
 #include "c_orm_db.h"
-#include "c_orm_safe_crt.h"
 #include "abstract_struct.h"
 #include "cdd_c_orm_meta.h"
 /* clang-format on */
@@ -124,7 +123,6 @@ cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_CLASSES_PARSE_HYDRATE_ROUTER_H */
 
 #if defined(__clang__) || defined(__GNUC__)

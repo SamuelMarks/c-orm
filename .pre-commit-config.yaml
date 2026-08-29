@@ -71,8 +71,9 @@ repos:
         pass_filenames: false
       - id: check-enum-returns
         name: Check Enum Returns
-        entry: python scripts/check_enum_returns_clang.py . --exclude-files src/c_orm_alloc.c --compile-args -Iinclude -Ibuild/_deps/cdd-c-src/include -Ibuild/_deps/c-str-span-src/include -Ibuild/_deps/parson-src -Ibuild/_deps/c89stringutils-src/include -Ibuild/_deps/cfs-src/include
-        language: system
+        entry: python scripts/check_enum_returns_clang.py . --exclude-files src/c_orm_alloc.c --exclude-files "build/*" --exclude-files "c_abs_tmp/*" --compile-args -Iinclude -Ibuild/_deps/cdd-c-src/include -Ibuild/_deps/c-str-span-src/include -Ibuild/_deps/parson-src -Ibuild/_deps/c89stringutils-src/include -Ibuild/_deps/cfs-src/include
+        language: python
+        additional_dependencies: [libclang]
         pass_filenames: false
       - id: update-shields
         name: Update README Shields

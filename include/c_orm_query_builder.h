@@ -8,14 +8,15 @@
 #ifndef C_ORM_QUERY_BUILDER_H
 #define C_ORM_QUERY_BUILDER_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include "c_orm_db.h"
 #include "c_orm_string_builder.h"
 /* clang-format on */
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 /**
  * @brief Opaque select builder handle.
  */

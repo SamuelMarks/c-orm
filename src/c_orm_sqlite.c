@@ -6,7 +6,6 @@
  */
 
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "c_orm_sqlite.h"
 #include "c_orm_log.h"
 #include <stdlib.h>
@@ -528,8 +527,13 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
     if (query->data->db->log_cb) {
       sql = sqlite3_sql(query->data->stmt);
       if (sql) {
-        C_ORM_SPRINTF(log_msg, sizeof(log_msg), "SLOW QUERY (%.2fms): %s",
-                      elapsed, sql);
+#if defined(_MSC_VER)
+        sprintf_s(log_msg, sizeof(log_msg), "SLOW QUERY (%.2fms): %s", elapsed,
+                  sql);
+#else
+        sprintf(log_msg, "SLOW QUERY (%.2fms): %s", elapsed, sql);
+#endif
+
         query->data->db->log_cb(log_msg, query->data->db->log_user_data);
       }
     }

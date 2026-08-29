@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include "c_orm_mysql.h"
@@ -24,9 +23,24 @@ static c_orm_error_t mock_load_dir(const char *dir_path,
     *out_count = 1;
     *out_migrations = (c_orm_migration_t *)C_ORM_MALLOC(sizeof(c_orm_migration_t));
     memset(*out_migrations, 0, sizeof(c_orm_migration_t));
-    C_ORM_STRCPY((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "1");
-    C_ORM_STRCPY((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
-    C_ORM_STRCPY((*out_migrations)[0].hash, sizeof((*out_migrations)[0].hash), "hash");
+#if defined(_MSC_VER)
+    strcpy_s((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "1");
+#else
+    strcpy((*out_migrations)[0].version, "1");
+#endif
+
+#if defined(_MSC_VER)
+    strcpy_s((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
+#else
+    strcpy((*out_migrations)[0].name, "test");
+#endif
+
+#if defined(_MSC_VER)
+    strcpy_s((*out_migrations)[0].hash, sizeof((*out_migrations)[0].hash), "hash");
+#else
+    strcpy((*out_migrations)[0].hash, "hash");
+#endif
+
     return C_ORM_OK;
   }
   if (strcmp(dir_path, "bad_dir") == 0) {
@@ -60,9 +74,24 @@ static c_orm_error_t mock_get_applied(c_orm_db_t *db,
   *out_count = 1;
   *out_migrations = (c_orm_migration_t *)C_ORM_MALLOC(sizeof(c_orm_migration_t));
   memset(*out_migrations, 0, sizeof(c_orm_migration_t));
-  C_ORM_STRCPY((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "1");
-  C_ORM_STRCPY((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
-  C_ORM_STRCPY((*out_migrations)[0].hash, sizeof((*out_migrations)[0].hash), "hash");
+#if defined(_MSC_VER)
+  strcpy_s((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "1");
+#else
+  strcpy((*out_migrations)[0].version, "1");
+#endif
+
+#if defined(_MSC_VER)
+  strcpy_s((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
+#else
+  strcpy((*out_migrations)[0].name, "test");
+#endif
+
+#if defined(_MSC_VER)
+  strcpy_s((*out_migrations)[0].hash, sizeof((*out_migrations)[0].hash), "hash");
+#else
+  strcpy((*out_migrations)[0].hash, "hash");
+#endif
+
   return C_ORM_OK;
 }
 #define c_orm_migration_get_applied mock_get_applied
@@ -286,7 +315,12 @@ TEST test_cli_sql2c(void) {
 #else
   system("mkdir -p test_out");
 #endif
-  C_ORM_FOPEN(&f, "test_schema.sql", "w");
+#if defined(_MSC_VER)
+  fopen_s(&f, "test_schema.sql", "w");
+#else
+  (*&f = fopen("test_schema.sql", "w"), *&f == NULL ? 1 : 0);
+#endif
+
   if (f) {
     fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
     fclose(f);

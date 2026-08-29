@@ -8,7 +8,6 @@
  */
 
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "migration_runner.h"
 
 #include <stdio.h>
@@ -749,8 +748,13 @@ C_ORM_EXPORT c_orm_error_t create_migration_file(const char *migrations_dir,
     return ENOMEM;
   }
 
-  C_ORM_SPRINTF(filepath, filepath_len, "%s%c%s_%s.sql", migrations_dir,
-                PATH_SEP_C, timestamp, safe_name);
+#if defined(_MSC_VER)
+  sprintf_s(filepath, filepath_len, "%s%c%s_%s.sql", migrations_dir, PATH_SEP_C,
+            timestamp, safe_name);
+#else
+  sprintf(filepath, "%s%c%s_%s.sql", migrations_dir, PATH_SEP_C, timestamp,
+          safe_name);
+#endif
 
   template_str = "-- UP\n"
                  "-- Add up migration statements here\n\n"
@@ -838,8 +842,12 @@ C_ORM_EXPORT c_orm_error_t dump_schema(const char *out_filepath) {
     return ENOMEM;
   }
 
-  C_ORM_SPRINTF(cmd, cmd_len, "pg_dump -s -O -x \"%s\" > \"%s\"", db_url,
-                out_filepath);
+#if defined(_MSC_VER)
+  sprintf_s(cmd, cmd_len, "pg_dump -s -O -x \"%s\" > \"%s\"", db_url,
+            out_filepath);
+#else
+  sprintf(cmd, "pg_dump -s -O -x \"%s\" > \"%s\"", db_url, out_filepath);
+#endif
 
   rc = system(cmd);
   if (rc == 0) {
@@ -888,7 +896,11 @@ C_ORM_EXPORT c_orm_error_t setup_test_database(const char *db_name,
     return ENOMEM;
   }
 
-  C_ORM_SPRINTF(create_db_query, query_len, "CREATE DATABASE \"%s\"", db_name);
+#if defined(_MSC_VER)
+  sprintf_s(create_db_query, query_len, "CREATE DATABASE \"%s\"", db_name);
+#else
+  sprintf(create_db_query, "CREATE DATABASE \"%s\"", db_name);
+#endif
 
   res = PQexec(conn, create_db_query);
   if (PQresultStatus(res) != PGRES_COMMAND_OK) {

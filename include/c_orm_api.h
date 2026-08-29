@@ -8,15 +8,15 @@
 #ifndef C_ORM_API_H
 #define C_ORM_API_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include "c_orm_db.h"
 #include "c_orm_meta.h"
 #include "abstract_struct.h"
 /* clang-format on */
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 
 /**
  * @brief Implement runtime validation wrapping cdd-c dynamic validation rules
@@ -1327,7 +1327,6 @@ C_ORM_EXPORT void c_orm_wasm_init_fs(void (*callback)(int));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_ORM_API_H */
 
 #if defined(__clang__) || defined(__GNUC__)

@@ -8,13 +8,14 @@
 #ifndef C_ORM_SQLITE_H
 #define C_ORM_SQLITE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include "c_orm_db.h"
 /* clang-format on */
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 /**
  * @brief Create a new SQLite database connection.
  *

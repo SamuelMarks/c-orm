@@ -249,7 +249,6 @@ C_ORM_EXPORT c_orm_error_t sql_parse_returning(
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_SQL_PARSER_H */
 
 #if defined(__clang__) || defined(__GNUC__)

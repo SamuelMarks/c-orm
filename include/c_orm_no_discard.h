@@ -6,7 +6,8 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
+
 /* clang-format on */
 
 #if defined(__cplusplus) && __cplusplus >= 201703L
@@ -22,7 +23,6 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_ORM_NO_DISCARD_H */
 
 #if defined(__clang__) || defined(__GNUC__)

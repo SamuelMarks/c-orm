@@ -8,6 +8,10 @@
 #ifndef C_ORM_DB_H
 #define C_ORM_DB_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #if defined(_MSC_VER)
 #if _MSC_VER < 1600
@@ -36,9 +40,6 @@ typedef unsigned __int64 uint64_t;
 #define C_ORM_CAST_SIZE_T(x) ((unsigned long)(x))
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 /**
  * @brief Opaque database connection handle.
  */

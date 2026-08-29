@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "c_orm_sql_to_c.h"
 #include <greatest.h>
 #include <string.h>
@@ -28,7 +27,12 @@ TEST test_sql_to_c_header_emit(void) {
   err = sql_parse_table(list, &table, &err_info);
   ASSERT_EQ(0, err);
 
-  C_ORM_TMPFILE(&fp);
+#if defined(_MSC_VER)
+  tmpfile_s(&fp);
+#else
+  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+#endif
+
   ASSERT(fp != NULL);
 
   err = sql_to_c_header_emit(fp, table);
@@ -72,7 +76,12 @@ TEST test_sql_to_c_source_emit(void) {
   err = sql_parse_table(list, &table, &err_info);
   ASSERT_EQ(0, err);
 
-  C_ORM_TMPFILE(&fp);
+#if defined(_MSC_VER)
+  tmpfile_s(&fp);
+#else
+  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+#endif
+
   ASSERT(fp != NULL);
 
   err = sql_to_c_source_emit(fp, table, "users.h");
@@ -98,7 +107,11 @@ TEST test_sql_to_c_source_emit(void) {
 TEST test_sql_to_c_errors(void) {
   struct sql_table_t empty_table = {0};
   FILE *fp;
-  C_ORM_FOPEN(&fp, "dummy_err.h", "w");
+#if defined(_MSC_VER)
+  fopen_s(&fp, "dummy_err.h", "w");
+#else
+  (*&fp = fopen("dummy_err.h", "w"), *&fp == NULL ? 1 : 0);
+#endif
 
   ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit(NULL, NULL));
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, sql_to_c_header_emit(fp, &empty_table));
@@ -134,7 +147,12 @@ TEST test_sql_to_c_projections(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
   c_orm_uint64_t out_hash;
-  C_ORM_TMPFILE(&fp);
+#if defined(_MSC_VER)
+  tmpfile_s(&fp);
+#else
+  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+#endif
+
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 2;
@@ -169,7 +187,12 @@ TEST test_sql_to_c_projections(void) {
 TEST test_sql_to_c_polymorphic(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
-  C_ORM_TMPFILE(&fp);
+#if defined(_MSC_VER)
+  tmpfile_s(&fp);
+#else
+  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+#endif
+
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 1;
@@ -189,7 +212,12 @@ TEST test_sql_to_c_polymorphic(void) {
 TEST test_sql_to_c_union(void) {
   FILE *fp;
   cdd_c_query_projection_t projs[2];
-  C_ORM_TMPFILE(&fp);
+#if defined(_MSC_VER)
+  tmpfile_s(&fp);
+#else
+  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+#endif
+
   memset(projs, 0, sizeof(projs));
 
   projs[0].n_fields = 1;
@@ -215,7 +243,12 @@ TEST test_sql_to_c_union(void) {
 TEST test_sql_to_c_bitmask_sizes(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
-  C_ORM_TMPFILE(&fp);
+#if defined(_MSC_VER)
+  tmpfile_s(&fp);
+#else
+  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+#endif
+
   memset(&proj, 0, sizeof(proj));
 
   /* 0 fields */
@@ -250,7 +283,12 @@ TEST test_sql_to_c_projection_types(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
   c_orm_uint64_t hash;
-  C_ORM_TMPFILE(&fp);
+#if defined(_MSC_VER)
+  tmpfile_s(&fp);
+#else
+  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+#endif
+
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 4;
@@ -285,7 +323,12 @@ TEST test_sql_to_c_edge_cases(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
   cdd_c_query_projection_t projs[1];
-  C_ORM_TMPFILE(&fp);
+#if defined(_MSC_VER)
+  tmpfile_s(&fp);
+#else
+  (*&fp = tmpfile(), *&fp == NULL ? 1 : 0);
+#endif
+
   memset(&proj, 0, sizeof(proj));
   memset(projs, 0, sizeof(projs));
 

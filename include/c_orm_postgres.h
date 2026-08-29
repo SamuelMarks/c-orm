@@ -8,13 +8,13 @@
 #ifndef C_ORM_POSTGRES_H
 #define C_ORM_POSTGRES_H
 
-/* clang-format off */
-#include "c_orm_db.h"
-/* clang-format on */
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+/* clang-format off */
+#include "c_orm_db.h"
+/* clang-format on */
 
 /**
  * @brief Get the PostgreSQL driver vtable.

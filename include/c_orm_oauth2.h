@@ -8,13 +8,13 @@
 #ifndef C_ORM_OAUTH2_H
 #define C_ORM_OAUTH2_H
 
-/* clang-format off */
-#include "c_orm_db.h"
-/* clang-format on */
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+/* clang-format off */
+#include "c_orm_db.h"
+/* clang-format on */
 
 /**
  * @brief Represents an OAuth 2.0 token response/storage.

@@ -8,7 +8,6 @@
  */
 
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "abstract_struct.h"
 #include <stdlib.h>
 #include <errno.h>
@@ -705,7 +704,12 @@ c_orm_error_t cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
 
       if (type == 20 || type == 21 || type == 23) { /* int8, int2, int4 */
         variant.type = CDD_C_VARIANT_TYPE_INT;
-        variant.value.i_val = C_ORM_STRTOLL(val_str, NULL, 10);
+#if defined(_MSC_VER)
+        variant.value.i_val = _strtoi64(val_str, NULL, 10);
+#else
+        variant.value.i_val = strtoll(val_str, NULL, 10);
+#endif
+
       } else if (type == 16) { /* bool */
         variant.type = CDD_C_VARIANT_TYPE_INT;
         variant.value.i_val = (val_str[0] == 't') ? 1 : 0;
@@ -782,7 +786,12 @@ c_orm_error_t cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
       case MYSQL_TYPE_YEAR:
       case MYSQL_TYPE_BIT:
         variant.type = CDD_C_VARIANT_TYPE_INT;
-        variant.value.i_val = C_ORM_STRTOLL(val_str, NULL, 10);
+#if defined(_MSC_VER)
+        variant.value.i_val = _strtoi64(val_str, NULL, 10);
+#else
+        variant.value.i_val = strtoll(val_str, NULL, 10);
+#endif
+
         break;
       case MYSQL_TYPE_DECIMAL:
       case MYSQL_TYPE_NEWDECIMAL:
@@ -940,8 +949,14 @@ c_orm_error_t cdd_c_abstract_to_specific(
     } else if (strcmp(prop->type, "C_ORM_TYPE_STRING") == 0) {
       if (val->type == CDD_C_VARIANT_TYPE_STRING) {
         if (prop->length > 0) {
-          C_ORM_STRNCPY((char *)out_struct + prop->offset, prop->length,
-                        val->value.s_val, prop->length - 1);
+#if defined(_MSC_VER)
+          strncpy_s((char *)out_struct + prop->offset, prop->length,
+                    val->value.s_val, prop->length - 1);
+#else
+          strncpy((char *)out_struct + prop->offset, val->value.s_val,
+                  prop->length - 1);
+#endif
+
           ((char *)out_struct + prop->offset)[prop->length - 1] = '\0';
         } else {
           {
@@ -969,7 +984,12 @@ cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
   if (!db || !table_name || !out_schema)
     return EINVAL;
 
-  C_ORM_SPRINTF(query, sizeof(query), "PRAGMA table_info('%s')", table_name);
+#if defined(_MSC_VER)
+  sprintf_s(query, sizeof(query), "PRAGMA table_info('%s')", table_name);
+#else
+  sprintf(query, "PRAGMA table_info('%s')", table_name);
+#endif
+
   if (sqlite3_prepare_v2(sql_db, query, -1, &stmt, NULL) != SQLITE_OK) {
     return EINVAL;
   }
@@ -1020,10 +1040,18 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
   if (!conn || !table_name || !out_schema)
     return EINVAL;
 
-  C_ORM_SPRINTF(query, sizeof(query),
-                "SELECT column_name, data_type, is_nullable FROM "
-                "information_schema.columns WHERE table_name = '%s';",
-                table_name);
+#if defined(_MSC_VER)
+  sprintf_s(query, sizeof(query),
+            "SELECT column_name, data_type, is_nullable FROM "
+            "information_schema.columns WHERE table_name = '%s';",
+            table_name);
+#else
+  sprintf(query,
+          "SELECT column_name, data_type, is_nullable FROM "
+          "information_schema.columns WHERE table_name = '%s';",
+          table_name);
+#endif
+
   res = PQexec(pq_conn, query);
   if (PQresultStatus(res) != PGRES_TUPLES_OK) {
     PQclear(res);
@@ -1079,7 +1107,12 @@ cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
   if (!conn || !table_name || !out_schema)
     return EINVAL;
 
-  C_ORM_SPRINTF(query, sizeof(query), "SHOW COLUMNS FROM `%s`", table_name);
+#if defined(_MSC_VER)
+  sprintf_s(query, sizeof(query), "SHOW COLUMNS FROM `%s`", table_name);
+#else
+  sprintf(query, "SHOW COLUMNS FROM `%s`", table_name);
+#endif
+
   if (mysql_query(mysql_conn, query)) {
     return EINVAL;
   }

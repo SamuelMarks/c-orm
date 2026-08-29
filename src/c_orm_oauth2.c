@@ -6,7 +6,6 @@
  */
 
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "c_orm_oauth2.h"
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
@@ -297,7 +296,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
             return C_ORM_ERROR_VALIDATION;
           }
           for (i = 0; i < out_blob.cbData; ++i) {
-            C_ORM_SPRINTF(&hex_str[i * 2], 3, "%02x", out_blob.pbData[i]);
+#if defined(_MSC_VER)
+            sprintf_s(&hex_str[i * 2], 3, "%02x", out_blob.pbData[i]);
+#else
+            sprintf(&hex_str[i * 2], "%02x", out_blob.pbData[i]);
+#endif
           }
           hex_str[out_blob.cbData * 2] = '\0';
           LocalFree(out_blob.pbData);
@@ -323,7 +326,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
     }
     for (i = 0; i < len; ++i) {
       unsigned char c = (unsigned char)(plain_token[i] ^ 0x42);
-      C_ORM_SPRINTF(&hex_str[i * 2], 3, "%02x", c);
+#if defined(_MSC_VER)
+      sprintf_s(&hex_str[i * 2], 3, "%02x", c);
+#else
+      sprintf(&hex_str[i * 2], "%02x", c);
+#endif
     }
     hex_str[len * 2] = '\0';
     *out_encrypted_token = hex_str;
@@ -493,7 +500,12 @@ c_orm_store_token_secure(const c_orm_oauth2_token_t *token) {
     f = NULL;
   }
 #else
-  C_ORM_FOPEN(&f, "c_orm_token.dat", "w");
+#if defined(_MSC_VER)
+  fopen_s(&f, "c_orm_token.dat", "w");
+#else
+  (*&f = fopen("c_orm_token.dat", "w"), *&f == NULL ? 1 : 0);
+#endif
+
 #endif
 
   if (!f) {

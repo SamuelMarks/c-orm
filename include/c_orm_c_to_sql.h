@@ -160,7 +160,6 @@ cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_CODEGEN_C_TO_SQL_H */
 
 #if defined(__clang__) || defined(__GNUC__)

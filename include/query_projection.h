@@ -97,7 +97,6 @@ extern C_ORM_EXPORT /**
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_CLASSES_PARSE_QUERY_PROJECTION_H */
 
 #if defined(__clang__) || defined(__GNUC__)

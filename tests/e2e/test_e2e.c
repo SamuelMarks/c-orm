@@ -4,7 +4,6 @@
 /* The generated models */
 
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #ifdef __EMSCRIPTEN__
 #define GREATEST_USE_TIME 0
 #endif
@@ -699,8 +698,16 @@ TEST test_e2e_bulk_processing(void) {
   for (i = 0; i < 1; i++) {
     char username[32];
     char email[64];
-    C_ORM_SPRINTF(username, sizeof(username), "bulk_%u", (unsigned int)i);
-    C_ORM_SPRINTF(email, sizeof(email), "bulk_%u@example.com", (unsigned int)i);
+#if defined(_MSC_VER)
+    sprintf_s(username, sizeof(username), "bulk_%u", (unsigned int)i);
+#else
+    sprintf(username, "bulk_%u", (unsigned int)i);
+#endif
+#if defined(_MSC_VER)
+    sprintf_s(email, sizeof(email), "bulk_%u@example.com", (unsigned int)i);
+#else
+    sprintf(email, "bulk_%u@example.com", (unsigned int)i);
+#endif
     user.id = (int32_t)i;
     user.username = username;
     user.email = email;

@@ -26,7 +26,12 @@ static void *mock_malloc(size_t size) {
 TEST test_codegen_parse_fail(void) {
   {
     FILE *f;
-    C_ORM_FOPEN(&f, "dummy.sql", "w");
+#if defined(_MSC_VER)
+    fopen_s(&f, "dummy.sql", "w");
+#else
+    (*&f = fopen("dummy.sql", "w"), *&f == NULL ? 1 : 0);
+#endif
+
     if (f) {
       fprintf(f, "INVALID SQL SYNTAX;\n");
       fclose(f);
@@ -51,7 +56,12 @@ TEST test_codegen_fopen_h_fail(void) {
   /* Fail fopen for output by providing an invalid directory path */
   {
     FILE *f;
-    C_ORM_FOPEN(&f, "dummy.sql", "w");
+#if defined(_MSC_VER)
+    fopen_s(&f, "dummy.sql", "w");
+#else
+    (*&f = fopen("dummy.sql", "w"), *&f == NULL ? 1 : 0);
+#endif
+
     if (f) {
       fprintf(f, "CREATE TABLE t (id INT);\n");
       fclose(f);
@@ -72,7 +82,12 @@ TEST test_codegen_malloc_fail(void) {
   c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free);
   {
     FILE *f;
-    C_ORM_FOPEN(&f, "dummy.sql", "w");
+#if defined(_MSC_VER)
+    fopen_s(&f, "dummy.sql", "w");
+#else
+    (*&f = fopen("dummy.sql", "w"), *&f == NULL ? 1 : 0);
+#endif
+
     if (f) {
       fprintf(f, "CREATE TABLE t (id INT);\n");
       fclose(f);

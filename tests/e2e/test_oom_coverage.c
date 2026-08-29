@@ -75,7 +75,12 @@ static void do_uuid(void) {
 static void do_codegen(void) {
   {
     FILE *f;
-    C_ORM_FOPEN(&f, "oom_schema.sql", "w");
+#if defined(_MSC_VER)
+    fopen_s(&f, "oom_schema.sql", "w");
+#else
+    (*&f = fopen("oom_schema.sql", "w"), *&f == NULL ? 1 : 0);
+#endif
+
     if (f) {
       fprintf(f, "CREATE TABLE t_oom (id int);\n");
       fclose(f);
@@ -128,7 +133,12 @@ static void do_cdd_c_ir(void) {
     if (cdd_c_query_projection_init(&proj) == 0) {
       proj.source_table = (char *)malloc(5);
       if (proj.source_table)
-        C_ORM_STRCPY(proj.source_table, 5, "test");
+#if defined(_MSC_VER)
+        strcpy_s(proj.source_table, 5, "test");
+#else
+        strcpy(proj.source_table, "test");
+#endif
+
       cdd_c_query_projection_add_field(&proj, &field);
       cdd_c_ir_add_projection(&ir, &proj);
       cdd_c_query_projection_free(&proj);

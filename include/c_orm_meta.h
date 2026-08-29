@@ -8,13 +8,14 @@
 #ifndef C_ORM_META_H
 #define C_ORM_META_H
 
-/* clang-format off */
-#include <stddef.h>
-
 #ifdef __cplusplus
 #define C_ORM_IN_CPLUSPLUS 1
 extern "C" {
 #endif /* __cplusplus */
+
+/* clang-format off */
+#include <stddef.h>
+
 
 #if defined(_MSC_VER)
 #if _MSC_VER < 1600
@@ -52,6 +53,29 @@ typedef int bool;
 #include <stdlib.h>
 #include "c_orm_no_discard.h"
 /* clang-format on */
+
+#if defined(_MSC_VER)
+typedef __int64 c_orm_int64_t;
+typedef unsigned __int64 c_orm_uint64_t;
+#define C_ORM_INT64_FORMAT "%I64d"
+#define C_ORM_INT64_CAST __int64
+#elif defined(__GNUC__) || defined(__clang__)
+__extension__ typedef long long c_orm_int64_t;
+__extension__ typedef unsigned long long c_orm_uint64_t;
+#if defined(__x86_64__) || defined(__aarch64__) ||                             \
+    (defined(__APPLE__) && defined(__MACH__))
+#define C_ORM_INT64_FORMAT "%ld"
+#define C_ORM_INT64_CAST long
+#else
+#define C_ORM_INT64_FORMAT "%lld"
+#define C_ORM_INT64_CAST long long
+#endif
+#else
+typedef long c_orm_int64_t;
+typedef unsigned long c_orm_uint64_t;
+#define C_ORM_INT64_FORMAT "%ld"
+#define C_ORM_INT64_CAST long
+#endif
 
 #ifndef C_ORM_EXPORT
 #if defined(_WIN32) || defined(__CYGWIN__)
@@ -417,7 +441,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_system_realloc(void *ptr, size_t size,
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_ORM_META_H */
 
 #if defined(__clang__) || defined(__GNUC__)

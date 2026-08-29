@@ -6,7 +6,6 @@
  */
 
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_migrations.h"
 #include "c_orm_sqlite.h"
@@ -164,11 +163,25 @@ int main(int argc, char **argv) {
       goto cleanup;
     }
 
-    C_ORM_SPRINTF(up_file, sizeof(up_file), "%s/%s.up.sql", dir_path, arg_name);
-    C_ORM_SPRINTF(down_file, sizeof(down_file), "%s/%s.down.sql", dir_path,
-                  arg_name);
+#if defined(_MSC_VER)
+    sprintf_s(up_file, sizeof(up_file), "%s/%s.up.sql", dir_path, arg_name);
+#else
+    sprintf(up_file, "%s/%s.up.sql", dir_path, arg_name);
+#endif
 
-    C_ORM_FOPEN(&fp, up_file, "w");
+#if defined(_MSC_VER)
+    sprintf_s(down_file, sizeof(down_file), "%s/%s.down.sql", dir_path,
+              arg_name);
+#else
+    sprintf(down_file, "%s/%s.down.sql", dir_path, arg_name);
+#endif
+
+#if defined(_MSC_VER)
+    fopen_s(&fp, up_file, "w");
+#else
+    (*&fp = fopen(up_file, "w"), *&fp == NULL ? 1 : 0);
+#endif
+
     if (fp) {
       fclose(fp);
       printf("Created %s\n", up_file);
@@ -176,7 +189,12 @@ int main(int argc, char **argv) {
       LOG_DEBUG("main: OOM or IO error opening up_file");
     }
 
-    C_ORM_FOPEN(&fp, down_file, "w");
+#if defined(_MSC_VER)
+    fopen_s(&fp, down_file, "w");
+#else
+    (*&fp = fopen(down_file, "w"), *&fp == NULL ? 1 : 0);
+#endif
+
     if (fp) {
       fclose(fp);
       printf("Created %s\n", down_file);

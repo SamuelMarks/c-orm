@@ -6,7 +6,6 @@
  */
 
 /* clang-format off */
-#include "c_orm_safe_crt.h"
 #include "c_orm_string_builder.h"
 #include "c_orm_db.h"
 #include "c_orm_log.h"
@@ -137,8 +136,12 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
     builder->capacity = new_capacity;
   }
 
-  C_ORM_STRCPY(builder->buffer + builder->length,
-               builder->capacity - builder->length, str);
+#if defined(_MSC_VER)
+  strcpy_s(builder->buffer + builder->length,
+           builder->capacity - builder->length, str);
+#else
+  strcpy(builder->buffer + builder->length, str);
+#endif
 
   builder->length += len;
   rc = C_ORM_OK;
