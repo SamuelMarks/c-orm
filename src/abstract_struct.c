@@ -310,7 +310,7 @@ static c_orm_error_t copy_variant(cdd_c_variant_t *dest,
 static c_orm_error_t hash_string(const char *str, unsigned long *out_hash) {
   unsigned long hash = 5381;
   int c;
-  while ((c = *str++)) {
+  while ((c = *str++) != 0) {
     hash = ((hash << 5) + hash) + (unsigned long)c; /* hash * 33 + c */
   }
   *out_hash = hash;

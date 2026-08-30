@@ -393,10 +393,9 @@ TEST test_orm_gen_basic(void) {
     huge_desc[154] = ']';
     huge_desc[155] = '\0';
 #if defined(_MSC_VER)
-    strncpy_s(fields[15].description, sizeof(fields[15].description), huge_desc,
-              255);
+    strcpy_s(fields[15].description, sizeof(fields[15].description), huge_desc);
 #else
-    strncpy(fields[15].description, huge_desc, 255);
+    strcpy(fields[15].description, huge_desc);
 #endif
   }
 

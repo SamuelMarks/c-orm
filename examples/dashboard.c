@@ -28,9 +28,7 @@ int main(void) {
   err = c_orm_sqlite_connect(":memory:", &db);
   if (err != C_ORM_OK) {
     rc = 1;
-    {
-      return rc;
-    }
+    { return rc; }
   }
 
   /* Assume some legacy tables we don't have struct mappings for. */
@@ -68,9 +66,7 @@ int main(void) {
                             &query);
   if (err != C_ORM_OK) {
     rc = 1;
-    {
-      return rc;
-    }
+    { return rc; }
   }
 
   /* Iterate rows and hydrate dynamically. Step 283 logic mapping custom metrics
@@ -91,9 +87,7 @@ int main(void) {
   db->vtable->finalize(query);
   {
     rc = 0;
-    {
-      return rc;
-    }
+    { return rc; }
   }
 }
 

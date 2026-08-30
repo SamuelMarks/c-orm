@@ -509,11 +509,15 @@ cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
         char target[64];
 #if defined(_MSC_VER)
         strncpy_s(target, sizeof(target), schemas[i]->props[j].name, len - 3);
-#else
-        strncpy(target, schemas[i]->props[j].name, len - 3);
-#endif
-
         target[len - 3] = '\0';
+#else
+        {
+          size_t copy_len =
+              (len - 3 < sizeof(target) - 1) ? (len - 3) : (sizeof(target) - 1);
+          memcpy(target, schemas[i]->props[j].name, copy_len);
+          target[copy_len] = '\0';
+        }
+#endif
         for (k = 0; k < num_schemas; k++) {
           if (strcmp(schemas[k]->name, target) == 0) {
             in_degree[i]++;
@@ -545,11 +549,16 @@ cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
 #if defined(_MSC_VER)
             strncpy_s(target, sizeof(target), schemas[i]->props[j].name,
                       len - 3);
-#else
-            strncpy(target, schemas[i]->props[j].name, len - 3);
-#endif
-
             target[len - 3] = '\0';
+#else
+            {
+              size_t copy_len = (len - 3 < sizeof(target) - 1)
+                                    ? (len - 3)
+                                    : (sizeof(target) - 1);
+              memcpy(target, schemas[i]->props[j].name, copy_len);
+              target[copy_len] = '\0';
+            }
+#endif
             if (strcmp(schemas[curr]->name, target) == 0) {
               in_degree[i]--;
               if (in_degree[i] == 0) {

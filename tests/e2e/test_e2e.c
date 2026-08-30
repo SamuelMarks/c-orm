@@ -1232,7 +1232,9 @@ static void emscripten_test_callback(int err) {
 
 #if defined(_MSC_VER)
   _set_invalid_parameter_handler(my_invalid_parameter_handler);
+#if defined(_DEBUG)
   _CrtSetReportMode(_CRT_ASSERT, 0);
+#endif
 #endif
   GREATEST_MAIN_BEGIN();
   run_all_suites();
@@ -1262,14 +1264,14 @@ int main(int argc, char **argv) {
   _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
 #if defined(_WIN32) || defined(_WIN64)
-  {
-    SetErrorMode(0x0001 | 0x0002 | 0x8000);
-  }
+  { SetErrorMode(0x0001 | 0x0002 | 0x8000); }
 #endif
   (void)rc;
 #if defined(_MSC_VER)
   _set_invalid_parameter_handler(my_invalid_parameter_handler);
+#if defined(_DEBUG)
   _CrtSetReportMode(_CRT_ASSERT, 0);
+#endif
 #endif
   GREATEST_MAIN_BEGIN();
   run_all_suites();

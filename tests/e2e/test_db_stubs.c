@@ -248,7 +248,7 @@ TEST test_c_orm_async_coverage(void) {
 #ifndef __EMSCRIPTEN__
 TEST test_codegen_coverage(void) {
   int rc;
-  const char *schema_path;
+  const char *schema_path = NULL;
   FILE *f;
 
   rc = c_orm_codegen_generate(NULL, NULL);

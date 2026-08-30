@@ -194,7 +194,9 @@ GREATEST_MAIN_DEFS();
 int main(int argc, char **argv) {
 #if defined(_MSC_VER)
   _set_invalid_parameter_handler(my_invalid_parameter_handler);
+#if defined(_DEBUG)
   _CrtSetReportMode(_CRT_ASSERT, 0);
+#endif
 #endif
   GREATEST_MAIN_BEGIN();
   RUN_SUITE(benchmarks_suite);

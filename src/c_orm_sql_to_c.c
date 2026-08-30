@@ -68,11 +68,11 @@ static c_orm_error_t is_nullable(const struct sql_column_t *col,
 c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   switch (type) {
   case SQL_TYPE_INT: {
-    *_out_val = (char *)(size_t)"int32_t";
+    *_out_val = (char *)(size_t) "int32_t";
     return C_ORM_OK;
   }
   case SQL_TYPE_BIGINT: {
-    *_out_val = (char *)(size_t)"int64_t";
+    *_out_val = (char *)(size_t) "int64_t";
     return C_ORM_OK;
   }
   case SQL_TYPE_VARCHAR:
@@ -80,24 +80,24 @@ c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   case SQL_TYPE_CHAR:
   case SQL_TYPE_DATE:
   case SQL_TYPE_TIMESTAMP: {
-    *_out_val = (char *)(size_t)"char *";
+    *_out_val = (char *)(size_t) "char *";
     return C_ORM_OK;
   }
   case SQL_TYPE_FLOAT: {
-    *_out_val = (char *)(size_t)"float";
+    *_out_val = (char *)(size_t) "float";
     return C_ORM_OK;
   }
   case SQL_TYPE_DOUBLE:
   case SQL_TYPE_DECIMAL: {
-    *_out_val = (char *)(size_t)"double";
+    *_out_val = (char *)(size_t) "double";
     return C_ORM_OK;
   }
   case SQL_TYPE_BOOLEAN: {
-    *_out_val = (char *)(size_t)"bool";
+    *_out_val = (char *)(size_t) "bool";
     return C_ORM_OK;
   }
   default: {
-    *_out_val = (char *)(size_t)"void *";
+    *_out_val = (char *)(size_t) "void *";
     return EINVAL;
   }
   }
