@@ -16,14 +16,14 @@
 /* clang-format on */
 
 #if defined(_MSC_VER)
-#define CDD_C_THREAD_LOCAL __declspec(thread)
+#define C_ORM_THREAD_LOCAL __declspec(thread)
 #elif defined(__GNUC__) || defined(__clang__)
-#define CDD_C_THREAD_LOCAL __thread
+#define C_ORM_THREAD_LOCAL __thread
 #else
-#define CDD_C_THREAD_LOCAL
+#define C_ORM_THREAD_LOCAL
 #endif
 
-static CDD_C_THREAD_LOCAL char cdd_c_hydrate_error_msg[512] = {0};
+static C_ORM_THREAD_LOCAL char cdd_c_hydrate_error_msg[512] = {0};
 
 c_orm_error_t cdd_c_hydrate_router_get_last_error(const char **out_msg) {
   if (!out_msg)

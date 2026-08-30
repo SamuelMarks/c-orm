@@ -97,7 +97,6 @@ if(EMSCRIPTEN)
     add_link_options(-pthread "SHELL:-s USE_PTHREADS=1" "SHELL:-s STACK_SIZE=5MB" "SHELL:-s EMULATE_FUNCTION_POINTER_CASTS=1" -lidbfs.js)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
     set(HTTP_ONLY ON CACHE BOOL "Only build HTTP client/server (no OpenSSL)" FORCE)
-    add_compile_definitions(CDD_NO_UCONTEXT=1)
     # Replace -std=c90 with -std=gnu90 to support EM_ASM extensions
     string(REPLACE "-std=c90" "-std=gnu90" C_ORM_STRICT_OPTIONS "${C_ORM_STRICT_OPTIONS}")
 endif()
