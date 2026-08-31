@@ -127,7 +127,18 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     fputs("typedef signed __int64 int64_t;\n", fp);
     fputs("typedef unsigned __int64 uint64_t;\n", fp);
     fputs("# else\n", fp);
+    fputs("#if defined(_MSC_VER) && _MSC_VER < 1600\n", fp);
+    fputs("typedef signed __int8 int8_t;\ntypedef signed __int16 "
+          "int16_t;\ntypedef signed __int32 int32_t;\ntypedef signed __int64 "
+          "int64_t;\n",
+          fp);
+    fputs("typedef unsigned __int8 uint8_t;\ntypedef unsigned __int16 "
+          "uint16_t;\ntypedef unsigned __int32 uint32_t;\ntypedef unsigned "
+          "__int64 uint64_t;\n",
+          fp);
+    fputs("#else\n", fp);
     fputs("#  include <stdint.h>\n", fp);
+    fputs("#endif\n", fp);
     fputs("# endif\n", fp);
     fputs("#  ifndef __cplusplus\n", fp);
     fputs("#   ifndef _STDBOOL_H\n", fp);

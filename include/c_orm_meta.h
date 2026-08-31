@@ -444,7 +444,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_system_calloc(size_t nmemb, size_t size,
 C_ORM_EXPORT c_orm_error_t c_orm_system_realloc(void *ptr, size_t size,
                                                 void **out_ptr);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_META_H */

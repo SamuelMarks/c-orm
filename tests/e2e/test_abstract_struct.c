@@ -6,6 +6,7 @@
  */
 
 /* clang-format off */
+#include "test_utils.h"
 #include "abstract_struct.h"
 #include "c_orm_sql.h"
 #include "c_orm_sqlite.h"
@@ -107,7 +108,7 @@ TEST test_abstract_struct_json_roundtrip(void) {
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct_out, "my_int", &v_in));
 
   v_in.type = CDD_C_VARIANT_TYPE_STRING;
-  v_in.value.s_val = (char *)"test_string";
+  v_in.value.s_val = test_strdup("test_string");
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct_out, "my_str", &v_in));
 
   v_in.type = CDD_C_VARIANT_TYPE_FLOAT;
@@ -141,20 +142,20 @@ TEST test_abstract_hydrate(void) {
   void *row_data[4];
   c_orm_int64_t mock_int = 42;
   double mock_float = 3.14159;
-  char *mock_str = (char *)"Hello, Generic World!";
-  char *mock_blob = (char *)"blob_data";
+  char *mock_str = test_strdup("Hello, Generic World!");
+  char *mock_blob = test_strdup("blob_data");
   cdd_c_variant_t *out_val;
 
-  cols[0].name = "id";
+  cols[0].name = test_strdup("id");
   cols[0].inferred_type = 4; /* SQL_TYPE_INT */
 
-  cols[1].name = "ratio";
+  cols[1].name = test_strdup("ratio");
   cols[1].inferred_type = 8; /* SQL_TYPE_FLOAT */
 
-  cols[2].name = "greeting";
+  cols[2].name = test_strdup("greeting");
   cols[2].inferred_type = 5; /* SQL_TYPE_VARCHAR */
 
-  cols[3].name = "extra";
+  cols[3].name = test_strdup("extra");
   cols[3].inferred_type = 999; /* Unknown -> BLOB */
 
   row_data[0] = &mock_int;
@@ -207,20 +208,20 @@ TEST test_abstract_struct_conversion2(void) {
   cdd_c_meta_t meta;
   cdd_c_prop_meta_t props[3];
 
-  p1.name = "big_id";
-  p1.type = "C_ORM_TYPE_INT64";
+  p1.name = test_strdup("big_id");
+  p1.type = test_strdup("C_ORM_TYPE_INT64");
   p1.offset = offsetof(mock_specific_row2_t, big_id);
   p1.is_array = 0;
   p1.length = 0;
   p1.is_secure = 0;
-  p2.name = "small_ratio";
-  p2.type = "C_ORM_TYPE_FLOAT";
+  p2.name = test_strdup("small_ratio");
+  p2.type = test_strdup("C_ORM_TYPE_FLOAT");
   p2.offset = offsetof(mock_specific_row2_t, small_ratio);
   p2.is_array = 0;
   p2.length = 0;
   p2.is_secure = 0;
-  p3.name = "dyn_str";
-  p3.type = "C_ORM_TYPE_STRING";
+  p3.name = test_strdup("dyn_str");
+  p3.type = test_strdup("C_ORM_TYPE_STRING");
   p3.offset = offsetof(mock_specific_row2_t, dyn_str);
   p3.is_array = 0;
   p3.length = 0;
@@ -229,7 +230,7 @@ TEST test_abstract_struct_conversion2(void) {
   props[0] = p1;
   props[1] = p2;
   props[2] = p3;
-  meta.name = "mock_specific_row2_t";
+  meta.name = test_strdup("mock_specific_row2_t");
   meta.size = sizeof(mock_specific_row2_t);
   meta.num_props = 3;
   meta.props = props;
@@ -243,7 +244,7 @@ TEST test_abstract_struct_conversion2(void) {
   v_in.value.f_val = 3.14f;
   cdd_c_abstract_set(&astruct_in, "small_ratio", &v_in);
   v_in.type = CDD_C_VARIANT_TYPE_STRING;
-  v_in.value.s_val = (char *)"Dynamic String Content";
+  v_in.value.s_val = test_strdup("Dynamic String Content");
   cdd_c_abstract_set(&astruct_in, "dyn_str", &v_in);
 
   /* Abstract to Specific */
@@ -277,20 +278,20 @@ TEST test_abstract_struct_conversion(void) {
   cdd_c_meta_t meta;
   cdd_c_prop_meta_t props[3];
 
-  p1.name = "id";
-  p1.type = "C_ORM_TYPE_INT32";
+  p1.name = test_strdup("id");
+  p1.type = test_strdup("C_ORM_TYPE_INT32");
   p1.offset = offsetof(mock_specific_row_t, id);
   p1.is_array = 0;
   p1.length = 0;
   p1.is_secure = 0;
-  p2.name = "ratio";
-  p2.type = "C_ORM_TYPE_DOUBLE";
+  p2.name = test_strdup("ratio");
+  p2.type = test_strdup("C_ORM_TYPE_DOUBLE");
   p2.offset = offsetof(mock_specific_row_t, ratio);
   p2.is_array = 0;
   p2.length = 0;
   p2.is_secure = 0;
-  p3.name = "greeting";
-  p3.type = "C_ORM_TYPE_STRING";
+  p3.name = test_strdup("greeting");
+  p3.type = test_strdup("C_ORM_TYPE_STRING");
   p3.offset = offsetof(mock_specific_row_t, greeting);
   p3.is_array = 0;
   p3.length = 32;
@@ -299,7 +300,7 @@ TEST test_abstract_struct_conversion(void) {
   props[0] = p1;
   props[1] = p2;
   props[2] = p3;
-  meta.name = "mock_specific_row_t";
+  meta.name = test_strdup("mock_specific_row_t");
   meta.size = sizeof(mock_specific_row_t);
   meta.num_props = 3;
   meta.props = props;
@@ -313,7 +314,7 @@ TEST test_abstract_struct_conversion(void) {
   v_in.value.f_val = 5.5;
   cdd_c_abstract_set(&astruct_in, "ratio", &v_in);
   v_in.type = CDD_C_VARIANT_TYPE_STRING;
-  v_in.value.s_val = (char *)"Hello";
+  v_in.value.s_val = test_strdup("Hello");
   cdd_c_abstract_set(&astruct_in, "greeting", &v_in);
 
   /* Abstract to Specific */
@@ -382,22 +383,22 @@ TEST test_mock_driver_specific_struct_hydration(void) {
   cdd_c_abstract_struct_t astruct;
 
   /* Setup metadata mapping for mock_specific_row_t */
-  p1.name = "id";
-  p1.type = "C_ORM_TYPE_INT32";
+  p1.name = test_strdup("id");
+  p1.type = test_strdup("C_ORM_TYPE_INT32");
   p1.offset = offsetof(mock_specific_row_t, id);
   p1.is_array = 0;
   p1.length = 0;
   p1.is_secure = 0;
 
-  p2.name = "ratio";
-  p2.type = "C_ORM_TYPE_DOUBLE";
+  p2.name = test_strdup("ratio");
+  p2.type = test_strdup("C_ORM_TYPE_DOUBLE");
   p2.offset = offsetof(mock_specific_row_t, ratio);
   p2.is_array = 0;
   p2.length = 0;
   p2.is_secure = 0;
 
-  p3.name = "greeting";
-  p3.type = "C_ORM_TYPE_STRING";
+  p3.name = test_strdup("greeting");
+  p3.type = test_strdup("C_ORM_TYPE_STRING");
   p3.offset = offsetof(mock_specific_row_t, greeting);
   p3.is_array = 0;
   p3.length = 32;
@@ -406,17 +407,17 @@ TEST test_mock_driver_specific_struct_hydration(void) {
   props[0] = p1;
   props[1] = p2;
   props[2] = p3;
-  meta.name = "mock_specific_row_t";
+  meta.name = test_strdup("mock_specific_row_t");
   meta.size = sizeof(mock_specific_row_t);
   meta.num_props = 3;
   meta.props = props;
 
   /* Setup mock database driver output row */
-  cols[0].name = "id";
+  cols[0].name = test_strdup("id");
   cols[0].inferred_type = 4; /* INT */
-  cols[1].name = "ratio";
+  cols[1].name = test_strdup("ratio");
   cols[1].inferred_type = 8; /* FLOAT */
-  cols[2].name = "greeting";
+  cols[2].name = test_strdup("greeting");
   cols[2].inferred_type = 5; /* VARCHAR */
 
   row_data[0] = &mock_id;
@@ -451,9 +452,9 @@ TEST test_mock_driver_abstract_struct_hydration(void) {
   cdd_c_variant_t *out_val;
 
   /* Setup mock database driver output row */
-  cols[0].name = "dynamic_id";
+  cols[0].name = test_strdup("dynamic_id");
   cols[0].inferred_type = 4; /* INT */
-  cols[1].name = "dynamic_name";
+  cols[1].name = test_strdup("dynamic_name");
   cols[1].inferred_type = 5; /* VARCHAR */
 
   row_data[0] = &mock_id;
@@ -491,7 +492,7 @@ TEST test_abstract_struct_array(void) {
   val.value.i_val = 1;
   cdd_c_abstract_set(&row1, "id", &val);
   val.type = CDD_C_VARIANT_TYPE_STRING;
-  val.value.s_val = (char *)"Alice";
+  val.value.s_val = test_strdup("Alice");
   cdd_c_abstract_set(&row1, "name", &val);
   ASSERT_EQ(0, cdd_c_abstract_struct_array_append(&arr, &row1));
 
@@ -501,7 +502,7 @@ TEST test_abstract_struct_array(void) {
   val.value.i_val = 2;
   cdd_c_abstract_set(&row2, "id", &val);
   val.type = CDD_C_VARIANT_TYPE_STRING;
-  val.value.s_val = (char *)"Bob";
+  val.value.s_val = test_strdup("Bob");
   cdd_c_abstract_set(&row2, "name", &val);
   ASSERT_EQ(0, cdd_c_abstract_struct_array_append(&arr, &row2));
 
@@ -516,7 +517,7 @@ TEST test_abstract_struct_array(void) {
   val.type = CDD_C_VARIANT_TYPE_NULL;
   cdd_c_abstract_set(&row3, "empty", &val);
   val.type = CDD_C_VARIANT_TYPE_BLOB;
-  val.value.b_val.data = (unsigned char *)"blob";
+  val.value.b_val.data = (unsigned char *)test_strdup("blob");
   val.value.b_val.size = 4;
   cdd_c_abstract_set(&row3, "data", &val);
   ASSERT_EQ(0, cdd_c_abstract_struct_array_append(&arr, &row3));
@@ -558,15 +559,15 @@ TEST test_benchmark_hydration(void) {
   cdd_c_prop_meta_t props[2];
   cdd_c_column_meta_t cols[2];
 
-  p1.name = "greeting";
-  p1.type = "C_ORM_TYPE_STRING";
+  p1.name = test_strdup("greeting");
+  p1.type = test_strdup("C_ORM_TYPE_STRING");
   p1.offset = offsetof(mock_specific_row_t, greeting);
   p1.is_array = 0;
   p1.length = 32;
   p1.is_secure = 0;
 
-  p2.name = "id";
-  p2.type = "C_ORM_TYPE_INT32";
+  p2.name = test_strdup("id");
+  p2.type = test_strdup("C_ORM_TYPE_INT32");
   p2.offset = offsetof(mock_specific_row_t, id);
   p2.is_array = 0;
   p2.length = 0;
@@ -575,7 +576,7 @@ TEST test_benchmark_hydration(void) {
   props[0] = p1;
   props[1] = p2;
 
-  meta.name = "MockSpecificRow";
+  meta.name = test_strdup("MockSpecificRow");
   meta.size = sizeof(mock_specific_row_t);
   meta.num_props = 2;
   meta.props = props;
@@ -585,9 +586,9 @@ TEST test_benchmark_hydration(void) {
   row_data[1] = &mock_can;
 
   /* cdd_c_column_meta_t mapping for abstract hydration */
-  cols[0].name = "greeting";
+  cols[0].name = test_strdup("greeting");
   cols[0].inferred_type = 5; /* STRING */
-  cols[1].name = "id";
+  cols[1].name = test_strdup("id");
   cols[1].inferred_type = 4; /* INT */
 
   start = clock();
@@ -747,7 +748,7 @@ TEST test_meta_offsetof(void) {
   cdd_c_prop_meta_t props[1];
   size_t off;
 
-  p1.name = "id";
+  p1.name = test_strdup("id");
   p1.offset = 42;
   props[0] = p1;
 
@@ -785,16 +786,16 @@ TEST test_specific_edge_cases(void) {
   (void)specific_in;
   (void)astruct_out;
 
-  p1.name = "id";
-  p1.type = "C_ORM_TYPE_INT32";
+  p1.name = test_strdup("id");
+  p1.type = test_strdup("C_ORM_TYPE_INT32");
   p1.offset = offsetof(mock_specific_row_t, id);
   p1.length = 0;
-  p2.name = "ratio";
-  p2.type = "C_ORM_TYPE_FLOAT";
+  p2.name = test_strdup("ratio");
+  p2.type = test_strdup("C_ORM_TYPE_FLOAT");
   p2.offset = offsetof(mock_specific_row_t, ratio);
   p2.length = 0;
-  p3.name = "greeting";
-  p3.type = "C_ORM_TYPE_STRING";
+  p3.name = test_strdup("greeting");
+  p3.type = test_strdup("C_ORM_TYPE_STRING");
   p3.offset = offsetof(mock_specific_row_t, greeting);
   p3.length = 32;
 
@@ -815,7 +816,7 @@ TEST test_specific_edge_cases(void) {
   {
     cdd_c_variant_t v_wrong;
     v_wrong.type = CDD_C_VARIANT_TYPE_STRING;
-    v_wrong.value.s_val = (char *)"wrong";
+    v_wrong.value.s_val = test_strdup("wrong");
     cdd_c_abstract_set(&astruct_in, "id", &v_wrong);
     v_wrong.type = CDD_C_VARIANT_TYPE_INT;
     v_wrong.value.i_val = 1;
@@ -846,15 +847,15 @@ TEST test_specific_edge_cases(void) {
     cdd_c_abstract_struct_init(&astruct_in);
 
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"x";
+    v.value.s_val = test_strdup("x");
     cdd_c_abstract_set(&astruct_in, "id64", &v);
 
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"x";
+    v.value.s_val = test_strdup("x");
     cdd_c_abstract_set(&astruct_in, "flt", &v);
 
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"x";
+    v.value.s_val = test_strdup("x");
     cdd_c_abstract_set(&astruct_in, "dbl", &v);
 
     v.type = CDD_C_VARIANT_TYPE_INT;
@@ -872,7 +873,7 @@ TEST test_hydrate_null(void) {
   cdd_c_abstract_struct_t astruct;
   cdd_c_column_meta_t cols[1];
   void *row_data[1];
-  cols[0].name = "id";
+  cols[0].name = test_strdup("id");
   cols[0].inferred_type = 4;
   row_data[0] = NULL;
 
@@ -918,7 +919,7 @@ TEST test_abstract_struct_allocation_limits(void) {
   v.value.i_val = 1;
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct1, "huge_blob", &v));
   astruct1.kvs[0].value.type = CDD_C_VARIANT_TYPE_BLOB;
-  astruct1.kvs[0].value.value.b_val.data = (unsigned char *)"fake";
+  astruct1.kvs[0].value.value.b_val.data = (unsigned char *)test_strdup("fake");
   astruct1.kvs[0].value.value.b_val.size = (size_t)-1;
   ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_deep_copy(&astruct2, &astruct1));
   astruct1.kvs[0].value.type = CDD_C_VARIANT_TYPE_NULL; /* prevent free crash */

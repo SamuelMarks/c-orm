@@ -20,7 +20,7 @@ extern "C" {
 #define NO_DISCARD
 #endif
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_NO_DISCARD_H */

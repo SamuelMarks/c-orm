@@ -67,7 +67,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
 C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
     const c_orm_string_builder_t *builder, size_t *out_len);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_STRING_BUILDER_H */

@@ -235,7 +235,7 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
           "*dest);\n\n",
           struct_name, struct_name, struct_name);
 
-  fprintf(fp, "# ifdef __cplusplus\n");
+  fprintf(fp, "# if defined(__cplusplus)\n");
   fprintf(fp, "}\n");
   fprintf(fp, "# endif /* __cplusplus */\n\n");
 

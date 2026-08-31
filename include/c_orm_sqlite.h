@@ -77,7 +77,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
  */
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_SQLITE_H */

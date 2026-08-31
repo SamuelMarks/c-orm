@@ -40,8 +40,8 @@ TEST test_cdd_c_ir_oom(void) {
 
   memset(&tbl, 0, sizeof(tbl));
   cdd_c_query_projection_init(&proj);
-  proj.source_table = "test";
-  proj.mapping_meta.target_name = "test_map";
+  proj.source_table = test_strdup("test");
+  proj.mapping_meta.target_name = test_strdup("test_map");
 
   old_malloc_ir = c_orm_malloc;
   old_realloc_ir = c_orm_realloc;
@@ -70,7 +70,7 @@ TEST test_cdd_c_ir_oom(void) {
     cdd_c_query_projection_field_t f;
     cdd_c_query_projection_init(&proj_local);
     memset(&f, 0, sizeof(f));
-    f.name = "f1";
+    f.name = test_strdup("f1");
     cdd_c_query_projection_add_field(&proj_local, &f);
 
     ir_oom_active = 1;

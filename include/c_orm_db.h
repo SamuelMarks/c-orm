@@ -290,7 +290,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_set_modality(c_orm_db_t *db,
                                               c_orm_modality_t modality,
                                               void *ctx);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_DB_H */

@@ -668,7 +668,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     }
   }
 
-  fprintf(fp_h, "#ifdef __cplusplus\n}\n#endif /* __cplusplus */\n");
+  fprintf(fp_h, "#if defined(__cplusplus)\n}\n#endif /* __cplusplus */\n");
   fprintf(fp_h, "#endif /* C_ORM_MODELS_H */\n");
 
   /* Test Stub Generation */

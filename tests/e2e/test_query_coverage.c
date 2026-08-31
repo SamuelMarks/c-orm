@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include "c_orm_api.h"
 #include "c_orm_ast.h"
 #include "c_orm_sqlite.h"
@@ -387,7 +388,7 @@ TEST test_fluent_oom(void) {
     c_orm_query_t *qe = NULL;
 
     memset(&meta, 0, sizeof(meta));
-    meta.name = "base_tbl";
+    meta.name = test_strdup("base_tbl");
     meta.num_columns = 2;
     meta.columns = tcol;
 
@@ -398,11 +399,11 @@ TEST test_fluent_oom(void) {
     rel[0].foreign_key = "fk_id";
 
     memset(tcol, 0, sizeof(tcol));
-    tcol[0].name = "t_id";
-    tcol[1].name = "t_val";
+    tcol[0].name = test_strdup("t_id");
+    tcol[1].name = test_strdup("t_val");
 
     memset(&tmeta, 0, sizeof(tmeta));
-    tmeta.name = "target_tbl";
+    tmeta.name = test_strdup("target_tbl");
     tmeta.num_columns = 2;
     tmeta.columns = tcol;
 
@@ -858,7 +859,7 @@ TEST test_query_sql_coverage(void) {
 
   /* Execute, fetch_one, fetch_all tests */
   memset(&meta, 0, sizeof(meta));
-  meta.name = "t_exec";
+  meta.name = test_strdup("t_exec");
   meta.struct_size = 8;
 
   c_orm_sqlite_connect(":memory:", &exec_db);
@@ -1170,12 +1171,12 @@ TEST fluent_exhaustive_oom(void) {
   c_orm_table_meta_t meta;
 
   memset(target_col, 0, sizeof(target_col));
-  target_col[0].name = "id";
+  target_col[0].name = test_strdup("id");
   target_col[0].is_pk = 1;
-  target_col[1].name = "val";
+  target_col[1].name = test_strdup("val");
 
   memset(&target_meta, 0, sizeof(target_meta));
-  target_meta.name = "target_tbl";
+  target_meta.name = test_strdup("target_tbl");
   target_meta.columns = target_col;
   target_meta.num_columns = 2;
 
@@ -1187,7 +1188,7 @@ TEST fluent_exhaustive_oom(void) {
   rel_arr[0].foreign_key = "pid";
 
   memset(&meta, 0, sizeof(meta));
-  meta.name = "test_table";
+  meta.name = test_strdup("test_table");
   meta.columns = target_col;
   meta.num_columns = 2;
   meta.relations = rel_arr;
@@ -1234,7 +1235,7 @@ TEST fluent_exhaustive_oom(void) {
           query->join(query, "posts", "INNER JOIN", cond);
         } else if (extra == 2) {
           for (i = 0; i < 150; i++)
-            query->offset(query, i);
+            query->offset(query, (size_t)i);
         } else if (extra == 3) {
           query->left_join(query, "posts", NULL);
           query->right_join(query, "posts", NULL);
@@ -1364,12 +1365,12 @@ TEST query_sql_exhaustive_oom(void) {
   memset(&params, 0, sizeof(params));
 
   memset(target_col, 0, sizeof(target_col));
-  target_col[0].name = "id";
+  target_col[0].name = test_strdup("id");
   target_col[0].is_pk = 1;
-  target_col[1].name = "val";
+  target_col[1].name = test_strdup("val");
 
   memset(&meta, 0, sizeof(meta));
-  meta.name = "test_table";
+  meta.name = test_strdup("test_table");
   meta.columns = target_col;
   meta.num_columns = 2;
 

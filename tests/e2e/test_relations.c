@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include "c_orm_api.h"
 #include "c_orm_struct.h"
 #include "c_orm_sqlite.h"
@@ -65,7 +66,7 @@ TEST test_c_orm_cascade_delete_and_update(void) {
       "INSERT INTO Team (id, name, is_active) VALUES (NULLIF(?, 0), ?, ?)";
   team_m.query_update =
       "UPDATE Team SET id = ?, name = ?, is_active = ? WHERE id = ?";
-  team_m.query_select_by_pk = "SELECT * FROM Team WHERE id = ?";
+  team_m.query_select_by_pk = test_strdup("SELECT * FROM Team WHERE id = ?");
   team_m.query_delete_by_pk = "DELETE FROM Team WHERE id = ?";
 
   user_m.query_insert =
@@ -73,7 +74,7 @@ TEST test_c_orm_cascade_delete_and_update(void) {
   user_m.query_update = "UPDATE User SET id = ?, team_id = ? WHERE id = ?";
   user_m.query_delete_by_pk = "DELETE FROM User WHERE id = ?";
 
-  user_m.name = "User";
+  user_m.name = test_strdup("User");
 
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -88,7 +89,7 @@ TEST test_c_orm_cascade_delete_and_update(void) {
   /* Setup nested struct */
   memset(&new_team, 0, sizeof(new_team));
   new_team.id = 0;
-  new_team.name = "Support";
+  new_team.name = test_strdup("Support");
 
   memset(&user, 0, sizeof(user));
   user.id = 0;
@@ -100,7 +101,7 @@ TEST test_c_orm_cascade_delete_and_update(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   /* Update the child */
-  new_team.name = "Customer Success";
+  new_team.name = test_strdup("Customer Success");
   err = c_orm_update(db, &user_m, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -314,7 +315,7 @@ TEST test_c_orm_nested_insert_relations(void) {
   /* Setup nested struct */
   memset(&new_team, 0, sizeof(new_team));
   new_team.id = 0; /* will be auto-assigned */
-  new_team.name = "Marketing";
+  new_team.name = test_strdup("Marketing");
 
   memset(&user, 0, sizeof(user));
   user.id = 0;
@@ -372,7 +373,7 @@ TEST test_c_orm_one_to_many_lazy_load(void) {
   user_m.num_relations = 1;
 
   post_m.query_select_all = "SELECT * FROM Post";
-  user_m.name = "User";
+  user_m.name = test_strdup("User");
 
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -449,8 +450,8 @@ TEST test_c_orm_lazy_load_paginated(void) {
   user_m = UserWithPosts_meta;
   post_m.columns = post_cols;
   user_m.columns = user_cols;
-  post_m.name = "Post";
-  user_m.name = "User";
+  post_m.name = test_strdup("Post");
+  user_m.name = test_strdup("User");
 
   user_rels[0].target_meta = &post_m;
   user_m.relations = user_rels;
@@ -543,14 +544,14 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
   user_m = UserWithRoles_meta;
   role_m.columns = role_cols;
   user_m.columns = user_cols;
-  role_m.name = "Role";
-  user_m.name = "User";
+  role_m.name = test_strdup("Role");
+  user_m.name = test_strdup("User");
 
   user_rels[0].target_meta = &role_m;
   user_m.relations = user_rels;
   user_m.num_relations = 1;
 
-  role_m.query_select_by_pk = "SELECT * FROM Role WHERE id = ?";
+  role_m.query_select_by_pk = test_strdup("SELECT * FROM Role WHERE id = ?");
   user_m.query_delete_by_pk = "DELETE FROM User WHERE id = ?";
 
   err = c_orm_sqlite_connect(":memory:", &db);
@@ -681,11 +682,11 @@ TEST test_c_orm_deeply_nested_eager_loads(void) {
   post_m.columns = post_cols;
   user_m.columns = user_cols;
 
-  comment_m.name = "Comment";
-  post_m.name = "Post";
-  user_m.name = "User";
+  comment_m.name = test_strdup("Comment");
+  post_m.name = test_strdup("Post");
+  user_m.name = test_strdup("User");
 
-  user_m.query_select_by_pk = "SELECT * FROM User WHERE id = ?";
+  user_m.query_select_by_pk = test_strdup("SELECT * FROM User WHERE id = ?");
 
   post_rels[0].target_meta = &comment_m;
   post_m.relations = post_rels;
@@ -810,8 +811,8 @@ TEST test_c_orm_query_builder_relation_filtering(void) {
   user_m = UserWithPosts_meta;
   post_m.columns = post_cols;
   user_m.columns = user_cols;
-  post_m.name = "Post";
-  user_m.name = "User";
+  post_m.name = test_strdup("Post");
+  user_m.name = test_strdup("User");
 
   user_rels[0].target_meta = &post_m;
   user_m.relations = user_rels;
@@ -906,13 +907,13 @@ TEST test_c_orm_self_referencing_tree(void) {
 
   node_m = NodeTree_meta;
   node_m.columns = node_cols;
-  node_m.name = "Node";
+  node_m.name = test_strdup("Node");
 
   node_rels[0].target_meta = &node_m;
   node_m.relations = node_rels;
   node_m.num_relations = 1;
   node_m.query_select_by_pk =
-      "SELECT id, name, parent_id FROM Node WHERE id = ?";
+      test_strdup("SELECT id, name, parent_id FROM Node WHERE id = ?");
 
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");

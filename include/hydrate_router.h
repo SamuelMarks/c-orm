@@ -120,7 +120,7 @@ C_ORM_EXPORT c_orm_error_t cdd_c_hydrate_router_dispatch(
 C_ORM_EXPORT c_orm_error_t
 cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_CDD_CLASSES_PARSE_HYDRATE_ROUTER_H */

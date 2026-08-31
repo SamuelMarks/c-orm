@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include "migration.h"
 #include "migration_runner.h"
 #include "functions/parse/fs.h"

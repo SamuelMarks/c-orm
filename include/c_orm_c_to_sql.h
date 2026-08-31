@@ -157,7 +157,7 @@ C_ORM_EXPORT c_orm_error_t
 cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
                             const cdd_c_meta_t **out_schemas);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_CDD_CODEGEN_C_TO_SQL_H */

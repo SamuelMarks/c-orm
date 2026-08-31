@@ -35,7 +35,7 @@ c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable);
 C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
                                                c_orm_db_t **out_db);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_MYSQL_H */

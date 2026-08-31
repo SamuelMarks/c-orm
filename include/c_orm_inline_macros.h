@@ -132,7 +132,7 @@ extern "C" {
    NULL,                                                                       \
    0}
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_INLINE_MACROS_H */

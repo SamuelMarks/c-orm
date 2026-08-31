@@ -507,7 +507,7 @@ C_ORM_EXPORT void c_orm_query_free(c_orm_query_t *query);
 
 #define C_ORM_CAST(col, type) q->cast_(q, (col), (type))
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_AST_H */

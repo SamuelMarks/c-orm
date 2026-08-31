@@ -246,7 +246,7 @@ C_ORM_EXPORT c_orm_error_t sql_parse_returning(
     const struct sql_token_list_t *list, struct CddCQueryProjection **out_proj,
     struct sql_parse_error_t *out_error);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_CDD_SQL_PARSER_H */

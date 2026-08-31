@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include <errno.h>
 #include <string.h>
 #include "greatest.h"
@@ -33,13 +34,13 @@ TEST test_orm_gen_basic(void) {
 
   fields = calloc(21, sizeof(struct StructField));
 
-  config.filename_base = "test_gen";
+  config.filename_base = test_strdup("test_gen");
 
   spec.n_defined_schemas = 4;
   spec.defined_schema_names = malloc(4 * sizeof(char *));
-  spec.defined_schema_names[0] = "User";
-  spec.defined_schema_names[1] = "NoPKModel";
-  spec.defined_schema_names[2] = "BigPKModel";
+  spec.defined_schema_names[0] = test_strdup("User");
+  spec.defined_schema_names[1] = test_strdup("NoPKModel");
+  spec.defined_schema_names[2] = test_strdup("BigPKModel");
   spec.defined_schema_names[3] = NULL;
 
   spec.defined_schemas = calloc(4, sizeof(struct StructFields));
@@ -411,7 +412,7 @@ TEST test_orm_gen_basic(void) {
   strncpy(fields[16].type, "string", 31);
 #endif
 
-  fields[16].schema_extra_json = "{bad json}";
+  fields[16].schema_extra_json = test_strdup("{bad json}");
 
 #if defined(_MSC_VER)
   strncpy_s(fields[17].name, sizeof(fields[17].name), "not_obj_json", 63);
@@ -478,34 +479,34 @@ TEST test_orm_gen_basic(void) {
   config.filename_base = NULL;
   ASSERT_EQ(EINVAL, openapi_orm_generate(&spec, &config));
 
-  config.filename_base = "test_gen";
-  config.model_header = "invalid_dir/dev_null";
+  config.filename_base = test_strdup("test_gen");
+  config.model_header = test_strdup("invalid_dir/dev_null");
   {
     int rc_err = openapi_orm_generate(&spec, &config);
     ASSERT_EQ_FMT(EIO, rc_err, "%d");
   }
 
-  config.model_header = "invalid_dir/test2.h";
+  config.model_header = test_strdup("invalid_dir/test2.h");
   {
     int rc_err = openapi_orm_generate(&spec, &config);
     ASSERT_EQ_FMT(EIO, rc_err, "%d");
   }
 
-  config.model_header = "invalid_dir/path/test.h";
-  {
-    int rc_err = openapi_orm_generate(&spec, &config);
-    ASSERT_EQ_FMT(EIO, rc_err, "%d");
-  }
-
-  config.model_header = NULL;
-  config.filename_base = "invalid_dir/path/test";
+  config.model_header = test_strdup("invalid_dir/path/test.h");
   {
     int rc_err = openapi_orm_generate(&spec, &config);
     ASSERT_EQ_FMT(EIO, rc_err, "%d");
   }
 
   config.model_header = NULL;
-  config.filename_base = "test_gen";
+  config.filename_base = test_strdup("invalid_dir/path/test");
+  {
+    int rc_err = openapi_orm_generate(&spec, &config);
+    ASSERT_EQ_FMT(EIO, rc_err, "%d");
+  }
+
+  config.model_header = NULL;
+  config.filename_base = test_strdup("test_gen");
   ASSERT_EQ(0, openapi_orm_generate(&spec, &config));
 
   old_malloc = c_orm_malloc;
@@ -514,19 +515,19 @@ TEST test_orm_gen_basic(void) {
   oom_countdown = 0;
   ASSERT_EQ(ENOMEM, openapi_orm_generate(&spec, &config));
 
-  config.model_header = "test_gen_models.h";
+  config.model_header = test_strdup("test_gen_models.h");
   oom_countdown = 0;
   ASSERT_EQ(ENOMEM, openapi_orm_generate(&spec, &config));
 
   oom_active = 0;
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
 
-  config.model_header = "valid.h";
-  config.filename_base = "invalid/dir/base";
+  config.model_header = test_strdup("valid.h");
+  config.filename_base = test_strdup("invalid/dir/base");
   ASSERT_EQ(0, openapi_orm_generate(&spec, &config));
 
-  config.model_header = "test_gen_models.h";
-  config.filename_base = "test_gen";
+  config.model_header = test_strdup("test_gen_models.h");
+  config.filename_base = test_strdup("test_gen");
   ASSERT_EQ(0, openapi_orm_generate(&spec, &config));
 
   free(fields);

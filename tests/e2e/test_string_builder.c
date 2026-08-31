@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include "c_orm_log.h"
 #include "c_orm_string_builder.h"
 #include "greatest.h"

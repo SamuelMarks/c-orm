@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include "c_orm_api.h"
 #include "c_orm_query_builder.h"
 #include "greatest.h"
@@ -41,29 +42,29 @@ TEST test_query_builder_coverage(void) {
   rels[2].type = (c_orm_relation_type_t)99;
 
   memset(&target_col, 0, sizeof(target_col));
-  target_col.name = "id";
+  target_col.name = test_strdup("id");
   target_col.is_pk = 1;
 
   memset(&target_meta, 0, sizeof(target_meta));
-  target_meta.name = "target_tbl";
+  target_meta.name = test_strdup("target_tbl");
   target_meta.columns = &target_col;
   target_meta.num_columns = 1;
 
   rels[0].target_meta = &target_meta;
 
   memset(&no_pk_col, 0, sizeof(no_pk_col));
-  no_pk_col.name = "not_id";
+  no_pk_col.name = test_strdup("not_id");
   no_pk_col.is_pk = 0;
 
   memset(&no_pk_meta, 0, sizeof(no_pk_meta));
-  no_pk_meta.name = "no_pk_tbl";
+  no_pk_meta.name = test_strdup("no_pk_tbl");
   no_pk_meta.columns = &no_pk_col;
   no_pk_meta.num_columns = 1;
 
   rels[1].target_meta = &no_pk_meta;
 
   memset(&meta, 0, sizeof(meta));
-  meta.name = "test_table";
+  meta.name = test_strdup("test_table");
   meta.relations = rels;
   meta.num_relations = 3;
 
@@ -240,7 +241,7 @@ TEST test_query_builder_oom(void) {
   c_orm_relation_meta_t rel;
 
   memset(&meta, 0, sizeof(meta));
-  meta.name = "test_table";
+  meta.name = test_strdup("test_table");
 
   memset(&rel, 0, sizeof(rel));
   rel.target_meta = &meta;
@@ -996,10 +997,10 @@ TEST qb_exhaustive_oom_all(void) {
     int pad_step;
 
     memset(&target_col, 0, sizeof(target_col));
-    target_col.name = "id";
+    target_col.name = test_strdup("id");
     target_col.is_pk = 1;
 
-    memset(tgt_name, 'R', extra);
+    memset(tgt_name, 'R', (size_t)extra);
 #if defined(_MSC_VER)
     strcpy_s(tgt_name + extra, sizeof(tgt_name) - extra, "target_tbl");
 #else
@@ -1031,7 +1032,7 @@ TEST qb_exhaustive_oom_all(void) {
       char tname[513];
       c_orm_table_meta_t meta;
       pad = pad_step * 250;
-      memset(tname, 'T', pad);
+      memset(tname, 'T', (size_t)pad);
       tname[pad] = '\0';
       memset(&meta, 0, sizeof(meta));
       meta.name = tname;

@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include "c_orm_sql.h"
 #include <greatest.h>
 #include <stdlib.h>
@@ -10,7 +11,7 @@
 TEST test_sql_lexer_basic(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255));";
-  az_span span = az_span_create_from_str((char *)sql);
+  az_span span = az_span_create_from_str((char *)test_strdup(sql));
   struct sql_token_list_t *list = NULL;
   int err;
 
@@ -37,7 +38,7 @@ TEST test_sql_lexer_basic(void) {
 
 TEST test_sql_lexer_types(void) {
   const char *sql = "id BIGINT, is_active BOOLEAN DEFAULT true";
-  az_span span = az_span_create_from_str((char *)sql);
+  az_span span = az_span_create_from_str((char *)test_strdup(sql));
   struct sql_token_list_t *list = NULL;
   int err;
 
@@ -53,7 +54,7 @@ TEST test_sql_parser_basic(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
       "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true);";
-  az_span span = az_span_create_from_str((char *)sql);
+  az_span span = az_span_create_from_str((char *)test_strdup(sql));
   struct sql_token_list_t *list = NULL;
   struct sql_table_t *table = NULL;
   struct sql_parse_error_t err_info;
@@ -76,7 +77,7 @@ TEST test_sql_parser_basic(void) {
 
 TEST test_sql_lexer_strings_unknown(void) {
   const char *sql = "DEFAULT 'some_string' ^ ~";
-  az_span span = az_span_create_from_str((char *)sql);
+  az_span span = az_span_create_from_str((char *)test_strdup(sql));
   struct sql_token_list_t *list = NULL;
   int err;
   int has_str = 0;
@@ -101,7 +102,7 @@ TEST test_sql_lexer_strings_unknown(void) {
 
   /* unclosed string */
   sql = "'unclosed";
-  span = az_span_create_from_str((char *)sql);
+  span = az_span_create_from_str((char *)test_strdup(sql));
   err = sql_lex(span, &list);
   ASSERT_EQ(0, err);
   sql_token_list_free(list);

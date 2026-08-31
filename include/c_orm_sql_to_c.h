@@ -130,7 +130,7 @@ C_ORM_EXPORT c_orm_error_t sql_to_c_projection_union_struct_emit(
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_polymorphic_struct_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_CDD_SQL_TO_C_H */

@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include "c_orm_sql.h"
 #include "c_orm_api.h"
 #include "greatest.h"
@@ -95,7 +96,7 @@ TEST test_sql_lex_oom(void) {
   for (s = 0; sqls[s]; s++) {
     for (i = 0; i < 5; i++) {
       struct sql_token_list_t *list = NULL;
-      az_span span = az_span_create_from_str((char *)sqls[s]);
+      az_span span = az_span_create_from_str((char *)test_strdup(sqls[s]));
       oom_active = 1;
       oom_countdown = i;
       sql_lex(span, &list);
@@ -109,7 +110,7 @@ TEST test_sql_lex_oom(void) {
   /* Also test the very first list alloc failing */
   {
     struct sql_token_list_t *list = NULL;
-    az_span span = az_span_create_from_str("a");
+    az_span span = az_span_create_from_str((char *)test_strdup("a"));
     oom_active = 1;
     oom_countdown = 0;
     sql_lex(span, &list);
@@ -119,7 +120,7 @@ TEST test_sql_lex_oom(void) {
 
   /* NULL source/out_list */
   {
-    az_span span = az_span_create_from_str("a");
+    az_span span = az_span_create_from_str((char *)test_strdup("a"));
     sql_lex(span, NULL);
     sql_lex(az_span_empty(), NULL);
   }

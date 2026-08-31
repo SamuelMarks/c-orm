@@ -65,7 +65,7 @@ extern C_ORM_EXPORT /**
     c_orm_error_t
     parse_migration_file(const char *filepath, struct MigrationStatements *out);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_CDD_MIGRATION_H */

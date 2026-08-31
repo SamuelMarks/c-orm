@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include "c_orm_c_to_sql.h"
 #include <string.h>
 #include <stdlib.h>
@@ -98,13 +99,13 @@ TEST test_cdd_c_meta_to_sql_create_table(void) {
   memset(&meta, 0, sizeof(meta));
   memset(props, 0, sizeof(props));
 
-  props[0].name = "id";
-  props[0].type = "int";
+  props[0].name = test_strdup("id");
+  props[0].type = test_strdup("int");
 
-  props[1].name = "name";
-  props[1].type = "char*";
+  props[1].name = test_strdup("name");
+  props[1].type = test_strdup("char*");
 
-  meta.name = "company";
+  meta.name = test_strdup("company");
   meta.props = props;
   meta.num_props = 2;
 
@@ -132,19 +133,19 @@ TEST test_cdd_c_meta_diff_and_sql(void) {
   memset(props_old, 0, sizeof(props_old));
   memset(props_new, 0, sizeof(props_new));
 
-  props_old[0].name = "id";
-  props_old[0].type = "int";
+  props_old[0].name = test_strdup("id");
+  props_old[0].type = test_strdup("int");
 
-  props_new[0].name = "id";
-  props_new[0].type = "int";
-  props_new[1].name = "description";
-  props_new[1].type = "char*";
+  props_new[0].name = test_strdup("id");
+  props_new[0].type = test_strdup("int");
+  props_new[1].name = test_strdup("description");
+  props_new[1].type = test_strdup("char*");
 
-  old_meta.name = "test_table";
+  old_meta.name = test_strdup("test_table");
   old_meta.props = props_old;
   old_meta.num_props = 1;
 
-  new_meta.name = "test_table";
+  new_meta.name = test_strdup("test_table");
   new_meta.props = props_new;
   new_meta.num_props = 2;
 
@@ -214,17 +215,17 @@ TEST test_cdd_c_meta_topological_sort(void) {
   memset(p_user, 0, sizeof(p_user));
   memset(p_post, 0, sizeof(p_post));
 
-  p_user[0].name = "id";
-  p_user[0].type = "int";
-  m_user.name = "user";
+  p_user[0].name = test_strdup("id");
+  p_user[0].type = test_strdup("int");
+  m_user.name = test_strdup("user");
   m_user.props = p_user;
   m_user.num_props = 1;
 
-  p_post[0].name = "id";
-  p_post[0].type = "int";
-  p_post[1].name = "user_id";
-  p_post[1].type = "int";
-  m_post.name = "post";
+  p_post[0].name = test_strdup("id");
+  p_post[0].type = test_strdup("int");
+  p_post[1].name = test_strdup("user_id");
+  p_post[1].type = test_strdup("int");
+  m_post.name = test_strdup("post");
   m_post.props = p_post;
   m_post.num_props = 2;
 
@@ -264,18 +265,18 @@ TEST test_cdd_c_meta_to_sql_create_table_pg(void) {
   memset(&meta, 0, sizeof(meta));
   memset(props, 0, sizeof(props));
 
-  props[0].name = "id";
-  props[0].type = "int";
-  props[1].name = "name";
-  props[1].type = "char*";
-  props[2].name = "score";
-  props[2].type = "float";
-  props[3].name = "is_active";
-  props[3].type = "bool";
-  props[4].name = "user_id";
-  props[4].type = "int";
+  props[0].name = test_strdup("id");
+  props[0].type = test_strdup("int");
+  props[1].name = test_strdup("name");
+  props[1].type = test_strdup("char*");
+  props[2].name = test_strdup("score");
+  props[2].type = test_strdup("float");
+  props[3].name = test_strdup("is_active");
+  props[3].type = test_strdup("bool");
+  props[4].name = test_strdup("user_id");
+  props[4].type = test_strdup("int");
 
-  meta.name = "company";
+  meta.name = test_strdup("company");
   meta.props = props;
   meta.num_props = 5;
 
@@ -325,17 +326,17 @@ TEST test_cdd_c_meta_diff_sqlite(void) {
   cdd_c_meta_diff_t diff;
   char *up_sql = NULL, *down_sql = NULL;
 
-  props_old[0].name = "id";
-  props_old[0].type = "int";
-  props_new[0].name = "id";
-  props_new[0].type = "int";
-  props_new[1].name = "description";
-  props_new[1].type = "char*";
+  props_old[0].name = test_strdup("id");
+  props_old[0].type = test_strdup("int");
+  props_new[0].name = test_strdup("id");
+  props_new[0].type = test_strdup("int");
+  props_new[1].name = test_strdup("description");
+  props_new[1].type = test_strdup("char*");
 
-  old_meta.name = "test_table";
+  old_meta.name = test_strdup("test_table");
   old_meta.props = props_old;
   old_meta.num_props = 1;
-  new_meta.name = "test_table";
+  new_meta.name = test_strdup("test_table");
   new_meta.props = props_new;
   new_meta.num_props = 2;
 
@@ -361,15 +362,15 @@ TEST test_cdd_c_meta_topological_sort_cycle(void) {
   const cdd_c_meta_t *schemas[2];
   const cdd_c_meta_t *out_schemas[2];
 
-  p_a[0].name = "b_id";
-  p_a[0].type = "int";
-  m_a.name = "a";
+  p_a[0].name = test_strdup("b_id");
+  p_a[0].type = test_strdup("int");
+  m_a.name = test_strdup("a");
   m_a.props = p_a;
   m_a.num_props = 1;
 
-  p_b[0].name = "a_id";
-  p_b[0].type = "int";
-  m_b.name = "b";
+  p_b[0].name = test_strdup("a_id");
+  p_b[0].type = test_strdup("int");
+  m_b.name = test_strdup("b");
   m_b.props = p_b;
   m_b.num_props = 1;
 
@@ -472,17 +473,17 @@ TEST test_c_to_sql_edge_cases(void) {
   memset(p_old, 0, sizeof(p_old));
   memset(p_new, 0, sizeof(p_new));
 
-  p_old[0].name = "to_drop";
-  p_old[0].type = "int";
-  p_old[1].name = "to_alter";
-  p_old[1].type = "int";
-  m_old.name = "diff_table";
+  p_old[0].name = test_strdup("to_drop");
+  p_old[0].type = test_strdup("int");
+  p_old[1].name = test_strdup("to_alter");
+  p_old[1].type = test_strdup("int");
+  m_old.name = test_strdup("diff_table");
   m_old.props = p_old;
   m_old.num_props = 2;
 
-  p_new[0].name = "to_alter";
-  p_new[0].type = "string";
-  m_new.name = "diff_table";
+  p_new[0].name = test_strdup("to_alter");
+  p_new[0].type = test_strdup("string");
+  m_new.name = test_strdup("diff_table");
   m_new.props = p_new;
   m_new.num_props = 1;
 

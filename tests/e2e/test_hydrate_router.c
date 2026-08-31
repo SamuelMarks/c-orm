@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include "hydrate_router.h"
 #include <greatest.h>
 #include <string.h>
@@ -80,8 +81,9 @@ TEST test_hydrate_router_registration(void) {
   {
     int i;
     for (i = 0; i < 20; i++) {
-      ASSERT_EQ((c_orm_error_t)0, cdd_c_hydrate_router_register(
-                                      &router, 1000 + i, &m1, mock_hydrator));
+      ASSERT_EQ((c_orm_error_t)0,
+                cdd_c_hydrate_router_register(
+                    &router, (c_orm_uint64_t)(1000 + i), &m1, mock_hydrator));
     }
     ASSERT_EQ(21, router.count);
     ASSERT(router.capacity >= 21);

@@ -349,7 +349,7 @@ extern "C" {
       STRUCT_NAME##_relations,                                                 \
       sizeof(STRUCT_NAME##_relations) / sizeof(STRUCT_NAME##_relations[0])};
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_STRUCT_H */

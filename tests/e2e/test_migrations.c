@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include "c_orm_api.h"
 #include "c_orm_migrations.h"
 #include "c_orm_sqlite.h"
@@ -186,7 +187,8 @@ TEST test_migrate_all_dry_run(void) {
   strcpy(migs[0].name, "create_users");
 #endif
 
-  migs[0].up_sql = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);";
+  migs[0].up_sql =
+      test_strdup("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);");
 
 #if defined(_MSC_VER)
   strcpy_s(migs[1].version, sizeof(migs[1].version), "20260330010001");
@@ -200,7 +202,8 @@ TEST test_migrate_all_dry_run(void) {
   strcpy(migs[1].name, "create_posts");
 #endif
 
-  migs[1].up_sql = "CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT);";
+  migs[1].up_sql =
+      test_strdup("CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT);");
 
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ(C_ORM_OK, err);
@@ -238,7 +241,7 @@ TEST test_migrate_all_execute(void) {
   strcpy(migs[0].name, "create_items");
 #endif
 
-  migs[0].up_sql = "CREATE TABLE items (id INTEGER PRIMARY KEY);";
+  migs[0].up_sql = test_strdup("CREATE TABLE items (id INTEGER PRIMARY KEY);");
 
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ(C_ORM_OK, err);
@@ -366,8 +369,8 @@ TEST test_migrations_oom(void) {
   strcpy(m_fail[1].name, "fail_post");
 #endif
 
-  m_fail[0].up_sql = "SELECT 1;";
-  m_fail[1].up_sql = "SELECT 1;";
+  m_fail[0].up_sql = test_strdup("SELECT 1;");
+  m_fail[1].up_sql = test_strdup("SELECT 1;");
 
   c_orm_migrate_all(db, &m_fail[0], 1, &opts);
   c_orm_migrate_all(db, &m_fail[1], 1, &opts);
@@ -385,8 +388,8 @@ TEST test_migrations_oom(void) {
   strcpy(m_good.name, "good");
 #endif
 
-  m_good.up_sql = "CREATE TABLE dummy (id INT); /* UP */";
-  m_good.down_sql = "DROP TABLE dummy; /* DOWN */";
+  m_good.up_sql = test_strdup("CREATE TABLE dummy (id INT); /* UP */");
+  m_good.down_sql = test_strdup("DROP TABLE dummy; /* DOWN */");
 
   c_orm_migrate_all(db, &m_good, 1, &opts);
 
@@ -502,8 +505,8 @@ TEST test_migrations_oom(void) {
   {
     c_orm_migration_t m_save;
     memset(&m_save, 0, sizeof(m_save));
-    m_save.up_sql = "SELECT 1";
-    m_save.down_sql = "SELECT 1";
+    m_save.up_sql = test_strdup("SELECT 1");
+    m_save.down_sql = test_strdup("SELECT 1");
 #if defined(_MSC_VER)
     strcpy_s(m_save.version, sizeof(m_save.version), "99");
 #else
@@ -538,7 +541,7 @@ TEST test_migrations_oom(void) {
   c_orm_migrate_rollback(db, &m_good, 1, 1, &opts);
 
   fail_up = 1;
-  m_good.up_sql = "CREATE TABLE dummy (id INT); /* UP FAIL */";
+  m_good.up_sql = test_strdup("CREATE TABLE dummy (id INT); /* UP FAIL */");
   printf("--- AT FAIL UP ---\n");
   c_orm_migrate_all(db, &m_good, 1, &opts); /* fails in up_sql */
   fail_up = 0;
@@ -560,7 +563,7 @@ TEST test_migrations_oom(void) {
   c_orm_migrate_all(db, &m_good, 1, &opts);
 
   fail_down = 1;
-  m_good.down_sql = "DROP TABLE dummy; /* DOWN FAIL */";
+  m_good.down_sql = test_strdup("DROP TABLE dummy; /* DOWN FAIL */");
   c_orm_disable_statement_caching(db);
   c_orm_migrate_rollback(db, &m_good, 1, 1, &opts); /* fails down_sql */
   fail_down = 0;
@@ -584,7 +587,7 @@ TEST test_migrations_oom(void) {
 
   fail_rollback_step_rb = 1;
   fail_down = 1;
-  m_good.down_sql = "DROP TABLE dummy; /* DOWN FAIL */";
+  m_good.down_sql = test_strdup("DROP TABLE dummy; /* DOWN FAIL */");
   c_orm_disable_statement_caching(db);
   c_orm_migrate_rollback(db, &m_good, 1, 1, &opts);
   fail_down = 0;

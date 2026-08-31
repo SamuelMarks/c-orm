@@ -180,7 +180,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
  */
 C_ORM_EXPORT void c_orm_migration_free_table_schema(cdd_c_meta_t *schema);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_MIGRATIONS_H */

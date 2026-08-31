@@ -330,7 +330,7 @@ size_t json_string_len(
 double json_number(const JSON_Value *value);
 int json_boolean(const JSON_Value *value);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 

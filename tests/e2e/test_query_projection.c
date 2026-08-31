@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include "query_projection.h"
 #include <greatest.h>
 #include <stdlib.h>
@@ -43,8 +44,8 @@ TEST test_query_projection_add_field(void) {
   ASSERT_EQ(0, cdd_c_query_projection_init(&proj));
 
   memset(&field, 0, sizeof(field));
-  field.name = "test_field";
-  field.original_name = "test_field_orig";
+  field.name = test_strdup("test_field");
+  field.original_name = test_strdup("test_field_orig");
   field.type = 4;
 
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
@@ -75,8 +76,8 @@ TEST test_query_projection_duplicate_string_oom(void) {
   ASSERT_EQ(0, cdd_c_query_projection_init(&proj));
 
   memset(&field, 0, sizeof(field));
-  field.name = "test_field";
-  field.original_name = "test_field_orig";
+  field.name = test_strdup("test_field");
+  field.original_name = test_strdup("test_field_orig");
 
   c_orm_set_allocators(mock_malloc_qp, c_orm_realloc, c_orm_free);
   /* OOM on duplicate_string_qp name */
@@ -124,8 +125,8 @@ TEST test_query_projection_add_field_cap_expansion(void) {
   int i;
   ASSERT_EQ(0, cdd_c_query_projection_init(&proj));
   memset(&field, 0, sizeof(field));
-  field.name = "test";
-  field.original_name = "test";
+  field.name = test_strdup("test");
+  field.original_name = test_strdup("test");
   for (i = 0; i < 5; i++)
     ASSERT_EQ(0, cdd_c_query_projection_add_field(&proj, &field));
   ASSERT_EQ(0, cdd_c_query_projection_free(&proj));
@@ -140,8 +141,8 @@ TEST test_query_projection_duplicate_string_oom_original_name(void) {
   ASSERT_EQ(0, cdd_c_query_projection_init(&proj));
 
   memset(&field, 0, sizeof(field));
-  field.name = "test_field";
-  field.original_name = "test_field_orig";
+  field.name = test_strdup("test_field");
+  field.original_name = test_strdup("test_field_orig");
 
   alloc_count_qp = 0;
   c_orm_set_allocators(mock_malloc_qp_second, c_orm_realloc, c_orm_free);

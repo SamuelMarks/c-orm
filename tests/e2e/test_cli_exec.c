@@ -1,12 +1,31 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
+
+
+
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "c_orm_api.h"
 #include "sqlite3.h"
 /* clang-format on */
+
+static void test_unsetenv(const char *name) {
+#if defined(_WIN32)
+  char buf[128];
+#if defined(_MSC_VER)
+  sprintf_s(buf, sizeof(buf), "%s=", name);
+#else
+  sprintf(buf, "%s=", name);
+#endif
+  _putenv(buf);
+#else
+  extern int unsetenv(const char *name);
+  unsetenv(name);
+#endif
+}
 
 #ifndef C_ORM_CLI_EXECUTABLE
 #ifdef _WIN32
@@ -72,7 +91,7 @@ TEST test_cli_migrate(void) {
   int rc;
   (void)rc;
 #if !defined(_WIN32) && !defined(__CYGWIN__)
-  unsetenv("C_ORM_DB_URL");
+  test_unsetenv("C_ORM_DB_URL");
   rc = system(CLI_CMD " migrate" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
@@ -143,7 +162,7 @@ TEST test_cli_status(void) {
   (void)rc;
 
 #if !defined(_WIN32) && !defined(__CYGWIN__)
-  unsetenv("C_ORM_DB_URL");
+  test_unsetenv("C_ORM_DB_URL");
   rc = system(CLI_CMD " status" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
@@ -244,3 +263,5 @@ SUITE(cli_exec_suite) {
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+
+static void dummy_suppress_unused_exec(void) { (void)test_unsetenv; }

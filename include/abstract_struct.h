@@ -362,7 +362,7 @@ C_ORM_EXPORT c_orm_error_t cdd_c_abstract_to_specific(
     void *out_struct, const cdd_c_abstract_struct_t *in_astruct,
     const struct cdd_c_meta *struct_meta, int strict_mapping);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_CDD_CLASSES_PARSE_ABSTRACT_STRUCT_H */

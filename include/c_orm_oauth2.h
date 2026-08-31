@@ -286,7 +286,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_calculate_expiration(
  */
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_OAUTH2_H */

@@ -238,7 +238,7 @@ c_orm_update_where_eq(c_orm_update_builder_t *builder, const char *column);
 C_ORM_EXPORT c_orm_error_t
 c_orm_update_builder_compile(c_orm_update_builder_t *builder, char **out_sql);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_QUERY_BUILDER_H */

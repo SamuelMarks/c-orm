@@ -1,6 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
+#include "test_utils.h"
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include "c_orm_oauth2.h"
@@ -139,8 +140,8 @@ TEST test_oauth2_crypto(void) {
   int i;
   c_orm_oauth2_token_t t;
   memset(&t, 0, sizeof(t));
-  t.access_token = "abc";
-  t.refresh_token = "def";
+  t.access_token = test_strdup("abc");
+  t.refresh_token = test_strdup("def");
 
   for (i = 0; i < 5; i++) {
     oom_active = 1;
@@ -356,11 +357,11 @@ TEST test_oauth2_client(void) {
   c_orm_oauth2_create_tables(db);
 
   memset(&client, 0, sizeof(client));
-  client.id = "no";
+  client.id = test_strdup("no");
   client.client_secret = "no";
-  client.redirect_uris = "x";
-  client.grant_types = "x";
-  client.scopes = "x";
+  client.redirect_uris = test_strdup("x");
+  client.grant_types = test_strdup("x");
+  client.scopes = test_strdup("x");
   ASSERT_EQ(C_ORM_OK,
             c_orm_insert_generic(db, &c_orm_oauth2_client_meta, &client));
 
@@ -378,7 +379,7 @@ TEST test_oauth2_client(void) {
 
   /* public client */
   memset(&client, 0, sizeof(client));
-  client.id = "pub";
+  client.id = test_strdup("pub");
   client.client_secret = NULL;
   ASSERT_EQ(C_ORM_OK,
             c_orm_insert_generic(db, &c_orm_oauth2_client_meta, &client));
@@ -388,10 +389,10 @@ TEST test_oauth2_client(void) {
   ASSERT_EQ(1, is_valid);
 
   memset(&user, 0, sizeof(user));
-  user.id = "u";
-  user.username = "u";
-  user.password_hash = "p";
-  user.salt = "s";
+  user.id = test_strdup("u");
+  user.username = test_strdup("u");
+  user.password_hash = test_strdup("p");
+  user.salt = test_strdup("s");
   c_orm_insert_generic(db, &c_orm_user_meta, &user);
 
   is_valid = 0;
@@ -452,11 +453,11 @@ TEST test_oauth2_auth_code(void) {
   c_orm_oauth2_create_tables(db);
 
   memset(&ac, 0, sizeof(ac));
-  ac.code = "123";
-  ac.client_id = "client";
-  ac.redirect_uri = "http";
-  ac.user_id = "user";
-  ac.scopes = "scopes";
+  ac.code = test_strdup("123");
+  ac.client_id = test_strdup("client");
+  ac.redirect_uri = test_strdup("http");
+  ac.user_id = test_strdup("user");
+  ac.scopes = test_strdup("scopes");
   ac.expires_at = 999;
 
   c_orm_oauth2_save_auth_code(db, &ac);
@@ -563,11 +564,11 @@ TEST test_oauth2_token(void) {
   c_orm_oauth2_create_tables(db);
 
   memset(&t, 0, sizeof(t));
-  t.access_token = "atk";
-  t.refresh_token = "rtk";
-  t.token_type = "Bearer";
+  t.access_token = test_strdup("atk");
+  t.refresh_token = test_strdup("rtk");
+  t.token_type = test_strdup("Bearer");
   t.user_id = NULL;
-  t.scopes = "read";
+  t.scopes = test_strdup("read");
   t.created_at = 2000000000;
   t.expires_in = 3600;
 
@@ -677,8 +678,8 @@ TEST test_oauth2_crypto_fail_open(void) {
   (void)p;
   (void)rm_out;
   memset(&t, 0, sizeof(t));
-  t.access_token = "abc";
-  t.refresh_token = "def";
+  t.access_token = test_strdup("abc");
+  t.refresh_token = test_strdup("def");
 
   remove("c_orm_token.dat");
 #if !defined(_WIN32)
