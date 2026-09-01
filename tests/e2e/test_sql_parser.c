@@ -76,7 +76,11 @@ TEST test_sql_parser_oom(void) {
   for (i = 0; i < 2; i++) {
     oom_active = 1;
     oom_countdown = i;
-    (void)parse_sql_ddl(sql, &tables, &n_tables);
+    {
+      c_orm_error_t _err = parse_sql_ddl(sql, &tables, &n_tables);
+      /* Expected to fail or partially succeed depending on OOM state */
+      (void)_err;
+    }
     if (tables) {
       test_cleanup_tables(&tables, &n_tables);
     }

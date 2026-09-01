@@ -247,10 +247,11 @@ TEST test_cli_migrate(void) {
 
   /* connection error */
   rc = test_cli_main_wrapper(4, orig_argv3);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   /* empty dir */
   rc = test_cli_main_wrapper(6, orig_argv4);
-  /* ASSERT_EQ(2, rc); it returns 0 because no migrations found */
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* no db argument */
   rc = test_cli_main_wrapper(3, orig_argv_db_no_arg);

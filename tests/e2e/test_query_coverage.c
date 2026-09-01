@@ -241,9 +241,15 @@ TEST test_fluent_oom(void) {
     c_orm_query_t *oq = NULL;
     oom_active = 1;
     oom_countdown = 0;
-    c_orm_query_new(&oq);
+    {
+      c_orm_error_t _err = c_orm_query_new(&oq);
+      (void)_err; /* Expected to fail */
+    }
     oom_countdown = 1;
-    (void)c_orm_query_new(&oq);
+    {
+      c_orm_error_t _err = c_orm_query_new(&oq);
+      (void)_err; /* Expected to fail */
+    }
     oom_active = 0;
   }
 

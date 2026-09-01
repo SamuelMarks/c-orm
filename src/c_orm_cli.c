@@ -259,7 +259,11 @@ int main(int argc, char **argv) {
 
     err = c_orm_migration_load_dir(dir_path, &migs, &migs_count);
     if (err == C_ORM_OK && migs_count > 0) {
-      c_orm_migrate_all(db, migs, migs_count, &opts);
+      {
+        c_orm_error_t _err = c_orm_migrate_all(db, migs, migs_count, &opts);
+        if (_err != C_ORM_OK)
+          return _err;
+      }
       c_orm_migration_free_array(migs, migs_count);
     } else {
       printf("No pending migrations found in %s\n", dir_path);
@@ -296,7 +300,11 @@ int main(int argc, char **argv) {
       goto cleanup;
     }
 
-    c_orm_migration_init_table(db);
+    {
+      c_orm_error_t _err = c_orm_migration_init_table(db);
+      if (_err != C_ORM_OK)
+        return _err;
+    }
 
     err = c_orm_migration_get_applied(db, &applied, &count);
     if (err == C_ORM_OK) {

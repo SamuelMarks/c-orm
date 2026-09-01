@@ -135,7 +135,12 @@ static c_orm_error_t sqlite_connect(const char *url, c_orm_db_t **out_db) {
     return (c_orm_error_t)rc;
   }
 
-  c_orm_sqlite_get_vtable(&db->vtable);
+  rc = c_orm_sqlite_get_vtable(&db->vtable);
+  if (rc != C_ORM_OK) {
+    C_ORM_FREE(data);
+    C_ORM_FREE(db);
+    return (c_orm_error_t)rc;
+  }
   db->driver_data = data;
   db->driver_name = "sqlite";
   *out_db = db;
@@ -163,7 +168,11 @@ static c_orm_error_t sqlite_disconnect(c_orm_db_t *db) {
     return (c_orm_error_t)rc;
   }
 
-  c_orm_disable_statement_caching(db);
+  {
+    c_orm_error_t _err = c_orm_disable_statement_caching(db);
+    if (_err != C_ORM_OK)
+      return _err;
+  }
 
   data = (struct sqlite_db_data *)db->driver_data;
   if (data) {

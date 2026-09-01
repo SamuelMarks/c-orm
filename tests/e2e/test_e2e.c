@@ -187,8 +187,7 @@ TEST test_e2e_transactions(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   err = c_orm_savepoint_release(db, "my_sp");
-  /* SQLite lets you release a rollback'd savepoint if it was just rolled back,
-     some dialects don't. We'll just rollback the whole tx to be safe. */
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   err = c_orm_transaction_rollback(db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");

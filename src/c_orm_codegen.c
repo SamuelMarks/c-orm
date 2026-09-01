@@ -82,7 +82,11 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
   fp = NULL;
 
   if (sql_data) {
-    parse_sql_ddl(sql_data, &tables, &n_tables);
+    {
+      c_orm_error_t _err = parse_sql_ddl(sql_data, &tables, &n_tables);
+      if (_err != C_ORM_OK)
+        return _err;
+    }
   }
 
   printf("NUM TABLES GENERATED: %d\n", (int)n_tables);
@@ -165,7 +169,11 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
           fp);
 
     for (i = 0; i < n_tables; ++i) {
-      sql_to_c_header_emit(fp, &tables[i]);
+      {
+        c_orm_error_t _err = sql_to_c_header_emit(fp, &tables[i]);
+        if (_err != C_ORM_OK)
+          return _err;
+      }
     }
     fprintf(fp, "#endif\n");
     fclose(fp);
@@ -196,7 +204,11 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     fprintf(fp, "/* clang-format "
                 "on */\n\n");
     for (i = 0; i < n_tables; ++i) {
-      sql_to_c_source_emit(fp, &tables[i], "Models.h");
+      {
+        c_orm_error_t _err = sql_to_c_source_emit(fp, &tables[i], "Models.h");
+        if (_err != C_ORM_OK)
+          return _err;
+      }
     }
     fclose(fp);
     fp = NULL;

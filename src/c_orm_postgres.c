@@ -273,7 +273,13 @@ static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
     return (c_orm_error_t)rc;
   }
 
-  generate_stmt_name(stmt_name, sizeof(stmt_name));
+  if (generate_stmt_name(stmt_name, sizeof(stmt_name)) < 0) {
+    C_ORM_FREE(q_data);
+    C_ORM_FREE(query);
+    C_ORM_FREE(new_sql);
+    rc = C_ORM_ERROR_MEMORY;
+    return (c_orm_error_t)rc;
+  }
 
   res = PQprepare(db_data->conn, stmt_name, new_sql, param_count, NULL);
   if (PQresultStatus(res) != PGRES_COMMAND_OK) {

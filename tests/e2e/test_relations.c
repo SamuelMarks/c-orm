@@ -617,7 +617,10 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
     if (exists) {
       db->vtable->get_int32(query, 0, &count);
     }
-    (void)c_orm_finalize_cached(db, query);
+    {
+      c_orm_error_t _err = c_orm_finalize_cached(db, query);
+      ASSERT_EQ_FMT(C_ORM_OK, _err, "%d");
+    }
     ASSERT_EQ_FMT(0, count, "%d");
   }
 
@@ -865,7 +868,10 @@ TEST test_c_orm_query_builder_relation_filtering(void) {
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     ASSERT_EQ_FMT(5, user_id, "%d");
 
-    (void)c_orm_finalize_cached(db, q);
+    {
+      c_orm_error_t _err = c_orm_finalize_cached(db, q);
+      ASSERT_EQ_FMT(C_ORM_OK, _err, "%d");
+    }
   }
 
   C_ORM_FREE(sql);

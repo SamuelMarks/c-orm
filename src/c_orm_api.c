@@ -1982,7 +1982,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
       size_t j;
       for (j = 0; j <= count && j < cap; j++) {
         c_orm_free_columns(meta, (char *)data + (j * meta->struct_size));
-        c_orm_free_relations(meta, (char *)data + (j * meta->struct_size));
+        {
+          c_orm_error_t _err = c_orm_free_relations(
+              meta, (char *)data + (j * meta->struct_size));
+          if (_err != C_ORM_OK)
+            return _err;
+        }
       }
       C_ORM_FREE(data);
       ((struct Generic_Array *)out_array)->data = NULL;
@@ -6422,7 +6427,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
         void *ptr = *(void **)target_data_ptr;
         if (ptr) {
           size_t c;
-          c_orm_free_relations(rel->target_meta, ptr);
+          {
+            c_orm_error_t _err = c_orm_free_relations(rel->target_meta, ptr);
+            if (_err != C_ORM_OK)
+              return _err;
+          }
           /* We must free allocated basic strings in target_meta. */
           /* Since we don't have a direct c_orm_free_columns yet, we'll iterate
            * columns here: */
@@ -6448,7 +6457,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
             size_t c;
             void *child =
                 (char *)arr->data + (j * rel->target_meta->struct_size);
-            c_orm_free_relations(rel->target_meta, child);
+            {
+              c_orm_error_t _err =
+                  c_orm_free_relations(rel->target_meta, child);
+              if (_err != C_ORM_OK)
+                return _err;
+            }
             for (c = 0; c < rel->target_meta->num_columns; c++) {
               if (rel->target_meta->columns[c].type == C_ORM_TYPE_STRING) {
                 char **str_ptr =

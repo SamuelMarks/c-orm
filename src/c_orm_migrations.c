@@ -243,7 +243,11 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
       }
     }
 
-    (void)c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step");
+    {
+      c_orm_error_t _err = c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step");
+      if (_err != C_ORM_OK)
+        return _err;
+    }
 
     if (mig->up_sql && strlen(mig->up_sql) > 0) {
       rc = c_orm_execute_raw(db, mig->up_sql);
@@ -282,7 +286,12 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
       return rc;
     }
 
-    (void)c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step");
+    {
+      c_orm_error_t _err =
+          c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step");
+      if (_err != C_ORM_OK)
+        return _err;
+    }
 
     if (options && options->post_migrate) {
       rc = options->post_migrate(db, mig, options->user_data);
@@ -392,7 +401,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
       continue;
     }
 
-    (void)c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step_rb");
+    {
+      c_orm_error_t _err = c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step_rb");
+      if (_err != C_ORM_OK)
+        return _err;
+    }
 
     if (mig->down_sql && strlen(mig->down_sql) > 0) {
       rc = c_orm_execute_raw(db, mig->down_sql);
@@ -417,7 +430,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
       break;
     }
 
-    (void)c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step_rb");
+    {
+      c_orm_error_t _err =
+          c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step_rb");
+      if (_err != C_ORM_OK)
+        return _err;
+    }
     rolled_back++;
   }
 

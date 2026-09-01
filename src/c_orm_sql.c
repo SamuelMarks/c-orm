@@ -193,8 +193,11 @@ c_orm_error_t sql_lex(az_span source, struct sql_token_list_t **out_list) {
   *out_list = list;
   return 0;
 
-fail:
-  sql_token_list_free(list);
+fail: {
+  c_orm_error_t _err = sql_token_list_free(list);
+  if (_err != C_ORM_OK)
+    return _err;
+}
   return 1;
 }
 
@@ -1032,7 +1035,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
 
   rc = sql_parser_match_keyword(&state, "CREATE", &match1);
   if (rc != C_ORM_OK) {
-    sql_table_C_ORM_FREE(table);
+    {
+      c_orm_error_t _err = sql_table_C_ORM_FREE(table);
+      if (_err != C_ORM_OK)
+        return _err;
+    }
     C_ORM_FREE(table);
     return rc;
   }
@@ -1046,7 +1053,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
   }
   rc = sql_parser_match_keyword(&state, "TABLE", &match1);
   if (rc != C_ORM_OK) {
-    sql_table_C_ORM_FREE(table);
+    {
+      c_orm_error_t _err = sql_table_C_ORM_FREE(table);
+      if (_err != C_ORM_OK)
+        return _err;
+    }
     C_ORM_FREE(table);
     return rc;
   }
@@ -1060,7 +1071,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
   }
   rc = sql_parser_match_kind(&state, SQL_TOKEN_IDENTIFIER, &name_tok, &match1);
   if (rc != C_ORM_OK) {
-    sql_table_C_ORM_FREE(table);
+    {
+      c_orm_error_t _err = sql_table_C_ORM_FREE(table);
+      if (_err != C_ORM_OK)
+        return _err;
+    }
     C_ORM_FREE(table);
     return rc;
   }
@@ -1103,7 +1118,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
 
   rc = sql_parser_match_kind(&state, SQL_TOKEN_LPAREN, NULL, &match1);
   if (rc != C_ORM_OK) {
-    sql_table_C_ORM_FREE(table);
+    {
+      c_orm_error_t _err = sql_table_C_ORM_FREE(table);
+      if (_err != C_ORM_OK)
+        return _err;
+    }
     C_ORM_FREE(table);
     return rc;
   }
@@ -1190,7 +1209,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
 
       rc = sql_parser_match_kind(&state, SQL_TOKEN_COMMA, NULL, &match1);
       if (rc != C_ORM_OK) {
-        sql_table_C_ORM_FREE(table);
+        {
+          c_orm_error_t _err = sql_table_C_ORM_FREE(table);
+          if (_err != C_ORM_OK)
+            return _err;
+        }
         C_ORM_FREE(table);
         return rc;
       }
@@ -1205,7 +1228,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
     rc = sql_parser_match_kind(&state, SQL_TOKEN_IDENTIFIER, &col_name_tok,
                                &match1);
     if (rc != C_ORM_OK) {
-      sql_table_C_ORM_FREE(table);
+      {
+        c_orm_error_t _err = sql_table_C_ORM_FREE(table);
+        if (_err != C_ORM_OK)
+          return _err;
+      }
       C_ORM_FREE(table);
       return rc;
     }
@@ -1398,7 +1425,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
 
     rc = sql_parser_match_kind(&state, SQL_TOKEN_COMMA, NULL, &match1);
     if (rc != C_ORM_OK) {
-      sql_table_C_ORM_FREE(table);
+      {
+        c_orm_error_t _err = sql_table_C_ORM_FREE(table);
+        if (_err != C_ORM_OK)
+          return _err;
+      }
       C_ORM_FREE(table);
       return rc;
     }
@@ -1411,7 +1442,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
 
   rc = sql_parser_match_kind(&state, SQL_TOKEN_RPAREN, NULL, &match1);
   if (rc != C_ORM_OK) {
-    sql_table_C_ORM_FREE(table);
+    {
+      c_orm_error_t _err = sql_table_C_ORM_FREE(table);
+      if (_err != C_ORM_OK)
+        return _err;
+    }
     C_ORM_FREE(table);
     return rc;
   }
@@ -1433,7 +1468,11 @@ c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
 
   rc = sql_parser_match_kind(&state, SQL_TOKEN_SEMICOLON, NULL, &match1);
   if (rc != C_ORM_OK) {
-    sql_table_C_ORM_FREE(table);
+    {
+      c_orm_error_t _err = sql_table_C_ORM_FREE(table);
+      if (_err != C_ORM_OK)
+        return _err;
+    }
     C_ORM_FREE(table);
     return rc;
   }
@@ -1466,7 +1505,11 @@ c_orm_error_t parse_sql_ddl(const char *sql_data,
   *out_tables =
       (struct sql_table_t *)C_ORM_MALLOC(10 * sizeof(struct sql_table_t));
   if (!*out_tables) {
-    sql_token_list_free(list);
+    {
+      c_orm_error_t _err = sql_token_list_free(list);
+      if (_err != C_ORM_OK)
+        return _err;
+    }
     return 1;
   }
   memset(*out_tables, 0, 10 * sizeof(struct sql_table_t));
@@ -1506,7 +1549,11 @@ c_orm_error_t parse_sql_ddl(const char *sql_data,
     }
   }
 
-  sql_token_list_free(list);
+  {
+    c_orm_error_t _err = sql_token_list_free(list);
+    if (_err != C_ORM_OK)
+      return _err;
+  }
   return 0;
 }
 

@@ -382,6 +382,7 @@ file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests/e2e)
 add_executable(c_orm_benchmarks tests/benchmarks/test_benchmarks.c )
 add_dependencies(c_orm_benchmarks e2e_models)
 target_link_libraries(c_orm_benchmarks PRIVATE e2e_models)
+target_compile_options(c_orm_benchmarks PRIVATE ${C_ORM_STRICT_OPTIONS})
 target_include_directories(c_orm_benchmarks PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}/tests/e2e
     ${CMAKE_CURRENT_BINARY_DIR}/tests/e2e/test_downloads
@@ -396,15 +397,18 @@ if(C_ORM_BUILD_EXAMPLES)
 # Steps 282-283: Sample applications
 add_executable(c_orm_example_blog examples/blog.c)
 target_link_libraries(c_orm_example_blog PRIVATE c-orm)
+target_compile_options(c_orm_example_blog PRIVATE ${C_ORM_STRICT_OPTIONS})
 if(MSVC)
 endif()
 
 add_executable(c_orm_example_relationships examples/relationships.c)
 target_link_libraries(c_orm_example_relationships PRIVATE c-orm)
+target_compile_options(c_orm_example_relationships PRIVATE ${C_ORM_STRICT_OPTIONS})
 if(MSVC)
 endif()
 add_executable(c_orm_example_dashboard examples/dashboard.c)
 target_link_libraries(c_orm_example_dashboard PRIVATE c-orm c_cdd)
+target_compile_options(c_orm_example_dashboard PRIVATE ${C_ORM_STRICT_OPTIONS})
 if(MSVC)
 endif()
 endif()

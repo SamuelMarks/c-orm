@@ -148,9 +148,11 @@ TEST test_memory_edge_cases(void) {
 
   /* Test parsing whitespace before table name */
   err = c_orm_memory_connect("mem://", &db);
+  ASSERT_EQ(C_ORM_OK, err);
   err = vt->prepare(db, "SELECT * FROM    my_table", &q);
   ASSERT_EQ(C_ORM_OK, err);
   err = vt->finalize(q);
+  ASSERT_EQ(C_ORM_OK, err);
 
   /* OOM in prepare */
   oom_active = 1;

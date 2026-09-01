@@ -340,7 +340,10 @@ C_ORM_EXPORT c_orm_error_t apply_migration(const char *filepath) {
   }
 
   if (!stmts.up_statement) {
-    migration_statements_free(&stmts);
+    {
+      c_orm_error_t _err = migration_statements_free(&stmts);
+      if (_err != C_ORM_OK) return _err;
+    }
     return 0; /* Nothing to do */
   }
 
@@ -349,7 +352,10 @@ C_ORM_EXPORT c_orm_error_t apply_migration(const char *filepath) {
     fprintf(stderr, "Connection to database failed: %s\n",
             PQerrorMessage(conn));
     PQfinish(conn);
-    migration_statements_free(&stmts);
+    {
+      c_orm_error_t _err = migration_statements_free(&stmts);
+      if (_err != C_ORM_OK) return _err;
+    }
     return ECONNREFUSED;
   }
 
@@ -359,13 +365,19 @@ C_ORM_EXPORT c_orm_error_t apply_migration(const char *filepath) {
     fprintf(stderr, "Migration UP failed: %s\n", PQerrorMessage(conn));
     PQclear(res);
     PQfinish(conn);
-    migration_statements_free(&stmts);
+    {
+      c_orm_error_t _err = migration_statements_free(&stmts);
+      if (_err != C_ORM_OK) return _err;
+    }
     return EIO;
   }
 
   PQclear(res);
   PQfinish(conn);
-  migration_statements_free(&stmts);
+  {
+    c_orm_error_t _err = migration_statements_free(&stmts);
+    if (_err != C_ORM_OK) return _err;
+  }
 
   return 0;
 }
@@ -393,7 +405,10 @@ C_ORM_EXPORT c_orm_error_t rollback_migration(const char *filepath) {
   }
 
   if (!stmts.down_statement) {
-    migration_statements_free(&stmts);
+    {
+      c_orm_error_t _err = migration_statements_free(&stmts);
+      if (_err != C_ORM_OK) return _err;
+    }
     return 0; /* Nothing to do */
   }
 
@@ -402,7 +417,10 @@ C_ORM_EXPORT c_orm_error_t rollback_migration(const char *filepath) {
     fprintf(stderr, "Connection to database failed: %s\n",
             PQerrorMessage(conn));
     PQfinish(conn);
-    migration_statements_free(&stmts);
+    {
+      c_orm_error_t _err = migration_statements_free(&stmts);
+      if (_err != C_ORM_OK) return _err;
+    }
     return ECONNREFUSED;
   }
 
@@ -412,13 +430,19 @@ C_ORM_EXPORT c_orm_error_t rollback_migration(const char *filepath) {
     fprintf(stderr, "Migration DOWN failed: %s\n", PQerrorMessage(conn));
     PQclear(res);
     PQfinish(conn);
-    migration_statements_free(&stmts);
+    {
+      c_orm_error_t _err = migration_statements_free(&stmts);
+      if (_err != C_ORM_OK) return _err;
+    }
     return EIO;
   }
 
   PQclear(res);
   PQfinish(conn);
-  migration_statements_free(&stmts);
+  {
+    c_orm_error_t _err = migration_statements_free(&stmts);
+    if (_err != C_ORM_OK) return _err;
+  }
 
   return 0;
 }
@@ -504,13 +528,19 @@ C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
             PQresultStatus(res) != PGRES_TUPLES_OK) {
           fprintf(stderr, "Migration UP failed: %s\n", PQerrorMessage(conn));
           PQclear(res);
-          migration_statements_free(&stmts);
+          {
+            c_orm_error_t _err = migration_statements_free(&stmts);
+            if (_err != C_ORM_OK) return _err;
+          }
           rc = EIO;
           break;
         }
         PQclear(res);
       }
-      migration_statements_free(&stmts);
+      {
+        c_orm_error_t _err = migration_statements_free(&stmts);
+        if (_err != C_ORM_OK) return _err;
+      }
 
       paramValues[0] = list.files[i].version;
       res = PQexecParams(conn,
@@ -666,7 +696,10 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
           PQresultStatus(res) != PGRES_TUPLES_OK) {
         fprintf(stderr, "Migration DOWN failed: %s\n", PQerrorMessage(conn));
         PQclear(res);
-        migration_statements_free(&stmts);
+        {
+          c_orm_error_t _err = migration_statements_free(&stmts);
+          if (_err != C_ORM_OK) return _err;
+        }
         free(target_filepath);
         free(last_version);
         PQfinish(conn);
@@ -674,7 +707,10 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
       }
       PQclear(res);
     }
-    migration_statements_free(&stmts);
+    {
+      c_orm_error_t _err = migration_statements_free(&stmts);
+      if (_err != C_ORM_OK) return _err;
+    }
   }
 
   {

@@ -147,7 +147,11 @@ c_orm_error_t parse_migration_file(const char *filepath,
     down_stmt = (char *)C_ORM_MALLOC(down_len + 1);
     if (!down_stmt) {
       C_ORM_FREE(file_data);
-      migration_statements_free(out);
+      {
+        c_orm_error_t _err = migration_statements_free(out);
+        if (_err != C_ORM_OK)
+          return _err;
+      }
       return C_ORM_ERROR_MEMORY;
     }
     memcpy(down_stmt, down_start, down_len);
