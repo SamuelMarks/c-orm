@@ -68,11 +68,11 @@ static c_orm_error_t is_nullable(const struct sql_column_t *col,
 c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   switch (type) {
   case SQL_TYPE_INT: {
-    *_out_val = (char *)(size_t) "int32_t";
+    *_out_val = "int32_t";
     return C_ORM_OK;
   }
   case SQL_TYPE_BIGINT: {
-    *_out_val = (char *)(size_t) "int64_t";
+    *_out_val = "int64_t";
     return C_ORM_OK;
   }
   case SQL_TYPE_VARCHAR:
@@ -80,24 +80,24 @@ c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   case SQL_TYPE_CHAR:
   case SQL_TYPE_DATE:
   case SQL_TYPE_TIMESTAMP: {
-    *_out_val = (char *)(size_t) "char *";
+    *_out_val = "char *";
     return C_ORM_OK;
   }
   case SQL_TYPE_FLOAT: {
-    *_out_val = (char *)(size_t) "float";
+    *_out_val = "float";
     return C_ORM_OK;
   }
   case SQL_TYPE_DOUBLE:
   case SQL_TYPE_DECIMAL: {
-    *_out_val = (char *)(size_t) "double";
+    *_out_val = "double";
     return C_ORM_OK;
   }
   case SQL_TYPE_BOOLEAN: {
-    *_out_val = (char *)(size_t) "bool";
+    *_out_val = "bool";
     return C_ORM_OK;
   }
   default: {
-    *_out_val = (char *)(size_t) "void *";
+    *_out_val = "void *";
     return EINVAL;
   }
   }
@@ -169,7 +169,7 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
         (sql_type_to_c_type(col->type, &_ast_sql_type_to_c_type_0),
          _ast_sql_type_to_c_type_0);
     int nullable;
-    int is_str;
+    c_orm_error_t is_str;
     is_nullable(col, &nullable);
     is_str = sql_type_is_string(col->type);
 
@@ -235,7 +235,7 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
           "*dest);\n\n",
           struct_name, struct_name, struct_name);
 
-  fprintf(fp, "# if defined(__cplusplus)\n");
+  fprintf(fp, "# ifdef __cplusplus\n");
   fprintf(fp, "}\n");
   fprintf(fp, "# endif /* __cplusplus */\n\n");
 
@@ -291,7 +291,7 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "  if (!item) return;\n");
   for (i = 0; i < table->n_columns; ++i) {
     const struct sql_column_t *col = &table->columns[i];
-    int is_str = sql_type_is_string(col->type);
+    c_orm_error_t is_str = sql_type_is_string(col->type);
     int nullable;
     is_nullable(col, &nullable);
 
@@ -334,7 +334,7 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "  if (!src || !dest) return C_ORM_ERROR_MEMORY;\n");
   for (i = 0; i < table->n_columns; ++i) {
     const struct sql_column_t *col = &table->columns[i];
-    int is_str = sql_type_is_string(col->type);
+    c_orm_error_t is_str = sql_type_is_string(col->type);
     int nullable;
     const char *c_type;
     is_nullable(col, &nullable);
@@ -378,7 +378,7 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
           "*dest) {\n",
           struct_name, struct_name, struct_name);
   fprintf(fp, "  size_t i;\n");
-  fprintf(fp, "  int err;\n");
+  fprintf(fp, "  c_orm_error_t err;\n");
   fprintf(fp, "  if (!src || !dest) return C_ORM_ERROR_MEMORY;\n");
   fprintf(fp, "  err = %s_Array_init(dest, src->capacity);\n", struct_name);
   fprintf(fp, "  if (err) return err;\n");
@@ -669,6 +669,7 @@ sql_to_c_projection_struct_emit(FILE *fp, const cdd_c_query_projection_t *proj,
     return C_ORM_ERROR_MEMORY;
 
   if (out_hash) {
+    unsigned long hi, lo;
     /* Simplified fast query string hash simulation for external routing
      * metadata tag ID */
     c_orm_uint64_t hash = (((c_orm_uint64_t)0xCBF29CE4) << 32) | 0x84222325;
@@ -680,23 +681,14 @@ sql_to_c_projection_struct_emit(FILE *fp, const cdd_c_query_projection_t *proj,
     }
     *out_hash = hash;
 
-#if defined(_MSC_VER)
-#define C_ORM_UINT64_FORMAT "%I64u"
-#define C_ORM_UINT64_CAST unsigned __int64
-#elif defined(__x86_64__) || defined(__aarch64__) ||                           \
-    (defined(__APPLE__) && defined(__MACH__))
-#define C_ORM_UINT64_FORMAT "%lu"
-#define C_ORM_UINT64_CAST unsigned long
-#else
-#define C_ORM_UINT64_FORMAT "%llu"
-#define C_ORM_UINT64_CAST unsigned long long
-#endif
-    fprintf(fp,
-            "\n/* Auto-generated Route Hash ID Tag: " C_ORM_UINT64_FORMAT
-            " */\n",
-            (C_ORM_UINT64_CAST)hash);
-#undef C_ORM_UINT64_CAST
-#undef C_ORM_UINT64_FORMAT
+    hi = (unsigned long)(hash >> 32);
+    lo = (unsigned long)(hash & 0xFFFFFFFFUL);
+    if (hi != 0) {
+      fprintf(fp, "\n/* Auto-generated Route Hash ID Tag: %lx%08lx */\n", hi,
+              lo);
+    } else {
+      fprintf(fp, "\n/* Auto-generated Route Hash ID Tag: %lx */\n", lo);
+    }
   }
 
   fprintf(fp, "/**\n");

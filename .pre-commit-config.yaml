@@ -21,8 +21,8 @@ repos:
         types_or: [c, c++]
       - id: compdb
         name: Build Compilation Database
-        entry: python -c "import os, subprocess; env = os.environ.copy(); [env.pop(k) for k in list(env.keys()) if k.startswith('GIT_')]; subprocess.run(['cmake', '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON', '-S', '.', '-B', 'build'], env=env, check=True)"
-        language: python
+        entry: env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S . -B build
+        language: system
         pass_filenames: false
       - id: build-gcc
         name: Build (GCC)
@@ -71,9 +71,8 @@ repos:
         pass_filenames: false
       - id: check-enum-returns
         name: Check Enum Returns
-        entry: python scripts/check_enum_returns_clang.py . --exclude-files src/c_orm_alloc.c --exclude-files "build/*" --exclude-files "c_abs_tmp/*" --compile-args -Iinclude -Ibuild/_deps/cdd-c-src/include -Ibuild/_deps/c-str-span-src/include -Ibuild/_deps/parson-src -Ibuild/_deps/c89stringutils-src/include -Ibuild/_deps/cfs-src/include
-        language: python
-        additional_dependencies: [libclang]
+        entry: python3 scripts/check_enum_returns_clang.py . --build-dir build --exclude-files src/c_orm_alloc.c --exclude-files src/cdd_c_compat.c
+        language: system
         pass_filenames: false
       - id: update-shields
         name: Update README Shields

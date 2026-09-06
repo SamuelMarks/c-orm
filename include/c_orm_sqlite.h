@@ -8,14 +8,13 @@
 #ifndef C_ORM_SQLITE_H
 #define C_ORM_SQLITE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_db.h"
 /* clang-format on */
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 /**
  * @brief Create a new SQLite database connection.
  *
@@ -77,7 +76,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
  */
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_SQLITE_H */

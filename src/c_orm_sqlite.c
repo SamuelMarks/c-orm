@@ -6,6 +6,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_sqlite.h"
 #include "c_orm_log.h"
 #include <stdlib.h>
@@ -135,12 +136,7 @@ static c_orm_error_t sqlite_connect(const char *url, c_orm_db_t **out_db) {
     return (c_orm_error_t)rc;
   }
 
-  rc = c_orm_sqlite_get_vtable(&db->vtable);
-  if (rc != C_ORM_OK) {
-    C_ORM_FREE(data);
-    C_ORM_FREE(db);
-    return (c_orm_error_t)rc;
-  }
+  c_orm_sqlite_get_vtable(&db->vtable);
   db->driver_data = data;
   db->driver_name = "sqlite";
   *out_db = db;
@@ -168,11 +164,7 @@ static c_orm_error_t sqlite_disconnect(c_orm_db_t *db) {
     return (c_orm_error_t)rc;
   }
 
-  {
-    c_orm_error_t _err = c_orm_disable_statement_caching(db);
-    if (_err != C_ORM_OK)
-      return _err;
-  }
+  c_orm_disable_statement_caching(db);
 
   data = (struct sqlite_db_data *)db->driver_data;
   if (data) {
@@ -428,13 +420,8 @@ static c_orm_error_t sqlite_bind_blob(c_orm_query_t *query, int index,
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
-#if defined(__CYGWIN__)
-  rc = (c_orm_error_t)sqlite3_bind_blob(query->data->stmt, index, val,
-                                        (sqlite3_uint64)size, SQLITE_TRANSIENT);
-#else
   rc = (c_orm_error_t)sqlite3_bind_blob(query->data->stmt, index, val,
                                         (int)size, SQLITE_TRANSIENT);
-#endif
   if (rc != SQLITE_OK) {
     set_error(query->data->db, NULL);
     LOG_DEBUG("sqlite_bind_blob: bind failed");
@@ -538,13 +525,8 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
     if (query->data->db->log_cb) {
       sql = sqlite3_sql(query->data->stmt);
       if (sql) {
-#if defined(_MSC_VER)
-        sprintf_s(log_msg, sizeof(log_msg), "SLOW QUERY (%.2fms): %s", elapsed,
-                  sql);
-#else
-        sprintf(log_msg, "SLOW QUERY (%.2fms): %s", elapsed, sql);
-#endif
-
+        C_ORM_SPRINTF(log_msg, sizeof(log_msg), "SLOW QUERY (%.2fms): %s",
+                      elapsed, sql);
         query->data->db->log_cb(log_msg, query->data->db->log_user_data);
       }
     }

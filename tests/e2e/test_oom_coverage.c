@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include "c_orm_uuid.h"
@@ -76,12 +75,7 @@ static void do_uuid(void) {
 static void do_codegen(void) {
   {
     FILE *f;
-#if defined(_MSC_VER)
-    fopen_s(&f, "oom_schema.sql", "w");
-#else
-    f = fopen("oom_schema.sql", "w");
-#endif
-
+    C_ORM_FOPEN(&f, "oom_schema.sql", "w");
     if (f) {
       fprintf(f, "CREATE TABLE t_oom (id int);\n");
       fclose(f);
@@ -126,20 +120,15 @@ static void do_cdd_c_ir(void) {
 
   memset(&tbl, 0, sizeof(tbl));
   memset(&field, 0, sizeof(field));
-  field.name = test_strdup("test");
-  field.original_name = test_strdup("test");
+  field.name = "test";
+  field.original_name = "test";
 
   if (cdd_c_ir_init(&ir) == 0) {
     cdd_c_ir_add_table(&ir, &tbl);
     if (cdd_c_query_projection_init(&proj) == 0) {
       proj.source_table = (char *)malloc(5);
       if (proj.source_table)
-#if defined(_MSC_VER)
-        strcpy_s(proj.source_table, 5, "test");
-#else
-        strcpy(proj.source_table, "test");
-#endif
-
+        C_ORM_STRCPY(proj.source_table, 5, "test");
       cdd_c_query_projection_add_field(&proj, &field);
       cdd_c_ir_add_projection(&ir, &proj);
       cdd_c_query_projection_free(&proj);
@@ -158,7 +147,7 @@ static void do_qb_oom(void) {
   c_orm_table_meta_t meta;
   char *sql = NULL;
   memset(&meta, 0, sizeof(meta));
-  meta.name = test_strdup("12345678901234");
+  meta.name = "12345678901234";
 
   if (c_orm_select_builder_init(&meta, &sb) == C_ORM_OK && sb) {
     int j;

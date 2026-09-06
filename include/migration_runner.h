@@ -148,9 +148,10 @@ extern C_ORM_EXPORT /**
     c_orm_error_t
     dump_schema(const char *out_filepath);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_CDD_MIGRATION_RUNNER_H */
 
 #if defined(__clang__) || defined(__GNUC__)

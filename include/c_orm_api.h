@@ -8,15 +8,15 @@
 #ifndef C_ORM_API_H
 #define C_ORM_API_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_db.h"
 #include "c_orm_meta.h"
 #include "abstract_struct.h"
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Implement runtime validation wrapping cdd-c dynamic validation rules
@@ -1014,12 +1014,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
  * relation.
  */
 #define C_ORM_LAZY_LOAD(DB, OBJ, META, REL_INDEX, PTR_VAR)                     \
-  for (;;) {                                                                   \
+  do {                                                                         \
     if (!(OBJ)->PTR_VAR) {                                                     \
       c_orm_load_relation((DB), (OBJ), (META), (REL_INDEX));                   \
     }                                                                          \
-    break;                                                                     \
-  }
+  } while (0)
 
 /**
  * @brief Add support for SQLite specific PRAGMAs via ORM config (Step 200).
@@ -1324,9 +1323,10 @@ c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 C_ORM_EXPORT void c_orm_wasm_init_fs(void (*callback)(int));
 #endif
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_ORM_API_H */
 
 #if defined(__clang__) || defined(__GNUC__)

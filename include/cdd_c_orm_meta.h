@@ -9,7 +9,6 @@
 #define C_CDD_C_ORM_META_H
 
 #ifdef __cplusplus
-#define C_ORM_IN_CPLUSPLUS 1
 extern "C" {
 #endif /* __cplusplus */
 
@@ -41,9 +40,10 @@ typedef struct cdd_c_meta {
                        Extensions */
 } cdd_c_meta_t;
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_CDD_C_ORM_META_H */
 
 #if defined(__clang__) || defined(__GNUC__)

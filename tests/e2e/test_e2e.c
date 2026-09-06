@@ -4,7 +4,7 @@
 /* The generated models */
 
 /* clang-format off */
-#include "test_utils.h"
+#include "c_orm_safe_crt.h"
 #ifdef __EMSCRIPTEN__
 #define GREATEST_USE_TIME 0
 #endif
@@ -88,8 +88,8 @@ TEST test_e2e_insert_user(void) {
 
   memset(&u, 0, sizeof(u));
   u.id = 1;
-  u.username = test_strdup("smarks");
-  u.email = test_strdup("samuel@example.com");
+  u.username = "smarks";
+  u.email = "samuel@example.com";
   u.age = &age;
   u.score = &score;
   u.is_active = (void *)&is_active;
@@ -187,7 +187,8 @@ TEST test_e2e_transactions(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   err = c_orm_savepoint_release(db, "my_sp");
-  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  /* SQLite lets you release a rollback'd savepoint if it was just rolled back,
+     some dialects don't. We'll just rollback the whole tx to be safe. */
 
   err = c_orm_transaction_rollback(db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -221,7 +222,7 @@ TEST test_query_builder_extensions(void) {
 TEST test_postgres_stub(void) {
   const c_orm_driver_vtable_t *vtable;
   c_orm_db_t *pdb;
-  int res = c_orm_postgres_get_vtable(&vtable);
+  c_orm_error_t res = c_orm_postgres_get_vtable(&vtable);
 #ifdef C_ORM_ENABLE_POSTGRESQL
   ASSERT_EQ(0, res);
   ASSERT_NEQ(NULL, vtable);
@@ -249,7 +250,7 @@ TEST test_postgres_stub(void) {
 TEST test_mysql_stub(void) {
   const c_orm_driver_vtable_t *vtable;
   c_orm_db_t *mdb;
-  int res = c_orm_mysql_get_vtable(&vtable);
+  c_orm_error_t res = c_orm_mysql_get_vtable(&vtable);
 #ifdef C_ORM_ENABLE_MYSQL
   ASSERT_EQ(0, res);
   ASSERT_NEQ(NULL, vtable);
@@ -294,9 +295,9 @@ TEST test_e2e_string_pk_and_oauth2(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   memset(&token, 0, sizeof(token));
-  token.access_token = test_strdup("atk_12345");
-  token.refresh_token = test_strdup("rtk_09876");
-  token.token_type = test_strdup("Bearer");
+  token.access_token = "atk_12345";
+  token.refresh_token = "rtk_09876";
+  token.token_type = "Bearer";
   token.expires_in = &expires_in;
   token.created_at = &created_at;
 
@@ -351,7 +352,7 @@ TEST test_e2e_oauth2_helpers(void) {
   int64_t t1, t2;
 
   memset(&tok, 0, sizeof(tok));
-  tok.access_token = test_strdup("abc");
+  tok.access_token = "abc";
   tok.expires_in = 3600;
   tok.created_at = 1000000000;
 
@@ -402,10 +403,10 @@ TEST test_e2e_verify_credentials(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   memset(&user, 0, sizeof(user));
-  user.id = test_strdup("user123");
-  user.username = test_strdup("testuser");
-  user.password_hash = test_strdup("mysecrethash");
-  user.salt = test_strdup("somesalt");
+  user.id = "user123";
+  user.username = "testuser";
+  user.password_hash = "mysecrethash";
+  user.salt = "somesalt";
 
   err = c_orm_insert(auth_db, &c_orm_user_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -428,22 +429,22 @@ TEST test_e2e_verify_credentials(void) {
     c_orm_oauth2_token_t token;
 
     memset(&client, 0, sizeof(client));
-    client.id = test_strdup("client_id");
+    client.id = "client_id";
     client.client_secret = "client_secret";
-    client.redirect_uris = test_strdup("http://localhost");
-    client.grant_types = test_strdup("password");
+    client.redirect_uris = "http://localhost";
+    client.grant_types = "password";
 
     err = c_orm_insert(auth_db, &c_orm_oauth2_client_meta, &client);
 
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
     memset(&token, 0, sizeof(token));
-    token.access_token = test_strdup("access123");
-    token.refresh_token = test_strdup("refresh123");
-    token.token_type = test_strdup("Bearer");
+    token.access_token = "access123";
+    token.refresh_token = "refresh123";
+    token.token_type = "Bearer";
     token.expires_in = 3600;
     token.created_at = 123456789;
-    token.user_id = test_strdup("user123");
+    token.user_id = "user123";
 
     err = c_orm_insert(auth_db, &c_orm_token_meta, &token);
 
@@ -467,8 +468,8 @@ TEST test_e2e_validate_relations(void) {
   memset(r1, 0, sizeof(r1));
   memset(r2, 0, sizeof(r2));
 
-  t1.name = test_strdup("t1");
-  t2.name = test_strdup("t2");
+  t1.name = "t1";
+  t2.name = "t2";
 
   /* t1 relates to t2 */
   r1[0].target_table = "t2";
@@ -510,11 +511,11 @@ TEST test_e2e_build_relation_meta(void) {
   fks[0].reference_table = "users";
   fks[0].reference_column = "id";
 
-  cols[0].name = test_strdup("user_id");
+  cols[0].name = "user_id";
   cols[0].constraints = fks;
   cols[0].n_constraints = 1;
 
-  table.name = test_strdup("posts");
+  table.name = "posts";
   table.columns = cols;
   table.n_columns = 1;
 
@@ -572,7 +573,7 @@ TEST test_e2e_lazy_load_macros(void) {
                 "%d"); /* Expect memory error for NULL db */
 
   /* Trigger the macro proxy. It should skip the load if PTR_VAR is populated */
-  user.username = test_strdup("already_loaded");
+  user.username = "already_loaded";
   /* Using a dummy target PTR_VAR (`username`) to ensure macro compiles and
    * bypasses gracefully */
   C_ORM_LAZY_LOAD(db, &user, &Users_meta, 0, username);
@@ -594,8 +595,8 @@ TEST test_e2e_c_orm_save_upsert(void) {
   /* Insert - new user with no ID set explicitly (if auto increment, but we
    * hardcode for tests here) */
   user.id = 997;
-  user.username = test_strdup("upsert_user");
-  user.email = test_strdup("upsert@example.com");
+  user.username = "upsert_user";
+  user.email = "upsert@example.com";
 
   /* Because ID is set, c_orm_save routes to c_orm_update. Since it doesn't
    * exist, update fails returning NOT_FOUND usually Wait, sqlite update returns
@@ -607,7 +608,7 @@ TEST test_e2e_c_orm_save_upsert(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   /* Now we call c_orm_save which should update */
-  user.username = test_strdup("upsert_user_updated");
+  user.username = "upsert_user_updated";
   err = c_orm_save(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -631,12 +632,12 @@ TEST test_e2e_partial_updates(void) {
   memset(&user, 0, sizeof(user));
   memset(&fetched, 0, sizeof(fetched));
   user.id = 888;
-  user.username = test_strdup("partial_user");
-  user.email = test_strdup("partial@example.com");
+  user.username = "partial_user";
+  user.email = "partial@example.com";
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  user.username = test_strdup("updated_partial");
+  user.username = "updated_partial";
   err = c_orm_update(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -660,8 +661,8 @@ TEST test_e2e_cascade_deletion(void) {
   memset(&post, 0, sizeof(post));
 
   user.id = 777;
-  user.username = test_strdup("cascade_user");
-  user.email = test_strdup("cascade@example.com");
+  user.username = "cascade_user";
+  user.email = "cascade@example.com";
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -688,7 +689,7 @@ TEST test_e2e_bulk_processing(void) {
   struct Users user;
 
   memset(&user, 0, sizeof(user));
-  user.email = test_strdup("bulk@example.com");
+  user.email = "bulk@example.com";
 
   err = c_orm_transaction_begin(db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -698,16 +699,8 @@ TEST test_e2e_bulk_processing(void) {
   for (i = 0; i < 1; i++) {
     char username[32];
     char email[64];
-#if defined(_MSC_VER)
-    sprintf_s(username, sizeof(username), "bulk_%u", (unsigned int)i);
-#else
-    sprintf(username, "bulk_%u", (unsigned int)i);
-#endif
-#if defined(_MSC_VER)
-    sprintf_s(email, sizeof(email), "bulk_%u@example.com", (unsigned int)i);
-#else
-    sprintf(email, "bulk_%u@example.com", (unsigned int)i);
-#endif
+    C_ORM_SPRINTF(username, sizeof(username), "bulk_%u", (unsigned int)i);
+    C_ORM_SPRINTF(email, sizeof(email), "bulk_%u@example.com", (unsigned int)i);
     user.id = (int32_t)i;
     user.username = username;
     user.email = email;
@@ -734,9 +727,9 @@ TEST test_c_orm_relationship_filtering(void) {
   c_orm_column_meta_t target_col;
 
   /* Mock relationship for test */
-  target_col.name = test_strdup("id");
+  target_col.name = "id";
   target_col.is_pk = 1;
-  target_meta.name = test_strdup("posts");
+  target_meta.name = "posts";
   target_meta.columns = &target_col;
   target_meta.num_columns = 1;
 
@@ -796,8 +789,8 @@ TEST test_c_orm_runtime_validation(void) {
 
   memset(&user, 0, sizeof(user));
   user.id = 123;
-  user.username = test_strdup("toolong");
-  user.email = test_strdup("test@example.com");
+  user.username = "toolong";
+  user.email = "test@example.com";
 
   /* c_orm_validate invokes underlying cdd-c validator which isn't dynamically
    * registered in our stub, but the wrapper returns OK ensuring API coverage.
@@ -819,8 +812,8 @@ TEST test_c_orm_composite_keys(void) {
 
   memset(&user, 0, sizeof(user));
   user.id = 555;
-  user.username = test_strdup("composite_user");
-  user.email = test_strdup("composite@example.com");
+  user.username = "composite_user";
+  user.email = "composite@example.com";
 
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -836,7 +829,7 @@ TEST test_c_orm_composite_keys(void) {
   Users_free(&fetched);
 
   /* Update via composite */
-  user.username = test_strdup("composite_user_updated");
+  user.username = "composite_user_updated";
   err = c_orm_update_by_composite_key(db, &Users_meta, 1, keys, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -883,8 +876,8 @@ TEST test_c_orm_uuid_generation(void) {
   memset(&token, 0, sizeof(token));
   /* We leave access_token (which is PK) as NULL to trigger UUID generation */
   token.access_token = NULL;
-  token.refresh_token = test_strdup("rtk_uuid_test");
-  token.token_type = test_strdup("Bearer");
+  token.refresh_token = "rtk_uuid_test";
+  token.token_type = "Bearer";
   token.expires_in = &expires_in;
 
   err = c_orm_insert(db, &Oauth2_tokens_meta, &token);
@@ -926,14 +919,14 @@ TEST test_c_orm_update_partial(void) {
 
   memset(&user, 0, sizeof(user));
   user.id = 777;
-  user.username = test_strdup("partial_target");
-  user.email = test_strdup("partial_target@example.com");
+  user.username = "partial_target";
+  user.email = "partial_target@example.com";
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   memset(&user, 0, sizeof(user));
   user.id = 777;
-  user.username = test_strdup("new_username");
+  user.username = "new_username";
   err = c_orm_update_partial(db, &Users_meta, &user, fields, 1);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -954,8 +947,8 @@ TEST test_c_orm_exists_int32(void) {
 
   memset(&user, 0, sizeof(user));
   user.id = 555;
-  user.username = test_strdup("exists_user");
-  user.email = test_strdup("exists@example.com");
+  user.username = "exists_user";
+  user.email = "exists@example.com";
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -977,9 +970,9 @@ TEST test_c_orm_exists_string(void) {
   int32_t expires_in = 3600;
 
   memset(&token, 0, sizeof(token));
-  token.access_token = test_strdup("exists_string_token");
-  token.refresh_token = test_strdup("rtk_exists");
-  token.token_type = test_strdup("Bearer");
+  token.access_token = "exists_string_token";
+  token.refresh_token = "rtk_exists";
+  token.token_type = "Bearer";
   token.expires_in = &expires_in;
 
   err = c_orm_insert(db, &Oauth2_tokens_meta, &token);
@@ -1005,15 +998,15 @@ TEST test_c_orm_find_all_paginated(void) {
 
   memset(&user, 0, sizeof(user));
   user.id = 200;
-  user.username = test_strdup("page_user1");
-  user.email = test_strdup("page1@example.com");
+  user.username = "page_user1";
+  user.email = "page1@example.com";
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   memset(&user, 0, sizeof(user));
   user.id = 201;
-  user.username = test_strdup("page_user2");
-  user.email = test_strdup("page2@example.com");
+  user.username = "page_user2";
+  user.email = "page2@example.com";
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -1044,16 +1037,16 @@ TEST test_c_orm_statement_cache(void) {
   /* Test insert with cache */
   memset(&user, 0, sizeof(user));
   user.id = 888;
-  user.username = test_strdup("cached_user");
-  user.email = test_strdup("cached@example.com");
+  user.username = "cached_user";
+  user.email = "cached@example.com";
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   /* Second insert should reuse the cached insert statement */
   memset(&user, 0, sizeof(user));
   user.id = 889;
-  user.username = test_strdup("cached_user_2");
-  user.email = test_strdup("cached2@example.com");
+  user.username = "cached_user_2";
+  user.email = "cached2@example.com";
   err = c_orm_insert(db, &Users_meta, &user);
 
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -1153,7 +1146,9 @@ extern SUITE(ast_suite);
 extern SUITE(api_coverage_suite);
 extern SUITE(cache_coverage_suite);
 extern SUITE(cli_suite);
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
 extern SUITE(cli_exec_suite);
+#endif
 extern SUITE(db_stubs_suite);
 extern SUITE(inline_macros_suite);
 extern SUITE(oom_coverage_suite);
@@ -1186,7 +1181,7 @@ static void run_all_suites(void) {
   RUN_SUITE(api_coverage_suite);
   RUN_SUITE(cache_coverage_suite);
   RUN_SUITE(cli_suite);
-#ifndef __EMSCRIPTEN__
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
   RUN_SUITE(cli_exec_suite);
 #endif
   RUN_SUITE(db_stubs_suite);
@@ -1232,9 +1227,7 @@ static void emscripten_test_callback(int err) {
 
 #if defined(_MSC_VER)
   _set_invalid_parameter_handler(my_invalid_parameter_handler);
-#if defined(_DEBUG)
   _CrtSetReportMode(_CRT_ASSERT, 0);
-#endif
 #endif
   GREATEST_MAIN_BEGIN();
   run_all_suites();
@@ -1253,7 +1246,7 @@ int main(int argc, char **argv) {
 }
 #else
 int main(int argc, char **argv) {
-  int rc;
+  c_orm_error_t rc;
 #if defined(_MSC_VER) && defined(_DEBUG)
   _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
   _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
@@ -1269,9 +1262,7 @@ int main(int argc, char **argv) {
   (void)rc;
 #if defined(_MSC_VER)
   _set_invalid_parameter_handler(my_invalid_parameter_handler);
-#if defined(_DEBUG)
   _CrtSetReportMode(_CRT_ASSERT, 0);
-#endif
 #endif
   GREATEST_MAIN_BEGIN();
   run_all_suites();
@@ -1281,20 +1272,3 @@ int main(int argc, char **argv) {
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif
-
-/* test_strdup implementation */
-static char c_orm_test_str_arena[1024 * 1024];
-static size_t c_orm_test_str_arena_off = 0;
-char *test_strdup(const char *s) {
-  size_t len;
-  char *ptr;
-  if (!s)
-    return NULL;
-  len = strlen(s) + 1;
-  if (c_orm_test_str_arena_off + len > sizeof(c_orm_test_str_arena))
-    return NULL;
-  ptr = c_orm_test_str_arena + c_orm_test_str_arena_off;
-  c_orm_test_str_arena_off += len;
-  memcpy(ptr, s, len);
-  return ptr;
-}

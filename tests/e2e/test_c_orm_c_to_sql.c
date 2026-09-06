@@ -1,7 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
+#include "c_orm_safe_crt.h"
 #include "c_orm_c_to_sql.h"
 #include <string.h>
 #include <stdlib.h>
@@ -14,64 +14,26 @@ TEST test_write_struct_to_sql_create_table(void) {
   struct StructFields sf;
   char buf[1024];
   FILE *fp;
-  int rc;
+  c_orm_error_t rc;
 
   memset(buf, 0, sizeof(buf));
   memset(fields, 0, sizeof(fields));
-#if defined(_MSC_VER)
-  strcpy_s(fields[0].name, sizeof(fields[0].name), "id");
-#else
-  strcpy(fields[0].name, "id");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[0].type, sizeof(fields[0].type), "integer");
-#else
-  strcpy(fields[0].type, "integer");
-#endif
-
+  C_ORM_STRCPY(fields[0].name, sizeof(fields[0].name), "id");
+  C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "integer");
   fields[0].required = 1;
 
-#if defined(_MSC_VER)
-  strcpy_s(fields[1].name, sizeof(fields[1].name), "username");
-#else
-  strcpy(fields[1].name, "username");
-#endif
+  C_ORM_STRCPY(fields[1].name, sizeof(fields[1].name), "username");
+  C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "string");
+  C_ORM_STRCPY(fields[1].description, sizeof(fields[1].description),
+               "@unique @notnull");
 
-#if defined(_MSC_VER)
-  strcpy_s(fields[1].type, sizeof(fields[1].type), "string");
-#else
-  strcpy(fields[1].type, "string");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[1].description, sizeof(fields[1].description),
-           "@unique @notnull");
-#else
-  strcpy(fields[1].description, "@unique @notnull");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[2].name, sizeof(fields[2].name), "company_id");
-#else
-  strcpy(fields[2].name, "company_id");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[2].type, sizeof(fields[2].type), "integer");
-#else
-  strcpy(fields[2].type, "integer");
-#endif
+  C_ORM_STRCPY(fields[2].name, sizeof(fields[2].name), "company_id");
+  C_ORM_STRCPY(fields[2].type, sizeof(fields[2].type), "integer");
 
   sf.size = 3;
   sf.fields = fields;
 
-#if defined(_MSC_VER)
-  tmpfile_s(&fp);
-#else
-  fp = tmpfile();
-#endif
-
+  C_ORM_TMPFILE(&fp);
   ASSERT(fp != NULL);
 
   rc = write_struct_to_sql_create_table(fp, "users", &sf,
@@ -94,18 +56,18 @@ TEST test_cdd_c_meta_to_sql_create_table(void) {
   cdd_c_prop_meta_t props[2];
   cdd_c_meta_t meta;
   char *out_sql = NULL;
-  int rc;
+  c_orm_error_t rc;
 
   memset(&meta, 0, sizeof(meta));
   memset(props, 0, sizeof(props));
 
-  props[0].name = test_strdup("id");
-  props[0].type = test_strdup("int");
+  props[0].name = "id";
+  props[0].type = "int";
 
-  props[1].name = test_strdup("name");
-  props[1].type = test_strdup("char*");
+  props[1].name = "name";
+  props[1].type = "char*";
 
-  meta.name = test_strdup("company");
+  meta.name = "company";
   meta.props = props;
   meta.num_props = 2;
 
@@ -126,26 +88,26 @@ TEST test_cdd_c_meta_diff_and_sql(void) {
   cdd_c_meta_t old_meta, new_meta;
   cdd_c_meta_diff_t diff;
   char *up_sql = NULL, *down_sql = NULL;
-  int rc;
+  c_orm_error_t rc;
 
   memset(&old_meta, 0, sizeof(old_meta));
   memset(&new_meta, 0, sizeof(new_meta));
   memset(props_old, 0, sizeof(props_old));
   memset(props_new, 0, sizeof(props_new));
 
-  props_old[0].name = test_strdup("id");
-  props_old[0].type = test_strdup("int");
+  props_old[0].name = "id";
+  props_old[0].type = "int";
 
-  props_new[0].name = test_strdup("id");
-  props_new[0].type = test_strdup("int");
-  props_new[1].name = test_strdup("description");
-  props_new[1].type = test_strdup("char*");
+  props_new[0].name = "id";
+  props_new[0].type = "int";
+  props_new[1].name = "description";
+  props_new[1].type = "char*";
 
-  old_meta.name = test_strdup("test_table");
+  old_meta.name = "test_table";
   old_meta.props = props_old;
   old_meta.num_props = 1;
 
-  new_meta.name = test_strdup("test_table");
+  new_meta.name = "test_table";
   new_meta.props = props_new;
   new_meta.num_props = 2;
 
@@ -171,7 +133,7 @@ TEST test_cdd_c_meta_diff_and_sql(void) {
 
 TEST test_cdd_c_get_schema_inspection_query(void) {
   char *query = NULL;
-  int rc;
+  c_orm_error_t rc;
 
   rc = cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_POSTGRESQL, "users",
                                          &query);
@@ -185,7 +147,7 @@ TEST test_cdd_c_get_schema_inspection_query(void) {
 
 TEST test_cdd_c_emit_index(void) {
   char *query = NULL;
-  int rc;
+  c_orm_error_t rc;
 
   rc = cdd_c_emit_create_index("users", "idx_users_email", "email", 1, &query);
   ASSERT_EQ(0, rc);
@@ -208,24 +170,24 @@ TEST test_cdd_c_meta_topological_sort(void) {
   cdd_c_meta_t m_user, m_post;
   const cdd_c_meta_t *schemas[2];
   const cdd_c_meta_t *out_schemas[2];
-  int rc;
+  c_orm_error_t rc;
 
   memset(&m_user, 0, sizeof(m_user));
   memset(&m_post, 0, sizeof(m_post));
   memset(p_user, 0, sizeof(p_user));
   memset(p_post, 0, sizeof(p_post));
 
-  p_user[0].name = test_strdup("id");
-  p_user[0].type = test_strdup("int");
-  m_user.name = test_strdup("user");
+  p_user[0].name = "id";
+  p_user[0].type = "int";
+  m_user.name = "user";
   m_user.props = p_user;
   m_user.num_props = 1;
 
-  p_post[0].name = test_strdup("id");
-  p_post[0].type = test_strdup("int");
-  p_post[1].name = test_strdup("user_id");
-  p_post[1].type = test_strdup("int");
-  m_post.name = test_strdup("post");
+  p_post[0].name = "id";
+  p_post[0].type = "int";
+  p_post[1].name = "user_id";
+  p_post[1].type = "int";
+  m_post.name = "post";
   m_post.props = p_post;
   m_post.num_props = 2;
 
@@ -265,18 +227,18 @@ TEST test_cdd_c_meta_to_sql_create_table_pg(void) {
   memset(&meta, 0, sizeof(meta));
   memset(props, 0, sizeof(props));
 
-  props[0].name = test_strdup("id");
-  props[0].type = test_strdup("int");
-  props[1].name = test_strdup("name");
-  props[1].type = test_strdup("char*");
-  props[2].name = test_strdup("score");
-  props[2].type = test_strdup("float");
-  props[3].name = test_strdup("is_active");
-  props[3].type = test_strdup("bool");
-  props[4].name = test_strdup("user_id");
-  props[4].type = test_strdup("int");
+  props[0].name = "id";
+  props[0].type = "int";
+  props[1].name = "name";
+  props[1].type = "char*";
+  props[2].name = "score";
+  props[2].type = "float";
+  props[3].name = "is_active";
+  props[3].type = "bool";
+  props[4].name = "user_id";
+  props[4].type = "int";
 
-  meta.name = test_strdup("company");
+  meta.name = "company";
   meta.props = props;
   meta.num_props = 5;
 
@@ -326,17 +288,17 @@ TEST test_cdd_c_meta_diff_sqlite(void) {
   cdd_c_meta_diff_t diff;
   char *up_sql = NULL, *down_sql = NULL;
 
-  props_old[0].name = test_strdup("id");
-  props_old[0].type = test_strdup("int");
-  props_new[0].name = test_strdup("id");
-  props_new[0].type = test_strdup("int");
-  props_new[1].name = test_strdup("description");
-  props_new[1].type = test_strdup("char*");
+  props_old[0].name = "id";
+  props_old[0].type = "int";
+  props_new[0].name = "id";
+  props_new[0].type = "int";
+  props_new[1].name = "description";
+  props_new[1].type = "char*";
 
-  old_meta.name = test_strdup("test_table");
+  old_meta.name = "test_table";
   old_meta.props = props_old;
   old_meta.num_props = 1;
-  new_meta.name = test_strdup("test_table");
+  new_meta.name = "test_table";
   new_meta.props = props_new;
   new_meta.num_props = 2;
 
@@ -362,15 +324,15 @@ TEST test_cdd_c_meta_topological_sort_cycle(void) {
   const cdd_c_meta_t *schemas[2];
   const cdd_c_meta_t *out_schemas[2];
 
-  p_a[0].name = test_strdup("b_id");
-  p_a[0].type = test_strdup("int");
-  m_a.name = test_strdup("a");
+  p_a[0].name = "b_id";
+  p_a[0].type = "int";
+  m_a.name = "a";
   m_a.props = p_a;
   m_a.num_props = 1;
 
-  p_b[0].name = test_strdup("a_id");
-  p_b[0].type = test_strdup("int");
-  m_b.name = test_strdup("b");
+  p_b[0].name = "a_id";
+  p_b[0].type = "int";
+  m_b.name = "b";
   m_b.props = p_b;
   m_b.num_props = 1;
 
@@ -394,45 +356,15 @@ TEST test_c_to_sql_edge_cases(void) {
 
   /* C Type fallback and struct mapping edges */
   memset(fields, 0, sizeof(fields));
-#if defined(_MSC_VER)
-  strcpy_s(fields[0].name, sizeof(fields[0].name), "unknown_field");
-#else
-  strcpy(fields[0].name, "unknown_field");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[0].type, sizeof(fields[0].type), "unknown_type");
-#else
-  strcpy(fields[0].type, "unknown_type");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[1].name, sizeof(fields[1].name), "id");
-#else
-  strcpy(fields[1].name, "id");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[1].type, sizeof(fields[1].type), "int");
-#else
-  strcpy(fields[1].type, "int");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[1].description, sizeof(fields[1].description), "@pk");
-#else
-  strcpy(fields[1].description, "@pk");
-#endif
-
+  C_ORM_STRCPY(fields[0].name, sizeof(fields[0].name), "unknown_field");
+  C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "unknown_type");
+  C_ORM_STRCPY(fields[1].name, sizeof(fields[1].name), "id");
+  C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "int");
+  C_ORM_STRCPY(fields[1].description, sizeof(fields[1].description), "@pk");
   sf.size = 2;
   sf.fields = fields;
 
-#if defined(_MSC_VER)
-  tmpfile_s(&fp);
-#else
-  fp = tmpfile();
-#endif
-
+  C_ORM_TMPFILE(&fp);
   ASSERT_EQ(0, write_struct_to_sql_create_table(fp, "test", &sf,
                                                 C_TO_SQL_DIALECT_MYSQL));
   rewind(fp);
@@ -442,24 +374,9 @@ TEST test_c_to_sql_edge_cases(void) {
   ASSERT(strstr(buf, "unknown_field BLOB") != NULL);
 
   /* Dialect type maps */
-#if defined(_MSC_VER)
-  tmpfile_s(&fp);
-#else
-  fp = tmpfile();
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[0].type, sizeof(fields[0].type), "double");
-#else
-  strcpy(fields[0].type, "double");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[1].type, sizeof(fields[1].type), "bool");
-#else
-  strcpy(fields[1].type, "bool");
-#endif
-
+  C_ORM_TMPFILE(&fp);
+  C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "double");
+  C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "bool");
   ASSERT_EQ(0, write_struct_to_sql_create_table(fp, "test", &sf,
                                                 C_TO_SQL_DIALECT_MYSQL));
   rewind(fp);
@@ -473,17 +390,17 @@ TEST test_c_to_sql_edge_cases(void) {
   memset(p_old, 0, sizeof(p_old));
   memset(p_new, 0, sizeof(p_new));
 
-  p_old[0].name = test_strdup("to_drop");
-  p_old[0].type = test_strdup("int");
-  p_old[1].name = test_strdup("to_alter");
-  p_old[1].type = test_strdup("int");
-  m_old.name = test_strdup("diff_table");
+  p_old[0].name = "to_drop";
+  p_old[0].type = "int";
+  p_old[1].name = "to_alter";
+  p_old[1].type = "int";
+  m_old.name = "diff_table";
   m_old.props = p_old;
   m_old.num_props = 2;
 
-  p_new[0].name = test_strdup("to_alter");
-  p_new[0].type = test_strdup("string");
-  m_new.name = test_strdup("diff_table");
+  p_new[0].name = "to_alter";
+  p_new[0].type = "string";
+  m_new.name = "diff_table";
   m_new.props = p_new;
   m_new.num_props = 1;
 

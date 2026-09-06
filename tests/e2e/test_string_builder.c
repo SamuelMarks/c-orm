@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
 #include "c_orm_log.h"
 #include "c_orm_string_builder.h"
 #include "greatest.h"
@@ -43,7 +42,7 @@ TEST test_c_orm_string_builder(void) {
   c_orm_string_builder_t *sb = NULL;
   const char *str = NULL;
   size_t len = 0;
-  int rc;
+  c_orm_error_t rc;
 
 #ifdef C_ORM_TEST_ALLOCATOR
   void *(*old_malloc)(size_t) = c_orm_malloc;
@@ -122,7 +121,7 @@ TEST test_c_orm_string_builder(void) {
 
   rc = c_orm_string_builder_len(sb, &len);
   ASSERT_EQ(0, rc);
-  ASSERT_EQ(7, (int)len);
+  ASSERT_EQ((size_t)7, len);
 
   rc = c_orm_string_builder_append(sb, "World!");
   ASSERT_EQ(0, rc);

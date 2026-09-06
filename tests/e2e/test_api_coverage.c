@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include "c_orm_log.h"
@@ -298,19 +297,19 @@ static void setup_vt(void) {
          sizeof(c_orm_column_meta_t) * Users_meta.num_columns);
   mega_meta.columns = my_cols;
 
-  my_cols[mega_meta.num_columns].name = test_strdup("test_blob");
+  my_cols[mega_meta.num_columns].name = "test_blob";
   my_cols[mega_meta.num_columns].type = C_ORM_TYPE_BLOB;
   my_cols[mega_meta.num_columns].is_secure = 1;
   my_cols[mega_meta.num_columns].offset = 64;
   mega_meta.num_columns++;
 
-  my_cols[mega_meta.num_columns].name = test_strdup("test_ts");
+  my_cols[mega_meta.num_columns].name = "test_ts";
   my_cols[mega_meta.num_columns].type = C_ORM_TYPE_TIMESTAMP;
   my_cols[mega_meta.num_columns].is_secure = 0;
   my_cols[mega_meta.num_columns].offset = 72;
   mega_meta.num_columns++;
 
-  my_cols[mega_meta.num_columns].name = test_strdup("test_polygon");
+  my_cols[mega_meta.num_columns].name = "test_polygon";
   my_cols[mega_meta.num_columns].type = C_ORM_TYPE_POLYGON;
   my_cols[mega_meta.num_columns].is_secure = 0;
   my_cols[mega_meta.num_columns].offset = 80;
@@ -2308,12 +2307,7 @@ TEST test_hydrate_set_null_field(void) {
   vt.get_double = mock_get_double_zero;
 
   u.username = (char *)malloc(10);
-#if defined(_MSC_VER)
-  strcpy_s(u.username, 10, "old");
-#else
-  strcpy(u.username, "old");
-#endif
-
+  C_ORM_STRCPY(u.username, 10, "old");
   c_orm_hydrate_row_from(&db_mem, q, &Users_meta, &u, 0);
 
   vt.is_null = mock_is_null_false;

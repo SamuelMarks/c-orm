@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
 #include "Models.h"
 #include "c_orm_api.h"
 #include "greatest.h"
@@ -36,7 +35,7 @@ void *e2e_mock_calloc(size_t nmemb, size_t size) {
 TEST test_users_models(void) {
   struct Users_Array arr, arr2;
   struct Users u1, u2;
-  int err;
+  c_orm_error_t err;
 
   err = Users_Array_init(NULL, 10);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, err);
@@ -53,19 +52,9 @@ TEST test_users_models(void) {
   memset(&u1, 0, sizeof(u1));
   u1.id = 1;
   u1.username = (char *)malloc(10);
-#if defined(_MSC_VER)
-  strcpy_s(u1.username, 10, "test");
-#else
-  strcpy(u1.username, "test");
-#endif
-
+  C_ORM_STRCPY(u1.username, 10, "test");
   u1.email = (char *)malloc(10);
-#if defined(_MSC_VER)
-  strcpy_s(u1.email, 10, "e@ma.il");
-#else
-  strcpy(u1.email, "e@ma.il");
-#endif
-
+  C_ORM_STRCPY(u1.email, 10, "e@ma.il");
   u1.age = (int32_t *)malloc(sizeof(int32_t));
   *u1.age = 30;
   u1.score = (float *)malloc(sizeof(float));
@@ -73,11 +62,7 @@ TEST test_users_models(void) {
   u1.is_active = (bool *)malloc(sizeof(bool));
   *u1.is_active = true;
   u1.created_at = (char *)malloc(10);
-#if defined(_MSC_VER)
-  strcpy_s(u1.created_at, 10, "now");
-#else
-  strcpy(u1.created_at, "now");
-#endif
+  C_ORM_STRCPY(u1.created_at, 10, "now");
 
   err = Users_deepcopy(NULL, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, err);
@@ -122,7 +107,7 @@ TEST test_users_models(void) {
 TEST test_posts_models(void) {
   struct Posts_Array arr, arr2;
   struct Posts p1, p2;
-  int err;
+  c_orm_error_t err;
 
   err = Posts_Array_init(NULL, 10);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, err);
@@ -137,27 +122,13 @@ TEST test_posts_models(void) {
   memset(&p1, 0, sizeof(p1));
   p1.id = 1;
   p1.title = (char *)malloc(10);
-#if defined(_MSC_VER)
-  strcpy_s(p1.title, 10, "title");
-#else
-  strcpy(p1.title, "title");
-#endif
-
+  C_ORM_STRCPY(p1.title, 10, "title");
   p1.content = (char *)malloc(10);
-#if defined(_MSC_VER)
-  strcpy_s(p1.content, 10, "content");
-#else
-  strcpy(p1.content, "content");
-#endif
-
+  C_ORM_STRCPY(p1.content, 10, "content");
   p1.views = (int64_t *)malloc(sizeof(int64_t));
   *p1.views = 100;
   p1.published_date = (char *)malloc(10);
-#if defined(_MSC_VER)
-  strcpy_s(p1.published_date, 10, "date");
-#else
-  strcpy(p1.published_date, "date");
-#endif
+  C_ORM_STRCPY(p1.published_date, 10, "date");
 
   err = Posts_deepcopy(NULL, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, err);
@@ -202,7 +173,7 @@ TEST test_posts_models(void) {
 TEST test_oauth2_models(void) {
   struct Oauth2_tokens_Array arr, arr2;
   struct Oauth2_tokens t1, t2;
-  int err;
+  c_orm_error_t err;
 
   err = Oauth2_tokens_Array_init(NULL, 10);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, err);
@@ -216,26 +187,11 @@ TEST test_oauth2_models(void) {
 
   memset(&t1, 0, sizeof(t1));
   t1.access_token = (char *)malloc(10);
-#if defined(_MSC_VER)
-  strcpy_s(t1.access_token, 10, "access");
-#else
-  strcpy(t1.access_token, "access");
-#endif
-
+  C_ORM_STRCPY(t1.access_token, 10, "access");
   t1.refresh_token = (char *)malloc(10);
-#if defined(_MSC_VER)
-  strcpy_s(t1.refresh_token, 10, "refresh");
-#else
-  strcpy(t1.refresh_token, "refresh");
-#endif
-
+  C_ORM_STRCPY(t1.refresh_token, 10, "refresh");
   t1.token_type = (char *)malloc(10);
-#if defined(_MSC_VER)
-  strcpy_s(t1.token_type, 10, "type");
-#else
-  strcpy(t1.token_type, "type");
-#endif
-
+  C_ORM_STRCPY(t1.token_type, 10, "type");
   t1.expires_in = (int32_t *)malloc(sizeof(int32_t));
   *t1.expires_in = 3600;
   t1.created_at = (int64_t *)malloc(sizeof(int64_t));

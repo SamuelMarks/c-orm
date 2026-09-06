@@ -8,13 +8,13 @@
 #ifndef C_ORM_MYSQL_H
 #define C_ORM_MYSQL_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_db.h"
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Get the MySQL driver vtable.
@@ -35,9 +35,10 @@ c_orm_mysql_get_vtable(const c_orm_driver_vtable_t **out_vtable);
 C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
                                                c_orm_db_t **out_db);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_ORM_MYSQL_H */
 
 #if defined(__clang__) || defined(__GNUC__)

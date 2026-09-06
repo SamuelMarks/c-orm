@@ -10,13 +10,13 @@
 #ifndef C_ORM_INLINE_MACROS_H
 #define C_ORM_INLINE_MACROS_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_meta.h"
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Macro to define a "Has One" relationship in a struct.
@@ -132,9 +132,10 @@ extern "C" {
    NULL,                                                                       \
    0}
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_ORM_INLINE_MACROS_H */
 
 #if defined(__clang__) || defined(__GNUC__)

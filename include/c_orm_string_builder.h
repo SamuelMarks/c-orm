@@ -8,16 +8,15 @@
 #ifndef C_ORM_STRING_BUILDER_H
 #define C_ORM_STRING_BUILDER_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_meta.h"
 #include <stddef.h>
 #include "c_orm_db.h"
 /* clang-format on */
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 /**
  * @brief Dynamic string builder opaque struct.
  */
@@ -67,7 +66,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
 C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
     const c_orm_string_builder_t *builder, size_t *out_len);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_STRING_BUILDER_H */

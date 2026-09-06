@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include "c_orm_mysql.h"
@@ -102,7 +101,7 @@ TEST test_c_orm_db_coverage(void) {
   c_orm_db_t db;
   c_orm_driver_vtable_t vt;
   const char *msg = NULL;
-  int rc;
+  c_orm_error_t rc;
   c_orm_pool_telemetry_t tel;
   c_orm_timezone_t tz;
 
@@ -208,7 +207,7 @@ TEST test_c_orm_async_coverage(void) {
   c_orm_db_t db = {0};
   c_orm_table_meta_t meta = {0};
   int obj = 0;
-  int rc;
+  c_orm_error_t rc;
 
   rc = c_orm_insert_async(NULL, NULL, NULL, NULL, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
@@ -248,8 +247,8 @@ TEST test_c_orm_async_coverage(void) {
 
 #ifndef __EMSCRIPTEN__
 TEST test_codegen_coverage(void) {
-  int rc;
-  const char *schema_path = NULL;
+  c_orm_error_t rc;
+  const char *schema_path;
   FILE *f;
 
   rc = c_orm_codegen_generate(NULL, NULL);
@@ -271,12 +270,7 @@ TEST test_codegen_coverage(void) {
     int i;
     for (i = 0; i < 6; i++) {
       schema_path = paths[i];
-#if defined(_MSC_VER)
-      fopen_s(&f, schema_path, "r");
-#else
-      f = fopen(schema_path, "r");
-#endif
-
+      C_ORM_FOPEN(&f, schema_path, "r");
       if (f) {
         fclose(f);
         break;
@@ -293,7 +287,7 @@ TEST test_codegen_coverage(void) {
 
 TEST test_modality_coverage(void) {
   c_orm_db_t db;
-  int rc;
+  c_orm_error_t rc;
 
   rc = c_orm_set_modality(NULL, 0, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);

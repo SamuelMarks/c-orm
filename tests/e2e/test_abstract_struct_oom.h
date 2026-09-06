@@ -1,11 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 
-/* clang-format off */
-#include <stddef.h>
-#include <stdlib.h>
-/* clang-format on */
-
 static int astruct_oom_countdown = 0;
 static int astruct_oom_active = 0;
 static void *(*old_malloc)(size_t) = NULL;
@@ -104,7 +99,7 @@ TEST test_abstract_struct_oom_coverage(void) {
 
   /* duplicate_blob failure in copy_variant */
   v.type = CDD_C_VARIANT_TYPE_BLOB;
-  v.value.b_val.data = (unsigned char *)test_strdup("data");
+  v.value.b_val.data = (unsigned char *)"data";
   v.value.b_val.size = 4;
   astruct_oom_active = 1;
   astruct_oom_countdown = 1;

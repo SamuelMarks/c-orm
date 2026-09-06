@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
 #include "c_orm_sql.h"
 #include "c_orm_api.h"
 #include "greatest.h"
@@ -57,7 +56,7 @@ TEST test_sql_parser_basic(void) {
                     "INT DEFAULT 123, b_val BOOLEAN DEFAULT TRUE);";
   struct sql_table_t *tables = NULL;
   size_t n_tables = 0;
-  int rc;
+  c_orm_error_t rc;
 
   rc = parse_sql_ddl(sql, &tables, &n_tables);
   ASSERT_EQ(0, rc);
@@ -76,11 +75,7 @@ TEST test_sql_parser_oom(void) {
   for (i = 0; i < 2; i++) {
     oom_active = 1;
     oom_countdown = i;
-    {
-      c_orm_error_t _err = parse_sql_ddl(sql, &tables, &n_tables);
-      /* Expected to fail or partially succeed depending on OOM state */
-      (void)_err;
-    }
+    (void)parse_sql_ddl(sql, &tables, &n_tables);
     if (tables) {
       test_cleanup_tables(&tables, &n_tables);
     }
@@ -100,7 +95,7 @@ TEST test_sql_lex_oom(void) {
   for (s = 0; sqls[s]; s++) {
     for (i = 0; i < 5; i++) {
       struct sql_token_list_t *list = NULL;
-      az_span span = az_span_create_from_str((char *)test_strdup(sqls[s]));
+      az_span span = az_span_create_from_str((char *)sqls[s]);
       oom_active = 1;
       oom_countdown = i;
       sql_lex(span, &list);
@@ -114,7 +109,7 @@ TEST test_sql_lex_oom(void) {
   /* Also test the very first list alloc failing */
   {
     struct sql_token_list_t *list = NULL;
-    az_span span = az_span_create_from_str((char *)test_strdup("a"));
+    az_span span = az_span_create_from_str("a");
     oom_active = 1;
     oom_countdown = 0;
     sql_lex(span, &list);
@@ -124,7 +119,7 @@ TEST test_sql_lex_oom(void) {
 
   /* NULL source/out_list */
   {
-    az_span span = az_span_create_from_str((char *)test_strdup("a"));
+    az_span span = az_span_create_from_str("a");
     sql_lex(span, NULL);
     sql_lex(az_span_empty(), NULL);
   }
@@ -318,7 +313,7 @@ TEST test_sql_parser_table_constraints(void) {
                     ");";
   struct sql_table_t *tables = NULL;
   size_t n_tables = 0;
-  int rc;
+  c_orm_error_t rc;
 
   rc = parse_sql_ddl(sql, &tables, &n_tables);
   ASSERT_EQ(0, rc);

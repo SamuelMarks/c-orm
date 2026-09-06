@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
 #include "c_orm_api.h"
 #include "c_orm_ast.h"
 #include "greatest.h"
@@ -12,7 +11,7 @@
 TEST test_c_orm_ast_fluent(void) {
   c_orm_query_t *q = NULL;
   c_orm_query_t *q_clone = NULL;
-  int err;
+  c_orm_error_t err;
 
   err = c_orm_query_new(&q);
   ASSERT_EQ_FMT(0, err, "%d");
@@ -77,7 +76,7 @@ TEST test_c_orm_ast_to_sql(void) {
   c_orm_query_t *q = NULL;
   char *sql = NULL;
   c_orm_query_params_t params;
-  int err;
+  c_orm_error_t err;
 
   err = c_orm_query_new(&q);
   ASSERT_EQ_FMT(0, err, "%d");
@@ -108,7 +107,7 @@ TEST test_c_orm_ast_to_sql_postgres(void) {
   c_orm_query_t *q = NULL;
   char *sql = NULL;
   c_orm_query_params_t params;
-  int err;
+  c_orm_error_t err;
 
   err = c_orm_query_new(&q);
   ASSERT_EQ_FMT(0, err, "%d");
@@ -138,7 +137,7 @@ TEST test_c_orm_ast_depth_limit(void) {
   c_orm_query_t *q = NULL;
   char *sql = NULL;
   c_orm_query_params_t params;
-  int err;
+  c_orm_error_t err;
   int i;
   unsigned int old_depth = cdd_c_sql_parser_max_depth;
 

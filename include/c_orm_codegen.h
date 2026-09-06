@@ -8,14 +8,14 @@
 #ifndef C_ORM_CODEGEN_H
 #define C_ORM_CODEGEN_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_db.h"
 #include <stddef.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Generate C structs and CRUD boilerplate directly from a SQL schema or
@@ -29,9 +29,10 @@ extern "C" {
 C_ORM_EXPORT c_orm_error_t c_orm_codegen_generate(const char *schema_file,
                                                   const char *output_dir);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_ORM_CODEGEN_H */
 
 #if defined(__clang__) || defined(__GNUC__)

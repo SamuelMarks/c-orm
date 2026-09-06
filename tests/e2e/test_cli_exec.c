@@ -1,31 +1,13 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
-
-
-
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "sqlite3.h"
 /* clang-format on */
-
-static void test_unsetenv(const char *name) {
-#if defined(_WIN32)
-  char buf[128];
-#if defined(_MSC_VER)
-  sprintf_s(buf, sizeof(buf), "%s=", name);
-#else
-  sprintf(buf, "%s=", name);
-#endif
-  _putenv(buf);
-#else
-  extern int unsetenv(const char *name);
-  unsetenv(name);
-#endif
-}
 
 #ifndef C_ORM_CLI_EXECUTABLE
 #ifdef _WIN32
@@ -91,7 +73,7 @@ TEST test_cli_migrate(void) {
   int rc;
   (void)rc;
 #if !defined(_WIN32) && !defined(__CYGWIN__)
-  test_unsetenv("C_ORM_DB_URL");
+  C_ORM_UNSETENV("C_ORM_DB_URL");
   rc = system(CLI_CMD " migrate" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
@@ -123,22 +105,12 @@ TEST test_cli_migrate(void) {
   {
     FILE *f1;
     FILE *f2;
-#if defined(_MSC_VER)
-    fopen_s(&f1, "test_migrations_dir/1_test.up.sql", "w");
-#else
-    f1 = fopen("test_migrations_dir/1_test.up.sql", "w");
-#endif
-
+    C_ORM_FOPEN(&f1, "test_migrations_dir/1_test.up.sql", "w");
     if (f1) {
       fprintf(f1, "CREATE TABLE x (id INT);\n");
       fclose(f1);
     }
-#if defined(_MSC_VER)
-    fopen_s(&f2, "test_migrations_dir/1_test.down.sql", "w");
-#else
-    f2 = fopen("test_migrations_dir/1_test.down.sql", "w");
-#endif
-
+    C_ORM_FOPEN(&f2, "test_migrations_dir/1_test.down.sql", "w");
     if (f2) {
       fprintf(f2, "DROP TABLE x;\n");
       fclose(f2);
@@ -162,7 +134,7 @@ TEST test_cli_status(void) {
   (void)rc;
 
 #if !defined(_WIN32) && !defined(__CYGWIN__)
-  test_unsetenv("C_ORM_DB_URL");
+  C_ORM_UNSETENV("C_ORM_DB_URL");
   rc = system(CLI_CMD " status" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
@@ -178,7 +150,7 @@ TEST test_cli_status(void) {
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
 
-  rc = system(CLI_CMD " status --db /root/invalid.db" DEV_NULL);
+  rc = system(CLI_CMD " status --db /dev/null/invalid.db" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
   (void)rc;
@@ -198,12 +170,7 @@ TEST test_cli_exec_sql2c(void) {
   int rc;
   FILE *f;
   (void)rc;
-#if defined(_MSC_VER)
-  fopen_s(&f, "test_schema.sql", "w");
-#else
-  f = fopen("test_schema.sql", "w");
-#endif
-
+  C_ORM_FOPEN(&f, "test_schema.sql", "w");
   if (f) {
     fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
     fclose(f);
@@ -263,5 +230,3 @@ SUITE(cli_exec_suite) {
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif
-
-static void dummy_suppress_unused_exec(void) { (void)test_unsetenv; }

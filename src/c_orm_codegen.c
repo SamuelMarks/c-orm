@@ -6,6 +6,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_codegen.h"
 #include "c_orm_log.h"
 #include "c_orm_sql.h"
@@ -44,12 +45,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 #if defined(_MSC_VER)
   fopen_s(&fp, schema_file, "rb");
 #else
-#if defined(_MSC_VER)
-  fopen_s(&fp, schema_file, "rb");
-#else
-  fp = fopen(schema_file, "rb");
-#endif
-
+  C_ORM_FOPEN(&fp, schema_file, "rb");
 #endif
   if (!fp) {
     LOG_DEBUG("c_orm_codegen_generate: failed to open schema_file");
@@ -82,38 +78,20 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
   fp = NULL;
 
   if (sql_data) {
-    {
-      c_orm_error_t _err = parse_sql_ddl(sql_data, &tables, &n_tables);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    parse_sql_ddl(sql_data, &tables, &n_tables);
   }
 
   printf("NUM TABLES GENERATED: %d\n", (int)n_tables);
   h_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
   c_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
 
-#if defined(_MSC_VER)
-  sprintf_s(h_path, strlen(output_dir) + 32, "%s/Models.h", output_dir);
-#else
-  sprintf(h_path, "%s/Models.h", output_dir);
-#endif
-
-#if defined(_MSC_VER)
-  sprintf_s(c_path, strlen(output_dir) + 32, "%s/Models.c", output_dir);
-#else
-  sprintf(c_path, "%s/Models.c", output_dir);
-#endif
+  C_ORM_SPRINTF(h_path, strlen(output_dir) + 32, "%s/Models.h", output_dir);
+  C_ORM_SPRINTF(c_path, strlen(output_dir) + 32, "%s/Models.c", output_dir);
 
 #if defined(_MSC_VER)
   fopen_s(&fp, h_path, "wb");
 #else
-#if defined(_MSC_VER)
-  fopen_s(&fp, h_path, "wb");
-#else
-  fp = fopen(h_path, "wb");
-#endif
-
+  C_ORM_FOPEN(&fp, h_path, "wb");
 #endif
   if (fp) {
     fprintf(fp, "#ifndef MODELS_H\n#define MODELS_H\n\n");
@@ -131,18 +109,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     fputs("typedef signed __int64 int64_t;\n", fp);
     fputs("typedef unsigned __int64 uint64_t;\n", fp);
     fputs("# else\n", fp);
-    fputs("#if defined(_MSC_VER) && _MSC_VER < 1600\n", fp);
-    fputs("typedef signed __int8 int8_t;\ntypedef signed __int16 "
-          "int16_t;\ntypedef signed __int32 int32_t;\ntypedef signed __int64 "
-          "int64_t;\n",
-          fp);
-    fputs("typedef unsigned __int8 uint8_t;\ntypedef unsigned __int16 "
-          "uint16_t;\ntypedef unsigned __int32 uint32_t;\ntypedef unsigned "
-          "__int64 uint64_t;\n",
-          fp);
-    fputs("#else\n", fp);
     fputs("#  include <stdint.h>\n", fp);
-    fputs("#endif\n", fp);
     fputs("# endif\n", fp);
     fputs("#  ifndef __cplusplus\n", fp);
     fputs("#   ifndef _STDBOOL_H\n", fp);
@@ -164,16 +131,10 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     fputs("# endif\n", fp);
     fputs("#endif\n", fp);
     fputs("#include <stddef.h>\n", fp);
-    fputs("/* clang-format "
-          "on */\n\n",
-          fp);
+    fputs("/* clang-format on */\n\n", fp);
 
     for (i = 0; i < n_tables; ++i) {
-      {
-        c_orm_error_t _err = sql_to_c_header_emit(fp, &tables[i]);
-        if (_err != C_ORM_OK)
-          return _err;
-      }
+      sql_to_c_header_emit(fp, &tables[i]);
     }
     fprintf(fp, "#endif\n");
     fclose(fp);
@@ -187,12 +148,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 #if defined(_MSC_VER)
   fopen_s(&fp, c_path, "wb");
 #else
-#if defined(_MSC_VER)
-  fopen_s(&fp, c_path, "wb");
-#else
-  fp = fopen(c_path, "wb");
-#endif
-
+  C_ORM_FOPEN(&fp, c_path, "wb");
 #endif
   if (fp) {
     fprintf(fp, "/* clang-format "
@@ -204,11 +160,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     fprintf(fp, "/* clang-format "
                 "on */\n\n");
     for (i = 0; i < n_tables; ++i) {
-      {
-        c_orm_error_t _err = sql_to_c_source_emit(fp, &tables[i], "Models.h");
-        if (_err != C_ORM_OK)
-          return _err;
-      }
+      sql_to_c_source_emit(fp, &tables[i], "Models.h");
     }
     fclose(fp);
     fp = NULL;

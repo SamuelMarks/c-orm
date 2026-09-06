@@ -9,6 +9,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "hydrate_router.h"
 #include <stdlib.h>
 #include "c_orm_meta.h"
@@ -16,14 +17,14 @@
 /* clang-format on */
 
 #if defined(_MSC_VER)
-#define C_ORM_THREAD_LOCAL __declspec(thread)
+#define CDD_C_THREAD_LOCAL __declspec(thread)
 #elif defined(__GNUC__) || defined(__clang__)
-#define C_ORM_THREAD_LOCAL __thread
+#define CDD_C_THREAD_LOCAL __thread
 #else
-#define C_ORM_THREAD_LOCAL
+#define CDD_C_THREAD_LOCAL
 #endif
 
-static C_ORM_THREAD_LOCAL char cdd_c_hydrate_error_msg[512] = {0};
+static CDD_C_THREAD_LOCAL char cdd_c_hydrate_error_msg[512] = {0};
 
 c_orm_error_t cdd_c_hydrate_router_get_last_error(const char **out_msg) {
   if (!out_msg)
@@ -54,13 +55,8 @@ c_orm_error_t cdd_c_hydrate_router_set_last_error(const char *msg) {
 
     cdd_c_hydrate_error_msg[0] = '\0';
   } else {
-#if defined(_MSC_VER)
-    strncpy_s(cdd_c_hydrate_error_msg, sizeof(cdd_c_hydrate_error_msg), msg,
-              sizeof(cdd_c_hydrate_error_msg) - 1);
-#else
-    strncpy(cdd_c_hydrate_error_msg, msg, sizeof(cdd_c_hydrate_error_msg) - 1);
-#endif
-
+    C_ORM_STRNCPY(cdd_c_hydrate_error_msg, sizeof(cdd_c_hydrate_error_msg), msg,
+                  sizeof(cdd_c_hydrate_error_msg) - 1);
     cdd_c_hydrate_error_msg[sizeof(cdd_c_hydrate_error_msg) - 1] = '\0';
   }
   return C_ORM_OK;

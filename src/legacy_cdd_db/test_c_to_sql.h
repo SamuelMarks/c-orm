@@ -13,6 +13,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_c_to_sql.h"
 #include <string.h>
 #include <stdlib.h>
@@ -27,60 +28,22 @@ TEST test_write_struct_to_sql_create_table(void) {
 
   memset(buf, 0, sizeof(buf));
   memset(fields, 0, sizeof(fields));
-#if defined(_MSC_VER)
-  strcpy_s(fields[0].name, sizeof(fields[0].name), "id");
-#else
-  strcpy(fields[0].name, "id");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[0].type, sizeof(fields[0].type), "integer");
-#else
-  strcpy(fields[0].type, "integer");
-#endif
-
+  C_ORM_STRCPY(fields[0].name, sizeof(fields[0].name), "id");
+  C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "integer");
   fields[0].required = 1;
 
-#if defined(_MSC_VER)
-  strcpy_s(fields[1].name, sizeof(fields[1].name), "username");
-#else
-  strcpy(fields[1].name, "username");
-#endif
+  C_ORM_STRCPY(fields[1].name, sizeof(fields[1].name), "username");
+  C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "string");
+  C_ORM_STRCPY(fields[1].description, sizeof(fields[1].description),
+               "@unique @notnull");
 
-#if defined(_MSC_VER)
-  strcpy_s(fields[1].type, sizeof(fields[1].type), "string");
-#else
-  strcpy(fields[1].type, "string");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[1].description, sizeof(fields[1].description),
-           "@unique @notnull");
-#else
-  strcpy(fields[1].description, "@unique @notnull");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[2].name, sizeof(fields[2].name), "company_id");
-#else
-  strcpy(fields[2].name, "company_id");
-#endif
-
-#if defined(_MSC_VER)
-  strcpy_s(fields[2].type, sizeof(fields[2].type), "integer");
-#else
-  strcpy(fields[2].type, "integer");
-#endif
+  C_ORM_STRCPY(fields[2].name, sizeof(fields[2].name), "company_id");
+  C_ORM_STRCPY(fields[2].type, sizeof(fields[2].type), "integer");
 
   sf.size = 3;
   sf.fields = fields;
 
-#if defined(_MSC_VER)
-  fopen_s(&fp, "test_c_to_sql.txt", "w+");
-#else
-  fp = fopen("test_c_to_sql.txt", "w+");
-#endif
-
+  C_ORM_FOPEN(&fp, "test_c_to_sql.txt", "w+");
   ASSERT(fp != NULL);
 
   rc = write_struct_to_sql_create_table(fp, "users", &sf,

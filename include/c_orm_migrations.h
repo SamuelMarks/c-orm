@@ -8,10 +8,6 @@
 #ifndef C_ORM_MIGRATIONS_H
 #define C_ORM_MIGRATIONS_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_api.h"
 #if defined(_MSC_VER)
@@ -33,6 +29,10 @@ typedef unsigned __int64 uint64_t;
 #include <stddef.h>
 #include "cdd_c_orm_meta.h"
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Representation of a single migration.
@@ -180,9 +180,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
  */
 C_ORM_EXPORT void c_orm_migration_free_table_schema(cdd_c_meta_t *schema);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_ORM_MIGRATIONS_H */
 
 #if defined(__clang__) || defined(__GNUC__)

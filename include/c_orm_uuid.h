@@ -8,13 +8,13 @@
 #ifndef C_ORM_UUID_H
 #define C_ORM_UUID_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_api.h"
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Generate a random UUID v4 string (Step 169).
@@ -25,9 +25,10 @@ extern "C" {
  */
 C_ORM_EXPORT c_orm_error_t c_orm_uuid_v4(char out_uuid[37]);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_ORM_UUID_H */
 
 #if defined(__clang__) || defined(__GNUC__)

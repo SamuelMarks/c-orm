@@ -13,6 +13,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "abstract_struct.h"
 #include "c_orm_sql.h"
 #include "cdd_c_orm_meta.h"
@@ -35,12 +36,7 @@ TEST test_variant_type_safety(void) {
 
   v2.type = CDD_C_VARIANT_TYPE_STRING;
   v2.value.s_val = (char *)malloc(5);
-#if defined(_MSC_VER)
-  strcpy_s(v2.value.s_val, sizeof(v2.value.s_val), "test");
-#else
-  strcpy(v2.value.s_val, "test");
-#endif
-
+  C_ORM_STRCPY(v2.value.s_val, sizeof(v2.value.s_val), "test");
 
   ASSERT_EQ(CDD_C_VARIANT_TYPE_INT, v1.type);
   ASSERT_EQ(42, v1.value.i_val);
@@ -221,12 +217,7 @@ TEST test_abstract_struct_conversion(void) {
   /* Specific to Abstract */
   specific_in.id = 20;
   specific_in.ratio = 11.1;
-#if defined(_MSC_VER)
-  strcpy_s(specific_in.greeting, sizeof(specific_in.greeting), "Goodbye");
-#else
-  strcpy(specific_in.greeting, "Goodbye");
-#endif
-
+  C_ORM_STRCPY(specific_in.greeting, sizeof(specific_in.greeting), "Goodbye");
 
   ASSERT_EQ(0, cdd_c_specific_to_abstract(&astruct_out, &specific_in, &meta));
   ASSERT_EQ(3, astruct_out.count);
@@ -568,13 +559,8 @@ TEST test_benchmark_hydration(void) {
 
   start = clock();
   for (i = 0; i < ITERATIONS; ++i) {
-#if defined(_MSC_VER)
-    strncpy_s(specific_out.greeting, sizeof(specific_out.greeting), mock_bar,
-              31);
-#else
-    strncpy(specific_out.greeting, mock_bar, 31);
-#endif
-
+    C_ORM_STRNCPY(specific_out.greeting, sizeof(specific_out.greeting),
+                  mock_bar, 31);
     specific_out.greeting[31] = '\0';
     specific_out.id = (int)mock_can;
     /* Normally we'd call a generated specific hydrator here */

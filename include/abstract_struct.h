@@ -19,6 +19,7 @@ extern "C" {
 
 /* clang-format off */
 #include <stddef.h>
+#include "c_orm_safe_crt.h"
 #include "c_orm_db.h"
 /* clang-format on */
 
@@ -335,6 +336,20 @@ C_ORM_EXPORT c_orm_error_t cdd_c_meta_offsetof(const struct cdd_c_meta *meta,
                                                size_t *out_offset);
 
 /**
+ * @brief Provide reflection utility macro helper checking metadata matching
+ * dynamic row layouts.
+ * @param c_orm_meta meta
+ */
+#define CDD_C_TYPEOF(c_orm_meta) ((c_orm_meta)->name)
+/**
+ * @brief CDD_C_OFFSETOF macro
+ * @param c_orm_meta meta
+ * @param field field
+ */
+#define CDD_C_OFFSETOF(c_orm_meta, field)                                      \
+  cdd_c_meta_offsetof((c_orm_meta), (field))
+
+/**
  * @brief Converts a hydrated specific C struct back into a dynamic abstract
  * dictionary.
  *
@@ -362,9 +377,10 @@ C_ORM_EXPORT c_orm_error_t cdd_c_abstract_to_specific(
     void *out_struct, const cdd_c_abstract_struct_t *in_astruct,
     const struct cdd_c_meta *struct_meta, int strict_mapping);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_CDD_CLASSES_PARSE_ABSTRACT_STRUCT_H */
 
 #if defined(__clang__) || defined(__GNUC__)

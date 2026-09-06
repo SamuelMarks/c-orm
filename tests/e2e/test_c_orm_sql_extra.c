@@ -1,7 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
+#include "c_orm_safe_crt.h"
 #include "c_orm_sql.h"
 #include <greatest.h>
 #include <stddef.h>
@@ -67,7 +67,7 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
       g_malloc_count = 0;
       g_malloc_fail = 1;
 
-      span = az_span_create_from_str((char *)test_strdup(sqls[sql_idx]));
+      span = az_span_create_from_str((char *)sqls[sql_idx]);
       sql_lex(span, &list);
       if (list) {
         struct sql_parse_error_t err_info;
@@ -246,8 +246,7 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
   for (sql_idx = 0; sql_idx < (int)(sizeof(sqls) / sizeof(sqls[0]));
        sql_idx++) {
     for (i = 0; i < 40; i++) {
-      az_span span =
-          az_span_create_from_str((char *)test_strdup(sqls[sql_idx]));
+      az_span span = az_span_create_from_str((char *)sqls[sql_idx]);
       struct sql_token_list_t *list = NULL;
       struct sql_table_t *ast = NULL;
       struct sql_parse_error_t err_info;

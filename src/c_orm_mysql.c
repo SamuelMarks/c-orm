@@ -6,6 +6,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_mysql.h"
 #include "c_orm_log.h"
 #include <stdio.h>
@@ -17,6 +18,18 @@
 /* clang-format on */
 
 #ifdef C_ORM_ENABLE_MYSQL
+
+#if defined(_MSC_VER)
+#define C_ORM_INT64_FORMAT "%I64d"
+#define C_ORM_INT64_CAST __int64
+#elif defined(__x86_64__) || defined(__aarch64__) ||                           \
+    (defined(__APPLE__) && defined(__MACH__))
+#define C_ORM_INT64_FORMAT "%ld"
+#define C_ORM_INT64_CAST long
+#else
+#define C_ORM_INT64_FORMAT "%lld"
+#define C_ORM_INT64_CAST long long
+#endif
 
 /**
  * @brief Internal data for MySQL connection.
@@ -420,12 +433,7 @@ static c_orm_error_t mysql_drv_bind_string(c_orm_query_t *query, int index,
     return (c_orm_error_t)rc;
   }
 
-#if defined(_MSC_VER)
-  strcpy_s((char *)b->buffer, strlen(val) + 1, val);
-#else
-  strcpy((char *)b->buffer, val);
-#endif
-
+  C_ORM_STRCPY((char *)b->buffer, strlen(val) + 1, val);
   b->buffer_length = (unsigned long)strlen(val);
   b->is_null = &query->data->param_is_null[i];
   *b->is_null = 0;

@@ -1,14 +1,11 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
-/* clang-format off */
 #ifndef C_ORM_NO_DISCARD_H
 #define C_ORM_NO_DISCARD_H
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
-
-/* clang-format on */
+#endif
 
 #if defined(__cplusplus) && __cplusplus >= 201703L
 #define NO_DISCARD [[nodiscard]]
@@ -20,9 +17,10 @@ extern "C" {
 #define NO_DISCARD
 #endif
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
-#endif /* __cplusplus */
+#endif
+
 #endif /* C_ORM_NO_DISCARD_H */
 
 #if defined(__clang__) || defined(__GNUC__)

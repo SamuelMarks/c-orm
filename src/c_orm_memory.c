@@ -93,14 +93,7 @@ static c_orm_error_t mem_connect(const char *url, c_orm_db_t **out_db) {
     return (c_orm_error_t)rc;
   }
 
-  {
-    c_orm_error_t _err = c_orm_memory_get_vtable(&vt);
-    if (_err != C_ORM_OK) {
-      C_ORM_FREE(ctx);
-      C_ORM_FREE(db);
-      return _err;
-    }
-  }
+  c_orm_memory_get_vtable(&vt);
   db->vtable = vt;
   db->driver_data = ctx;
   db->driver_name = "memory";

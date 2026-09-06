@@ -2,7 +2,6 @@
 #endif
 
 /* clang-format off */
-#include "test_utils.h"
 #include "c_orm_api.h"
 #include "c_orm_inline_macros.h"
 #include "c_orm_sqlite.h"
@@ -195,7 +194,7 @@ TEST test_inline_macros_crud(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   u.id = 1;
-  u.username = test_strdup("inline_test");
+  u.username = "inline_test";
 
   printf("DEBUG: is_view=%d, query_insert=%p\n",
          (int)InlineUserView_meta.is_view,

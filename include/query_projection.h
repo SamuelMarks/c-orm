@@ -94,9 +94,10 @@ extern C_ORM_EXPORT /**
     c_orm_error_t
     cdd_c_query_projection_free(cdd_c_query_projection_t *proj);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_CDD_CLASSES_PARSE_QUERY_PROJECTION_H */
 
 #if defined(__clang__) || defined(__GNUC__)

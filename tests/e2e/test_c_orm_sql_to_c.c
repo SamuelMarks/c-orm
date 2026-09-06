@@ -1,7 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
+#include "c_orm_safe_crt.h"
 #include "c_orm_sql_to_c.h"
 #include <greatest.h>
 #include <string.h>
@@ -13,11 +13,11 @@ TEST test_sql_to_c_header_emit(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
       "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true);";
-  az_span span = az_span_create_from_str((char *)test_strdup(sql));
+  az_span span = az_span_create_from_str((char *)sql);
   struct sql_token_list_t *list = NULL;
   struct sql_table_t *table = NULL;
   struct sql_parse_error_t err_info;
-  int err;
+  c_orm_error_t err;
 
   char buf[4096];
   FILE *fp;
@@ -28,12 +28,7 @@ TEST test_sql_to_c_header_emit(void) {
   err = sql_parse_table(list, &table, &err_info);
   ASSERT_EQ(0, err);
 
-#if defined(_MSC_VER)
-  tmpfile_s(&fp);
-#else
-  fp = tmpfile();
-#endif
-
+  C_ORM_TMPFILE(&fp);
   ASSERT(fp != NULL);
 
   err = sql_to_c_header_emit(fp, table);
@@ -62,11 +57,11 @@ TEST test_sql_to_c_source_emit(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
       "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true);";
-  az_span span = az_span_create_from_str((char *)test_strdup(sql));
+  az_span span = az_span_create_from_str((char *)sql);
   struct sql_token_list_t *list = NULL;
   struct sql_table_t *table = NULL;
   struct sql_parse_error_t err_info;
-  int err;
+  c_orm_error_t err;
 
   char buf[4096];
   FILE *fp;
@@ -77,12 +72,7 @@ TEST test_sql_to_c_source_emit(void) {
   err = sql_parse_table(list, &table, &err_info);
   ASSERT_EQ(0, err);
 
-#if defined(_MSC_VER)
-  tmpfile_s(&fp);
-#else
-  fp = tmpfile();
-#endif
-
+  C_ORM_TMPFILE(&fp);
   ASSERT(fp != NULL);
 
   err = sql_to_c_source_emit(fp, table, "users.h");
@@ -108,11 +98,7 @@ TEST test_sql_to_c_source_emit(void) {
 TEST test_sql_to_c_errors(void) {
   struct sql_table_t empty_table = {0};
   FILE *fp;
-#if defined(_MSC_VER)
-  fopen_s(&fp, "dummy_err.h", "w");
-#else
-  fp = fopen("dummy_err.h", "w");
-#endif
+  C_ORM_FOPEN(&fp, "dummy_err.h", "w");
 
   ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit(NULL, NULL));
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, sql_to_c_header_emit(fp, &empty_table));
@@ -148,21 +134,16 @@ TEST test_sql_to_c_projections(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
   c_orm_uint64_t out_hash;
-#if defined(_MSC_VER)
-  tmpfile_s(&fp);
-#else
-  fp = tmpfile();
-#endif
-
+  C_ORM_TMPFILE(&fp);
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 2;
   proj.fields = calloc(2, sizeof(*proj.fields));
-  proj.fields[0].name = test_strdup("id");
+  proj.fields[0].name = "id";
   proj.fields[0].type = SQL_TYPE_INT;
   proj.fields[0].is_array = 0;
 
-  proj.fields[1].name = test_strdup("tags");
+  proj.fields[1].name = "tags";
   proj.fields[1].type = SQL_TYPE_VARCHAR;
   proj.fields[1].is_array = 1;
 
@@ -188,17 +169,12 @@ TEST test_sql_to_c_projections(void) {
 TEST test_sql_to_c_polymorphic(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
-#if defined(_MSC_VER)
-  tmpfile_s(&fp);
-#else
-  fp = tmpfile();
-#endif
-
+  C_ORM_TMPFILE(&fp);
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 1;
   proj.fields = calloc(1, sizeof(*proj.fields));
-  proj.fields[0].name = test_strdup("dynamic_field");
+  proj.fields[0].name = "dynamic_field";
   proj.fields[0].type = SQL_TYPE_DOUBLE;
   proj.fields[0].is_array = 0;
 
@@ -213,22 +189,17 @@ TEST test_sql_to_c_polymorphic(void) {
 TEST test_sql_to_c_union(void) {
   FILE *fp;
   cdd_c_query_projection_t projs[2];
-#if defined(_MSC_VER)
-  tmpfile_s(&fp);
-#else
-  fp = tmpfile();
-#endif
-
+  C_ORM_TMPFILE(&fp);
   memset(projs, 0, sizeof(projs));
 
   projs[0].n_fields = 1;
   projs[0].fields = calloc(1, sizeof(cdd_c_query_projection_field_t));
-  projs[0].fields[0].name = test_strdup("branch_0_f");
+  projs[0].fields[0].name = "branch_0_f";
   projs[0].fields[0].type = SQL_TYPE_INT;
 
   projs[1].n_fields = 1;
   projs[1].fields = calloc(1, sizeof(cdd_c_query_projection_field_t));
-  projs[1].fields[0].name = test_strdup("branch_1_f");
+  projs[1].fields[0].name = "branch_1_f";
   projs[1].fields[0].type = SQL_TYPE_VARCHAR;
   projs[1].fields[0].length = 64;
 
@@ -244,12 +215,7 @@ TEST test_sql_to_c_union(void) {
 TEST test_sql_to_c_bitmask_sizes(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
-#if defined(_MSC_VER)
-  tmpfile_s(&fp);
-#else
-  fp = tmpfile();
-#endif
-
+  C_ORM_TMPFILE(&fp);
   memset(&proj, 0, sizeof(proj));
 
   /* 0 fields */
@@ -284,28 +250,23 @@ TEST test_sql_to_c_projection_types(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
   c_orm_uint64_t hash;
-#if defined(_MSC_VER)
-  tmpfile_s(&fp);
-#else
-  fp = tmpfile();
-#endif
-
+  C_ORM_TMPFILE(&fp);
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 4;
   proj.fields = calloc(4, sizeof(*proj.fields));
-  proj.fields[0].name = test_strdup("unknown_field");
+  proj.fields[0].name = "unknown_field";
   proj.fields[0].type = SQL_TYPE_UNKNOWN;
 
-  proj.fields[1].name = test_strdup("float_field");
+  proj.fields[1].name = "float_field";
   proj.fields[1].type = SQL_TYPE_FLOAT;
 
-  proj.fields[2].name = test_strdup("str_no_len");
+  proj.fields[2].name = "str_no_len";
   proj.fields[2].type = SQL_TYPE_VARCHAR;
   proj.fields[2].length = 0;
   proj.fields[2].is_secure = 1;
 
-  proj.fields[3].name = test_strdup("str_with_len");
+  proj.fields[3].name = "str_with_len";
   proj.fields[3].type = SQL_TYPE_VARCHAR;
   proj.fields[3].length = 255;
   proj.fields[3].is_secure = 1;
@@ -324,12 +285,7 @@ TEST test_sql_to_c_edge_cases(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
   cdd_c_query_projection_t projs[1];
-#if defined(_MSC_VER)
-  tmpfile_s(&fp);
-#else
-  fp = tmpfile();
-#endif
-
+  C_ORM_TMPFILE(&fp);
   memset(&proj, 0, sizeof(proj));
   memset(projs, 0, sizeof(projs));
 
@@ -337,14 +293,14 @@ TEST test_sql_to_c_edge_cases(void) {
   proj.fields = calloc(2, sizeof(*proj.fields));
 
   /* Fallback double coverage in type mapping */
-  proj.fields[0].name = test_strdup("dbl_field");
+  proj.fields[0].name = "dbl_field";
   proj.fields[0].type = SQL_TYPE_DOUBLE;
   proj.fields[0].is_array = 0;
 
   /* Force str_to_upper empty */
   /* This is hard to force directly without private API access, but we'll cover
    * other types */
-  proj.fields[1].name = test_strdup("unknown_field");
+  proj.fields[1].name = "unknown_field";
   proj.fields[1].type = SQL_TYPE_DATE; /* maps to C_ORM_TYPE_DATE but no
                                           hydration case explicitly */
 
@@ -376,7 +332,7 @@ TEST test_sql_to_c_edge_cases(void) {
   {
     struct sql_table_t empty_table;
     memset(&empty_table, 0, sizeof(empty_table));
-    empty_table.name = test_strdup("");
+    empty_table.name = "";
     ASSERT_EQ(0, sql_to_c_header_emit(fp, &empty_table));
     ASSERT_EQ(0, sql_to_c_source_emit(fp, &empty_table, "empty.h"));
   }
@@ -387,10 +343,10 @@ TEST test_sql_to_c_edge_cases(void) {
     struct sql_column_t cols[1];
     memset(&nopk_table, 0, sizeof(nopk_table));
     memset(&cols, 0, sizeof(cols));
-    nopk_table.name = test_strdup("nopk");
+    nopk_table.name = "nopk";
     nopk_table.n_columns = 1;
     nopk_table.columns = cols;
-    cols[0].name = test_strdup("id");
+    cols[0].name = "id";
     cols[0].type = SQL_TYPE_INT;
     ASSERT_EQ(0, sql_to_c_source_emit(fp, &nopk_table, "nopk.h"));
   }
@@ -405,15 +361,15 @@ TEST test_sql_to_c_edge_cases(void) {
     unk_proj.n_fields = 3;
     unk_proj.fields = fields;
 
-    fields[0].name = test_strdup("weird_type");
+    fields[0].name = "weird_type";
     fields[0].type = 999; /* Unknown type */
 
-    fields[1].name = test_strdup("unsecured_str");
+    fields[1].name = "unsecured_str";
     fields[1].type = SQL_TYPE_VARCHAR;
     fields[1].length = 0;
     fields[1].is_secure = 0;
 
-    fields[2].name = test_strdup("fixed_str");
+    fields[2].name = "fixed_str";
     fields[2].type = SQL_TYPE_VARCHAR;
     fields[2].length = 128;
     fields[2].is_secure = 0;
@@ -430,7 +386,7 @@ TEST test_sql_to_c_edge_cases(void) {
   {
     cdd_c_query_projection_t table_proj;
     memset(&table_proj, 0, sizeof(table_proj));
-    table_proj.source_table = test_strdup("my_source_table");
+    table_proj.source_table = "my_source_table";
     ASSERT_EQ(
         0, sql_to_c_projection_struct_emit(fp, &table_proj, "TableProj", NULL));
   }

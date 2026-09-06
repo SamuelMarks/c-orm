@@ -8,14 +8,14 @@
 #ifndef C_ORM_AST_H
 #define C_ORM_AST_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_api.h"
 #include <stddef.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Node types for the Query AST.
@@ -507,7 +507,7 @@ C_ORM_EXPORT void c_orm_query_free(c_orm_query_t *query);
 
 #define C_ORM_CAST(col, type) q->cast_(q, (col), (type))
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_AST_H */

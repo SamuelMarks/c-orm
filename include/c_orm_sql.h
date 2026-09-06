@@ -15,8 +15,13 @@ extern "C" {
 /* clang-format off */
 #include "c_orm_db.h"
 #include <stddef.h>
+
+#if defined(__GNUC__) || defined(__clang__)
+#endif
 #include <c_str_span.h>
 /* clang-format on */
+#if defined(__GNUC__) || defined(__clang__)
+#endif
 
 /*
  * Phase 1: AST Node Structs
@@ -246,9 +251,10 @@ C_ORM_EXPORT c_orm_error_t sql_parse_returning(
     const struct sql_token_list_t *list, struct CddCQueryProjection **out_proj,
     struct sql_parse_error_t *out_error);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_CDD_SQL_PARSER_H */
 
 #if defined(__clang__) || defined(__GNUC__)

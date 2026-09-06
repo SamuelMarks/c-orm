@@ -1,8 +1,8 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
 #include "cdd_c_ir.h"
+#include "c_orm_safe_crt.h"
 #include <greatest.h>
 #include <errno.h>
 #include "test_cdd_c_ir_oom.h"
@@ -61,8 +61,8 @@ TEST test_cdd_c_ir_projection(void) {
   cdd_c_ir_t ir;
   cdd_c_query_projection_t proj;
   cdd_c_query_projection_init(&proj);
-  proj.source_table = test_strdup("test");
-  proj.mapping_meta.target_name = test_strdup("test_map");
+  proj.source_table = "test";
+  proj.mapping_meta.target_name = "test_map";
 
   cdd_c_ir_init(&ir);
   ASSERT_EQ(C_ORM_OK, cdd_c_ir_add_projection(&ir, &proj));

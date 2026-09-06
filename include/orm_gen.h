@@ -27,9 +27,10 @@ extern C_ORM_EXPORT /**
     openapi_orm_generate(const struct OpenAPI_Spec *spec,
                          const struct OpenApiClientConfig *config);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_CDD_ROUTES_EMIT_ORM_GEN_H */
 
 #if defined(__clang__) || defined(__GNUC__)

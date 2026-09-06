@@ -39,15 +39,7 @@ def main():
         doc_cov = (doc_decls / total_decls) * 100.0
 
     test_cov = None
-    build_dir = None
-    if os.path.exists("build_gcc"):
-        build_dir = "build_gcc"
-    elif os.path.exists("build_cygwin"):
-        build_dir = "build_cygwin"
-    elif os.path.exists("build_mingw"):
-        build_dir = "build_mingw"
-
-    if is_tool("gcovr") and build_dir:
+    if os.name != "nt" and is_tool("gcovr") and os.path.exists("build_gcc"):
         res = subprocess.run(
             [
                 "gcovr",
@@ -57,7 +49,7 @@ def main():
                 "--gcov-ignore-parse-errors=all",
                 "--print-summary",
             ],
-            cwd=build_dir,
+            cwd="build_gcc",
             capture_output=True,
             text=True,
         )
@@ -92,13 +84,6 @@ def main():
     if os.path.exists("README.md"):
         with open("README.md", "r", encoding="utf-8") as f:
             readme = f.read()
-
-        if test_cov is None:
-            existing_match = re.search(r"(\[!\[Test Coverage\]\(.*?\)\]\(.*?\))", readme)
-            if existing_match:
-                test_shield = existing_match.group(1)
-            else:
-                test_shield = "[![Test Coverage](https://img.shields.io/badge/coverage-unknown-lightgrey.svg)](#)"
 
         readme = re.sub(r"\[!\[Doc Coverage\]\(.*?\)\]\(.*?\)\n?", "", readme)
         readme = re.sub(r"\[!\[Test Coverage\]\(.*?\)\]\(.*?\)\n?", "", readme)

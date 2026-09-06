@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
 #include "c_orm_ast.h"
 #include "c_orm_uuid.h"
 #include "greatest.h"
@@ -25,7 +24,7 @@ static void *my_test_malloc(size_t size) {
 TEST test_arena_coverage(void) {
   c_orm_arena_t *arena = NULL;
   void *ptr = NULL;
-  int rc;
+  c_orm_error_t rc;
 
 #ifdef C_ORM_TEST_ALLOCATOR
   void *(*old_malloc)(size_t) = c_orm_malloc;

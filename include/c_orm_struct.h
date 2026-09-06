@@ -12,14 +12,14 @@
 #ifndef C_ORM_STRUCT_H
 #define C_ORM_STRUCT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_meta.h"
 #include <stddef.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Internal helper to generate a C struct field definition.
@@ -349,9 +349,10 @@ extern "C" {
       STRUCT_NAME##_relations,                                                 \
       sizeof(STRUCT_NAME##_relations) / sizeof(STRUCT_NAME##_relations[0])};
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_ORM_STRUCT_H */
 
 #if defined(__clang__) || defined(__GNUC__)

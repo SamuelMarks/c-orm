@@ -6,6 +6,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_migrations.h"
 #include "c_orm_sqlite.h"
@@ -80,11 +81,9 @@ static c_orm_error_t log_cb(const char *msg) {
  * @return 0 on success, non-zero on failure.
  */
 int main(int argc, char **argv) {
-#if defined(_MSC_VER)
-  char *env_db_str = NULL;
-#endif
   c_orm_error_t rc;
   const char *command = NULL;
+  char db_str_buf[1024];
   const char *db_str = NULL;
 
   const char *dir_path = "./migrations";
@@ -110,15 +109,10 @@ int main(int argc, char **argv) {
 #endif
   LOG_DEBUG("main: entry");
 
-#if defined(_MSC_VER)
-  {
-    size_t sz = 0;
-    _dupenv_s(&env_db_str, &sz, "C_ORM_DB_URL");
-    db_str = env_db_str;
+  C_ORM_GETENV(db_str_buf, sizeof(db_str_buf), "C_ORM_DB_URL");
+  if (db_str_buf[0] != '\0') {
+    db_str = db_str_buf;
   }
-#else
-  db_str = getenv("C_ORM_DB_URL");
-#endif
 
   if (argc < 2) {
     print_usage(argv[0]);
@@ -163,25 +157,11 @@ int main(int argc, char **argv) {
       goto cleanup;
     }
 
-#if defined(_MSC_VER)
-    sprintf_s(up_file, sizeof(up_file), "%s/%s.up.sql", dir_path, arg_name);
-#else
-    sprintf(up_file, "%s/%s.up.sql", dir_path, arg_name);
-#endif
+    C_ORM_SPRINTF(up_file, sizeof(up_file), "%s/%s.up.sql", dir_path, arg_name);
+    C_ORM_SPRINTF(down_file, sizeof(down_file), "%s/%s.down.sql", dir_path,
+                  arg_name);
 
-#if defined(_MSC_VER)
-    sprintf_s(down_file, sizeof(down_file), "%s/%s.down.sql", dir_path,
-              arg_name);
-#else
-    sprintf(down_file, "%s/%s.down.sql", dir_path, arg_name);
-#endif
-
-#if defined(_MSC_VER)
-    fopen_s(&fp, up_file, "w");
-#else
-    fp = fopen(up_file, "w");
-#endif
-
+    C_ORM_FOPEN(&fp, up_file, "w");
     if (fp) {
       fclose(fp);
       printf("Created %s\n", up_file);
@@ -189,12 +169,7 @@ int main(int argc, char **argv) {
       LOG_DEBUG("main: OOM or IO error opening up_file");
     }
 
-#if defined(_MSC_VER)
-    fopen_s(&fp, down_file, "w");
-#else
-    fp = fopen(down_file, "w");
-#endif
-
+    C_ORM_FOPEN(&fp, down_file, "w");
     if (fp) {
       fclose(fp);
       printf("Created %s\n", down_file);
@@ -259,11 +234,7 @@ int main(int argc, char **argv) {
 
     err = c_orm_migration_load_dir(dir_path, &migs, &migs_count);
     if (err == C_ORM_OK && migs_count > 0) {
-      {
-        c_orm_error_t _err = c_orm_migrate_all(db, migs, migs_count, &opts);
-        if (_err != C_ORM_OK)
-          return _err;
-      }
+      c_orm_migrate_all(db, migs, migs_count, &opts);
       c_orm_migration_free_array(migs, migs_count);
     } else {
       printf("No pending migrations found in %s\n", dir_path);
@@ -300,11 +271,7 @@ int main(int argc, char **argv) {
       goto cleanup;
     }
 
-    {
-      c_orm_error_t _err = c_orm_migration_init_table(db);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    c_orm_migration_init_table(db);
 
     err = c_orm_migration_get_applied(db, &applied, &count);
     if (err == C_ORM_OK) {
@@ -341,9 +308,6 @@ int main(int argc, char **argv) {
   LOG_DEBUG("main: exit");
   printf("RETURNING RC %d\n", rc);
 cleanup:
-#if defined(_MSC_VER)
-  free(env_db_str);
-#endif
   return rc;
 }
 

@@ -35,16 +35,26 @@ if(WIN32 AND BUILD_SHARED_LIBS)
     endif()
 
     string(REPLACE ";" "\\;" CDD_C_PATH_ENV_ESCAPED "${CDD_C_PATH_ENV}")
-    set(RUN_ENV_VARS PATH="$<TARGET_FILE_DIR:c-orm>\;${CDD_C_PATH_ENV_ESCAPED}\;C:/msys64/mingw64/bin")
+    set(RUN_ENV_VARS PATH="${CDD_C_PATH_ENV_ESCAPED}")
     if(CMAKE_CROSSCOMPILING AND CMAKE_CROSSCOMPILING_EMULATOR MATCHES "wine")
     endif()
 
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-        COMMAND ${CLI_CMD} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
-        DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
-        COMMENT "Generating C Models from schema.sql using c-orm-cli..."
-    )
+    if (CMAKE_CROSSCOMPILING_EMULATOR MATCHES "wine")
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
+            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/pregen/Models.c" "${CMAKE_CURRENT_BINARY_DIR}/Models.c"
+            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/pregen/Models.h" "${CMAKE_CURRENT_BINARY_DIR}/Models.h"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/pregen/Models.c" "${CMAKE_CURRENT_SOURCE_DIR}/pregen/Models.h"
+            COMMENT "Using pre-generated C Models for Wine MSVC Shared build..."
+        )
+    else()
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
+            COMMAND ${CMAKE_COMMAND} -E env ${RUN_ENV_VARS} ${CLI_CMD} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+            DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
+            COMMENT "Generating C Models from schema.sql using c-orm-cli..."
+        )
+    endif()
 else()
     if(CMAKE_CROSSCOMPILING AND CMAKE_CROSSCOMPILING_EMULATOR)
         set(CLI_CMD_STATIC ${CMAKE_CROSSCOMPILING_EMULATOR} $<TARGET_FILE:c-orm-cli>)
@@ -56,12 +66,22 @@ else()
     if(CMAKE_CROSSCOMPILING AND CMAKE_CROSSCOMPILING_EMULATOR MATCHES "wine")
     endif()
 
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
-        COMMAND ${CMAKE_COMMAND} -E env ${RUN_ENV_VARS} ${CLI_CMD_STATIC} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
-        DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
-        COMMENT "Generating C Models from schema.sql using c-orm-cli..."
-    )
+    if (CMAKE_CROSSCOMPILING_EMULATOR MATCHES "wine")
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
+            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/pregen/Models.c" "${CMAKE_CURRENT_BINARY_DIR}/Models.c"
+            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/pregen/Models.h" "${CMAKE_CURRENT_BINARY_DIR}/Models.h"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/pregen/Models.c" "${CMAKE_CURRENT_SOURCE_DIR}/pregen/Models.h"
+            COMMENT "Using pre-generated C Models for Wine MSVC build..."
+        )
+    else()
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c
+            COMMAND ${CMAKE_COMMAND} -E env ${RUN_ENV_VARS} ${CLI_CMD_STATIC} sql2c "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql" "${CMAKE_CURRENT_BINARY_DIR}"
+            DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
+            COMMENT "Generating C Models from schema.sql using c-orm-cli..."
+        )
+    endif()
     endif()
 
     add_library(e2e_models STATIC "${CMAKE_CURRENT_BINARY_DIR}/Models.c")
@@ -108,6 +128,11 @@ target_include_directories(c_orm_e2e_tests PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
     ${GREATEST_H_DIR}
 )
+
+if(C_ORM_STRICT_OPTIONS)
+    target_compile_options(c_orm_e2e_tests PRIVATE ${C_ORM_STRICT_OPTIONS})
+    target_compile_options(e2e_models PRIVATE ${C_ORM_STRICT_OPTIONS})
+endif()
 
 if(MSVC)
 endif()

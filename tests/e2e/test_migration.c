@@ -1,7 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
+#include "c_orm_safe_crt.h"
 #include "migration.h"
 #include "migration_runner.h"
 #include "functions/parse/fs.h"
@@ -19,9 +19,9 @@ TEST test_parse_migration_file_valid(void) {
                         "-- DOWN\n"
                         "DROP TABLE test;\n";
   struct MigrationStatements stmts;
-  int rc;
+  c_orm_error_t rc;
 
-  rc = fs_write_to_file(filename, content);
+  rc = (c_orm_error_t)fs_write_to_file(filename, content);
   ASSERT_EQ(0, rc);
 
   rc = parse_migration_file(filename, &stmts);
@@ -41,9 +41,9 @@ TEST test_parse_migration_file_no_down(void) {
   const char *content = "-- UP\n"
                         "CREATE TABLE test2 (id INT);\n";
   struct MigrationStatements stmts;
-  int rc;
+  c_orm_error_t rc;
 
-  rc = fs_write_to_file(filename, content);
+  rc = (c_orm_error_t)fs_write_to_file(filename, content);
   ASSERT_EQ(0, rc);
 
   rc = parse_migration_file(filename, &stmts);
@@ -61,9 +61,9 @@ TEST test_parse_migration_file_no_markers(void) {
   const char *filename = "test_no_markers.sql";
   const char *content = "CREATE TABLE test3 (id INT);\n";
   struct MigrationStatements stmts;
-  int rc;
+  c_orm_error_t rc;
 
-  rc = fs_write_to_file(filename, content);
+  rc = (c_orm_error_t)fs_write_to_file(filename, content);
   ASSERT_EQ(0, rc);
 
   rc = parse_migration_file(filename, &stmts);
@@ -82,9 +82,9 @@ TEST test_parse_migration_file_no_up(void) {
   const char *content = "-- DOWN\n"
                         "DROP TABLE test3;\n";
   struct MigrationStatements stmts;
-  int rc;
+  c_orm_error_t rc;
 
-  rc = fs_write_to_file(filename, content);
+  rc = (c_orm_error_t)fs_write_to_file(filename, content);
   ASSERT_EQ(0, rc);
 
   rc = parse_migration_file(filename, &stmts);
@@ -105,9 +105,9 @@ TEST test_parse_migration_file_inverted_markers(void) {
                         "-- UP\n"
                         "CREATE TABLE test3 (id INT);\n";
   struct MigrationStatements stmts;
-  int rc;
+  c_orm_error_t rc;
 
-  rc = fs_write_to_file(filename, content);
+  rc = (c_orm_error_t)fs_write_to_file(filename, content);
   ASSERT_EQ(0, rc);
 
   rc = parse_migration_file(filename, &stmts);
@@ -202,9 +202,9 @@ TEST test_parse_migration_file_empty_blocks(void) {
   const char *filename = "test_empty_blocks.sql";
   const char *content = "-- UP\n-- DOWN\n";
   struct MigrationStatements stmts;
-  int rc;
+  c_orm_error_t rc;
 
-  rc = fs_write_to_file(filename, content);
+  rc = (c_orm_error_t)fs_write_to_file(filename, content);
   ASSERT_EQ(0, rc);
 
   rc = parse_migration_file(filename, &stmts);

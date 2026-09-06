@@ -171,11 +171,7 @@ int main(void) {
       }
     }
 
-    {
-      c_orm_error_t _err = c_orm_free_relations(&user_m, &fetched);
-      if (_err != C_ORM_OK)
-        return 1;
-    }
+    c_orm_free_relations(&user_m, &fetched);
     if (fetched.username)
       free(fetched.username);
   }

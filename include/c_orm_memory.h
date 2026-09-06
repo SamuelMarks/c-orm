@@ -8,14 +8,13 @@
 #ifndef C_ORM_MEMORY_H
 #define C_ORM_MEMORY_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_db.h"
 /* clang-format on */
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 /**
  * @brief Create a new Ephemeral Memory database connection.
  *
@@ -32,7 +31,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_memory_connect(const char *url,
 C_ORM_EXPORT c_orm_error_t
 c_orm_memory_get_vtable(const c_orm_driver_vtable_t **out_vtable);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_MEMORY_H */

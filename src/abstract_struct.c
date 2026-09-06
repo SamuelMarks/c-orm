@@ -8,6 +8,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "abstract_struct.h"
 #include <stdlib.h>
 #include <errno.h>
@@ -142,11 +143,7 @@ cdd_c_abstract_struct_array_free(cdd_c_abstract_struct_array_t *arr) {
     return EINVAL;
   if (arr->items) {
     for (i = 0; i < arr->count; ++i) {
-      {
-        c_orm_error_t _err = cdd_c_abstract_struct_free(&arr->items[i]);
-        if (_err != C_ORM_OK)
-          return _err;
-      }
+      cdd_c_abstract_struct_free(&arr->items[i]);
     }
     cdd_c_free(arr->items);
   }
@@ -208,7 +205,7 @@ cdd_c_abstract_struct_array_to_json(const cdd_c_abstract_struct_array_t *arr,
 
   *out_json = json_serialize_to_string_pretty(root_val);
   json_value_free(root_val);
-  return *out_json ? 0 : -1;
+  return *out_json ? C_ORM_OK : C_ORM_ERROR_UNKNOWN;
 }
 
 c_orm_error_t cdd_c_abstract_struct_init(cdd_c_abstract_struct_t *astruct) {
@@ -314,7 +311,7 @@ static c_orm_error_t copy_variant(cdd_c_variant_t *dest,
 static c_orm_error_t hash_string(const char *str, unsigned long *out_hash) {
   unsigned long hash = 5381;
   int c;
-  while ((c = *str++) != 0) {
+  while ((c = *str++)) {
     hash = ((hash << 5) + hash) + (unsigned long)c; /* hash * 33 + c */
   }
   *out_hash = hash;
@@ -336,11 +333,7 @@ c_orm_error_t cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct,
   for (i = 0; i < astruct->count; ++i) {
     if (astruct->kvs[i].key_hash == khash &&
         strcmp(astruct->kvs[i].key, key) == 0) {
-      {
-        c_orm_error_t _err = cdd_c_variant_free(&astruct->kvs[i].value);
-        if (_err != C_ORM_OK)
-          return _err;
-      }
+      cdd_c_variant_free(&astruct->kvs[i].value);
       return copy_variant(&astruct->kvs[i].value, value);
     }
   }
@@ -397,19 +390,11 @@ cdd_c_abstract_struct_deep_copy(cdd_c_abstract_struct_t *dest,
   if (!dest || !src)
     return EINVAL;
 
-  {
-    c_orm_error_t _err = cdd_c_abstract_struct_init(dest);
-    if (_err != C_ORM_OK)
-      return _err;
-  }
+  cdd_c_abstract_struct_init(dest);
 
   for (i = 0; i < src->count; ++i) {
     if (cdd_c_abstract_set(dest, src->kvs[i].key, &src->kvs[i].value) != 0) {
-      {
-        c_orm_error_t _err = cdd_c_abstract_struct_free(dest);
-        if (_err != C_ORM_OK)
-          return _err;
-      }
+      cdd_c_abstract_struct_free(dest);
       return EINVAL;
     }
   }
@@ -423,11 +408,7 @@ c_orm_error_t cdd_c_abstract_struct_free(cdd_c_abstract_struct_t *astruct) {
 
   for (i = 0; i < astruct->count; ++i) {
     cdd_c_free(astruct->kvs[i].key);
-    {
-      c_orm_error_t _err = cdd_c_variant_free(&astruct->kvs[i].value);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_variant_free(&astruct->kvs[i].value);
   }
   cdd_c_free(astruct->kvs);
   astruct->kvs = NULL;
@@ -532,11 +513,7 @@ cdd_c_abstract_struct_from_json(const char *json_str,
   if (!json_str || !out_astruct)
     return EINVAL;
 
-  {
-    c_orm_error_t _err = cdd_c_abstract_struct_init(out_astruct);
-    if (_err != C_ORM_OK)
-      return _err;
-  }
+  cdd_c_abstract_struct_init(out_astruct);
 
   root_val = json_parse_string(json_str);
   if (!root_val)
@@ -544,11 +521,7 @@ cdd_c_abstract_struct_from_json(const char *json_str,
 
   if (json_value_get_type(root_val) != JSONObject) {
     json_value_free(root_val);
-    {
-      c_orm_error_t _err = cdd_c_abstract_struct_free(out_astruct);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_struct_free(out_astruct);
     return EINVAL;
   }
 
@@ -565,7 +538,7 @@ cdd_c_abstract_struct_from_json(const char *json_str,
     switch (json_value_get_type(val)) {
     case JSONString:
       variant.type = CDD_C_VARIANT_TYPE_STRING;
-      variant.value.s_val = (char *)(size_t)json_value_get_string(val);
+      variant.value.s_val = (char *)json_value_get_string(val);
       break;
     case JSONNumber: {
       double num = json_value_get_number(val);
@@ -590,11 +563,7 @@ cdd_c_abstract_struct_from_json(const char *json_str,
 
     if (cdd_c_abstract_set(out_astruct, key, &variant) != 0) {
       json_value_free(root_val);
-      {
-        c_orm_error_t _err = cdd_c_abstract_struct_free(out_astruct);
-        if (_err != C_ORM_OK)
-          return _err;
-      }
+      cdd_c_abstract_struct_free(out_astruct);
       return EINVAL;
     }
   }
@@ -646,11 +615,7 @@ c_orm_error_t cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
     }
 
     if (cdd_c_abstract_set(out_astruct, col->name, &variant) != 0) {
-      {
-        c_orm_error_t _err = cdd_c_abstract_struct_free(out_astruct);
-        if (_err != C_ORM_OK)
-          return _err;
-      }
+      cdd_c_abstract_struct_free(out_astruct);
       return EINVAL;
     }
   }
@@ -667,11 +632,7 @@ cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
   if (!out_astruct || !s)
     return EINVAL;
 
-  {
-    c_orm_error_t _err = cdd_c_abstract_struct_init(out_astruct);
-    if (_err != C_ORM_OK)
-      return _err;
-  }
+  cdd_c_abstract_struct_init(out_astruct);
 
   n_cols = sqlite3_column_count(s);
   for (i = 0; i < n_cols; ++i) {
@@ -708,11 +669,7 @@ cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
     }
 
     if (cdd_c_abstract_set(out_astruct, col_name, &variant) != 0) {
-      {
-        c_orm_error_t _err = cdd_c_abstract_struct_free(out_astruct);
-        if (_err != C_ORM_OK)
-          return _err;
-      }
+      cdd_c_abstract_struct_free(out_astruct);
       return EINVAL;
     }
   }
@@ -732,11 +689,7 @@ c_orm_error_t cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
   if (!out_astruct || !pq_res)
     return EINVAL;
 
-  {
-    c_orm_error_t _err = cdd_c_abstract_struct_init(out_astruct);
-    if (_err != C_ORM_OK)
-      return _err;
-  }
+  cdd_c_abstract_struct_init(out_astruct);
 
   n_cols = PQnfields(pq_res);
   for (i = 0; i < n_cols; ++i) {
@@ -752,12 +705,7 @@ c_orm_error_t cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
 
       if (type == 20 || type == 21 || type == 23) { /* int8, int2, int4 */
         variant.type = CDD_C_VARIANT_TYPE_INT;
-#if defined(_MSC_VER)
-        variant.value.i_val = _strtoi64(val_str, NULL, 10);
-#else
-        variant.value.i_val = strtoll(val_str, NULL, 10);
-#endif
-
+        variant.value.i_val = C_ORM_STRTOLL(val_str, NULL, 10);
       } else if (type == 16) { /* bool */
         variant.type = CDD_C_VARIANT_TYPE_INT;
         variant.value.i_val = (val_str[0] == 't') ? 1 : 0;
@@ -776,11 +724,7 @@ c_orm_error_t cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
           set_res = cdd_c_abstract_set(out_astruct, col_name, &variant);
           PQfreemem(unescaped);
           if (set_res != 0) {
-            {
-              c_orm_error_t _err = cdd_c_abstract_struct_free(out_astruct);
-              if (_err != C_ORM_OK)
-                return _err;
-            }
+            cdd_c_abstract_struct_free(out_astruct);
             return EINVAL;
           }
           continue;
@@ -795,11 +739,7 @@ c_orm_error_t cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
     }
 
     if (cdd_c_abstract_set(out_astruct, col_name, &variant) != 0) {
-      {
-        c_orm_error_t _err = cdd_c_abstract_struct_free(out_astruct);
-        if (_err != C_ORM_OK)
-          return _err;
-      }
+      cdd_c_abstract_struct_free(out_astruct);
       return EINVAL;
     }
   }
@@ -822,11 +762,7 @@ c_orm_error_t cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
   if (!out_astruct || !mysql_row || !mysql_fields)
     return EINVAL;
 
-  {
-    c_orm_error_t _err = cdd_c_abstract_struct_init(out_astruct);
-    if (_err != C_ORM_OK)
-      return _err;
-  }
+  cdd_c_abstract_struct_init(out_astruct);
 
   for (i = 0; i < num_fields; ++i) {
     cdd_c_variant_t variant;
@@ -846,12 +782,7 @@ c_orm_error_t cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
       case MYSQL_TYPE_YEAR:
       case MYSQL_TYPE_BIT:
         variant.type = CDD_C_VARIANT_TYPE_INT;
-#if defined(_MSC_VER)
-        variant.value.i_val = _strtoi64(val_str, NULL, 10);
-#else
-        variant.value.i_val = strtoll(val_str, NULL, 10);
-#endif
-
+        variant.value.i_val = C_ORM_STRTOLL(val_str, NULL, 10);
         break;
       case MYSQL_TYPE_DECIMAL:
       case MYSQL_TYPE_NEWDECIMAL:
@@ -876,11 +807,7 @@ c_orm_error_t cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
     }
 
     if (cdd_c_abstract_set(out_astruct, col_name, &variant) != 0) {
-      {
-        c_orm_error_t _err = cdd_c_abstract_struct_free(out_astruct);
-        if (_err != C_ORM_OK)
-          return _err;
-      }
+      cdd_c_abstract_struct_free(out_astruct);
       return EINVAL;
     }
   }
@@ -918,11 +845,7 @@ c_orm_error_t cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
   if (!out_astruct || !in_struct || !meta)
     return EINVAL;
 
-  {
-    c_orm_error_t _err = cdd_c_abstract_struct_init(out_astruct);
-    if (_err != C_ORM_OK)
-      return _err;
-  }
+  cdd_c_abstract_struct_init(out_astruct);
 
   for (i = 0; i < meta->num_props; ++i) {
     const cdd_c_prop_meta_t *prop = &meta->props[i];
@@ -931,36 +854,30 @@ c_orm_error_t cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
 
     if (strcmp(prop->type, "C_ORM_TYPE_INT32") == 0) {
       val.type = CDD_C_VARIANT_TYPE_INT;
-      memcpy(&val.value.i_val, (char *)(size_t)in_struct + prop->offset,
-             sizeof(int));
+      memcpy(&val.value.i_val, (char *)in_struct + prop->offset, sizeof(int));
     } else if (strcmp(prop->type, "C_ORM_TYPE_INT64") == 0) {
       val.type = CDD_C_VARIANT_TYPE_INT;
-      memcpy(&val.value.i_val, (char *)(size_t)in_struct + prop->offset,
+      memcpy(&val.value.i_val, (char *)in_struct + prop->offset,
              sizeof(c_orm_int64_t));
     } else if (strcmp(prop->type, "C_ORM_TYPE_FLOAT") == 0) {
       val.type = CDD_C_VARIANT_TYPE_FLOAT;
-      memcpy(&val.value.f_val, (char *)(size_t)in_struct + prop->offset,
-             sizeof(float));
+      memcpy(&val.value.f_val, (char *)in_struct + prop->offset, sizeof(float));
     } else if (strcmp(prop->type, "C_ORM_TYPE_DOUBLE") == 0) {
       val.type = CDD_C_VARIANT_TYPE_FLOAT;
-      memcpy(&val.value.f_val, (char *)(size_t)in_struct + prop->offset,
+      memcpy(&val.value.f_val, (char *)in_struct + prop->offset,
              sizeof(double));
     } else if (strcmp(prop->type, "C_ORM_TYPE_STRING") == 0) {
       val.type = CDD_C_VARIANT_TYPE_STRING;
       if (prop->length > 0) {
-        val.value.s_val = (char *)(size_t)in_struct + prop->offset;
+        val.value.s_val = (char *)in_struct + prop->offset;
       } else {
-        memcpy(&val.value.s_val, (char *)(size_t)in_struct + prop->offset,
+        memcpy(&val.value.s_val, (char *)in_struct + prop->offset,
                sizeof(char *));
       }
     }
 
     if (cdd_c_abstract_set(out_astruct, prop->name, &val) != 0) {
-      {
-        c_orm_error_t _err = cdd_c_abstract_struct_free(out_astruct);
-        if (_err != C_ORM_OK)
-          return _err;
-      }
+      cdd_c_abstract_struct_free(out_astruct);
       return EINVAL;
     }
   }
@@ -1021,14 +938,8 @@ c_orm_error_t cdd_c_abstract_to_specific(
     } else if (strcmp(prop->type, "C_ORM_TYPE_STRING") == 0) {
       if (val->type == CDD_C_VARIANT_TYPE_STRING) {
         if (prop->length > 0) {
-#if defined(_MSC_VER)
-          strncpy_s((char *)out_struct + prop->offset, prop->length,
-                    val->value.s_val, prop->length - 1);
-#else
-          strncpy((char *)out_struct + prop->offset, val->value.s_val,
-                  prop->length - 1);
-#endif
-
+          C_ORM_STRNCPY((char *)out_struct + prop->offset, prop->length,
+                        val->value.s_val, prop->length - 1);
           ((char *)out_struct + prop->offset)[prop->length - 1] = '\0';
         } else {
           {
@@ -1056,12 +967,7 @@ cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
   if (!db || !table_name || !out_schema)
     return EINVAL;
 
-#if defined(_MSC_VER)
-  sprintf_s(query, sizeof(query), "PRAGMA table_info('%s')", table_name);
-#else
-  sprintf(query, "PRAGMA table_info('%s')", table_name);
-#endif
-
+  C_ORM_SPRINTF(query, sizeof(query), "PRAGMA table_info('%s')", table_name);
   if (sqlite3_prepare_v2(sql_db, query, -1, &stmt, NULL) != SQLITE_OK) {
     return EINVAL;
   }
@@ -1070,50 +976,25 @@ cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
     cdd_c_abstract_struct_t col_def;
     cdd_c_variant_t v_name, v_type, v_notnull, v_pk;
 
-    {
-      c_orm_error_t _err = cdd_c_abstract_struct_init(&col_def);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_struct_init(&col_def);
 
     v_name.type = CDD_C_VARIANT_TYPE_STRING;
     v_name.value.s_val = (char *)sqlite3_column_text(stmt, 1);
-    {
-      c_orm_error_t _err = cdd_c_abstract_set(&col_def, "name", &v_name);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_set(&col_def, "name", &v_name);
 
     v_type.type = CDD_C_VARIANT_TYPE_STRING;
     v_type.value.s_val = (char *)sqlite3_column_text(stmt, 2);
-    {
-      c_orm_error_t _err = cdd_c_abstract_set(&col_def, "type", &v_type);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_set(&col_def, "type", &v_type);
 
     v_notnull.type = CDD_C_VARIANT_TYPE_INT;
     v_notnull.value.i_val = sqlite3_column_int(stmt, 3);
-    {
-      c_orm_error_t _err = cdd_c_abstract_set(&col_def, "notnull", &v_notnull);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_set(&col_def, "notnull", &v_notnull);
 
     v_pk.type = CDD_C_VARIANT_TYPE_INT;
     v_pk.value.i_val = sqlite3_column_int(stmt, 5);
-    {
-      c_orm_error_t _err = cdd_c_abstract_set(&col_def, "pk", &v_pk);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_set(&col_def, "pk", &v_pk);
 
-    {
-      c_orm_error_t _err =
-          cdd_c_abstract_struct_array_append(out_schema, &col_def);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_struct_array_append(out_schema, &col_def);
   }
   sqlite3_finalize(stmt);
   return 0;
@@ -1137,18 +1018,10 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
   if (!conn || !table_name || !out_schema)
     return EINVAL;
 
-#if defined(_MSC_VER)
-  sprintf_s(query, sizeof(query),
-            "SELECT column_name, data_type, is_nullable FROM "
-            "information_schema.columns WHERE table_name = '%s';",
-            table_name);
-#else
-  sprintf(query,
-          "SELECT column_name, data_type, is_nullable FROM "
-          "information_schema.columns WHERE table_name = '%s';",
-          table_name);
-#endif
-
+  C_ORM_SPRINTF(query, sizeof(query),
+                "SELECT column_name, data_type, is_nullable FROM "
+                "information_schema.columns WHERE table_name = '%s';",
+                table_name);
   res = PQexec(pq_conn, query);
   if (PQresultStatus(res) != PGRES_TUPLES_OK) {
     PQclear(res);
@@ -1161,11 +1034,7 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
     cdd_c_variant_t v_name, v_type, v_notnull;
     char *name_val, *type_val, *is_nullable_val;
 
-    {
-      c_orm_error_t _err = cdd_c_abstract_struct_init(&col_def);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_struct_init(&col_def);
 
     name_val = PQgetvalue(res, i, 0);
     type_val = PQgetvalue(res, i, 1);
@@ -1173,35 +1042,18 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
 
     v_name.type = CDD_C_VARIANT_TYPE_STRING;
     v_name.value.s_val = name_val ? name_val : (char *)"";
-    {
-      c_orm_error_t _err = cdd_c_abstract_set(&col_def, "name", &v_name);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_set(&col_def, "name", &v_name);
 
     v_type.type = CDD_C_VARIANT_TYPE_STRING;
     v_type.value.s_val = type_val ? type_val : (char *)"";
-    {
-      c_orm_error_t _err = cdd_c_abstract_set(&col_def, "type", &v_type);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_set(&col_def, "type", &v_type);
 
     v_notnull.type = CDD_C_VARIANT_TYPE_INT;
     v_notnull.value.i_val =
         (is_nullable_val && strcmp(is_nullable_val, "YES") != 0) ? 1 : 0;
-    {
-      c_orm_error_t _err = cdd_c_abstract_set(&col_def, "notnull", &v_notnull);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_set(&col_def, "notnull", &v_notnull);
 
-    {
-      c_orm_error_t _err =
-          cdd_c_abstract_struct_array_append(out_schema, &col_def);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_struct_array_append(out_schema, &col_def);
   }
   PQclear(res);
   return 0;
@@ -1225,12 +1077,7 @@ cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
   if (!conn || !table_name || !out_schema)
     return EINVAL;
 
-#if defined(_MSC_VER)
-  sprintf_s(query, sizeof(query), "SHOW COLUMNS FROM `%s`", table_name);
-#else
-  sprintf(query, "SHOW COLUMNS FROM `%s`", table_name);
-#endif
-
+  C_ORM_SPRINTF(query, sizeof(query), "SHOW COLUMNS FROM `%s`", table_name);
   if (mysql_query(mysql_conn, query)) {
     return EINVAL;
   }
@@ -1248,50 +1095,25 @@ cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
     char *null_val = row[2]; /* YES or NO */
     char *key_val = row[3];  /* PRI, MUL, etc */
 
-    {
-      c_orm_error_t _err = cdd_c_abstract_struct_init(&col_def);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_struct_init(&col_def);
 
     v_name.type = CDD_C_VARIANT_TYPE_STRING;
     v_name.value.s_val = name_val ? name_val : (char *)"";
-    {
-      c_orm_error_t _err = cdd_c_abstract_set(&col_def, "name", &v_name);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_set(&col_def, "name", &v_name);
 
     v_type.type = CDD_C_VARIANT_TYPE_STRING;
     v_type.value.s_val = type_val ? type_val : (char *)"";
-    {
-      c_orm_error_t _err = cdd_c_abstract_set(&col_def, "type", &v_type);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_set(&col_def, "type", &v_type);
 
     v_notnull.type = CDD_C_VARIANT_TYPE_INT;
     v_notnull.value.i_val = (null_val && strcmp(null_val, "YES") != 0) ? 1 : 0;
-    {
-      c_orm_error_t _err = cdd_c_abstract_set(&col_def, "notnull", &v_notnull);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_set(&col_def, "notnull", &v_notnull);
 
     v_pk.type = CDD_C_VARIANT_TYPE_INT;
     v_pk.value.i_val = (key_val && strcmp(key_val, "PRI") == 0) ? 1 : 0;
-    {
-      c_orm_error_t _err = cdd_c_abstract_set(&col_def, "pk", &v_pk);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_set(&col_def, "pk", &v_pk);
 
-    {
-      c_orm_error_t _err =
-          cdd_c_abstract_struct_array_append(out_schema, &col_def);
-      if (_err != C_ORM_OK)
-        return _err;
-    }
+    cdd_c_abstract_struct_array_append(out_schema, &col_def);
   }
   mysql_free_result(res);
   return 0;

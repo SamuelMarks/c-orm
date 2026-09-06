@@ -13,6 +13,7 @@
 #include "cdd_c_orm_meta.h"
 #include <errno.h>
 #include <stdio.h>
+#include "c_orm_safe_crt.h"
 #include <stdlib.h>
 #include <string.h>
 #include "c_cdd/log.h"
@@ -54,18 +55,12 @@ static c_orm_error_t check_db_schema(const struct StructField *field,
         if (fk_end && (size_t)(fk_end - fk_start - 4) < fk_buf_size) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-          strncpy_s(fk_buf, fk_buf_size, fk_start + 4,
-                    (size_t)(fk_end - fk_start - 4));
+          strncpy_s(fk_buf, fk_buf_size, fk_start + 4, fk_end - fk_start - 4);
 #else
-#if defined(_MSC_VER)
-          strncpy_s(fk_buf, (size_t)(fk_end - fk_start - 4 + 1), fk_start + 4,
-                    (size_t)(fk_end - fk_start - 4));
-#else
-          strncpy(fk_buf, fk_start + 4, (size_t)(fk_end - fk_start - 4));
+          C_ORM_STRNCPY(fk_buf, fk_end - fk_start - 4 + 1, fk_start + 4,
+                        fk_end - fk_start - 4);
 #endif
-
-#endif
-          fk_buf[(size_t)(fk_end - fk_start - 4)] = '\0';
+          fk_buf[fk_end - fk_start - 4] = '\0';
         }
       }
     }
@@ -91,12 +86,7 @@ static c_orm_error_t check_db_schema(const struct StructField *field,
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
               strncpy_s(fk_buf, fk_buf_size, fk, fk_buf_size - 1);
 #else
-#if defined(_MSC_VER)
-              strncpy_s(fk_buf, fk_buf_size - 1 + 1, fk, fk_buf_size - 1);
-#else
-              strncpy(fk_buf, fk, fk_buf_size - 1);
-#endif
-
+              C_ORM_STRNCPY(fk_buf, fk_buf_size - 1 + 1, fk, fk_buf_size - 1);
 #endif
               fk_buf[fk_buf_size - 1] = '\0';
             }
@@ -203,12 +193,7 @@ static const char *openapi_type_to_c_type(const struct StructField *field) {
     /* Assuming ref contains the type name */
     static char buf[128];
     if (field->ref[0]) {
-#if defined(_MSC_VER)
-      sprintf_s(buf, sizeof(buf), "struct %s*", field->ref);
-#else
-      sprintf(buf, "struct %s*", field->ref);
-#endif
-
+      C_ORM_SPRINTF(buf, sizeof(buf), "struct %s*", field->ref);
       return buf;
     }
   }
@@ -234,21 +219,13 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     size_t header_len = strlen(config->model_header);
     model_h = C_ORM_MALLOC(header_len + 1);
     if (model_h) {
-#if defined(_MSC_VER)
-      strcpy_s(model_h, header_len + 1, config->model_header);
-#else
-      strcpy(model_h, config->model_header);
-#endif
+      C_ORM_STRCPY(model_h, header_len + 1, config->model_header);
     }
   } else {
     size_t len = strlen(config->filename_base) + 10;
     model_h = C_ORM_MALLOC(len + 1);
     if (model_h) {
-#if defined(_MSC_VER)
-      sprintf_s(model_h, len + 1, "%s_models.h", config->filename_base);
-#else
-      sprintf(model_h, "%s_models.h", config->filename_base);
-#endif
+      C_ORM_SPRINTF(model_h, len + 1, "%s_models.h", config->filename_base);
     }
   }
 
@@ -257,18 +234,9 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     return ENOMEM;
   }
 
-#if defined(_MSC_VER)
-  sprintf_s(path_h, sizeof(path_h), "%s", model_h);
-#else
-  sprintf(path_h, "%s", model_h);
-#endif
-
-#if defined(_MSC_VER)
-  sprintf_s(path_c, sizeof(path_c), "%.*s.c", (int)(strlen(model_h) - 2),
-            model_h);
-#else
-  sprintf(path_c, "%.*s.c", (int)(strlen(model_h) - 2), model_h);
-#endif
+  C_ORM_SPRINTF(path_h, sizeof(path_h), "%s", model_h);
+  C_ORM_SPRINTF(path_c, sizeof(path_c), "%.*s.c", (int)(strlen(model_h) - 2),
+                model_h);
 
 #if defined(_MSC_VER)
   if (fopen_s(&fp_h, path_h, "w") != 0)
@@ -279,22 +247,12 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
 #if defined(_MSC_VER)
   fopen_s(&fp_h, path_h, "w");
 #else
-#if defined(_MSC_VER)
-  fopen_s(&fp_h, path_h, "w");
-#else
-  fp_h = fopen(path_h, "w");
-#endif
-
+  C_ORM_FOPEN(&fp_h, path_h, "w");
 #endif
 #if defined(_MSC_VER)
   fopen_s(&fp_c, path_c, "w");
 #else
-#if defined(_MSC_VER)
-  fopen_s(&fp_c, path_c, "w");
-#else
-  fp_c = fopen(path_c, "w");
-#endif
-
+  C_ORM_FOPEN(&fp_c, path_c, "w");
 #endif
 #endif
 
@@ -668,20 +626,15 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     }
   }
 
-  fprintf(fp_h, "#if defined(__cplusplus)\n}\n#endif /* __cplusplus */\n");
+  fprintf(fp_h, "#ifdef __cplusplus\n}\n#endif /* __cplusplus */\n");
   fprintf(fp_h, "#endif /* C_ORM_MODELS_H */\n");
 
   /* Test Stub Generation */
   {
     char test_path[1024];
     FILE *fp_test = NULL;
-#if defined(_MSC_VER)
-    sprintf_s(test_path, sizeof(test_path), "test_%s_models.c",
-              config->filename_base);
-#else
-    sprintf(test_path, "test_%s_models.c", config->filename_base);
-#endif
-
+    C_ORM_SPRINTF(test_path, sizeof(test_path), "test_%s_models.c",
+                  config->filename_base);
 #if defined(_MSC_VER)
     if (fopen_s(&fp_test, test_path, "w") != 0)
       fp_test = NULL;
@@ -689,12 +642,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
 #if defined(_MSC_VER)
     fopen_s(&fp_test, test_path, "w");
 #else
-#if defined(_MSC_VER)
-    fopen_s(&fp_test, test_path, "w");
-#else
-    fp_test = fopen(test_path, "w");
-#endif
-
+    C_ORM_FOPEN(&fp_test, test_path, "w");
 #endif
 #endif
     if (fp_test) {

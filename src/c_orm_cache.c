@@ -6,6 +6,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include "c_orm_log.h"
@@ -32,30 +33,27 @@ __declspec(dllimport) void __stdcall DeleteCriticalSection(CRITICAL_SECTION *);
 
 /** @brief Macro to initialize a mutex on Windows */
 #define C_ORM_MUTEX_INIT(m)                                                    \
-  for (;;) {                                                                   \
+  do {                                                                         \
     (m) = C_ORM_MALLOC(64);                                                    \
     if (m) {                                                                   \
       InitializeCriticalSection((CRITICAL_SECTION *)(m));                      \
     }                                                                          \
-    break;                                                                     \
-  }
+  } while (0)
 /** @brief Macro to lock a mutex on Windows */
 #define C_ORM_MUTEX_LOCK(m) EnterCriticalSection((CRITICAL_SECTION *)(m))
 /** @brief Macro to unlock a mutex on Windows */
 #define C_ORM_MUTEX_UNLOCK(m) LeaveCriticalSection((CRITICAL_SECTION *)(m))
 /** @brief Macro to destroy a mutex on Windows */
 #define C_ORM_MUTEX_DESTROY(m)                                                 \
-  for (;;) {                                                                   \
+  do {                                                                         \
     DeleteCriticalSection((CRITICAL_SECTION *)(m));                            \
     C_ORM_FREE((m));                                                           \
-    break;                                                                     \
-  }
+  } while (0)
 #elif defined(EMSCRIPTEN_NO_THREADS)
 #define C_ORM_MUTEX_INIT(m)                                                    \
-  for (;;) {                                                                   \
+  do {                                                                         \
     (m) = C_ORM_MALLOC(1);                                                     \
-    break;                                                                     \
-  }
+  } while (0)
 #define C_ORM_MUTEX_LOCK(m) ((void)0)
 #define C_ORM_MUTEX_UNLOCK(m) ((void)0)
 #define C_ORM_MUTEX_DESTROY(m) C_ORM_FREE((m))
@@ -84,24 +82,22 @@ int (*c_orm_mutex_destroy_ptr)(pthread_mutex_t *) = pthread_mutex_destroy;
 
 /** @brief Macro to initialize a mutex on POSIX */
 #define C_ORM_MUTEX_INIT(m)                                                    \
-  for (;;) {                                                                   \
+  do {                                                                         \
     (m) = C_ORM_MALLOC(sizeof(pthread_mutex_t));                               \
     if (m) {                                                                   \
       C_ORM_MUTEX_INIT_IMPL(m);                                                \
     }                                                                          \
-    break;                                                                     \
-  }
+  } while (0)
 /** @brief Macro to lock a mutex on POSIX */
 #define C_ORM_MUTEX_LOCK(m) C_ORM_MUTEX_LOCK_IMPL(m)
 /** @brief Macro to unlock a mutex on POSIX */
 #define C_ORM_MUTEX_UNLOCK(m) C_ORM_MUTEX_UNLOCK_IMPL(m)
 /** @brief Macro to destroy a mutex on POSIX */
 #define C_ORM_MUTEX_DESTROY(m)                                                 \
-  for (;;) {                                                                   \
+  do {                                                                         \
     C_ORM_MUTEX_DESTROY_IMPL(m);                                               \
     C_ORM_FREE((m));                                                           \
-    break;                                                                     \
-  }
+  } while (0)
 #endif
 
 /**
@@ -332,11 +328,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
     rc = C_ORM_OK;
     return rc;
   }
-#if defined(_MSC_VER)
-  strcpy_s(entry->sql, strlen(sql) + 1, sql);
-#else
-  strcpy(entry->sql, sql);
-#endif
+  C_ORM_STRCPY(entry->sql, strlen(sql) + 1, sql);
 
   entry->query = *out_query;
   entry->in_use = 1;

@@ -8,13 +8,13 @@
 #ifndef C_ORM_OAUTH2_H
 #define C_ORM_OAUTH2_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_db.h"
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Represents an OAuth 2.0 token response/storage.
@@ -286,7 +286,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_calculate_expiration(
  */
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db);
 
-#if defined(__cplusplus)
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_OAUTH2_H */

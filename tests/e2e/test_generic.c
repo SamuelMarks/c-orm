@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
 #include "Models.h"
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
@@ -34,10 +33,10 @@ TEST test_c_orm_generic_crud(void) {
 
   memset(&u, 0, sizeof(u));
   u.id = 1;
-  u.username = test_strdup("generic_user");
-  u.email = test_strdup("gen@example.com");
+  u.username = "generic_user";
+  u.email = "gen@example.com";
   u.is_active = &active;
-  u.created_at = test_strdup("2026-03-30 01:00:00");
+  u.created_at = "2026-03-30 01:00:00";
 
   err = c_orm_insert_generic(test_db, &Users_meta, &u);
   ASSERT_EQ(C_ORM_OK, err);
@@ -107,15 +106,14 @@ TEST test_c_orm_generic_crud(void) {
       int32_t val;
     } my_struct;
 
-    bad_meta.name = test_strdup("str_table");
+    bad_meta.name = "str_table";
     memset(&cols[0], 0, sizeof(c_orm_column_meta_t));
-    cols[0].name = test_strdup("id");
+    cols[0].name = "id";
     cols[0].type = C_ORM_TYPE_STRING;
     cols[0].is_pk = 1;
     bad_meta.columns = cols;
     bad_meta.num_columns = 1;
-    bad_meta.query_select_by_pk =
-        test_strdup("SELECT * FROM str_table WHERE id = ?");
+    bad_meta.query_select_by_pk = "SELECT * FROM str_table WHERE id = ?";
 
     err = c_orm_get_generic_string(test_db, &bad_meta, "my_id", &my_struct);
     ASSERT_EQ(C_ORM_OK, err);

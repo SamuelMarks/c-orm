@@ -1,7 +1,6 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /* clang-format off */
-#include "test_utils.h"
 #include "c_orm_api.h"
 #include "c_orm_sql.h"
 #include "c_orm_codegen.h"
@@ -27,12 +26,7 @@ static void *mock_malloc(size_t size) {
 TEST test_codegen_parse_fail(void) {
   {
     FILE *f;
-#if defined(_MSC_VER)
-    fopen_s(&f, "dummy.sql", "w");
-#else
-    f = fopen("dummy.sql", "w");
-#endif
-
+    C_ORM_FOPEN(&f, "dummy.sql", "w");
     if (f) {
       fprintf(f, "INVALID SQL SYNTAX;\n");
       fclose(f);
@@ -57,12 +51,7 @@ TEST test_codegen_fopen_h_fail(void) {
   /* Fail fopen for output by providing an invalid directory path */
   {
     FILE *f;
-#if defined(_MSC_VER)
-    fopen_s(&f, "dummy.sql", "w");
-#else
-    f = fopen("dummy.sql", "w");
-#endif
-
+    C_ORM_FOPEN(&f, "dummy.sql", "w");
     if (f) {
       fprintf(f, "CREATE TABLE t (id INT);\n");
       fclose(f);
@@ -83,12 +72,7 @@ TEST test_codegen_malloc_fail(void) {
   c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free);
   {
     FILE *f;
-#if defined(_MSC_VER)
-    fopen_s(&f, "dummy.sql", "w");
-#else
-    f = fopen("dummy.sql", "w");
-#endif
-
+    C_ORM_FOPEN(&f, "dummy.sql", "w");
     if (f) {
       fprintf(f, "CREATE TABLE t (id INT);\n");
       fclose(f);
