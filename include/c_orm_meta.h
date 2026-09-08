@@ -415,20 +415,47 @@ typedef struct c_orm_identity_map {
   c_orm_identity_bucket_t *buckets; /**< Head of the bucket list */
 } c_orm_identity_map_t;
 
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
 /**
  * @brief Free memory allocated by the c-orm library.
+ *
+ * @param ptr Pointer to the memory to free.
  */
 C_ORM_EXPORT void c_orm_system_free(void *ptr);
 
+/**
+ * @brief Allocate system memory.
+ *
+ * @param size Number of bytes to allocate.
+ * @param out_ptr Pointer to receive allocated address.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_system_malloc(size_t size, void **out_ptr);
+
+/**
+ * @brief Allocate and zero system memory.
+ *
+ * @param nmemb Number of elements.
+ * @param size Size of each element.
+ * @param out_ptr Pointer to receive allocated address.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_system_calloc(size_t nmemb, size_t size,
                                                void **out_ptr);
+
+/**
+ * @brief Reallocate system memory.
+ *
+ * @param ptr Pointer to existing memory block or NULL.
+ * @param size New size in bytes.
+ * @param out_ptr Pointer to receive reallocated address.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_system_realloc(void *ptr, size_t size,
                                                 void **out_ptr);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* C_ORM_META_H */
 

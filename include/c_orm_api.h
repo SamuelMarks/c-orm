@@ -214,6 +214,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
     size_t num_items, size_t chunk_size, c_orm_on_conflict_t conflict_policy,
     c_orm_batch_progress_cb progress_cb, void *progress_ctx);
 
+/**
+ * @brief Insert an array of records into the database in bulk.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_array Pointer to an array of structs containing data to insert.
+ * @param num_items The total number of structs in the array.
+ * @param chunk_size The number of structs to process per SQL query. 0 to
+ * auto-calculate.
+ * @return C_ORM_OK on success.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_insert_batch(c_orm_db_t *db,
                                               const c_orm_table_meta_t *meta,
                                               const void *in_array,
@@ -548,9 +559,28 @@ c_orm_hydrate_cache_row(c_orm_db_t *db, const c_orm_table_meta_t *meta,
  */
 C_ORM_EXPORT c_orm_error_t c_orm_execute_raw(c_orm_db_t *db, const char *sql);
 
-/* Transaction APIs */
+/**
+ * @brief Begin a database transaction.
+ *
+ * @param db Database connection.
+ * @return C_ORM_OK on success.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_transaction_begin(c_orm_db_t *db);
+
+/**
+ * @brief Commit an active database transaction.
+ *
+ * @param db Database connection.
+ * @return C_ORM_OK on success.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_transaction_commit(c_orm_db_t *db);
+
+/**
+ * @brief Rollback an active database transaction.
+ *
+ * @param db Database connection.
+ * @return C_ORM_OK on success.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_transaction_rollback(c_orm_db_t *db);
 
 /**

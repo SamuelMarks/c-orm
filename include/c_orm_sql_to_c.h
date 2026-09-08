@@ -74,15 +74,49 @@ C_ORM_EXPORT c_orm_error_t sql_to_c_source_emit(FILE *fp,
                                                 const struct sql_table_t *table,
                                                 const char *header_name);
 
-/** @cond DOXYGEN_IGNORE */
+/**
+ * @brief Emit C struct definition for a query projection.
+ *
+ * @param[in,out] fp File pointer to write to.
+ * @param[in] proj Query projection definition.
+ * @param[in] struct_name Name of the struct to emit.
+ * @param[out] out_hash Pointer to receive the schema hash.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_struct_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name,
     c_orm_uint64_t *out_hash);
-/** @endcond */
+
+/**
+ * @brief Emit free function for a query projection struct.
+ *
+ * @param[in,out] fp File pointer to write to.
+ * @param[in] proj Query projection definition.
+ * @param[in] struct_name Name of the struct.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_free_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name);
+
+/**
+ * @brief Emit metadata table definition for a query projection struct.
+ *
+ * @param[in,out] fp File pointer to write to.
+ * @param[in] proj Query projection definition.
+ * @param[in] struct_name Name of the struct.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_meta_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name);
+
+/**
+ * @brief Emit hydration function for a query projection struct.
+ *
+ * @param[in,out] fp File pointer to write to.
+ * @param[in] proj Query projection definition.
+ * @param[in] struct_name Name of the struct.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_hydrate_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name);
 /**
@@ -119,6 +153,15 @@ C_ORM_EXPORT c_orm_error_t sql_to_c_projection_nested_array_emit(
  */
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_dirty_bitmask_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name);
+/**
+ * @brief Emit union struct definition for query projections.
+ *
+ * @param[in,out] fp File pointer to write to.
+ * @param[in] projs Array of query projections.
+ * @param[in] n_projs Number of query projections.
+ * @param[in] struct_name Name of the union struct to emit.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_union_struct_emit(
     FILE *fp, const cdd_c_query_projection_t *projs, size_t n_projs,
     const char *struct_name);

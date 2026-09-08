@@ -33,6 +33,12 @@ C_ORM_EXPORT void
 c_orm_log_debug(const char *fmt, ...);
 #define LOG_DEBUG c_orm_log_debug
 #else
+/**
+ * @brief Logs a debug message to standard error (no-op in non-debug mode).
+ *
+ * @param fmt The format string.
+ * @param ... The format arguments.
+ */
 #if defined(__clang__) || defined(__GNUC__)
 __attribute__((__format__(__printf__, 1, 2)))
 #endif

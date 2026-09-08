@@ -145,22 +145,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
         goto error_out;
       }
       if (col->is_nullable) {
-        /* Allocate 4 bytes to safely cover any compiler bool size mismatches (1
-         * vs 4) */
-        int *ptr = (int *)C_ORM_MALLOC(sizeof(int));
+        bool *ptr = (bool *)C_ORM_MALLOC(sizeof(bool));
         if (!ptr) {
           LOG_DEBUG("c_orm_hydrate_row_from: OOM");
           rc = C_ORM_ERROR_MEMORY;
           LOG_DEBUG("c_orm_hydrate_row_from: exit");
           goto error_out;
         }
-        *ptr = (val != 0 ? 1 : 0);
-        *(int **)field_ptr = ptr;
+        *ptr = (bool)(val != 0 ? 1 : 0);
+        *(bool **)field_ptr = ptr;
       } else {
-        /* Write 1 byte to the struct, but if it expects 4 bytes it might have
-           garbage in the padding? Actually we can just write it as int safely
-           if we know padding allows it. But since we only know the offset,
-           writing 1 byte is safer for structs. */
         *(unsigned char *)field_ptr = (unsigned char)(val != 0 ? 1 : 0);
       }
       break;
@@ -598,7 +592,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row(c_orm_db_t *db,
                       case C_ORM_TYPE_BOOL: {
                         int32_t bool_val = 0;
                         db->vtable->get_int32(query, i, &bool_val);
-                        *(int *)field_ptr = bool_val;
+                        *(unsigned char *)field_ptr =
+                            (unsigned char)(bool_val != 0 ? 1 : 0);
                         break;
                       }
                       default:
@@ -2513,12 +2508,7 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
       break;
     }
     case C_ORM_TYPE_BOOL: {
-      int32_t val;
-      if (sizeof(unsigned char) == 1) {
-        val = *(const unsigned char *)field_ptr;
-      } else {
-        val = *(const int *)field_ptr;
-      }
+      int32_t val = (*(const unsigned char *)field_ptr) ? 1 : 0;
       rc = db->vtable->bind_int32(query, (*bind_idx)++, val);
       break;
     }
