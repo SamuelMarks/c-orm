@@ -289,6 +289,12 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
   fprintf(fp_h, "# ifndef __cplusplus\n");
   fprintf(fp_h, "#  ifndef _STDBOOL_H\n");
   fprintf(fp_h, "#   define _STDBOOL_H\n");
+  fprintf(fp_h, "#   ifndef __STDBOOL_H\n");
+  fprintf(fp_h, "#    define __STDBOOL_H\n");
+  fprintf(fp_h, "#   endif\n");
+  fprintf(fp_h, "#   ifndef __bool_true_false_are_defined\n");
+  fprintf(fp_h, "#    define __bool_true_false_are_defined 1\n");
+  fprintf(fp_h, "#   endif\n");
   fprintf(fp_h, "typedef unsigned char bool;\n");
   fprintf(fp_h, "#   define true 1\n");
   fprintf(fp_h, "#   define false 0\n");
@@ -299,6 +305,12 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
   fprintf(fp_h, "# ifndef __cplusplus\n");
   fprintf(fp_h, "#  ifndef _STDBOOL_H\n");
   fprintf(fp_h, "#   define _STDBOOL_H\n");
+  fprintf(fp_h, "#   ifndef __STDBOOL_H\n");
+  fprintf(fp_h, "#    define __STDBOOL_H\n");
+  fprintf(fp_h, "#   endif\n");
+  fprintf(fp_h, "#   ifndef __bool_true_false_are_defined\n");
+  fprintf(fp_h, "#    define __bool_true_false_are_defined 1\n");
+  fprintf(fp_h, "#   endif\n");
   fprintf(fp_h, "typedef unsigned char bool;\n");
   fprintf(fp_h, "#   define true 1\n");
   fprintf(fp_h, "#   define false 0\n");

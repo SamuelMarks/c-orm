@@ -187,9 +187,21 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_limit(c_orm_select_builder_t *builder,
 C_ORM_EXPORT c_orm_error_t c_orm_select_offset(c_orm_select_builder_t *builder,
                                                size_t offset);
 
-/* INSERT BUILDER */
+/**
+ * @brief Initialize an insert query builder.
+ *
+ * @param meta Table metadata.
+ * @param out_builder Output pointer for the created builder.
+ * @return C_ORM_OK on success.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_insert_builder_init(
     const c_orm_table_meta_t *meta, c_orm_insert_builder_t **out_builder);
+
+/**
+ * @brief Free resources associated with an insert query builder.
+ *
+ * @param builder The insert builder to free.
+ */
 C_ORM_EXPORT void c_orm_insert_builder_free(c_orm_insert_builder_t *builder);
 
 /**
@@ -202,9 +214,21 @@ C_ORM_EXPORT void c_orm_insert_builder_free(c_orm_insert_builder_t *builder);
 C_ORM_EXPORT c_orm_error_t
 c_orm_insert_builder_compile(c_orm_insert_builder_t *builder, char **out_sql);
 
-/* UPDATE BUILDER */
+/**
+ * @brief Initialize an update query builder.
+ *
+ * @param meta Table metadata.
+ * @param out_builder Output pointer for the created builder.
+ * @return C_ORM_OK on success.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_update_builder_init(
     const c_orm_table_meta_t *meta, c_orm_update_builder_t **out_builder);
+
+/**
+ * @brief Free resources associated with an update query builder.
+ *
+ * @param builder The update builder to free.
+ */
 C_ORM_EXPORT void c_orm_update_builder_free(c_orm_update_builder_t *builder);
 
 /**

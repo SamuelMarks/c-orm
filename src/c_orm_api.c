@@ -5628,17 +5628,23 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_free(c_orm_identity_map_t *map) {
 /**
  * @brief Function get_or_create_bucket.
  */
-static c_orm_identity_bucket_t *
-get_or_create_bucket(c_orm_identity_map_t *map,
-                     const c_orm_table_meta_t *table) {
-  c_orm_identity_bucket_t *bucket = map->buckets;
+static c_orm_error_t
+get_or_create_bucket(c_orm_identity_map_t *map, const c_orm_table_meta_t *table,
+                     c_orm_identity_bucket_t **out_bucket) {
+  c_orm_identity_bucket_t *bucket;
   size_t i;
 
   LOG_DEBUG("get_or_create_bucket: entry");
+  if (!map || !table || !out_bucket) {
+    LOG_DEBUG("get_or_create_bucket: OOM");
+    return C_ORM_ERROR_MEMORY;
+  }
+  bucket = map->buckets;
   while (bucket) {
     if (bucket->table == table) {
+      *out_bucket = bucket;
       LOG_DEBUG("get_or_create_bucket: exit");
-      return bucket;
+      return C_ORM_OK;
     }
     bucket = bucket->next;
   }
@@ -5647,7 +5653,7 @@ get_or_create_bucket(c_orm_identity_map_t *map,
       (c_orm_identity_bucket_t *)C_ORM_MALLOC(sizeof(c_orm_identity_bucket_t));
   if (!bucket) {
     LOG_DEBUG("get_or_create_bucket: exit");
-    return NULL;
+    return C_ORM_ERROR_MEMORY;
   }
 
   bucket->table = table;
@@ -5657,7 +5663,7 @@ get_or_create_bucket(c_orm_identity_map_t *map,
   if (!bucket->entries) {
     C_ORM_FREE(bucket);
     LOG_DEBUG("get_or_create_bucket: exit");
-    return NULL;
+    return C_ORM_ERROR_MEMORY;
   }
 
   for (i = 0; i < bucket->num_buckets; i++) {
@@ -5666,9 +5672,10 @@ get_or_create_bucket(c_orm_identity_map_t *map,
 
   bucket->next = map->buckets;
   map->buckets = bucket;
+  *out_bucket = bucket;
 
   LOG_DEBUG("get_or_create_bucket: exit");
-  return bucket;
+  return C_ORM_OK;
 }
 
 /**
@@ -5691,10 +5698,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_int(
     return rc;
   }
 
-  bucket = get_or_create_bucket(map, table);
-  if (!bucket) {
+  rc = get_or_create_bucket(map, table, &bucket);
+  if (rc != C_ORM_OK || !bucket) {
     LOG_DEBUG("c_orm_identity_map_get_or_set_int: OOM");
-    rc = C_ORM_ERROR_MEMORY;
+    rc = (rc != C_ORM_OK) ? rc : C_ORM_ERROR_MEMORY;
     LOG_DEBUG("c_orm_identity_map_get_or_set_int: exit");
     return rc;
   }
@@ -5764,10 +5771,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_str(
     return rc;
   }
 
-  bucket = get_or_create_bucket(map, table);
-  if (!bucket) {
+  rc = get_or_create_bucket(map, table, &bucket);
+  if (rc != C_ORM_OK || !bucket) {
     LOG_DEBUG("c_orm_identity_map_get_or_set_str: OOM");
-    rc = C_ORM_ERROR_MEMORY;
+    rc = (rc != C_ORM_OK) ? rc : C_ORM_ERROR_MEMORY;
     LOG_DEBUG("c_orm_identity_map_get_or_set_str: exit");
     return rc;
   }

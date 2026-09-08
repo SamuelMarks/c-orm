@@ -37,6 +37,9 @@ static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
+#ifdef bool
+#undef bool
+#endif
 /* #include "abstract_struct.h" */
 /* clang-format on */
 

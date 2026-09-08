@@ -57,17 +57,21 @@ struct postgres_query_data {
 };
 
 /** @brief Generate unique statement name */
-static int generate_stmt_name(char *buf, size_t size) {
-  c_orm_error_t rc;
+static c_orm_error_t generate_stmt_name(char *buf, size_t size) {
+  int rc;
   static int counter = 0;
   LOG_DEBUG("generate_stmt_name: entry");
   rc = C_ORM_SPRINTF(buf, size, "c_orm_stmt_%d", ++counter);
   LOG_DEBUG("generate_stmt_name: exit");
-  return rc;
+  if (rc < 0) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  return C_ORM_OK;
 }
 
 /** @brief Rewrite query to postgres format */
-static char *rewrite_query(const char *sql, int *out_param_count) {
+static c_orm_error_t rewrite_query(const char *sql, int *out_param_count,
+                                   char **out_new_sql) {
   size_t len;
   size_t new_len;
   char *new_sql;
@@ -77,6 +81,9 @@ static char *rewrite_query(const char *sql, int *out_param_count) {
   char num_buf[32];
 
   LOG_DEBUG("rewrite_query: entry");
+  if (!sql || !out_param_count || !out_new_sql) {
+    return C_ORM_ERROR_MEMORY;
+  }
 
   len = strlen(sql);
   new_len = len;
@@ -91,7 +98,7 @@ static char *rewrite_query(const char *sql, int *out_param_count) {
   new_sql = (char *)C_ORM_MALLOC(new_len + 1);
   if (!new_sql) {
     LOG_DEBUG("rewrite_query: OOM");
-    return NULL;
+    return C_ORM_ERROR_MEMORY;
   }
 
   p = sql;
@@ -111,8 +118,9 @@ static char *rewrite_query(const char *sql, int *out_param_count) {
   }
   *q = '\0';
   *out_param_count = count;
+  *out_new_sql = new_sql;
   LOG_DEBUG("rewrite_query: exit");
-  return new_sql;
+  return C_ORM_OK;
 }
 
 /** @brief Set error message */
@@ -250,10 +258,10 @@ static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
     db->log_cb(sql, db->log_user_data);
   }
 
-  new_sql = rewrite_query(sql, &param_count);
-  if (!new_sql) {
+  rc = rewrite_query(sql, &param_count, &new_sql);
+  if (rc != C_ORM_OK || !new_sql) {
     LOG_DEBUG("postgres_prepare: rewrite OOM");
-    rc = C_ORM_ERROR_MEMORY;
+    rc = (rc != C_ORM_OK) ? rc : C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
 
@@ -275,7 +283,13 @@ static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
     return (c_orm_error_t)rc;
   }
 
-  generate_stmt_name(stmt_name, sizeof(stmt_name));
+  rc = generate_stmt_name(stmt_name, sizeof(stmt_name));
+  if (rc != C_ORM_OK) {
+    C_ORM_FREE(q_data);
+    C_ORM_FREE(query);
+    C_ORM_FREE(new_sql);
+    return rc;
+  }
 
   res = PQprepare(db_data->conn, stmt_name, new_sql, param_count, NULL);
   if (PQresultStatus(res) != PGRES_COMMAND_OK) {

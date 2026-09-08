@@ -32,6 +32,12 @@ typedef unsigned __int64 uint64_t;
 #ifndef C_ORM_IN_CPLUSPLUS
 #ifndef _STDBOOL_H
 #define _STDBOOL_H
+#ifndef __STDBOOL_H
+#define __STDBOOL_H
+#endif
+#ifndef __bool_true_false_are_defined
+#define __bool_true_false_are_defined 1
+#endif
 typedef unsigned char bool;
 #define true 1
 #define false 0
@@ -42,6 +48,12 @@ typedef unsigned char bool;
 #ifndef C_ORM_IN_CPLUSPLUS
 #ifndef _STDBOOL_H
 #define _STDBOOL_H
+#ifndef __STDBOOL_H
+#define __STDBOOL_H
+#endif
+#ifndef __bool_true_false_are_defined
+#define __bool_true_false_are_defined 1
+#endif
 typedef unsigned char bool;
 #define true 1
 #define false 0

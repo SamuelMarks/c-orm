@@ -19,6 +19,15 @@ extern "C" {
 #include <string.h>
 /* clang-format on */
 
+/**
+ * @brief Safe sprintf wrapper.
+ *
+ * @param buf Output buffer.
+ * @param size Buffer size.
+ * @param format Printf format string.
+ * @param ... Format arguments.
+ * @return Number of characters written or negative on error.
+ */
 #if defined(__clang__) || defined(__GNUC__)
 __attribute__((__format__(__printf__, 3, 4)))
 #endif
@@ -93,13 +102,25 @@ int unsetenv(const char *name);
 #if defined(_MSC_VER)
 typedef __int64 c_orm_int64_t;
 typedef unsigned __int64 c_orm_uint64_t;
+#define C_ORM_INT64_FORMAT "%I64d"
+#define C_ORM_UINT64_FORMAT "%I64u"
 #elif defined(__GNUC__) || defined(__clang__)
 __extension__ typedef long long c_orm_int64_t;
 __extension__ typedef unsigned long long c_orm_uint64_t;
+#if defined(__x86_64__) || defined(__aarch64__) ||                             \
+    (defined(__APPLE__) && defined(__MACH__))
+#define C_ORM_INT64_FORMAT "%ld"
+#define C_ORM_UINT64_FORMAT "%lu"
+#else
+#define C_ORM_INT64_FORMAT "%lld"
+#define C_ORM_UINT64_FORMAT "%llu"
+#endif
 #else
 /* Fallback for other strictly C89 compilers if they have no 64-bit int */
 typedef long c_orm_int64_t;
 typedef unsigned long c_orm_uint64_t;
+#define C_ORM_INT64_FORMAT "%ld"
+#define C_ORM_UINT64_FORMAT "%lu"
 #endif
 
 #ifdef __cplusplus

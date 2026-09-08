@@ -114,6 +114,12 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     fputs("#  ifndef __cplusplus\n", fp);
     fputs("#   ifndef _STDBOOL_H\n", fp);
     fputs("#    define _STDBOOL_H\n", fp);
+    fputs("#    ifndef __STDBOOL_H\n", fp);
+    fputs("#     define __STDBOOL_H\n", fp);
+    fputs("#    endif\n", fp);
+    fputs("#    ifndef __bool_true_false_are_defined\n", fp);
+    fputs("#     define __bool_true_false_are_defined 1\n", fp);
+    fputs("#    endif\n", fp);
     fputs("typedef unsigned char bool;\n", fp);
     fputs("#    define true 1\n", fp);
     fputs("#    define false 0\n", fp);
@@ -124,6 +130,12 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     fputs("# ifndef __cplusplus\n", fp);
     fputs("#  ifndef _STDBOOL_H\n", fp);
     fputs("#   define _STDBOOL_H\n", fp);
+    fputs("#   ifndef __STDBOOL_H\n", fp);
+    fputs("#    define __STDBOOL_H\n", fp);
+    fputs("#   endif\n", fp);
+    fputs("#   ifndef __bool_true_false_are_defined\n", fp);
+    fputs("#    define __bool_true_false_are_defined 1\n", fp);
+    fputs("#   endif\n", fp);
     fputs("typedef unsigned char bool;\n", fp);
     fputs("#   define true 1\n", fp);
     fputs("#   define false 0\n", fp);
@@ -131,7 +143,8 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     fputs("# endif\n", fp);
     fputs("#endif\n", fp);
     fputs("#include <stddef.h>\n", fp);
-    fputs("/* clang-format on */\n\n", fp);
+    fprintf(fp, "/* clang-format "
+                "on */\n\n");
 
     for (i = 0; i < n_tables; ++i) {
       sql_to_c_header_emit(fp, &tables[i]);

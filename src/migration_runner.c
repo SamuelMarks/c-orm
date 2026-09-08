@@ -69,18 +69,18 @@ static PQgetvalue_t dyn_PQgetvalue = NULL;
 static PQclear_t dyn_PQclear = NULL;
 static PQexecParams_t dyn_PQexecParams = NULL;
 
-static int load_libpq(void) {
+static c_orm_error_t load_libpq(void) {
   static int loaded = 0;
   void *handle;
   if (loaded)
-    return 1;
+    return C_ORM_OK;
 #if defined(_WIN32)
   handle = LoadLibraryA("libpq.dll");
 #else
   handle = dlopen("libpq.so", RTLD_LAZY);
 #endif
   if (!handle)
-    return 0;
+    return C_ORM_ERROR_NOT_FOUND;
 
 #if defined(_WIN32)
 #define LOAD_SYM(name, type)                                                   \
@@ -101,10 +101,10 @@ static int load_libpq(void) {
   LOAD_SYM(PQexecParams, PQexecParams_t);
 
   if (!dyn_PQconnectdb || !dyn_PQexec || !dyn_PQfinish)
-    return 0;
+    return C_ORM_ERROR_NOT_FOUND;
 
   loaded = 1;
-  return 1;
+  return C_ORM_OK;
 }
 
 #define PQconnectdb dyn_PQconnectdb
@@ -119,15 +119,18 @@ static int load_libpq(void) {
 #define PQexecParams dyn_PQexecParams
 
 #define ENSURE_LIBPQ()                                                         \
-  if (!load_libpq()) {                                                         \
-    fprintf(                                                                   \
-        stderr,                                                                \
-        "Error: PostgreSQL dynamic library (libpq) not found at runtime.\n");  \
-    return ENOSYS;                                                             \
-  }
+  do {                                                                         \
+    c_orm_error_t _libpq_rc = load_libpq();                                    \
+    if (_libpq_rc != C_ORM_OK) {                                               \
+      fprintf(                                                                 \
+          stderr,                                                              \
+          "Error: PostgreSQL dynamic library (libpq) not found at runtime.\n");\
+      return _libpq_rc;                                                        \
+    }                                                                          \
+  } while (0)
 
 #else
-static int load_libpq(void) { return 1; }
+static c_orm_error_t load_libpq(void) { return C_ORM_OK; }
 #define ENSURE_LIBPQ()
 #endif /* USE_LIBPQ_DYNAMIC */
 
@@ -152,9 +155,9 @@ struct MigrationList {
  * @brief Create the schema_migrations table if it doesn't exist.
  *
  * @param[in] conn Active PGconn.
- * @return 0 on success, error code otherwise.
+ * @return C_ORM_OK on success, error code otherwise.
  */
-static int ensure_schema_migrations_table(PGconn *conn) {
+static c_orm_error_t ensure_schema_migrations_table(PGconn *conn) {
   const char *query = "CREATE TABLE IF NOT EXISTS schema_migrations ("
                       "version VARCHAR(255) PRIMARY KEY, "
                       "applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
@@ -164,10 +167,10 @@ static int ensure_schema_migrations_table(PGconn *conn) {
     fprintf(stderr, "Failed to create schema_migrations table: %s\n",
             PQerrorMessage(conn));
     PQclear(res);
-    return EIO;
+    return C_ORM_ERROR_SQL;
   }
   PQclear(res);
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -244,10 +247,10 @@ static int compare_migrations(const void *a, const void *b) {
  * @param[in] conn Active PGconn.
  * @param[out] out_versions Array of strings.
  * @param[out] out_count Number of elements.
- * @return 0 on success, error code otherwise.
+ * @return C_ORM_OK on success, error code otherwise.
  */
-static int get_applied_migrations(PGconn *conn, char ***out_versions,
-                                  size_t *out_count) {
+static c_orm_error_t get_applied_migrations(PGconn *conn, char ***out_versions,
+                                            size_t *out_count) {
   PGresult *res;
   int rows;
   int i;
@@ -262,19 +265,19 @@ static int get_applied_migrations(PGconn *conn, char ***out_versions,
     fprintf(stderr, "Failed to fetch applied migrations: %s\n",
             PQerrorMessage(conn));
     PQclear(res);
-    return EIO;
+    return C_ORM_ERROR_SQL;
   }
 
   rows = PQntuples(res);
   if (rows == 0) {
     PQclear(res);
-    return 0;
+    return C_ORM_OK;
   }
 
   versions = (char **)malloc((size_t)rows * sizeof(char *));
   if (!versions) {
     PQclear(res);
-    return ENOMEM;
+    return C_ORM_ERROR_MEMORY;
   }
 
   for (i = 0; i < rows; i++) {
@@ -286,7 +289,7 @@ static int get_applied_migrations(PGconn *conn, char ***out_versions,
       }
       free(versions);
       PQclear(res);
-      return ENOMEM;
+      return C_ORM_ERROR_MEMORY;
     }
   }
 
@@ -294,7 +297,7 @@ static int get_applied_migrations(PGconn *conn, char ***out_versions,
   *out_count = (size_t)rows;
   PQclear(res);
 
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -303,17 +306,23 @@ static int get_applied_migrations(PGconn *conn, char ***out_versions,
  * @param[in] version Version string.
  * @param[in] applied_versions Array of strings.
  * @param[in] applied_count Count of strings.
- * @return 1 if found, 0 otherwise.
+ * @param[out] out_applied 1 if found, 0 otherwise.
+ * @return C_ORM_OK on success.
  */
-static int is_applied(const char *version, char **applied_versions,
-                      size_t applied_count) {
+static c_orm_error_t is_applied(const char *version, char **applied_versions,
+                                size_t applied_count, int *out_applied) {
   size_t i;
+  if (!out_applied) {
+    return C_ORM_ERROR_MEMORY;
+  }
+  *out_applied = 0;
   for (i = 0; i < applied_count; i++) {
     if (strcmp(version, applied_versions[i]) == 0) {
-      return 1;
+      *out_applied = 1;
+      return C_ORM_OK;
     }
   }
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -485,7 +494,13 @@ C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
   }
 
   for (i = 0; i < list.count; i++) {
-    if (!is_applied(list.files[i].version, applied_versions, applied_count)) {
+    int applied = 0;
+    rc = is_applied(list.files[i].version, applied_versions, applied_count,
+                    &applied);
+    if (rc != C_ORM_OK) {
+      break;
+    }
+    if (!applied) {
       struct MigrationStatements stmts;
       PGresult *res;
       const char *paramValues[1];

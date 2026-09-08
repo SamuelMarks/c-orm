@@ -98,6 +98,10 @@ static c_orm_error_t my_mig_prep(c_orm_db_t *db_v, const char *sql,
     return C_ORM_ERROR_SQL;
   if (fail_down && strstr(sql, "DOWN"))
     return C_ORM_ERROR_SQL;
+  if (fail_rollback_step &&
+      strstr(sql, "ROLLBACK TO SAVEPOINT c_orm_mig_step") &&
+      !strstr(sql, "c_orm_mig_step_rb"))
+    return C_ORM_ERROR_SQL;
   if (fail_rollback_step_rb &&
       strstr(sql, "ROLLBACK TO SAVEPOINT c_orm_mig_step_rb"))
     return C_ORM_ERROR_SQL;
