@@ -56,9 +56,7 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
       NULL};
   az_span span;
 
-  c_orm_set_allocators(mock_malloc_fail, c_orm_realloc, c_orm_free);
-  c_orm_set_allocators(c_orm_malloc, mock_realloc_fail, c_orm_free);
-  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, mock_free);
+  c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail, mock_free);
 
   for (sql_idx = 0; sqls[sql_idx] != NULL; sql_idx++) {
     for (i = 0; i < 50; i++) {
@@ -84,7 +82,7 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
         break;
     }
 
-    for (i = 0; i < 2; i++) {
+    for (i = 0; i < 30; i++) {
       struct sql_table_t *tables = NULL;
       size_t n_tables = 0;
       size_t j;
@@ -107,9 +105,7 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
     }
   }
 
-  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
-  c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
-  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
+  c_orm_set_allocators(old_malloc, old_realloc, old_free);
   PASS();
 }
 enum greatest_test_res test_sql_parser_missing_keys(void);
@@ -245,7 +241,7 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
 
   for (sql_idx = 0; sql_idx < (int)(sizeof(sqls) / sizeof(sqls[0]));
        sql_idx++) {
-    for (i = 0; i < 40; i++) {
+    for (i = 0; i < 75; i++) {
       az_span span = az_span_create_from_str((char *)sqls[sql_idx]);
       struct sql_token_list_t *list = NULL;
       struct sql_table_t *ast = NULL;

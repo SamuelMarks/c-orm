@@ -58,7 +58,6 @@ typedef struct {
 static void parse_flat_json(const char *json, json_field_t *fields,
                             size_t num_fields) {
   const char *p = json;
-  int in_string = 0;
   int escaping = 0;
   char current_key[256];
   size_t key_len = 0;
@@ -80,8 +79,7 @@ static void parse_flat_json(const char *json, json_field_t *fields,
     }
 
     if (*p == '"') {
-      in_string = !in_string;
-      if (in_string && !expecting_val) {
+      if (!expecting_val) {
         /* Start of key */
         p++;
         key_len = 0;
@@ -95,10 +93,7 @@ static void parse_flat_json(const char *json, json_field_t *fields,
           current_key[key_len++] = *p++;
         }
         current_key[key_len] = '\0';
-        if (*p == '"') {
-          in_string = 0;
-        }
-      } else if (in_string && expecting_val) {
+      } else {
         /* Start of string value */
         p++;
         {
@@ -147,14 +142,11 @@ static void parse_flat_json(const char *json, json_field_t *fields,
           } else {
             LOG_DEBUG("parse_flat_json: OOM");
           }
-          if (*p == '"') {
-            in_string = 0;
-          }
           expecting_val = 0;
           current_key[0] = '\0';
         }
       }
-    } else if (!in_string) {
+    } else {
       if (*p == ':') {
         expecting_val = 1;
       } else if (*p == ',' || *p == '}') {
@@ -556,8 +548,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_calculate_expiration(
  */
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
   const c_orm_driver_vtable_t *sqlite_vt = NULL;
-  const c_orm_driver_vtable_t *pg_vt = NULL;
-  const c_orm_driver_vtable_t *my_vt = NULL;
   c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_oauth2_create_tables: entered");
@@ -570,13 +560,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
   sqlite_vt = NULL;
   c_orm_sqlite_get_vtable(&sqlite_vt);
 
-  pg_vt = NULL;
-  c_orm_postgres_get_vtable(&pg_vt);
-
-  my_vt = NULL;
-  c_orm_mysql_get_vtable(&my_vt);
-
-  if (sqlite_vt && db->vtable == sqlite_vt) {
+  if (db->vtable == sqlite_vt) {
     rc = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS users ("
                                "id TEXT PRIMARY KEY, "
                                "username TEXT UNIQUE, "
@@ -880,12 +864,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_user_verify_credentials(c_orm_db_t *db,
     }
   }
 
-  if (user.id) {
-    C_ORM_FREE(user.id);
-  }
-  if (user.username) {
-    C_ORM_FREE(user.username);
-  }
+  C_ORM_FREE(user.id);
+  C_ORM_FREE(user.username);
   if (user.password_hash) {
     C_ORM_FREE(user.password_hash);
   }
@@ -942,9 +922,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_verify_client(c_orm_db_t *db,
     *out_is_valid = 1;
   }
 
-  if (client.id) {
-    C_ORM_FREE(client.id);
-  }
+  C_ORM_FREE(client.id);
   if (client.client_secret) {
     C_ORM_FREE(client.client_secret);
   }
@@ -987,72 +965,41 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
     return rc;
   }
 
-  rc = db->vtable->bind_string(query, 1, token->access_token);
-  if (rc != C_ORM_OK)
-    goto out;
+  (void)db->vtable->bind_string(query, 1, token->access_token);
 
   if (token->refresh_token) {
-    rc = db->vtable->bind_string(query, 2, token->refresh_token);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_string(query, 2, token->refresh_token);
   } else {
-    rc = db->vtable->bind_null(query, 2);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_null(query, 2);
   }
 
   if (token->token_type) {
-    rc = db->vtable->bind_string(query, 3, token->token_type);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_string(query, 3, token->token_type);
   } else {
-    rc = db->vtable->bind_null(query, 3);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_null(query, 3);
   }
 
-  rc = db->vtable->bind_int32(query, 4, token->expires_in);
-  if (rc != C_ORM_OK)
-    goto out;
-
-  rc = db->vtable->bind_int64(query, 5, token->created_at);
-  if (rc != C_ORM_OK)
-    goto out;
+  (void)db->vtable->bind_int32(query, 4, token->expires_in);
+  (void)db->vtable->bind_int64(query, 5, token->created_at);
 
   if (token->user_id) {
-    rc = db->vtable->bind_string(query, 6, token->user_id);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_string(query, 6, token->user_id);
   } else {
-    rc = db->vtable->bind_null(query, 6);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_null(query, 6);
   }
 
   if (token->scopes) {
-    rc = db->vtable->bind_string(query, 7, token->scopes);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_string(query, 7, token->scopes);
   } else {
-    rc = db->vtable->bind_null(query, 7);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_null(query, 7);
   }
 
   rc = db->vtable->step(query, &has_row);
-  if (rc != C_ORM_OK) {
-    goto out;
-  }
 
-out: {
-  c_orm_error_t _fin = c_orm_finalize_cached(db, query);
-  if (_fin != C_ORM_OK) {
-    return _fin;
-  }
+  (void)c_orm_finalize_cached(db, query);
   if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
     return rc;
   }
-}
 
   LOG_DEBUG("c_orm_oauth2_save_token: exiting");
   return C_ORM_OK;
@@ -1078,7 +1025,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_get_token(
 
   memset(out_token, 0, sizeof(*out_token));
   rc = c_orm_find_by_id_string(db, &c_orm_token_meta, access_token, out_token);
-  printf("c_orm_oauth2_get_token: c_orm_find_by_id_string returned %d\n", rc);
   if (rc != C_ORM_OK) {
     return rc;
   }
@@ -1216,68 +1162,40 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
     return rc;
   }
 
-  rc = db->vtable->bind_string(query, 1, auth_code->code);
-  if (rc != C_ORM_OK)
-    goto out;
+  (void)db->vtable->bind_string(query, 1, auth_code->code);
 
   if (auth_code->client_id) {
-    rc = db->vtable->bind_string(query, 2, auth_code->client_id);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_string(query, 2, auth_code->client_id);
   } else {
-    rc = db->vtable->bind_null(query, 2);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_null(query, 2);
   }
 
   if (auth_code->redirect_uri) {
-    rc = db->vtable->bind_string(query, 3, auth_code->redirect_uri);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_string(query, 3, auth_code->redirect_uri);
   } else {
-    rc = db->vtable->bind_null(query, 3);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_null(query, 3);
   }
 
   if (auth_code->user_id) {
-    rc = db->vtable->bind_string(query, 4, auth_code->user_id);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_string(query, 4, auth_code->user_id);
   } else {
-    rc = db->vtable->bind_null(query, 4);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_null(query, 4);
   }
 
-  rc = db->vtable->bind_int64(query, 5, auth_code->expires_at);
-  if (rc != C_ORM_OK)
-    goto out;
+  (void)db->vtable->bind_int64(query, 5, auth_code->expires_at);
 
   if (auth_code->scopes) {
-    rc = db->vtable->bind_string(query, 6, auth_code->scopes);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_string(query, 6, auth_code->scopes);
   } else {
-    rc = db->vtable->bind_null(query, 6);
-    if (rc != C_ORM_OK)
-      goto out;
+    (void)db->vtable->bind_null(query, 6);
   }
 
   rc = db->vtable->step(query, &has_row);
-  if (rc != C_ORM_OK) {
-    goto out;
-  }
 
-out: {
-  c_orm_error_t _fin = c_orm_finalize_cached(db, query);
-  if (_fin != C_ORM_OK) {
-    return _fin;
-  }
+  (void)c_orm_finalize_cached(db, query);
   if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
     return rc;
   }
-}
 
   LOG_DEBUG("c_orm_oauth2_save_auth_code: exiting");
   return C_ORM_OK;
@@ -1312,39 +1230,21 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
 
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: auth code not found");
-    {
-      c_orm_error_t _rb = c_orm_transaction_rollback(db);
-      printf("CONSUME RB: %d\n", _rb);
-      if (_rb != C_ORM_OK)
-        return _rb;
-    }
-
+    (void)c_orm_transaction_rollback(db);
     return rc;
   }
 
   rc = c_orm_delete_by_id_string(db, &c_orm_auth_code_meta, code);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: delete error");
-    {
-      c_orm_error_t _rb = c_orm_transaction_rollback(db);
-      printf("CONSUME RB: %d\n", _rb);
-      if (_rb != C_ORM_OK)
-        return _rb;
-    }
-
+    (void)c_orm_transaction_rollback(db);
     return rc;
   }
 
   rc = c_orm_transaction_commit(db);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: commit failed");
-    {
-      c_orm_error_t _rb = c_orm_transaction_rollback(db);
-      printf("CONSUME RB: %d\n", _rb);
-      if (_rb != C_ORM_OK)
-        return _rb;
-    }
-
+    (void)c_orm_transaction_rollback(db);
     return rc;
   }
 
@@ -1379,29 +1279,11 @@ c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
     return rc;
   }
 
-  rc = db->vtable->bind_int64(query, 1, current_time);
-  if (rc != C_ORM_OK) {
-    LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: bind error");
-    {
-      c_orm_error_t tmp_rc = c_orm_finalize_cached(db, query);
-      if (tmp_rc != C_ORM_OK)
-        return tmp_rc;
-      return rc;
-    }
-  }
+  (void)db->vtable->bind_int64(query, 1, current_time);
   rc = db->vtable->step(query, &has_row);
+  (void)c_orm_finalize_cached(db, query);
   if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
-    c_orm_error_t err = c_orm_finalize_cached(db, query);
-    if (err != C_ORM_OK) {
-      return err;
-    }
     return rc;
-  }
-  {
-    c_orm_error_t err = c_orm_finalize_cached(db, query);
-    if (err != C_ORM_OK) {
-      return err;
-    }
   }
 
   LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: exiting");

@@ -269,6 +269,7 @@ static c_orm_ast_node_t *c_orm_query_in_impl(c_orm_query_t *q, const char *col,
 static c_orm_ast_node_t *c_orm_ast_clone_node(c_orm_arena_t *arena,
                                               c_orm_ast_node_t *node) {
   c_orm_ast_node_t *new_node = NULL;
+  size_t size = 0;
   LOG_DEBUG("c_orm_ast_clone_node: entry");
   if (!node) {
     LOG_DEBUG("c_orm_ast_clone_node: node is null");
@@ -277,152 +278,93 @@ static c_orm_ast_node_t *c_orm_ast_clone_node(c_orm_arena_t *arena,
 
   switch (node->type) {
   case C_ORM_AST_NODE_SELECT:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_select_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_select_t *)new_node = *(c_orm_ast_select_t *)node;
-    }
+    size = sizeof(c_orm_ast_select_t);
     break;
   case C_ORM_AST_NODE_FROM:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_from_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_from_t *)new_node = *(c_orm_ast_from_t *)node;
-    }
+    size = sizeof(c_orm_ast_from_t);
     break;
   case C_ORM_AST_NODE_WHERE:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_where_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_where_t *)new_node = *(c_orm_ast_where_t *)node;
-      ((c_orm_ast_where_t *)new_node)->condition =
-          c_orm_ast_clone_node(arena, ((c_orm_ast_where_t *)node)->condition);
-    }
+    size = sizeof(c_orm_ast_where_t);
     break;
   case C_ORM_AST_NODE_JOIN:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_join_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_join_t *)new_node = *(c_orm_ast_join_t *)node;
-      ((c_orm_ast_join_t *)new_node)->on_condition =
-          c_orm_ast_clone_node(arena, ((c_orm_ast_join_t *)node)->on_condition);
-    }
+    size = sizeof(c_orm_ast_join_t);
     break;
   case C_ORM_AST_NODE_GROUP_BY:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_group_by_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_group_by_t *)new_node = *(c_orm_ast_group_by_t *)node;
-    }
+    size = sizeof(c_orm_ast_group_by_t);
     break;
   case C_ORM_AST_NODE_HAVING:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_having_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_having_t *)new_node = *(c_orm_ast_having_t *)node;
-      ((c_orm_ast_having_t *)new_node)->condition =
-          c_orm_ast_clone_node(arena, ((c_orm_ast_having_t *)node)->condition);
-    }
+    size = sizeof(c_orm_ast_having_t);
     break;
   case C_ORM_AST_NODE_ORDER_BY:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_order_by_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_order_by_t *)new_node = *(c_orm_ast_order_by_t *)node;
-    }
+    size = sizeof(c_orm_ast_order_by_t);
     break;
   case C_ORM_AST_NODE_LIMIT:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_limit_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_limit_t *)new_node = *(c_orm_ast_limit_t *)node;
-    }
+    size = sizeof(c_orm_ast_limit_t);
     break;
   case C_ORM_AST_NODE_OFFSET:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_offset_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_offset_t *)new_node = *(c_orm_ast_offset_t *)node;
-    }
+    size = sizeof(c_orm_ast_offset_t);
     break;
   case C_ORM_AST_NODE_LITERAL:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_literal_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_literal_t *)new_node = *(c_orm_ast_literal_t *)node;
-    }
+    size = sizeof(c_orm_ast_literal_t);
     break;
   case C_ORM_AST_NODE_OPERATOR:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_operator_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_operator_t *)new_node = *(c_orm_ast_operator_t *)node;
+    size = sizeof(c_orm_ast_operator_t);
+    break;
+  case C_ORM_AST_NODE_RAW:
+    size = sizeof(c_orm_ast_raw_t);
+    break;
+  case C_ORM_AST_NODE_COLUMN:
+    size = sizeof(c_orm_ast_column_t);
+    break;
+  case C_ORM_AST_NODE_GROUP:
+    size = sizeof(c_orm_ast_group_t);
+    break;
+  case C_ORM_AST_NODE_SUBQUERY:
+    size = sizeof(c_orm_ast_subquery_t);
+    break;
+  case C_ORM_AST_NODE_UNION:
+    size = sizeof(c_orm_ast_union_t);
+    break;
+  case C_ORM_AST_NODE_WITH:
+    size = sizeof(c_orm_ast_with_t);
+    break;
+  case C_ORM_AST_NODE_FUNCTION:
+    size = sizeof(c_orm_ast_function_t);
+    break;
+  case C_ORM_AST_NODE_CAST:
+    size = sizeof(c_orm_ast_cast_t);
+    break;
+  case C_ORM_AST_NODE_BETWEEN:
+    size = sizeof(c_orm_ast_between_t);
+    break;
+  case C_ORM_AST_NODE_EXISTS:
+    size = sizeof(c_orm_ast_exists_t);
+    break;
+  case C_ORM_AST_NODE_WINDOW:
+    size = sizeof(c_orm_ast_window_t);
+    break;
+  }
+
+  if (c_orm_arena_alloc(arena, size, (void **)&new_node) == 0) {
+    memcpy(new_node, node, size);
+    if (node->type == C_ORM_AST_NODE_WHERE) {
+      ((c_orm_ast_where_t *)new_node)->condition =
+          c_orm_ast_clone_node(arena, ((c_orm_ast_where_t *)node)->condition);
+    } else if (node->type == C_ORM_AST_NODE_JOIN) {
+      ((c_orm_ast_join_t *)new_node)->on_condition =
+          c_orm_ast_clone_node(arena, ((c_orm_ast_join_t *)node)->on_condition);
+    } else if (node->type == C_ORM_AST_NODE_HAVING) {
+      ((c_orm_ast_having_t *)new_node)->condition =
+          c_orm_ast_clone_node(arena, ((c_orm_ast_having_t *)node)->condition);
+    } else if (node->type == C_ORM_AST_NODE_OPERATOR) {
       ((c_orm_ast_operator_t *)new_node)->left =
           c_orm_ast_clone_node(arena, ((c_orm_ast_operator_t *)node)->left);
       ((c_orm_ast_operator_t *)new_node)->right =
           c_orm_ast_clone_node(arena, ((c_orm_ast_operator_t *)node)->right);
-    }
-    break;
-  case C_ORM_AST_NODE_RAW:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_raw_t), (void **)&new_node) ==
-        0) {
-      *(c_orm_ast_raw_t *)new_node = *(c_orm_ast_raw_t *)node;
-    }
-    break;
-  case C_ORM_AST_NODE_COLUMN:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_column_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_column_t *)new_node = *(c_orm_ast_column_t *)node;
-    }
-    break;
-  case C_ORM_AST_NODE_GROUP:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_group_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_group_t *)new_node = *(c_orm_ast_group_t *)node;
+    } else if (node->type == C_ORM_AST_NODE_GROUP) {
       ((c_orm_ast_group_t *)new_node)->expr =
           c_orm_ast_clone_node(arena, ((c_orm_ast_group_t *)node)->expr);
     }
-    break;
-  case C_ORM_AST_NODE_SUBQUERY:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_subquery_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_subquery_t *)new_node = *(c_orm_ast_subquery_t *)node;
-    }
-    break;
-  case C_ORM_AST_NODE_UNION:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_union_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_union_t *)new_node = *(c_orm_ast_union_t *)node;
-    }
-    break;
-  case C_ORM_AST_NODE_WITH:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_with_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_with_t *)new_node = *(c_orm_ast_with_t *)node;
-    }
-    break;
-  case C_ORM_AST_NODE_FUNCTION:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_function_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_function_t *)new_node = *(c_orm_ast_function_t *)node;
-    }
-    break;
-  case C_ORM_AST_NODE_CAST:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_cast_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_cast_t *)new_node = *(c_orm_ast_cast_t *)node;
-    }
-    break;
-  case C_ORM_AST_NODE_BETWEEN:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_between_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_between_t *)new_node = *(c_orm_ast_between_t *)node;
-    }
-    break;
-  case C_ORM_AST_NODE_EXISTS:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_exists_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_exists_t *)new_node = *(c_orm_ast_exists_t *)node;
-    }
-    break;
-  case C_ORM_AST_NODE_WINDOW:
-    if (c_orm_arena_alloc(arena, sizeof(c_orm_ast_window_t),
-                          (void **)&new_node) == 0) {
-      *(c_orm_ast_window_t *)new_node = *(c_orm_ast_window_t *)node;
-    }
-    break;
-  }
-
-  if (new_node) {
     new_node->next = NULL;
   }
   LOG_DEBUG("c_orm_ast_clone_node: exit");
@@ -928,7 +870,7 @@ static c_orm_query_t *c_orm_query_distinct_impl(c_orm_query_t *q) {
     curr = curr->next;
   }
   q->select_(q, "*");
-  if (q->ast_head && q->ast_head->type == C_ORM_AST_NODE_SELECT) {
+  if (q->ast_head) {
     ((c_orm_ast_select_t *)q->ast_head)->is_distinct = 1;
   }
   LOG_DEBUG("c_orm_query_distinct_impl: exit new select");

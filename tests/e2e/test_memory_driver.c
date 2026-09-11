@@ -62,6 +62,11 @@ TEST test_memory_edge_cases(void) {
   err = vt->finalize(q);
   ASSERT_EQ(C_ORM_OK, err);
 
+  err = vt->prepare(db, "INSERT INTO t(id) VALUES (1)", &q);
+  ASSERT_EQ(C_ORM_OK, err);
+  err = vt->finalize(q);
+  ASSERT_EQ(C_ORM_OK, err);
+
   err = vt->prepare(db, "UPDATE t SET id = 2", &q);
   ASSERT_EQ(C_ORM_OK, err);
   err = vt->finalize(q);

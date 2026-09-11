@@ -33,7 +33,7 @@ static size_t cdd_c_memory_freed = 0;
 
 static c_orm_error_t cdd_c_malloc(size_t size, void **out_ptr) {
   void *ptr;
-  if (size == (size_t)-1 || size > 2147483647) {
+  if (size > 2147483647) {
     *out_ptr = NULL;
     return ENOMEM;
   }
@@ -53,7 +53,7 @@ static c_orm_error_t cdd_c_realloc(void *ptr, size_t size, void **out_ptr) {
   new_ptr = C_ORM_REALLOC(ptr, size);
   if (new_ptr && !ptr)
     cdd_c_memory_allocated += size; /* Rough estimate */
-  if (!new_ptr && size != 0) {
+  if (!new_ptr) {
     *out_ptr = NULL;
     return ENOMEM;
   }
@@ -95,8 +95,7 @@ cdd_c_abstract_struct_array_init(cdd_c_abstract_struct_array_t *arr,
   arr->capacity = capacity;
   if (capacity > 0) {
     if (cdd_c_malloc(arr->capacity * sizeof(cdd_c_abstract_struct_t),
-                     (void **)&arr->items) != 0 ||
-        !arr->items)
+                     (void **)&arr->items) != 0)
       return EINVAL;
     /* Initialize children to 0 counts so deep frees don't blow up on partial
      * errors */
@@ -121,7 +120,7 @@ cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
       return EINVAL;
     err = cdd_c_realloc(arr->items, new_cap * sizeof(cdd_c_abstract_struct_t),
                         (void **)&new_items);
-    if (err != C_ORM_OK || !new_items)
+    if (err != C_ORM_OK)
       return EINVAL;
     arr->items = new_items;
     arr->capacity = new_cap;
@@ -195,6 +194,8 @@ cdd_c_abstract_struct_array_to_json(const cdd_c_abstract_struct_array_t *arr,
         json_object_set_string(obj, kv->key, "<BLOB>");
         break;
       case CDD_C_VARIANT_TYPE_NULL:
+        json_object_set_null(obj, kv->key);
+        break;
       default:
         json_object_set_null(obj, kv->key);
         break;
@@ -224,8 +225,7 @@ cdd_c_abstract_struct_init_with_capacity(cdd_c_abstract_struct_t *astruct,
   astruct->capacity = capacity;
   if (capacity > 0) {
     if (cdd_c_malloc(astruct->capacity * sizeof(cdd_c_abstract_struct_kv_t),
-                     (void **)&astruct->kvs) != 0 ||
-        !astruct->kvs)
+                     (void **)&astruct->kvs) != 0)
       return EINVAL;
   }
   return 0;
@@ -238,7 +238,7 @@ static c_orm_error_t duplicate_string(const char *src, char **dest) {
     return 0;
   }
   len = strlen(src);
-  if (cdd_c_malloc(len + 1, (void **)dest) != 0 || !*dest)
+  if (cdd_c_malloc(len + 1, (void **)dest) != 0)
     return EINVAL;
   memcpy(*dest, src, len + 1);
   return 0;
@@ -250,7 +250,7 @@ static c_orm_error_t duplicate_blob(const unsigned char *src, size_t size,
     *dest = NULL;
     return 0;
   }
-  if (cdd_c_malloc(size, (void **)dest) != 0 || !*dest)
+  if (cdd_c_malloc(size, (void **)dest) != 0)
     return EINVAL;
   memcpy(*dest, src, size);
   return 0;
@@ -344,7 +344,7 @@ c_orm_error_t cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct,
     err = cdd_c_realloc(astruct->kvs,
                         new_cap * sizeof(cdd_c_abstract_struct_kv_t),
                         (void **)&new_kvs);
-    if (err != C_ORM_OK || !new_kvs)
+    if (err != C_ORM_OK)
       return EINVAL;
     astruct->kvs = new_kvs;
     astruct->capacity = new_cap;
@@ -468,9 +468,9 @@ cdd_c_abstract_struct_to_json(const cdd_c_abstract_struct_t *astruct,
     return EINVAL;
 
   root_val = json_value_init_object();
-  root_obj = json_value_get_object(root_val);
-  if (!root_val || !root_obj)
+  if (!root_val)
     return EINVAL;
+  root_obj = json_value_get_object(root_val);
 
   for (i = 0; i < astruct->count; ++i) {
     const cdd_c_abstract_struct_kv_t *kv = &astruct->kvs[i];

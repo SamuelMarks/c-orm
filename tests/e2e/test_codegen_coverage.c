@@ -42,8 +42,18 @@ TEST test_codegen_parse_fail(void) {
 }
 
 TEST test_codegen_fread_fail(void) {
-  /* To fail fread, maybe we can't easily do it without mocking, but it's not
-   * strictly necessary if we can't reach it. We will leave it. */
+  FILE *f;
+  C_ORM_FOPEN(&f, "empty_schema.sql", "w");
+  if (f) {
+    fclose(f);
+  }
+#ifdef _WIN32
+  system("mkdir test_out 2>nul");
+#else
+  system("mkdir -p test_out 2>/dev/null");
+#endif
+  c_orm_codegen_generate("empty_schema.sql", "test_out");
+  remove("empty_schema.sql");
   PASS();
 }
 
@@ -64,7 +74,27 @@ TEST test_codegen_fopen_h_fail(void) {
   PASS();
 }
 
-TEST test_codegen_fopen_c_fail(void) { PASS(); }
+TEST test_codegen_fopen_c_fail(void) {
+  FILE *f;
+  C_ORM_FOPEN(&f, "dummy.sql", "w");
+  if (f) {
+    fprintf(f, "CREATE TABLE t (id INT);\n");
+    fclose(f);
+  }
+#ifdef _WIN32
+  system("mkdir test_conflict 2>nul");
+  system("mkdir test_conflict\\Models.c 2>nul");
+#else
+  system("mkdir -p test_conflict/Models.c 2>/dev/null");
+#endif
+  c_orm_codegen_generate("dummy.sql", "test_conflict");
+#ifdef _WIN32
+  system("rmdir /S /Q test_conflict 2>nul");
+#else
+  system("rm -rf test_conflict 2>/dev/null");
+#endif
+  PASS();
+}
 
 TEST test_codegen_malloc_fail(void) {
   int i;

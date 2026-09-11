@@ -188,34 +188,29 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
           sql_token_list_free(list);
           return rc;
         }
-        if (table) {
-          rc = cdd_c_ir_add_table(out_ir, table);
-          if (rc != C_ORM_OK) {
-            sql_table_C_ORM_FREE(table);
-            C_ORM_FREE(table);
-            sql_token_list_free(list);
-            return rc;
-          }
+        rc = cdd_c_ir_add_table(out_ir, table);
+        if (rc != C_ORM_OK) {
+          sql_table_C_ORM_FREE(table);
           C_ORM_FREE(table);
+          sql_token_list_free(list);
+          return rc;
         }
+        C_ORM_FREE(table);
         in_table = 0;
-      } else if (in_select) {
+      } else {
         proj = NULL;
         rc = sql_parse_select(&sublist, &proj, &err);
         if (rc != C_ORM_OK) {
           sql_token_list_free(list);
           return rc;
         }
-        if (proj) {
-          rc = cdd_c_ir_add_projection(out_ir, proj);
-          if (rc != C_ORM_OK) {
-            C_ORM_FREE(proj);
-            sql_token_list_free(list);
-            return rc;
-          }
-          /* cdd_c_query_projection_free(proj); */
+        rc = cdd_c_ir_add_projection(out_ir, proj);
+        if (rc != C_ORM_OK) {
           C_ORM_FREE(proj);
+          sql_token_list_free(list);
+          return rc;
         }
+        C_ORM_FREE(proj);
         in_select = 0;
       }
     }
@@ -233,16 +228,13 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
         return tmp;
       }
     }
-    if (proj) {
-      rc = cdd_c_ir_add_projection(out_ir, proj);
-      if (rc != C_ORM_OK) {
-        C_ORM_FREE(proj);
-        sql_token_list_free(list);
-        return rc;
-      }
-      /* cdd_c_query_projection_free(proj); */
+    rc = cdd_c_ir_add_projection(out_ir, proj);
+    if (rc != C_ORM_OK) {
       C_ORM_FREE(proj);
+      sql_token_list_free(list);
+      return rc;
     }
+    C_ORM_FREE(proj);
   }
 
   sql_token_list_free(list);

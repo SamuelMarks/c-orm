@@ -57,7 +57,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
   sql_size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
-  if (sql_size > 0 && sql_size < 2147483647) {
+  if (sql_size > 0) {
     sql_data = (char *)C_ORM_MALLOC((size_t)sql_size + 1);
     if (!sql_data) {
       LOG_DEBUG("c_orm_codegen_generate: OOM");
@@ -65,8 +65,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
       rc = C_ORM_ERROR_MEMORY;
       goto cleanup;
     }
-    if (fread(sql_data, 1, (size_t)sql_size, fp) != (size_t)sql_size &&
-        ferror(fp)) {
+    if (fread(sql_data, 1, (size_t)sql_size, fp) != (size_t)sql_size) {
       LOG_DEBUG("c_orm_codegen_generate: read error");
       fclose(fp);
       rc = C_ORM_ERROR_UNKNOWN;
@@ -198,19 +197,11 @@ cleanup:
   if (tables) {
     for (i = 0; i < n_tables; ++i) {
       for (j = 0; j < tables[i].n_columns; ++j) {
-        if (tables[i].columns[j].name) {
-          C_ORM_FREE(tables[i].columns[j].name);
-        }
-        if (tables[i].columns[j].constraints) {
-          C_ORM_FREE(tables[i].columns[j].constraints);
-        }
+        C_ORM_FREE(tables[i].columns[j].name);
+        C_ORM_FREE(tables[i].columns[j].constraints);
       }
-      if (tables[i].columns) {
-        C_ORM_FREE(tables[i].columns);
-      }
-      if (tables[i].name) {
-        C_ORM_FREE(tables[i].name);
-      }
+      C_ORM_FREE(tables[i].columns);
+      C_ORM_FREE(tables[i].name);
     }
     C_ORM_FREE(tables);
   }

@@ -261,23 +261,15 @@ TEST test_codegen_coverage(void) {
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   {
-    const char *paths[] = {"tests/e2e/schema.sql",
-                           "../tests/e2e/schema.sql",
-                           "../../tests/e2e/schema.sql",
-                           "../../../tests/e2e/schema.sql",
-                           "../../../../tests/e2e/schema.sql",
-                           "../../../../../tests/e2e/schema.sql"};
-    int i;
-    for (i = 0; i < 6; i++) {
-      schema_path = paths[i];
-      C_ORM_FOPEN(&f, schema_path, "r");
-      if (f) {
-        fclose(f);
-        break;
-      }
+    C_ORM_FOPEN(&f, "test_stubs_schema.sql", "w");
+    if (f) {
+      fprintf(f, "CREATE TABLE t_stubs (id INTEGER PRIMARY KEY);\n");
+      fclose(f);
     }
+    schema_path = "test_stubs_schema.sql";
   }
   rc = c_orm_codegen_generate(schema_path, "test_out");
+  remove("test_stubs_schema.sql");
 
   ASSERT_EQ(C_ORM_OK, rc);
 

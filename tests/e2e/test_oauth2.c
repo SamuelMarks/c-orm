@@ -37,7 +37,6 @@ static void *m_mock_malloc(size_t size) {
 static void m_mock_free(void *ptr) { free(ptr); }
 
 TEST test_oauth2_json_edge_cases(void) {
-  c_orm_db_t *db = NULL;
   c_orm_oauth2_token_t token;
   memset(&token, 0, sizeof(token));
 
@@ -65,36 +64,16 @@ TEST test_oauth2_json_edge_cases(void) {
 
   /* Some bad formatting */
   c_orm_oauth2_token_parse_json("{\"access_token\": ", &token);
-  if (token.access_token) {
-    free(token.access_token);
-    token.access_token = NULL;
-  }
-
   c_orm_oauth2_token_parse_json("{\"access_token\": 123", &token);
-  if (token.access_token) {
-    free(token.access_token);
-    token.access_token = NULL;
-  }
-
   c_orm_oauth2_token_parse_json("{\"access_token\": \"123", &token);
-  if (token.access_token) {
-    free(token.access_token);
-    token.access_token = NULL;
-  }
-
   c_orm_oauth2_token_parse_json("{\"expires_in\": \"3600\"}", &token);
   c_orm_oauth2_token_parse_json("{\"expires_in\": abc}", &token);
   c_orm_oauth2_token_parse_json("{\"unknown_key\": \"val\"}", &token);
 
-  if (db && db->vtable && db->vtable->disconnect) {
-    db->vtable->disconnect(db);
-    db = NULL;
-  }
   PASS();
 }
 
 TEST test_oauth2_flat_json(void) {
-  c_orm_db_t *db = NULL;
   c_orm_oauth2_token_t t;
   c_orm_error_t err;
 
@@ -126,15 +105,10 @@ TEST test_oauth2_flat_json(void) {
   c_orm_oauth2_token_parse_json("{\"key\": \"val\\",
                                 &t); /* trailing backslash in value */
 
-  if (db && db->vtable && db->vtable->disconnect) {
-    db->vtable->disconnect(db);
-    db = NULL;
-  }
   PASS();
 }
 
 TEST test_oauth2_crypto(void) {
-  c_orm_db_t *db = NULL;
   char *out = NULL;
   int i;
   c_orm_oauth2_token_t t;
@@ -216,10 +190,6 @@ TEST test_oauth2_crypto(void) {
     remove("c_orm_token.dat");
   }
 
-  if (db && db->vtable && db->vtable->disconnect) {
-    db->vtable->disconnect(db);
-    db = NULL;
-  }
   PASS();
 }
 
@@ -236,8 +206,6 @@ static c_orm_error_t my_oauth2_prep(c_orm_db_t *db_v, const char *sql,
   if (fail_sql == 4 && strstr(sql, "CREATE TABLE IF NOT EXISTS auth_codes"))
     return C_ORM_ERROR_SQL;
   if (fail_sql == 5 && strstr(sql, "SELECT"))
-    return C_ORM_ERROR_SQL;
-  if (fail_sql == 99 && strstr(sql, "COMMIT"))
     return C_ORM_ERROR_SQL;
   if (fail_sql == 6 && strstr(sql, "DELETE"))
     return C_ORM_ERROR_SQL;
@@ -415,8 +383,7 @@ TEST test_oauth2_client(void) {
 }
 
 TEST test_oauth2_scopes(void) {
-  c_orm_db_t *db = NULL;
-  int is_valid;
+  int is_valid = 0;
   int i;
   c_orm_oauth2_validate_scope("a b c", "a b", &is_valid);
   ASSERT(is_valid);
@@ -436,10 +403,6 @@ TEST test_oauth2_scopes(void) {
   c_orm_oauth2_is_token_valid(NULL, 0, NULL);
   c_orm_oauth2_calculate_expiration(0, 3600, NULL);
 
-  if (db && db->vtable && db->vtable->disconnect) {
-    db->vtable->disconnect(db);
-    db = NULL;
-  }
   PASS();
 }
 TEST test_oauth2_auth_code(void) {
@@ -561,12 +524,14 @@ TEST test_oauth2_token(void) {
   int i;
   c_orm_sqlite_connect(":memory:", &db);
   c_orm_oauth2_create_tables(db);
+  c_orm_execute_raw(db,
+                    "INSERT INTO users (id, username) VALUES ('u1', 'user1');");
 
   memset(&t, 0, sizeof(t));
   t.access_token = "atk";
   t.refresh_token = "rtk";
   t.token_type = "Bearer";
-  t.user_id = NULL;
+  t.user_id = "u1";
   t.scopes = "read";
   t.created_at = 2000000000L;
   t.expires_in = 3600;
@@ -670,7 +635,6 @@ TEST test_oauth2_token(void) {
 }
 
 TEST test_oauth2_crypto_fail_open(void) {
-  c_orm_db_t *db = NULL;
   c_orm_oauth2_token_t t;
   cfs_path p;
   cfs_size_t rm_out = 0;
@@ -693,10 +657,6 @@ TEST test_oauth2_crypto_fail_open(void) {
   _rmdir("c_orm_token.dat");
 #endif
 
-  if (db && db->vtable && db->vtable->disconnect) {
-    db->vtable->disconnect(db);
-    db = NULL;
-  }
   PASS();
 }
 
@@ -705,7 +665,7 @@ static c_orm_error_t dummy_prep(c_orm_db_t *db_v, const char *sql,
   (void)db_v;
   (void)sql;
   if (out_query)
-    *out_query = NULL;
+    *out_query = (c_orm_query_t *)0x1234;
 
   if (fail_sql == 1 && strstr(sql, "CREATE TABLE IF NOT EXISTS users"))
     return C_ORM_ERROR_SQL;
@@ -732,7 +692,6 @@ static c_orm_error_t dummy_finalize(c_orm_query_t *query) {
 }
 
 TEST test_oauth2_init_non_sqlite(void) {
-  c_orm_db_t *db = NULL;
   c_orm_db_t db_dummy;
   c_orm_driver_vtable_t dummy_vt;
   c_orm_error_t err;
@@ -745,6 +704,7 @@ TEST test_oauth2_init_non_sqlite(void) {
   dummy_vt.step = dummy_step;
   dummy_vt.finalize = dummy_finalize;
   db_dummy.vtable = &dummy_vt;
+  c_orm_disable_statement_caching(&db_dummy);
 
   for (fail_sql = 1; fail_sql <= 4; fail_sql++) {
     c_orm_oauth2_create_tables(&db_dummy);
@@ -753,16 +713,10 @@ TEST test_oauth2_init_non_sqlite(void) {
   err = c_orm_oauth2_create_tables(&db_dummy);
 
   dummy_finalize(NULL);
-
-  if (db && db->vtable && db->vtable->disconnect) {
-    db->vtable->disconnect(db);
-    db = NULL;
-  }
   PASS();
 }
 
 TEST test_oauth2_null_args(void) {
-  c_orm_db_t *db = NULL;
   c_orm_oauth2_save_token(NULL, NULL);
   c_orm_oauth2_get_token(NULL, NULL, NULL);
   c_orm_oauth2_revoke_token(NULL, NULL);
@@ -784,15 +738,10 @@ TEST test_oauth2_null_args(void) {
   c_orm_user_verify_credentials(NULL, NULL, NULL, NULL);
   c_orm_oauth2_cleanup_expired_tokens(NULL, 0);
 
-  if (db && db->vtable && db->vtable->disconnect) {
-    db->vtable->disconnect(db);
-    db = NULL;
-  }
   PASS();
 }
 
 TEST test_oauth2_valid_token(void) {
-  c_orm_db_t *db = NULL;
   c_orm_oauth2_token_t t;
   int i;
   memset(&t, 0, sizeof(t));
@@ -800,12 +749,261 @@ TEST test_oauth2_valid_token(void) {
   t.expires_in = 3600;
   c_orm_oauth2_is_token_valid(&t, 0, &i);
 
+  PASS();
+}
+
+static c_orm_error_t mock_oauth_step_fail(c_orm_query_t *q, int *has_row) {
+  (void)q;
+  (void)has_row;
+  return C_ORM_ERROR_STEP;
+}
+
+TEST test_oauth2_all_branches(void) {
+  c_orm_db_t *db = NULL;
+  c_orm_oauth2_token_t tok;
+  c_orm_oauth2_token_t out_tok;
+  c_orm_oauth2_auth_code_t ac;
+  c_orm_oauth2_auth_code_t out_ac;
+  c_orm_oauth2_client_t client;
+  char *enc = NULL;
+  char *plain = NULL;
+  int is_valid = 0;
+  char huge_json[350];
+  c_orm_driver_vtable_t fail_vt;
+  const c_orm_driver_vtable_t *old_vt;
+
+  memset(&tok, 0, sizeof(tok));
+  memset(&out_tok, 0, sizeof(out_tok));
+  memset(&ac, 0, sizeof(ac));
+  memset(&out_ac, 0, sizeof(out_ac));
+  memset(&client, 0, sizeof(client));
+
+  ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect(":memory:", &db));
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_create_tables(db));
+
+  /* 1. JSON edge cases: unmapped key, long key >=256 chars, escaped quote in
+   * key, OOM */
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_token_parse_json(
+                          "{\"unknown_key\":\"val\",\"access_token\":\"tok1\"}",
+                          &out_tok));
+  if (out_tok.access_token) {
+    c_orm_free(out_tok.access_token);
+    out_tok.access_token = NULL;
+  }
+
+  memset(huge_json, 'a', sizeof(huge_json));
+  huge_json[0] = '{';
+  huge_json[1] = '"';
+  huge_json[270] = '"';
+  huge_json[271] = ':';
+  huge_json[272] = '"';
+  huge_json[273] = 'v';
+  huge_json[274] = '"';
+  huge_json[275] = '}';
+  huge_json[276] = '\0';
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_token_parse_json(huge_json, &out_tok));
+
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_oauth2_token_parse_json(
+                "{\"my\\\"key\":\"val\",\"access_token\":\"tok2\"}", &out_tok));
+  if (out_tok.access_token) {
+    c_orm_free(out_tok.access_token);
+    out_tok.access_token = NULL;
+  }
+
+  oom_active = 1;
+  oom_countdown = 0;
+  c_orm_oauth2_token_parse_json("{\"access_token\":\"val\"}", &out_tok);
+  oom_active = 0;
+
+  /* 2. Token validity checks */
+  tok.created_at = 1000;
+  tok.expires_in = 3600;
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_oauth2_is_token_valid(NULL, 2000, &is_valid));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_oauth2_is_token_valid(&tok, 2000, NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_is_token_valid(&tok, 2000, &is_valid));
+  ASSERT_EQ(1, is_valid);
+
+  /* 3. Crypto NULL args and token with NULL access_token */
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_encrypt_token(NULL, &enc));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_encrypt_token("tok", NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_decrypt_token(NULL, &plain));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_decrypt_token("enc", NULL));
+
+  /* Encrypt with NULL access token */
+  tok.access_token = NULL;
+  c_orm_oauth2_encrypt_token(tok.access_token, &enc);
+  c_orm_store_token_secure(&tok);
+
+  /* 4. verify_user parameter checks and nonexistent user */
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_user_verify_credentials(NULL, "admin", "pass", &is_valid));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_user_verify_credentials(db, NULL, "pass", &is_valid));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_user_verify_credentials(db, "admin", NULL, &is_valid));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_user_verify_credentials(db, "admin", "pass", NULL));
+
+  /* Nonexistent user */
+  ASSERT_EQ(C_ORM_OK, c_orm_user_verify_credentials(db, "nonexistent", "pass",
+                                                    &is_valid));
+  ASSERT_EQ(0, is_valid);
+
+  /* User with NULL password_hash and NULL salt */
+  c_orm_execute_raw(db, "INSERT INTO users (id, username, password_hash, salt) "
+                        "VALUES ('u_null', 'null_user', NULL, NULL);");
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_user_verify_credentials(db, "null_user", "pass", &is_valid));
+  ASSERT_EQ(0, is_valid);
+
+  /* 5. verify_client parameter checks and various secret checks */
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_oauth2_verify_client(NULL, "cid", "sec", &is_valid));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_oauth2_verify_client(db, NULL, "sec", &is_valid));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_oauth2_verify_client(db, "cid", "sec", NULL));
+
+  /* Nonexistent client */
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_oauth2_verify_client(db, "nonexistent", "sec", &is_valid));
+  ASSERT_EQ(0, is_valid);
+
+  /* Insert client with secret */
+  client.id = "c1";
+  client.client_secret = "secret123";
+  c_orm_insert(db, &c_orm_oauth2_client_meta, &client);
+
+  /* Correct secret */
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_oauth2_verify_client(db, "c1", "secret123", &is_valid));
+  ASSERT_EQ(1, is_valid);
+
+  /* NULL secret arg */
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_verify_client(db, "c1", NULL, &is_valid));
+  ASSERT_EQ(0, is_valid);
+
+  /* Wrong secret */
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_verify_client(db, "c1", "wrong", &is_valid));
+  ASSERT_EQ(0, is_valid);
+
+  /* Insert client with empty secret */
+  client.id = "c2";
+  client.client_secret = "";
+  c_orm_insert(db, &c_orm_oauth2_client_meta, &client);
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_verify_client(db, "c2", "any", &is_valid));
+  ASSERT_EQ(1, is_valid);
+
+  /* Insert client with NULL secret */
+  c_orm_execute_raw(db, "INSERT INTO clients (id, client_secret, "
+                        "redirect_uris, scopes, grant_types) VALUES ('c_pub', "
+                        "NULL, 'http://localhost', 'read', 'code');");
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_verify_client(db, "c_pub", NULL, &is_valid));
+  ASSERT_EQ(1, is_valid);
+
+  /* 6. save_token NULL checks and user_id non-null branch */
+  c_orm_execute_raw(
+      db, "INSERT INTO users (id, username) VALUES ('user_456', 'u456');");
+  tok.access_token = "tok_acc";
+  tok.refresh_token = "tok_ref";
+  tok.token_type = "Bearer";
+  tok.user_id = "user_456";
+  tok.scopes = "read write";
+  tok.expires_in = 3600;
+  tok.created_at = 2000000000L;
+
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_save_token(NULL, &tok));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_save_token(db, NULL));
+  {
+    c_orm_oauth2_token_t tok_no_acc;
+    memset(&tok_no_acc, 0, sizeof(tok_no_acc));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_save_token(db, &tok_no_acc));
+  }
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_save_token(db, &tok));
+
+  /* 7. get_token NULL checks */
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_oauth2_get_token(NULL, "tok_acc", &out_tok));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_get_token(db, NULL, &out_tok));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_oauth2_get_token(db, "tok_acc", NULL));
+  {
+    c_orm_error_t get_tok_rc = c_orm_oauth2_get_token(db, "tok_acc", &out_tok);
+    ASSERT_EQ_FMT(C_ORM_OK, get_tok_rc, "%d");
+  }
+  if (out_tok.access_token)
+    c_orm_free(out_tok.access_token);
+  if (out_tok.refresh_token)
+    c_orm_free(out_tok.refresh_token);
+  if (out_tok.token_type)
+    c_orm_free(out_tok.token_type);
+  if (out_tok.user_id)
+    c_orm_free(out_tok.user_id);
+  if (out_tok.scopes)
+    c_orm_free(out_tok.scopes);
+
+  /* 8. revoke_token NULL checks */
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_revoke_token(NULL, "tok_acc"));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_revoke_token(db, NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_revoke_token(db, "tok_acc"));
+
+  /* 9. save_auth_code NULL checks */
+  ac.code = "code_123";
+  ac.client_id = "c1";
+  ac.redirect_uri = "https://example.com";
+  ac.user_id = "user_456";
+  ac.expires_at = 100000;
+  ac.scopes = "read";
+
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_save_auth_code(NULL, &ac));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_save_auth_code(db, NULL));
+  {
+    c_orm_oauth2_auth_code_t ac_no_code;
+    memset(&ac_no_code, 0, sizeof(ac_no_code));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_oauth2_save_auth_code(db, &ac_no_code));
+  }
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_save_auth_code(db, &ac));
+
+  /* 10. consume_auth_code NULL checks */
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_oauth2_consume_auth_code(NULL, "code_123", &out_ac));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_oauth2_consume_auth_code(db, NULL, &out_ac));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_oauth2_consume_auth_code(db, "code_123", NULL));
+  c_orm_oauth2_consume_auth_code(db, "code_123", &out_ac);
+  if (out_ac.code)
+    c_orm_free(out_ac.code);
+  if (out_ac.client_id)
+    c_orm_free(out_ac.client_id);
+  if (out_ac.redirect_uri)
+    c_orm_free(out_ac.redirect_uri);
+  if (out_ac.user_id)
+    c_orm_free(out_ac.user_id);
+  if (out_ac.scopes)
+    c_orm_free(out_ac.scopes);
+
+  /* 11. cleanup_expired_tokens error path */
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_oauth2_cleanup_expired_tokens(NULL, 0));
+
+  old_vt = db->vtable;
+  memcpy(&fail_vt, old_vt, sizeof(fail_vt));
+  fail_vt.step = mock_oauth_step_fail;
+  db->vtable = &fail_vt;
+  ASSERT_EQ(C_ORM_ERROR_STEP, c_orm_oauth2_cleanup_expired_tokens(db, 200000));
+  db->vtable = old_vt;
+
   if (db && db->vtable && db->vtable->disconnect) {
     db->vtable->disconnect(db);
-    db = NULL;
   }
   PASS();
 }
+
 SUITE(oauth2_suite) {
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void (*old_free)(void *) = c_orm_free;
@@ -826,6 +1024,7 @@ SUITE(oauth2_suite) {
   RUN_TEST(test_oauth2_null_args);
 
   RUN_TEST(test_oauth2_valid_token);
+  RUN_TEST(test_oauth2_all_branches);
 
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);

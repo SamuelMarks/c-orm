@@ -257,17 +257,10 @@ C_ORM_EXPORT c_orm_error_t cdd_c_meta_diff_to_sql(const char *table_name,
                               "ALTER TABLE %s ADD COLUMN %s %s;\n", table_name,
                               diff->added_props[i].name, sql_type);
     /* Generate DOWN SQL equivalent */
-    if (dialect == C_TO_SQL_DIALECT_SQLITE) {
-      down_offset += (size_t)C_ORM_SPRINTF(
-          down_buf + down_offset, sizeof(down_buf) - down_offset,
-          "ALTER TABLE %s DROP COLUMN %s;\n", table_name,
-          diff->added_props[i].name);
-    } else {
-      down_offset += (size_t)C_ORM_SPRINTF(
-          down_buf + down_offset, sizeof(down_buf) - down_offset,
-          "ALTER TABLE %s DROP COLUMN %s;\n", table_name,
-          diff->added_props[i].name);
-    }
+    down_offset += (size_t)C_ORM_SPRINTF(down_buf + down_offset,
+                                         sizeof(down_buf) - down_offset,
+                                         "ALTER TABLE %s DROP COLUMN %s;\n",
+                                         table_name, diff->added_props[i].name);
   }
 
   for (i = 0; i < diff->num_dropped; i++) {
@@ -308,12 +301,9 @@ C_ORM_EXPORT c_orm_error_t cdd_c_meta_diff_to_sql(const char *table_name,
 C_ORM_EXPORT void cdd_c_meta_diff_free(cdd_c_meta_diff_t *diff) {
   if (!diff)
     return;
-  if (diff->added_props)
-    C_ORM_FREE(diff->added_props);
-  if (diff->dropped_props)
-    C_ORM_FREE(diff->dropped_props);
-  if (diff->altered_props)
-    C_ORM_FREE(diff->altered_props);
+  C_ORM_FREE(diff->added_props);
+  C_ORM_FREE(diff->dropped_props);
+  C_ORM_FREE(diff->altered_props);
   memset(diff, 0, sizeof(cdd_c_meta_diff_t));
 }
 
@@ -369,7 +359,6 @@ C_ORM_EXPORT c_orm_error_t
 cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
                             const cdd_c_meta_t **out_schemas) {
   size_t i, j, k;
-  int *visited;
   int *in_degree;
   int head = 0, tail = 0;
   int *queue;
@@ -378,7 +367,6 @@ cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
   if (!schemas || !out_schemas || num_schemas == 0)
     return 1;
 
-  visited = (int *)calloc(num_schemas, sizeof(int));
   in_degree = (int *)calloc(num_schemas, sizeof(int));
   queue = (int *)C_ORM_MALLOC(num_schemas * sizeof(int));
 
@@ -434,7 +422,6 @@ cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
     }
   }
 
-  C_ORM_FREE(visited);
   C_ORM_FREE(in_degree);
   C_ORM_FREE(queue);
 

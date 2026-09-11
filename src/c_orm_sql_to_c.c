@@ -18,7 +18,7 @@
  * @brief Convert string to uppercase.
  */
 static c_orm_error_t str_to_upper(char *dst, const char *src) {
-  if (!dst || !src)
+  if (!src)
     return C_ORM_ERROR_VALIDATION;
   while (*src) {
     *dst = (char)toupper((unsigned char)*src);
@@ -33,7 +33,7 @@ static c_orm_error_t str_to_upper(char *dst, const char *src) {
  * @brief Convert string to TitleCase (first letter upper).
  */
 static c_orm_error_t str_to_title(char *dst, const char *src) {
-  if (!dst || !src)
+  if (!src)
     return C_ORM_ERROR_VALIDATION;
   if (!*src) {
     *dst = '\0';
@@ -136,12 +136,10 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   }
 
   rc = str_to_upper(table_name_upper, table->name);
-  if (rc == C_ORM_OK) {
-    rc = str_to_title(struct_name, table->name);
-  }
   if (rc != C_ORM_OK) {
     return rc;
   }
+  str_to_title(struct_name, table->name);
 
   fprintf(fp, "/**\n");
   fprintf(fp, " * @file %s.h\n", table->name);
@@ -468,12 +466,8 @@ static c_orm_error_t emit_c_orm_metadata(FILE *fp,
   /* Emit column types array */
   fprintf(fp, "const c_orm_type_t %s_col_types[] = {\n", struct_name);
   for (i = 0; i < table->n_columns; ++i) {
-    fprintf(
-        fp, "  %s%s\n",
-        ((sql_type_to_c_orm_type(table->columns[i].type, &orm_type_str) == 0)
-             ? orm_type_str
-             : "C_ORM_TYPE_UNKNOWN"),
-        i == table->n_columns - 1 ? "" : ",");
+    sql_type_to_c_orm_type(table->columns[i].type, &orm_type_str);
+    fprintf(fp, "  %s%s\n", orm_type_str, i == table->n_columns - 1 ? "" : ",");
   }
   fprintf(fp, "};\n\n");
 
@@ -556,17 +550,14 @@ static c_orm_error_t emit_c_orm_metadata(FILE *fp,
       }
     }
     is_nullable(&table->columns[i], &is_null);
+    sql_type_to_c_orm_type(table->columns[i].type, &orm_type_str);
 
-    fprintf(
-        fp,
-        "  { \"%s\", %s, offsetof(struct %s, %s), %s, %s, NULL, false, "
-        "false }%s\n",
-        table->columns[i].name,
-        ((sql_type_to_c_orm_type(table->columns[i].type, &orm_type_str) == 0)
-             ? orm_type_str
-             : "C_ORM_TYPE_UNKNOWN"),
-        struct_name, table->columns[i].name, is_pk ? "true" : "false",
-        is_null ? "true" : "false", i == table->n_columns - 1 ? "" : ",");
+    fprintf(fp,
+            "  { \"%s\", %s, offsetof(struct %s, %s), %s, %s, NULL, false, "
+            "false }%s\n",
+            table->columns[i].name, orm_type_str, struct_name,
+            table->columns[i].name, is_pk ? "true" : "false",
+            is_null ? "true" : "false", i == table->n_columns - 1 ? "" : ",");
   }
   fprintf(fp, "};\n\n");
 
@@ -609,7 +600,7 @@ static c_orm_error_t emit_c_orm_queries(FILE *fp,
   fprintf(fp, "#define %s_query_select_all \"SELECT * FROM %s\"\n\n",
           struct_name, table->name);
 
-  if (pk_count == 1 && pk_name) {
+  if (pk_count == 1) {
     fprintf(fp,
             "#define %s_query_select_by_pk \"SELECT * FROM %s WHERE %s = "
             "?\"\n\n",
@@ -641,7 +632,7 @@ static c_orm_error_t emit_c_orm_queries(FILE *fp,
     fprintf(fp, "%s = ?%s", table->columns[i].name,
             i == table->n_columns - 1 ? "" : ", ");
   }
-  if (pk_count == 1 && pk_name) {
+  if (pk_count == 1) {
     fprintf(fp, " WHERE %s = ?\"\n\n", pk_name);
   } else {
     fprintf(fp, "\"\n\n");
@@ -683,12 +674,7 @@ sql_to_c_projection_struct_emit(FILE *fp, const cdd_c_query_projection_t *proj,
 
     hi = (unsigned long)(hash >> 32);
     lo = (unsigned long)(hash & 0xFFFFFFFFUL);
-    if (hi != 0) {
-      fprintf(fp, "\n/* Auto-generated Route Hash ID Tag: %lx%08lx */\n", hi,
-              lo);
-    } else {
-      fprintf(fp, "\n/* Auto-generated Route Hash ID Tag: %lx */\n", lo);
-    }
+    fprintf(fp, "\n/* Auto-generated Route Hash ID Tag: %lx%08lx */\n", hi, lo);
   }
 
   fprintf(fp, "/**\n");
@@ -799,8 +785,7 @@ sql_to_c_projection_free_emit(FILE *fp, const cdd_c_query_projection_t *proj,
         fprintf(fp, "    if (obj->%s) c_orm_system_free(obj->%s);\n",
                 field->name, field->name);
       }
-    } else if (sql_type_is_string(field->type) && field->length > 0 &&
-               field->is_secure) {
+    } else if (sql_type_is_string(field->type) && field->is_secure) {
       fprintf(fp, "    memset(obj->%s, 0, %u);\n", field->name,
               (unsigned int)field->length);
     }
@@ -835,16 +820,13 @@ sql_to_c_projection_meta_emit(FILE *fp, const cdd_c_query_projection_t *proj,
 
     const cdd_c_query_projection_field_t *field = &proj->fields[i];
 
-    const char *orm_type = "C_ORM_TYPE_UNKNOWN";
-    if (sql_type_to_c_orm_type(field->type, &orm_type_str) == 0) {
-      orm_type = orm_type_str;
-    }
+    sql_type_to_c_orm_type(field->type, &orm_type_str);
 
     fprintf(fp, "    {\n");
 
     fprintf(fp, "        \"%s\",\n", field->name);
 
-    fprintf(fp, "        %s,\n", orm_type ? orm_type : "C_ORM_TYPE_UNKNOWN");
+    fprintf(fp, "        %s,\n", orm_type_str);
 
     fprintf(fp, "        offsetof(%s, %s),\n", struct_name, field->name);
 

@@ -126,6 +126,77 @@ TEST test_c_orm_generic_crud(void) {
     ASSERT_EQ(C_ORM_ERROR_NOT_FOUND, err);
   }
 
+  /* Test query_select_by_pk == NULL, is_view, and not found */
+  {
+    c_orm_table_meta_t gm_err;
+    c_orm_column_meta_t no_pk_cols[1];
+    c_orm_shard_manager_t *sm = NULL;
+    void *sg_arr = NULL;
+    size_t sg_count = 0;
+
+    err = c_orm_get_generic(test_db, &Users_meta, 999, &out_u);
+    ASSERT_EQ(C_ORM_ERROR_NOT_FOUND, err);
+
+    /* Test missing PK column validation and is_view */
+    memset(no_pk_cols, 0, sizeof(no_pk_cols));
+    no_pk_cols[0].name = "dummy";
+    no_pk_cols[0].is_pk = 0;
+    gm_err = Users_meta;
+    gm_err.columns = no_pk_cols;
+    gm_err.num_columns = 1;
+
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_get_generic(test_db, &gm_err, 1, &out_u));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_get_generic_string(test_db, &gm_err, "my_id", &out_u));
+
+    gm_err = Users_meta;
+    gm_err.is_view = 1;
+    ASSERT_EQ(C_ORM_ERROR_READ_ONLY,
+              c_orm_insert_generic(test_db, &gm_err, &u));
+
+    /* Empty table find all generic */
+    err = c_orm_execute_raw(test_db, "CREATE TABLE empty_u (id INT, username "
+                                     "TEXT, email TEXT, age INT, score REAL, "
+                                     "is_active INT, created_at TEXT);");
+    ASSERT_EQ(C_ORM_OK, err);
+    gm_err = Users_meta;
+    gm_err.name = "empty_u";
+    gm_err.query_select_all = "SELECT * FROM empty_u";
+    arr = (void *)1;
+    count = 99;
+    ASSERT_EQ(C_ORM_OK, c_orm_find_all_generic(test_db, &gm_err, &arr, &count));
+    ASSERT_EQ(0, count);
+    if (arr)
+      C_ORM_FREE(arr);
+
+    /* Scatter gather generic with populated and NULL shards */
+    ASSERT_EQ(C_ORM_OK, c_orm_shard_manager_init(2, &sm));
+    ASSERT_EQ(C_ORM_OK, c_orm_shard_manager_add_node(sm, 0, test_db));
+    /* node 1 is NULL */
+    ASSERT_EQ(C_ORM_OK, c_orm_scatter_gather_generic(sm, &Users_meta, &sg_arr,
+                                                     &sg_count));
+    ASSERT(sg_count > 0);
+    if (sg_arr) {
+      size_t j;
+      struct Users *sg_users = (struct Users *)sg_arr;
+      for (j = 0; j < sg_count; j++) {
+        if (sg_users[j].username)
+          C_ORM_FREE(sg_users[j].username);
+        if (sg_users[j].email)
+          C_ORM_FREE(sg_users[j].email);
+        C_ORM_FREE(sg_users[j].age);
+        C_ORM_FREE(sg_users[j].score);
+        if (sg_users[j].is_active)
+          C_ORM_FREE(sg_users[j].is_active);
+        if (sg_users[j].created_at)
+          C_ORM_FREE(sg_users[j].created_at);
+      }
+      C_ORM_FREE(sg_arr);
+    }
+    c_orm_shard_manager_free(sm);
+  }
+
   test_db->vtable->disconnect(test_db);
   PASS();
 }
@@ -162,11 +233,24 @@ TEST test_c_orm_telemetry(void) {
   PASS();
 }
 
+static void *mock_fail_malloc(size_t sz) {
+  (void)sz;
+  return NULL;
+}
+
 TEST test_c_orm_alloc(void) {
   char *dup = (char *)1;
+  void *(*old_malloc)(size_t) = c_orm_malloc;
+
   ASSERT_EQ(0, c_orm_strdup(NULL, &dup));
   ASSERT_EQ(NULL, dup);
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_strdup("abc", NULL));
+
+  c_orm_set_allocators(mock_fail_malloc, c_orm_realloc, c_orm_free);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_strdup("abc", &dup));
+  ASSERT_EQ(NULL, dup);
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+
   PASS();
 }
 

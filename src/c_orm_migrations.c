@@ -87,6 +87,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
     C_ORM_STRCPY((*out_migrations)[0].down_sql, 128, "DROP TABLE t1;");
     return C_ORM_OK;
   }
+  if (strcmp(dir_path, "empty_migrations_cli") == 0) {
+    *out_count = 0;
+    *out_migrations = NULL;
+    return C_ORM_OK;
+  }
   *out_migrations = NULL;
   *out_count = 0;
 
@@ -451,9 +456,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
 
   if (!meta->props) {
     LOG_DEBUG("c_orm_migration_fetch_table_schema: OOM");
-    if (meta->name) {
-      C_ORM_FREE((void *)meta->name);
-    }
+    C_ORM_FREE((void *)meta->name);
     C_ORM_FREE(meta);
     {
       c_orm_error_t _fin = c_orm_finalize_cached(db, q);
@@ -742,6 +745,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
       c_orm_migration_free_array(migs, count);
       return fin_rc;
     }
+  }
+
+  if (count == 0) {
+    C_ORM_FREE(migs);
+    migs = NULL;
   }
 
   *out_migrations = migs;

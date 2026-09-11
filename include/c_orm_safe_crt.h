@@ -50,12 +50,16 @@ c_orm_sprintf(char *buf, size_t size, const char *format, ...);
     getenv_s(&_len, dest, size, var_name);                                     \
   } while (0)
 #define C_ORM_UNSETENV(var_name) _putenv_s(var_name, "")
+#define C_ORM_SETENV(name, val) _putenv_s(name, val)
 #elif defined(__GNUC__) || defined(__clang__)
 #if defined(_WIN32)
 #define C_ORM_UNSETENV(var_name) _putenv_s(var_name, "")
+#define C_ORM_SETENV(name, val) _putenv_s(name, val)
 #else
 int unsetenv(const char *name);
+int setenv(const char *name, const char *value, int overwrite);
 #define C_ORM_UNSETENV(var_name) unsetenv(var_name)
+#define C_ORM_SETENV(name, val) setenv(name, val, 1)
 #endif
 #define C_ORM_STRCPY(dest, size, src) strcpy(dest, src)
 #define C_ORM_STRNCPY(dest, size, src, count) strncpy(dest, src, count)
@@ -97,6 +101,8 @@ int unsetenv(const char *name);
     }                                                                          \
   } while (0)
 #define C_ORM_UNSETENV(var_name) unsetenv(var_name)
+int setenv(const char *name, const char *value, int overwrite);
+#define C_ORM_SETENV(name, val) setenv(name, val, 1)
 #endif
 
 #if defined(_MSC_VER)

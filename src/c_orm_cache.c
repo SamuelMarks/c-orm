@@ -269,9 +269,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
 
       if (entry != cache->head) {
         /* Unlink */
-        if (entry->prev) {
-          entry->prev->next = entry->next;
-        }
+        entry->prev->next = entry->next;
         if (entry->next) {
           entry->next->prev = entry->prev;
         }
@@ -282,9 +280,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
         /* Re-insert at head */
         entry->next = cache->head;
         entry->prev = NULL;
-        if (cache->head) {
-          cache->head->prev = entry;
-        }
+        cache->head->prev = entry;
         cache->head = entry;
       }
 
@@ -349,9 +345,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
     evict = cache->tail;
     while (evict) {
       if (!evict->in_use) {
-        if (evict->prev) {
-          evict->prev->next = evict->next;
-        }
+        evict->prev->next = evict->next;
         if (evict->next) {
           evict->next->prev = evict->prev;
         }

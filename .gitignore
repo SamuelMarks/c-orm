@@ -43,6 +43,7 @@ compile_commands.json
 # Python
 __pycache__/
 *.py
+!scripts/*.py
 *.py[cod]
 
 # Dependencies

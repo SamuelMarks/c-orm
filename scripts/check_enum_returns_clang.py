@@ -173,7 +173,12 @@ def is_string_modifier(name: str) -> bool:
     """
     if not name:
         return False
-    return name.startswith("c_cdd_str_") or "trim" in name
+    return (
+        name.startswith("c_cdd_str_")
+        or name.startswith("c_orm_str")
+        or "sprintf" in name
+        or "trim" in name
+    )
 
 
 def is_logger(name: str) -> bool:
@@ -360,6 +365,23 @@ def check_file(
                     filtered_args.append(arg)
                 args_to_use = filtered_args
                 break
+
+    args_to_use = list(args_to_use)
+    if not any("-I" in a and "include" in a for a in args_to_use):
+        if os.path.isdir("include"):
+            args_to_use.append("-Iinclude")
+        elif os.path.isdir("../include"):
+            args_to_use.append("-I../include")
+    for dep_dir in [
+        "build/_deps/cdd_c-src/include",
+        "build/_deps/cdd_c-src/src",
+        "build/_deps/c_str_span-src/c_str_span",
+        "build/_deps/c89stringutils-src/c89stringutils",
+        "build/_deps/cfs-src/include",
+        "build/_deps/parson-src",
+    ]:
+        if os.path.isdir(dep_dir) and not any(dep_dir in a for a in args_to_use):
+            args_to_use.append(f"-I{dep_dir}")
 
     try:
         tu = index.parse(filename, args=args_to_use)

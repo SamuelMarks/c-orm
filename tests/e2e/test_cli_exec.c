@@ -60,6 +60,12 @@ TEST test_cli_create(void) {
   ASSERT_NEQ(0, rc);
   rc = system(CLI_CMD " create my_mig --dir test_migrations_dir" DEV_NULL);
   ASSERT_EQ(0, rc);
+#ifdef _WIN32
+  system(CLI_CMD " create my_mig --dir Z:\\invalid_dir\\invalid" DEV_NULL);
+#else
+  system(CLI_CMD " create my_mig --dir /dev/null/invalid_dir" DEV_NULL);
+#endif
+  system(CLI_CMD " create my_mig extra_arg --dir test_migrations_dir" DEV_NULL);
   PASS();
 }
 
@@ -118,6 +124,12 @@ TEST test_cli_migrate(void) {
   }
   system(CLI_CMD
          " migrate --db test_cli_exec.db --dir test_migrations_dir" DEV_NULL);
+  system(CLI_CMD
+         " migrate --db test_cli_exec.db --dir real_migrations_cli" DEV_NULL);
+  system(CLI_CMD
+         " migrate --db test_cli_exec.db --dir empty_migrations_cli" DEV_NULL);
+  system(CLI_CMD " migrate --db" DEV_NULL);
+  system(CLI_CMD " migrate --db test_cli_exec.db --dir" DEV_NULL);
 
   rc = system(CLI_CMD " migrate --db invalid_path/file.db" DEV_NULL);
   PASS();
@@ -138,6 +150,8 @@ TEST test_cli_status(void) {
   rc = system(CLI_CMD " status" DEV_NULL);
   printf("SYSTEM RETURNED %d\n", rc);
   ASSERT_NEQ(0, rc);
+
+  system("C_ORM_DB_URL=test_cli_exec.db " CLI_CMD " status" DEV_NULL);
 
   remove("bad_schema.db");
   {

@@ -84,6 +84,33 @@ TEST test_abstract_struct_set_get(void) {
   ASSERT_EQ(11, astruct.count);
 
   ASSERT_EQ(0, cdd_c_abstract_struct_free(&astruct));
+
+  /* Test hash collision branch */
+  {
+    cdd_c_variant_t v1, v2, *v_found = NULL;
+    cdd_c_abstract_struct_t a_coll;
+    unsigned long h = 5381;
+    const char *s = "key2";
+    int c;
+
+    ASSERT_EQ(0, cdd_c_abstract_struct_init(&a_coll));
+    v1.type = CDD_C_VARIANT_TYPE_INT;
+    v1.value.i_val = 111;
+    v2.type = CDD_C_VARIANT_TYPE_INT;
+    v2.value.i_val = 222;
+    ASSERT_EQ(0, cdd_c_abstract_set(&a_coll, "key1", &v1));
+
+    while ((c = *s++)) {
+      h = ((h << 5) + h) + (unsigned long)c;
+    }
+    a_coll.kvs[0].key_hash = h;
+
+    ASSERT_EQ(0, cdd_c_abstract_set(&a_coll, "key2", &v2));
+    ASSERT_EQ(0, cdd_c_abstract_get(&a_coll, "key2", &v_found));
+    ASSERT_EQ(222, v_found->value.i_val);
+    cdd_c_abstract_struct_free(&a_coll);
+  }
+
   PASS();
 }
 
@@ -503,6 +530,8 @@ TEST test_abstract_struct_array(void) {
   cdd_c_abstract_set(&row3, "score", &val);
   val.type = CDD_C_VARIANT_TYPE_NULL;
   cdd_c_abstract_set(&row3, "empty", &val);
+  val.type = 999;
+  cdd_c_abstract_set(&row3, "unk", &val);
   val.type = CDD_C_VARIANT_TYPE_BLOB;
   val.value.b_val.data = (unsigned char *)"blob";
   val.value.b_val.size = 4;
@@ -614,8 +643,11 @@ TEST test_abstract_struct_null_checks(void) {
   cdd_c_abstract_struct_t astruct;
   cdd_c_abstract_struct_array_t arr;
   cdd_c_variant_t v = {0}, *v_out = NULL;
+  cdd_c_meta_t meta;
   size_t bytes, calls;
   char *json_out;
+
+  memset(&meta, 0, sizeof(meta));
 
   /* null checks */
   ASSERT_EQ(EINVAL, (int)cdd_c_get_allocated_bytes(NULL));
@@ -674,8 +706,14 @@ TEST test_abstract_struct_null_checks(void) {
   }
 
   ASSERT_EQ(EINVAL, (int)cdd_c_meta_offsetof(NULL, "f", &bytes));
+  ASSERT_EQ(EINVAL, (int)cdd_c_meta_offsetof(&meta, NULL, &bytes));
+  ASSERT_EQ(EINVAL, (int)cdd_c_meta_offsetof(&meta, "f", NULL));
   ASSERT_EQ(EINVAL, (int)cdd_c_specific_to_abstract(NULL, NULL, NULL));
+  ASSERT_EQ(EINVAL, (int)cdd_c_specific_to_abstract(&astruct, NULL, &meta));
+  ASSERT_EQ(EINVAL, (int)cdd_c_specific_to_abstract(&astruct, &bytes, NULL));
   ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(NULL, NULL, NULL, 0));
+  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&bytes, NULL, &meta, 0));
+  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&bytes, &astruct, NULL, 0));
 
   cdd_c_abstract_struct_free(&astruct);
 
@@ -752,21 +790,20 @@ TEST test_json_edge_cases(void) {
   /* Not object */
   ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_from_json("[]", &astruct));
 
-  /* Parse floats, bools, nulls */
+  /* Parse floats, bools, nulls, and non-primitive JSON value types */
   ASSERT_EQ(0, (int)cdd_c_abstract_struct_from_json(
-                   "{\"f\": 1.23, \"b\": true, \"n\": null}", &astruct));
+                   "{\"f\": 1.23, \"b\": true, \"n\": null, \"arr\": [1, 2]}",
+                   &astruct));
   cdd_c_abstract_struct_free(&astruct);
   PASS();
 }
 
 TEST test_specific_edge_cases(void) {
-  mock_specific_row_t specific_out, specific_in;
-  cdd_c_abstract_struct_t astruct_in, astruct_out;
+  mock_specific_row_t specific_out;
+  cdd_c_abstract_struct_t astruct_in;
   cdd_c_prop_meta_t p1, p2, p3;
   cdd_c_meta_t meta;
   cdd_c_prop_meta_t props[3];
-  (void)specific_in;
-  (void)astruct_out;
 
   p1.name = "id";
   p1.type = "C_ORM_TYPE_INT32";
@@ -793,61 +830,174 @@ TEST test_specific_edge_cases(void) {
                                                     &meta, 1));
   ASSERT_EQ(0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
                                                &meta, 0)); /* Non-strict ok */
-
-  /* Wrong types */
-  {
-    cdd_c_variant_t v_wrong;
-    v_wrong.type = CDD_C_VARIANT_TYPE_STRING;
-    v_wrong.value.s_val = (char *)"wrong";
-    cdd_c_abstract_set(&astruct_in, "id", &v_wrong);
-    v_wrong.type = CDD_C_VARIANT_TYPE_INT;
-    v_wrong.value.i_val = 1;
-    cdd_c_abstract_set(&astruct_in, "ratio", &v_wrong);
-    v_wrong.type = CDD_C_VARIANT_TYPE_INT;
-    cdd_c_abstract_set(&astruct_in, "greeting", &v_wrong);
-  }
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
-                                                    &meta, 1));
   cdd_c_abstract_struct_free(&astruct_in);
 
+  /* Count matches but key missing from meta */
   {
-    cdd_c_prop_meta_t p_id64 = {"id64", "C_ORM_TYPE_INT64", 0, 0, 0, 0};
-    cdd_c_prop_meta_t p_flt = {"flt", "C_ORM_TYPE_FLOAT", 0, 0, 0, 0};
-    cdd_c_prop_meta_t p_dbl = {"dbl", "C_ORM_TYPE_DOUBLE", 0, 0, 0, 0};
-    cdd_c_prop_meta_t p_str_dyn = {"str_dyn", "C_ORM_TYPE_STRING", 0, 0, 0, 0};
-    cdd_c_prop_meta_t props_ext[4];
-    cdd_c_meta_t meta_ext;
+    cdd_c_prop_meta_t p_single;
+    cdd_c_meta_t meta_single;
     cdd_c_variant_t v;
-
-    props_ext[0] = p_id64;
-    props_ext[1] = p_flt;
-    props_ext[2] = p_dbl;
-    props_ext[3] = p_str_dyn;
-    meta_ext.num_props = 4;
-    meta_ext.props = props_ext;
-
-    cdd_c_abstract_struct_init(&astruct_in);
-
-    v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"x";
-    cdd_c_abstract_set(&astruct_in, "id64", &v);
-
-    v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"x";
-    cdd_c_abstract_set(&astruct_in, "flt", &v);
-
-    v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"x";
-    cdd_c_abstract_set(&astruct_in, "dbl", &v);
-
+    memset(&p_single, 0, sizeof(p_single));
+    memset(&meta_single, 0, sizeof(meta_single));
+    p_single.name = "id";
+    p_single.type = "C_ORM_TYPE_INT32";
+    meta_single.num_props = 1;
+    meta_single.props = &p_single;
     v.type = CDD_C_VARIANT_TYPE_INT;
     v.value.i_val = 1;
-    cdd_c_abstract_set(&astruct_in, "str_dyn", &v);
-
+    cdd_c_abstract_struct_init(&astruct_in);
+    cdd_c_abstract_set(&astruct_in, "other", &v);
     ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(
-                          &specific_out, &astruct_in, &meta_ext, 1));
+                          &specific_out, &astruct_in, &meta_single, 1));
     cdd_c_abstract_struct_free(&astruct_in);
   }
+
+  /* Wrong type for INT32 */
+  {
+    cdd_c_prop_meta_t p_single;
+    cdd_c_meta_t meta_single;
+    cdd_c_variant_t v;
+    memset(&p_single, 0, sizeof(p_single));
+    memset(&meta_single, 0, sizeof(meta_single));
+    p_single.name = "id";
+    p_single.type = "C_ORM_TYPE_INT32";
+    meta_single.num_props = 1;
+    meta_single.props = &p_single;
+    v.type = CDD_C_VARIANT_TYPE_STRING;
+    v.value.s_val = (char *)"bad";
+    cdd_c_abstract_struct_init(&astruct_in);
+    cdd_c_abstract_set(&astruct_in, "id", &v);
+    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(
+                          &specific_out, &astruct_in, &meta_single, 1));
+    ASSERT_EQ(0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
+                                                 &meta_single, 0));
+    cdd_c_abstract_struct_free(&astruct_in);
+  }
+
+  /* Wrong type for FLOAT */
+  {
+    cdd_c_prop_meta_t p_single;
+    cdd_c_meta_t meta_single;
+    cdd_c_variant_t v;
+    memset(&p_single, 0, sizeof(p_single));
+    memset(&meta_single, 0, sizeof(meta_single));
+    p_single.name = "ratio";
+    p_single.type = "C_ORM_TYPE_FLOAT";
+    meta_single.num_props = 1;
+    meta_single.props = &p_single;
+    v.type = CDD_C_VARIANT_TYPE_STRING;
+    v.value.s_val = (char *)"bad";
+    cdd_c_abstract_struct_init(&astruct_in);
+    cdd_c_abstract_set(&astruct_in, "ratio", &v);
+    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(
+                          &specific_out, &astruct_in, &meta_single, 1));
+    ASSERT_EQ(0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
+                                                 &meta_single, 0));
+    cdd_c_abstract_struct_free(&astruct_in);
+  }
+
+  /* Wrong type for STRING with length > 0 */
+  {
+    cdd_c_variant_t v;
+    v.type = CDD_C_VARIANT_TYPE_INT;
+    v.value.i_val = 123;
+    cdd_c_abstract_struct_init(&astruct_in);
+    cdd_c_abstract_set(&astruct_in, "greeting", &v);
+    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&specific_out,
+                                                      &astruct_in, &meta, 1));
+    ASSERT_EQ(0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
+                                                 &meta, 0));
+    cdd_c_abstract_struct_free(&astruct_in);
+  }
+
+  /* INT64 wrong type */
+  {
+    cdd_c_prop_meta_t p;
+    cdd_c_meta_t m;
+    cdd_c_variant_t v;
+    memset(&p, 0, sizeof(p));
+    memset(&m, 0, sizeof(m));
+    p.name = "id64";
+    p.type = "C_ORM_TYPE_INT64";
+    m.num_props = 1;
+    m.props = &p;
+    cdd_c_abstract_struct_init(&astruct_in);
+    v.type = CDD_C_VARIANT_TYPE_STRING;
+    v.value.s_val = (char *)"bad";
+    cdd_c_abstract_set(&astruct_in, "id64", &v);
+    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&specific_out,
+                                                      &astruct_in, &m, 1));
+    ASSERT_EQ(
+        0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in, &m, 0));
+    cdd_c_abstract_struct_free(&astruct_in);
+  }
+
+  /* DOUBLE wrong type */
+  {
+    cdd_c_prop_meta_t p;
+    cdd_c_meta_t m;
+    cdd_c_variant_t v;
+    memset(&p, 0, sizeof(p));
+    memset(&m, 0, sizeof(m));
+    p.name = "dbl";
+    p.type = "C_ORM_TYPE_DOUBLE";
+    m.num_props = 1;
+    m.props = &p;
+    cdd_c_abstract_struct_init(&astruct_in);
+    v.type = CDD_C_VARIANT_TYPE_STRING;
+    v.value.s_val = (char *)"bad";
+    cdd_c_abstract_set(&astruct_in, "dbl", &v);
+    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&specific_out,
+                                                      &astruct_in, &m, 1));
+    ASSERT_EQ(
+        0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in, &m, 0));
+    cdd_c_abstract_struct_free(&astruct_in);
+  }
+
+  /* STRING dynamic wrong type */
+  {
+    cdd_c_prop_meta_t p;
+    cdd_c_meta_t m;
+    cdd_c_variant_t v;
+    memset(&p, 0, sizeof(p));
+    memset(&m, 0, sizeof(m));
+    p.name = "str_dyn";
+    p.type = "C_ORM_TYPE_STRING";
+    m.num_props = 1;
+    m.props = &p;
+    cdd_c_abstract_struct_init(&astruct_in);
+    v.type = CDD_C_VARIANT_TYPE_INT;
+    v.value.i_val = 123;
+    cdd_c_abstract_set(&astruct_in, "str_dyn", &v);
+    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&specific_out,
+                                                      &astruct_in, &m, 1));
+    ASSERT_EQ(
+        0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in, &m, 0));
+    cdd_c_abstract_struct_free(&astruct_in);
+  }
+
+  /* Unknown type */
+  {
+    cdd_c_prop_meta_t p;
+    cdd_c_meta_t m;
+    cdd_c_variant_t v;
+    int dummy = 0;
+    memset(&p, 0, sizeof(p));
+    memset(&m, 0, sizeof(m));
+    p.name = "unk";
+    p.type = "UNKNOWN_TYPE";
+    m.num_props = 1;
+    m.props = &p;
+    cdd_c_abstract_struct_init(&astruct_in);
+    v.type = CDD_C_VARIANT_TYPE_INT;
+    v.value.i_val = 123;
+    cdd_c_abstract_set(&astruct_in, "unk", &v);
+    ASSERT_EQ(0, (int)cdd_c_specific_to_abstract(&astruct_in, &dummy, &m));
+    ASSERT_EQ(
+        0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in, &m, 0));
+    cdd_c_abstract_struct_free(&astruct_in);
+  }
+
   PASS();
 }
 
@@ -855,12 +1005,44 @@ TEST test_hydrate_null(void) {
   cdd_c_abstract_struct_t astruct;
   cdd_c_column_meta_t cols[1];
   void *row_data[1];
+  c_orm_int64_t i_val = 100;
+  double d_val = 2.5;
+  char s_val[10];
+  int types[9];
+  size_t i;
+
+  types[0] = 3;
+  types[1] = 14;
+  types[2] = 9;
+  types[3] = 10;
+  types[4] = 6;
+  types[5] = 7;
+  types[6] = 11;
+  types[7] = 12;
+  types[8] = 99;
+
+  C_ORM_STRCPY(s_val, sizeof(s_val), "test");
+
   cols[0].name = "id";
   cols[0].inferred_type = 4;
   row_data[0] = NULL;
 
   ASSERT_EQ(0, (int)cdd_c_abstract_hydrate(&astruct, row_data, cols, 1));
   cdd_c_abstract_struct_free(&astruct);
+
+  for (i = 0; i < 9; i++) {
+    cols[0].name = "col";
+    cols[0].inferred_type = types[i];
+    if (types[i] == 3 || types[i] == 14) {
+      row_data[0] = &i_val;
+    } else if (types[i] == 9 || types[i] == 10) {
+      row_data[0] = &d_val;
+    } else {
+      row_data[0] = s_val;
+    }
+    ASSERT_EQ(0, (int)cdd_c_abstract_hydrate(&astruct, row_data, cols, 1));
+    cdd_c_abstract_struct_free(&astruct);
+  }
   PASS();
 }
 
@@ -919,12 +1101,23 @@ TEST test_abstract_struct_allocation_limits(void) {
   v.value.i_val = 1;
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct1, "null_blob", &v));
   astruct1.kvs[1].value.type = CDD_C_VARIANT_TYPE_BLOB;
-  astruct1.kvs[1].value.value.b_val.data = NULL;
+  astruct1.kvs[1].value.value.b_val.data = (unsigned char *)"fake";
   astruct1.kvs[1].value.value.b_val.size = 0;
 
   ASSERT_EQ(0, (int)cdd_c_abstract_struct_deep_copy(&astruct2, &astruct1));
+  astruct1.kvs[1].value.value.b_val.data = NULL;
   cdd_c_abstract_struct_free(&astruct1);
   cdd_c_abstract_struct_free(&astruct2);
+
+  /* variant free with null pointers */
+  v.type = CDD_C_VARIANT_TYPE_STRING;
+  v.value.s_val = NULL;
+  cdd_c_variant_free(&v);
+
+  v.type = CDD_C_VARIANT_TYPE_BLOB;
+  v.value.b_val.data = NULL;
+  v.value.b_val.size = 0;
+  cdd_c_variant_free(&v);
 
   PASS();
 }

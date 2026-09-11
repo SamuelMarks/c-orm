@@ -22,6 +22,8 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 extern __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
+extern __declspec(dllimport) void *__stdcall GetModuleHandleA(const char *);
+extern __declspec(dllimport) void *__stdcall GetProcAddress(void *, const char *);
 #endif
 #include <stdlib.h>
 #include <string.h>
@@ -1144,6 +1146,66 @@ SUITE(e2e_suite) {
 
 GREATEST_MAIN_DEFS();
 
+static void dummy_greatest_setup(void *udata) { (void)udata; }
+
+static void dummy_greatest_teardown(void *udata) { (void)udata; }
+
+static c_orm_error_t test_greatest_internals_coverage(void) {
+  unsigned int v;
+  struct greatest_report_t rep;
+  int eq_out;
+  const char *str;
+  greatest_memory_cmp_env mem_env;
+  struct greatest_run_info saved_info;
+
+  v = 0;
+  eq_out = 0;
+  str = "abc";
+  mem_env.exp = (const unsigned char *)"a";
+  mem_env.got = (const unsigned char *)"a";
+  mem_env.size = 1;
+
+  memcpy(&saved_info, &greatest_info, sizeof(saved_info));
+
+  GREATEST_SET_SETUP_CB(dummy_greatest_setup, NULL);
+  dummy_greatest_setup(NULL);
+  GREATEST_SET_SETUP_CB(NULL, NULL);
+  GREATEST_SET_TEARDOWN_CB(dummy_greatest_teardown, NULL);
+  dummy_greatest_teardown(NULL);
+  GREATEST_SET_TEARDOWN_CB(NULL, NULL);
+
+  greatest_abort_on_fail();
+  greatest_stop_at_first_fail();
+  greatest_set_exact_name_match();
+  greatest_set_flag(GREATEST_FLAG_FIRST_FAIL);
+  greatest_list_only();
+
+  greatest_set_suite_filter(NULL);
+  greatest_set_test_filter(NULL);
+  greatest_set_test_exclude(NULL);
+  greatest_set_test_suffix(NULL);
+  greatest_set_verbosity(0);
+  greatest_get_verbosity(&v);
+  greatest_get_report(&rep);
+
+  greatest_info.prng[0].count = 5;
+  greatest_prng_init_first_pass(0);
+  greatest_prng_init_second_pass(0, 12345, &eq_out);
+  greatest_prng_step(0);
+
+  greatest_memory_equal_cb("a", "a", &mem_env);
+  greatest_memory_printf_cb("a", &mem_env);
+  greatest_string_printf_cb(str, NULL);
+  greatest_usage("test");
+
+  greatest_info.flags = 0;
+  greatest_do_fail();
+  greatest_do_skip();
+
+  memcpy(&greatest_info, &saved_info, sizeof(saved_info));
+  return C_ORM_OK;
+}
+
 extern SUITE(arena_uuid_suite);
 extern SUITE(ast_suite);
 extern SUITE(api_coverage_suite);
@@ -1211,6 +1273,7 @@ static void run_all_suites(void) {
   RUN_SUITE(sql_parser_suite);
   RUN_SUITE(oauth2_suite);
   RUN_SUITE(models_coverage_suite);
+  test_greatest_internals_coverage();
 }
 
 #ifdef __EMSCRIPTEN__
@@ -1230,7 +1293,11 @@ static void emscripten_test_callback(int err) {
 
 #if defined(_MSC_VER)
   _set_invalid_parameter_handler(my_invalid_parameter_handler);
-  _CrtSetReportMode(_CRT_ASSERT, 0);
+#if defined(_DEBUG)
+  if (!GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {
+    _CrtSetReportMode(_CRT_ASSERT, 0);
+  }
+#endif
 #endif
   GREATEST_MAIN_BEGIN();
   run_all_suites();
@@ -1251,13 +1318,15 @@ int main(int argc, char **argv) {
 int main(int argc, char **argv) {
   c_orm_error_t rc;
 #if defined(_MSC_VER) && defined(_DEBUG)
-  _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
-  _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
-  _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
-  _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
-  _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
-  _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
-  _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+  if (!GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {
+    _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+  }
 #endif
 #if defined(_WIN32) || defined(_WIN64)
   { SetErrorMode(0x0001 | 0x0002 | 0x8000); }
@@ -1265,7 +1334,11 @@ int main(int argc, char **argv) {
   (void)rc;
 #if defined(_MSC_VER)
   _set_invalid_parameter_handler(my_invalid_parameter_handler);
-  _CrtSetReportMode(_CRT_ASSERT, 0);
+#if defined(_DEBUG)
+  if (!GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {
+    _CrtSetReportMode(_CRT_ASSERT, 0);
+  }
+#endif
 #endif
   GREATEST_MAIN_BEGIN();
   run_all_suites();

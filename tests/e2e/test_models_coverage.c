@@ -237,12 +237,36 @@ TEST test_oauth2_models(void) {
   PASS();
 }
 
+TEST test_mock_allocators(void) {
+  void *p;
+  models_oom_active = 1;
+  models_oom_countdown = 0;
+  p = e2e_mock_malloc(10);
+  ASSERT_EQ(NULL, p);
+  p = e2e_mock_calloc(1, 10);
+  ASSERT_EQ(NULL, p);
+
+  models_oom_countdown = 1;
+  p = e2e_mock_malloc(10);
+  ASSERT(p != NULL);
+  free(p);
+
+  models_oom_countdown = 1;
+  p = e2e_mock_calloc(1, 10);
+  ASSERT(p != NULL);
+  free(p);
+
+  models_oom_active = 0;
+  PASS();
+}
+
 SUITE(models_coverage_suite) {
   c_orm_set_allocators(e2e_mock_malloc, realloc, free);
 
   RUN_TEST(test_users_models);
   RUN_TEST(test_posts_models);
   RUN_TEST(test_oauth2_models);
+  RUN_TEST(test_mock_allocators);
   c_orm_set_allocators(malloc, realloc, free);
 }
 

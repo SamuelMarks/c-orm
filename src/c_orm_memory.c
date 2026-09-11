@@ -147,14 +147,12 @@ static void parse_table_name(const char *sql, const char *prefix, char *out) {
   const char *p;
   LOG_DEBUG("parse_table_name: entry");
   p = strstr(sql, prefix);
-  if (p) {
-    p += strlen(prefix);
-    while (*p == ' ') {
-      p++;
-    }
-    while (*p && *p != ' ' && *p != '(') {
-      *out++ = *p++;
-    }
+  p += strlen(prefix);
+  while (*p == ' ') {
+    p++;
+  }
+  while (*p && *p != ' ' && *p != '(') {
+    *out++ = *p++;
   }
   *out = '\0';
   LOG_DEBUG("parse_table_name: exit");

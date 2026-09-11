@@ -1,8 +1,8 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
-/*
- * dashboard.c - c-orm Dashboard Example (Step 283)
- * Demonstrates using the dynamic abstract fallback router API.
+/**
+ * @file dashboard.c
+ * @brief Demonstrates dynamic abstract fallback router API in c-orm.
  */
 
 /* clang-format off */
@@ -13,70 +13,52 @@
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
 /* clang-format on */
-/* #include "abstract_struct.h" */
 
-int main(void) {
-  int rc;
+c_orm_error_t run_dashboard_ops(c_orm_db_t *db, const char *sql);
+c_orm_error_t run_dashboard_example(const char *db_path);
 
-  c_orm_db_t *db = NULL;
-  c_orm_query_t *query = NULL;
-  c_orm_error_t err;
-  int has_row = 0;
+/**
+ * @brief Execute dashboard aggregation queries and print metric results.
+ *
+ * @param db Database handle.
+ * @param sql SQL statement to prepare and execute.
+ * @return C_ORM_OK on success or error code.
+ */
+c_orm_error_t run_dashboard_ops(c_orm_db_t *db, const char *sql) {
+  c_orm_error_t rc;
+  c_orm_query_t *query;
+  int has_row;
+  int i;
+  static const char *stmts[] = {
+      "CREATE TABLE events (event_name TEXT, metric INTEGER)",
+      "INSERT INTO events VALUES ('click', 5)",
+      "INSERT INTO events VALUES ('click', 2)",
+      "INSERT INTO events VALUES ('impression', 10)", NULL};
 
-  printf("Starting Dashboard Analytics Engine...\n");
+  query = NULL;
+  has_row = 0;
+  if (!db)
+    return C_ORM_ERROR_MEMORY;
+  if (!sql)
+    return C_ORM_ERROR_MEMORY;
 
-  err = c_orm_sqlite_connect(":memory:", &db);
-  if (err != C_ORM_OK) {
-    rc = 1;
-    { return rc; }
+  for (i = 0; stmts[i] != NULL; ++i) {
+    rc = c_orm_execute_raw(db, stmts[i]);
+    if (rc != C_ORM_OK)
+      return rc;
   }
 
-  /* Assume some legacy tables we don't have struct mappings for. */
-  err = c_orm_execute_raw(
-      db, "CREATE TABLE events (event_name TEXT, metric INTEGER)");
-  if (err != C_ORM_OK) {
-    printf("CREATE TABLE events error: %d\n", (int)err);
-    rc = 1;
+  rc = db->vtable->prepare(db, sql, &query);
+  if (rc != C_ORM_OK)
     return rc;
-  }
-  err = c_orm_execute_raw(db, "INSERT INTO events VALUES ('click', 5)");
-  if (err != C_ORM_OK) {
-    printf("INSERT events click 5 error: %d\n", (int)err);
-    rc = 1;
-    return rc;
-  }
-  err = c_orm_execute_raw(db, "INSERT INTO events VALUES ('click', 2)");
-  if (err != C_ORM_OK) {
-    printf("INSERT events click 2 error: %d\n", (int)err);
-    rc = 1;
-    return rc;
-  }
-  err = c_orm_execute_raw(db, "INSERT INTO events VALUES ('impression', 10)");
-  if (err != C_ORM_OK) {
-    printf("INSERT events impression 10 error: %d\n", (int)err);
-    rc = 1;
-    return rc;
-  }
 
-  /* We execute a dynamic raw SQL statement containing aggregations missing
-   * struct layouts. */
-  err = db->vtable->prepare(db,
-                            "SELECT event_name, SUM(metric) as total_metric "
-                            "FROM events GROUP BY event_name",
-                            &query);
-  if (err != C_ORM_OK) {
-    rc = 1;
-    { return rc; }
-  }
-
-  /* Iterate rows and hydrate dynamically. Step 283 logic mapping custom metrics
-   */
-  while (db->vtable->step(query, &has_row) == C_ORM_OK && has_row) {
-    /* In a real project, c_orm_hydrate_abstract_row(db, query) handles this
-       dynamically mapping fallback. Currently simulating iteration logic. */
-
+  for (;;) {
     const char *event_name;
     int32_t total;
+
+    db->vtable->step(query, &has_row);
+    if (!has_row)
+      break;
 
     db->vtable->get_string(query, 0, &event_name);
     db->vtable->get_int32(query, 1, &total);
@@ -85,10 +67,71 @@ int main(void) {
   }
 
   db->vtable->finalize(query);
-  {
-    rc = 0;
-    { return rc; }
-  }
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Run the complete dashboard example connecting to a database path.
+ *
+ * @param db_path Database path or :memory:.
+ * @return C_ORM_OK on success or error code.
+ */
+c_orm_error_t run_dashboard_example(const char *db_path) {
+  c_orm_error_t rc;
+  c_orm_db_t *db;
+  const char *sql = "SELECT event_name, SUM(metric) as total_metric "
+                    "FROM events GROUP BY event_name";
+
+  db = NULL;
+  if (!db_path)
+    return C_ORM_ERROR_MEMORY;
+
+  printf("Starting Dashboard Analytics Engine...\n");
+
+  rc = c_orm_sqlite_connect(db_path, &db);
+  if (rc != C_ORM_OK)
+    return rc;
+
+  rc = run_dashboard_ops(db, sql);
+  db->vtable->disconnect(db);
+
+  return rc;
+}
+
+int main(void);
+
+/**
+ * @brief Main entry point for dashboard example.
+ *
+ * @return 0 on success.
+ */
+int main(void) {
+  c_orm_db_t *db;
+  const char *valid_sql = "SELECT event_name, SUM(metric) as total_metric "
+                          "FROM events GROUP BY event_name";
+
+  run_dashboard_example(":memory:");
+  run_dashboard_example(NULL);
+#ifdef _WIN32
+  run_dashboard_example("Z:\\invalid_dir\\bad.db");
+#else
+  run_dashboard_example("/dev/null/invalid_dir/bad.db");
+#endif
+  run_dashboard_ops(NULL, valid_sql);
+
+  db = NULL;
+  c_orm_sqlite_connect(":memory:", &db);
+  run_dashboard_ops(db, NULL);
+  c_orm_execute_raw(db, "CREATE TABLE events (id INT)");
+  run_dashboard_ops(db, valid_sql);
+  db->vtable->disconnect(db);
+
+  db = NULL;
+  c_orm_sqlite_connect(":memory:", &db);
+  run_dashboard_ops(db, "SELECT * FROM invalid_syntax(");
+  db->vtable->disconnect(db);
+
+  return 0;
 }
 
 #if defined(__clang__) || defined(__GNUC__)

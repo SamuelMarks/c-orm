@@ -89,9 +89,9 @@ c_orm_error_t cdd_c_query_projection_free(cdd_c_query_projection_t *proj) {
   if (proj->fields)
     C_ORM_FREE(proj->fields);
   if (proj->source_table)
-    free(proj->source_table);
+    C_ORM_FREE(proj->source_table);
   if (proj->mapping_meta.target_name)
-    free(proj->mapping_meta.target_name);
+    C_ORM_FREE(proj->mapping_meta.target_name);
 
   proj->fields = NULL;
   proj->n_fields = 0;

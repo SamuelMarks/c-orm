@@ -72,7 +72,7 @@ TEST test_sql_parser_oom(void) {
   struct sql_table_t *tables = NULL;
   size_t n_tables = 0;
   int i;
-  for (i = 0; i < 2; i++) {
+  for (i = 0; i < 15; i++) {
     oom_active = 1;
     oom_countdown = i;
     (void)parse_sql_ddl(sql, &tables, &n_tables);

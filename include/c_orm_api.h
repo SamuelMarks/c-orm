@@ -1090,6 +1090,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
                                                 void *obj);
 
 /**
+ * @brief Free dynamically allocated column memory in an object.
+ *
+ * @param meta The table metadata.
+ * @param obj The structure instance to free column allocations for.
+ */
+C_ORM_EXPORT void c_orm_free_columns(const c_orm_table_meta_t *meta, void *obj);
+
+/**
  * @brief Add support for MySQL specific session variables via ORM config (Step
  * 202).
  *

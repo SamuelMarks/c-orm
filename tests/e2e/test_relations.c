@@ -202,8 +202,13 @@ TEST test_c_orm_eager_load_relations(void) {
   team_m = Team_meta;
   user_m = User_meta;
   team_m.columns = team_cols;
+  team_m.query_select_all = "SELECT id, name, is_active FROM Team";
+  team_m.query_select_by_pk =
+      "SELECT id, name, is_active FROM Team WHERE id = ?";
   (void)team_m;
   user_m.columns = user_cols;
+  user_m.query_select_all = "SELECT id, team_id FROM User";
+  user_m.query_select_by_pk = "SELECT id, team_id FROM User WHERE id = ?";
 
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -253,6 +258,50 @@ TEST test_c_orm_eager_load_relations(void) {
   C_ORM_FREE(user.team.data);
   printf("FREED\n");
   fflush(stdout);
+
+  {
+    struct {
+      void *data;
+      size_t length;
+      size_t capacity;
+    } user_arr;
+    memset(&user_arr, 0, sizeof(user_arr));
+    err = c_orm_find_all_with_relation(db, &user_m, "team", &user_arr);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+    if (user_arr.length > 0) {
+      struct User *u0 = (struct User *)user_arr.data;
+      if (u0->team.data) {
+        if (u0->team.data->name)
+          C_ORM_FREE(u0->team.data->name);
+        C_ORM_FREE(u0->team.data);
+      }
+    }
+    if (user_arr.data)
+      C_ORM_FREE(user_arr.data);
+  }
+
+  {
+    const char *paths[1];
+    struct {
+      void *data;
+      size_t length;
+      size_t capacity;
+    } user_arr;
+    paths[0] = "team";
+    memset(&user_arr, 0, sizeof(user_arr));
+    err = c_orm_find_all_with_relations(db, &user_m, paths, 1, &user_arr);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+    if (user_arr.length > 0) {
+      struct User *u0 = (struct User *)user_arr.data;
+      if (u0->team.data) {
+        if (u0->team.data->name)
+          C_ORM_FREE(u0->team.data->name);
+        C_ORM_FREE(u0->team.data);
+      }
+    }
+    if (user_arr.data)
+      C_ORM_FREE(user_arr.data);
+  }
 
   if (db)
     db->vtable->disconnect(db);
@@ -327,6 +376,17 @@ TEST test_c_orm_nested_insert_relations(void) {
 
   /* Assert FK was assigned */
   ASSERT(user.team_id > 0);
+
+  /* Test ONE_TO_ONE relation insertion */
+  user_rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
+  user_rels[0].foreign_key = "id";
+  user_rels[0].local_key = "id";
+  new_team.id = 0;
+  new_team.name = "Engineering";
+  user.id = 99;
+  user.team_id = 99;
+  err = c_orm_insert(db, &user_m, &user);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   if (db)
     db->vtable->disconnect(db);
@@ -423,6 +483,21 @@ TEST test_c_orm_one_to_many_lazy_load(void) {
   if (user.posts.data.data)
     C_ORM_FREE(user.posts.data.data);
 
+  {
+    struct UserWithPosts eager_user;
+    memset(&eager_user, 0, sizeof(eager_user));
+    err = c_orm_find_with_relation_int32(db, &user_m, 5, "posts", &eager_user);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+    if (eager_user.posts.data.data) {
+      size_t pi;
+      for (pi = 0; pi < eager_user.posts.data.length; pi++) {
+        if (eager_user.posts.data.data[pi].title)
+          C_ORM_FREE(eager_user.posts.data.data[pi].title);
+      }
+      C_ORM_FREE(eager_user.posts.data.data);
+    }
+  }
+
   if (db)
     db->vtable->disconnect(db);
   PASS();
@@ -502,6 +577,62 @@ TEST test_c_orm_lazy_load_paginated(void) {
     C_ORM_FREE(user.posts.data.data[0].title);
   if (user.posts.data.data)
     C_ORM_FREE(user.posts.data.data);
+
+  /* Test with order_by DESC, soft_delete_aware, and custom_filter */
+  user_rels[0].order_by = "id DESC";
+  user_rels[0].custom_filter = "id > 0";
+  user_rels[0].soft_delete_aware = 0;
+  user.posts.lazy_ctx.is_loaded = 0;
+  user.posts.data.data = NULL;
+  user.posts.data.length = 0;
+  user.posts.data.capacity = 0;
+
+  err = c_orm_lazy_load_paginated(db, &user_m, &user, "posts", 1, 0);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  if (user.posts.data.length > 0) {
+    ASSERT_EQ_FMT(3, user.posts.data.data[0].id, "%d");
+    if (user.posts.data.data[0].title)
+      C_ORM_FREE(user.posts.data.data[0].title);
+    C_ORM_FREE(user.posts.data.data);
+  }
+
+  /* Test with order_by ASC */
+  user_rels[0].order_by = "id ASC";
+  user_rels[0].custom_filter = NULL;
+  user.posts.lazy_ctx.is_loaded = 0;
+  user.posts.data.data = NULL;
+  user.posts.data.length = 0;
+  user.posts.data.capacity = 0;
+
+  err = c_orm_lazy_load_paginated(db, &user_m, &user, "posts", 1, 0);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  if (user.posts.data.length > 0) {
+    ASSERT_EQ_FMT(1, user.posts.data.data[0].id, "%d");
+    if (user.posts.data.data[0].title)
+      C_ORM_FREE(user.posts.data.data[0].title);
+    C_ORM_FREE(user.posts.data.data);
+  }
+
+  /* Test with plain order_by */
+  user_rels[0].order_by = "id";
+  user.posts.lazy_ctx.is_loaded = 0;
+  user.posts.data.data = NULL;
+  user.posts.data.length = 0;
+  user.posts.data.capacity = 0;
+
+  err = c_orm_lazy_load_paginated(db, &user_m, &user, "posts", 1, 0);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  if (user.posts.data.length > 0) {
+    if (user.posts.data.data[0].title)
+      C_ORM_FREE(user.posts.data.data[0].title);
+    C_ORM_FREE(user.posts.data.data);
+  }
+
+  /* Test c_orm_delete with C_ORM_CASCADE_SET_NULL */
+  user_rels[0].on_delete = C_ORM_CASCADE_SET_NULL;
+  user_m.query_delete_by_pk = "DELETE FROM User WHERE id = ?";
+  err = c_orm_delete(db, &user_m, &user);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   if (db)
     db->vtable->disconnect(db);
@@ -593,6 +724,49 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
   err = c_orm_exists_int32(db, &role_m, 2, &exists);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ_FMT(1, exists, "%d");
+
+  {
+    struct UserWithRoles eager_user;
+    memset(&eager_user, 0, sizeof(eager_user));
+    err = c_orm_find_with_relation_int32(db, &user_m, 5, "roles", &eager_user);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+    if (eager_user.roles.data.data) {
+      size_t ri;
+      for (ri = 0; ri < eager_user.roles.data.length; ri++) {
+        if (eager_user.roles.data.data[ri].name)
+          C_ORM_FREE(eager_user.roles.data.data[ri].name);
+      }
+      C_ORM_FREE(eager_user.roles.data.data);
+    }
+  }
+
+  {
+    struct {
+      void *data;
+      size_t length;
+      size_t capacity;
+    } user_arr;
+    user_m.query_select_all = "SELECT id, team_id FROM User";
+    memset(&user_arr, 0, sizeof(user_arr));
+    err = c_orm_find_all_with_relation(db, &user_m, "roles", &user_arr);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+    if (user_arr.length > 0) {
+      struct UserWithRoles *u_roles = (struct UserWithRoles *)user_arr.data;
+      size_t ui;
+      for (ui = 0; ui < user_arr.length; ui++) {
+        if (u_roles[ui].roles.data.data) {
+          size_t ri;
+          for (ri = 0; ri < u_roles[ui].roles.data.length; ri++) {
+            if (u_roles[ui].roles.data.data[ri].name)
+              C_ORM_FREE(u_roles[ui].roles.data.data[ri].name);
+          }
+          C_ORM_FREE(u_roles[ui].roles.data.data);
+        }
+      }
+    }
+    if (user_arr.data)
+      C_ORM_FREE(user_arr.data);
+  }
 
   /* Delete parent */
   err = c_orm_delete(db, &user_m, &user);
@@ -781,6 +955,46 @@ TEST test_c_orm_deeply_nested_eager_loads(void) {
       }
     }
     C_ORM_FREE(user.posts.data.data);
+  }
+
+  {
+    struct {
+      void *data;
+      size_t length;
+      size_t capacity;
+    } deep_arr;
+    user_m.query_select_all = "SELECT id, team_id FROM User";
+    memset(&deep_arr, 0, sizeof(deep_arr));
+    err = c_orm_find_all_with_relations(db, &user_m, paths, 1, &deep_arr);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+    if (deep_arr.length > 0) {
+      struct UserWithDeepPosts *u_deep =
+          (struct UserWithDeepPosts *)deep_arr.data;
+      size_t ui, pi, ci;
+      for (ui = 0; ui < deep_arr.length; ui++) {
+        if (u_deep[ui].posts.data.data) {
+          for (pi = 0; pi < u_deep[ui].posts.data.length; pi++) {
+            if (u_deep[ui].posts.data.data[pi].title)
+              C_ORM_FREE(u_deep[ui].posts.data.data[pi].title);
+            if (u_deep[ui].posts.data.data[pi].comments.data.data) {
+              for (ci = 0;
+                   ci < u_deep[ui].posts.data.data[pi].comments.data.length;
+                   ci++) {
+                if (u_deep[ui].posts.data.data[pi].comments.data.data[ci].text)
+                  C_ORM_FREE(u_deep[ui]
+                                 .posts.data.data[pi]
+                                 .comments.data.data[ci]
+                                 .text);
+              }
+              C_ORM_FREE(u_deep[ui].posts.data.data[pi].comments.data.data);
+            }
+          }
+          C_ORM_FREE(u_deep[ui].posts.data.data);
+        }
+      }
+    }
+    if (deep_arr.data)
+      C_ORM_FREE(deep_arr.data);
   }
 
   if (db)
@@ -990,6 +1204,145 @@ TEST test_c_orm_self_referencing_tree(void) {
   PASS();
 }
 
+struct Generic_Array {
+  void *data;
+  size_t length;
+  size_t capacity;
+};
+
+TEST test_c_orm_relation_advanced_features(void) {
+  c_orm_db_t *db = NULL;
+  c_orm_error_t err;
+  c_orm_table_meta_t p_meta;
+  c_orm_table_meta_t c_meta;
+  c_orm_column_meta_t p_cols[2];
+  c_orm_column_meta_t c_cols[3];
+  c_orm_relation_meta_t rels[2];
+
+  struct TestObj {
+    char *str_fk;
+    float flt_fk;
+    void *child;
+    struct Generic_Array items_arr;
+    c_orm_lazy_load_context_t ctx;
+  } obj;
+
+  memset(&obj, 0, sizeof(obj));
+  memset(p_cols, 0, sizeof(p_cols));
+  memset(c_cols, 0, sizeof(c_cols));
+  memset(rels, 0, sizeof(rels));
+  memset(&p_meta, 0, sizeof(p_meta));
+  memset(&c_meta, 0, sizeof(c_meta));
+
+  err = c_orm_sqlite_connect(":memory:", &db);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  /* Setup c_meta (target) */
+  c_cols[0].name = "id";
+  c_cols[0].type = C_ORM_TYPE_INT32;
+  c_cols[0].is_pk = 1;
+  c_cols[0].offset = 0;
+
+  c_cols[1].name = "code";
+  c_cols[1].type = C_ORM_TYPE_STRING;
+  c_cols[1].offset = sizeof(int32_t);
+
+  c_cols[2].name = "deleted_at";
+  c_cols[2].type = C_ORM_TYPE_STRING;
+  c_cols[2].offset = sizeof(int32_t) + sizeof(char *);
+
+  c_meta.name = "items";
+  c_meta.columns = c_cols;
+  c_meta.num_columns = 3;
+  c_meta.struct_size = sizeof(int32_t) + sizeof(char *) + sizeof(char *);
+
+  /* Setup p_meta (source) */
+  p_cols[0].name = "str_fk";
+  p_cols[0].type = C_ORM_TYPE_STRING;
+  p_cols[0].offset = offsetof(struct TestObj, str_fk);
+
+  p_cols[1].name = "flt_fk";
+  p_cols[1].type = C_ORM_TYPE_FLOAT;
+  p_cols[1].offset = offsetof(struct TestObj, flt_fk);
+
+  p_meta.name = "source_tbl";
+  p_meta.columns = p_cols;
+  p_meta.num_columns = 2;
+  p_meta.struct_size = sizeof(obj);
+
+  /* Rel 0: ONE_TO_ONE with string FK */
+  rels[0].field_name = "item";
+  rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
+  rels[0].local_key = "str_fk";
+  rels[0].foreign_key = "code";
+  rels[0].target_meta = &c_meta;
+  rels[0].data_offset = offsetof(struct TestObj, child);
+  rels[0].struct_offset = offsetof(struct TestObj, child);
+  rels[0].lazy_ctx_offset = offsetof(struct TestObj, ctx);
+
+  /* Rel 1: HAS_MANY_THROUGH */
+  rels[1].field_name = "through_items";
+  rels[1].type = C_ORM_RELATION_HAS_MANY_THROUGH;
+  rels[1].local_key = "str_fk";
+  rels[1].foreign_key = "id";
+  rels[1].join_table = "bridge";
+  rels[1].join_local_key = "src_str";
+  rels[1].join_foreign_key = "item_id";
+  rels[1].target_meta = &c_meta;
+  rels[1].data_offset = offsetof(struct TestObj, items_arr);
+  rels[1].struct_offset = offsetof(struct TestObj, items_arr);
+  rels[1].lazy_ctx_offset = offsetof(struct TestObj, ctx);
+  rels[1].custom_filter = "items.id > 0";
+  rels[1].order_by = "items.id DESC";
+  rels[1].soft_delete_aware = 1;
+
+  p_meta.relations = rels;
+  p_meta.num_relations = 2;
+
+  /* 1. Nullable string FK == NULL -> returns C_ORM_OK immediately */
+  obj.str_fk = NULL;
+  err = c_orm_load_relation_ext(db, &obj, &p_meta, 0, 0, 0);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  /* 2. String FK != NULL, ONE_TO_ONE query with table created */
+  c_orm_execute_raw(db,
+                    "CREATE TABLE items (id INT, code TEXT, deleted_at TEXT);");
+  c_orm_execute_raw(db, "CREATE TABLE bridge (src_str TEXT, item_id INT);");
+
+  obj.str_fk = "code_123";
+  err = c_orm_load_relation_ext(db, &obj, &p_meta, 0, 0, 0);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_EQ(NULL, obj.child);
+
+  /* 3. HAS_MANY_THROUGH with filter, order, soft delete, limit, offset */
+  err = c_orm_load_relation_ext(db, &obj, &p_meta, 1, 10, 5);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  if (obj.items_arr.data)
+    C_ORM_FREE(obj.items_arr.data);
+
+  /* 4. Missing join_table in HAS_MANY_THROUGH */
+  obj.ctx.is_loaded = 0;
+  rels[1].join_table = NULL;
+  err = c_orm_load_relation_ext(db, &obj, &p_meta, 1, 0, 0);
+  ASSERT_EQ_FMT(C_ORM_ERROR_UNKNOWN, err, "%d");
+  rels[1].join_table = "bridge";
+
+  /* 5. Invalid FK column type (FLOAT) */
+  rels[0].local_key = "flt_fk";
+  err = c_orm_load_relation_ext(db, &obj, &p_meta, 0, 0, 0);
+  ASSERT_EQ_FMT(C_ORM_ERROR_UNKNOWN, err, "%d");
+  rels[0].local_key = "str_fk";
+
+  /* 6. Local key not found in table columns */
+  rels[0].local_key = "nonexistent_col";
+  err = c_orm_load_relation_ext(db, &obj, &p_meta, 0, 0, 0);
+  ASSERT_EQ_FMT(C_ORM_ERROR_NOT_FOUND, err, "%d");
+  rels[0].local_key = "str_fk";
+
+  db->vtable->disconnect(db);
+  PASS();
+}
+
 SUITE(relations_suite) {
   RUN_TEST(test_c_orm_lazy_load_relations);
   RUN_TEST(test_c_orm_eager_load_relations);
@@ -1001,6 +1354,7 @@ SUITE(relations_suite) {
   RUN_TEST(test_c_orm_query_builder_relation_filtering);
   RUN_TEST(test_c_orm_deeply_nested_eager_loads);
   RUN_TEST(test_c_orm_self_referencing_tree);
+  RUN_TEST(test_c_orm_relation_advanced_features);
 }
 
 #if defined(__clang__) || defined(__GNUC__)

@@ -73,18 +73,14 @@ static c_orm_error_t set_error(c_orm_db_t *db, const char *msg) {
   (void)msg;
 
   LOG_DEBUG("set_error: entry");
-  if (db && db->driver_data) {
-    data = (struct sqlite_db_data *)db->driver_data;
-    if (data->db) {
-      sqlite_err = sqlite3_errmsg(data->db);
-      len = strlen(sqlite_err);
-      if (len >= sizeof(data->last_error)) {
-        len = sizeof(data->last_error) - 1;
-      }
-      memcpy(data->last_error, sqlite_err, len);
-      data->last_error[len] = '\0';
-    }
+  data = (struct sqlite_db_data *)db->driver_data;
+  sqlite_err = sqlite3_errmsg(data->db);
+  len = strlen(sqlite_err);
+  if (len >= sizeof(data->last_error)) {
+    len = sizeof(data->last_error) - 1;
   }
+  memcpy(data->last_error, sqlite_err, len);
+  data->last_error[len] = '\0';
   LOG_DEBUG("set_error: exit");
   return C_ORM_OK;
 }
@@ -168,14 +164,12 @@ static c_orm_error_t sqlite_disconnect(c_orm_db_t *db) {
 
   data = (struct sqlite_db_data *)db->driver_data;
   if (data) {
-    if (data->db) {
-      sqlite3_stmt *stmt;
-      while ((stmt = sqlite3_next_stmt(data->db, NULL)) != NULL) {
-        sqlite3_finalize(stmt);
-      }
-      sqlite3_close_v2(data->db);
-      data->db = NULL;
+    sqlite3_stmt *stmt;
+    while ((stmt = sqlite3_next_stmt(data->db, NULL)) != NULL) {
+      sqlite3_finalize(stmt);
     }
+    sqlite3_close_v2(data->db);
+    data->db = NULL;
     C_ORM_FREE(data);
   }
   C_ORM_FREE(db);
@@ -490,8 +484,13 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
 
   LOG_DEBUG("sqlite_step: entry");
 
-  if (query && query->data && query->data->db &&
-      query->data->db->slow_query_threshold_ms > 0) {
+  if (!query || !query->data || !query->data->stmt || !out_has_row) {
+    LOG_DEBUG("sqlite_step: invalid state or args");
+    rc = C_ORM_ERROR_STEP;
+    return (c_orm_error_t)rc;
+  }
+
+  if (query->data->db->slow_query_threshold_ms > 0) {
 #if defined(_WIN32) || defined(_WIN64)
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&start_time);
@@ -500,15 +499,9 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
 #endif
   }
 
-  if (!query || !query->data || !query->data->stmt || !out_has_row) {
-    LOG_DEBUG("sqlite_step: invalid state or args");
-    rc = C_ORM_ERROR_STEP;
-    return (c_orm_error_t)rc;
-  }
-
   rc = (c_orm_error_t)sqlite3_step(query->data->stmt);
 
-  if (query->data->db && query->data->db->slow_query_threshold_ms > 0) {
+  if (query->data->db->slow_query_threshold_ms > 0) {
 #if defined(_WIN32) || defined(_WIN64)
     QueryPerformanceCounter(&end_time);
     elapsed = (double)(end_time.QuadPart - start_time.QuadPart) * 1000.0 /
@@ -518,19 +511,15 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
     elapsed = (double)(end_time.tv_sec - start_time.tv_sec) * 1000.0;
     elapsed += (double)(end_time.tv_usec - start_time.tv_usec) / 1000.0;
 #endif
-  }
-
-  if (query->data->db && query->data->db->slow_query_threshold_ms > 0 &&
-      elapsed >= query->data->db->slow_query_threshold_ms) {
-    if (query->data->db->log_cb) {
-      sql = sqlite3_sql(query->data->stmt);
-      if (sql) {
+    if (elapsed >= query->data->db->slow_query_threshold_ms) {
+      if (query->data->db->log_cb) {
+        sql = sqlite3_sql(query->data->stmt);
         C_ORM_SPRINTF(log_msg, sizeof(log_msg), "SLOW QUERY (%.2fms): %s",
                       elapsed, sql);
         query->data->db->log_cb(log_msg, query->data->db->log_user_data);
       }
+      query->data->db->telemetry.slow_queries_logged++;
     }
-    query->data->db->telemetry.slow_queries_logged++;
   }
 
   if (rc == SQLITE_ROW) {

@@ -19,19 +19,16 @@
 #include <string.h>
 
 #if defined(_MSC_VER)
+#if defined(_WIN32) || defined(_WIN64)
+extern __declspec(dllimport) void *__stdcall GetModuleHandleA(const char *);
+extern __declspec(dllimport) void *__stdcall GetProcAddress(void *, const char *);
+#endif
 static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_t* function, const wchar_t* file, unsigned int line, size_t pReserved) {
     (void)expression; (void)function; (void)file; (void)line; (void)pReserved;
 }
 #endif
 /* #include "abstract_struct.h" */
 /* clang-format on */
-
-void *e2e_mock_malloc(size_t size);
-void *e2e_mock_calloc(size_t nmemb, size_t size);
-
-void *e2e_mock_malloc(size_t size) { return malloc(size); }
-
-void *e2e_mock_calloc(size_t nmemb, size_t size) { return calloc(nmemb, size); }
 
 static c_orm_db_t *db = NULL;
 
@@ -63,6 +60,7 @@ TEST benchmark_specific_struct_hydration_1m(void) {
   c_orm_error_t err;
   size_t i;
   struct Users user;
+  char email_buf[64];
 
   /* Insert mock data */
   err = c_orm_transaction_begin(db);
@@ -70,16 +68,16 @@ TEST benchmark_specific_struct_hydration_1m(void) {
 
   memset(&user, 0, sizeof(user));
   user.username = "bench_user";
-  user.email = "bench@example.com";
 
   /* For execution speed in CI limit to 10k instead of 1M */
   for (i = 0; i < 10000; i++) {
     user.id = (int32_t)i;
+    C_ORM_SPRINTF(email_buf, sizeof(email_buf), "bench_%lu@example.com",
+                  (unsigned long)i);
+    user.email = email_buf;
     err = c_orm_insert(db, &Users_meta, &user);
-    if (err != C_ORM_OK)
-      break;
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   }
-  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   err = c_orm_transaction_commit(db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -158,17 +156,11 @@ TEST benchmark_n_plus_one_vs_eager(void) {
   size_t i;
   size_t iters = 10;
 
-  /* Since benchmark mock data is flat, we just run the APIs to trace overhead
-   * bounds */
+  /* Since benchmark mock data is flat, we verify error handling bounds */
   for (i = 0; i < iters; i++) {
     memset(&users, 0, sizeof(users));
     err = c_orm_find_all_with_relation(db, &Users_meta, "posts", &users);
-    if (err == C_ORM_OK) {
-      Users_Array_free(&users);
-    } else {
-      /* If relation not perfectly matched in stub schema, gracefully pass */
-      break;
-    }
+    ASSERT_EQ_FMT(C_ORM_ERROR_NOT_FOUND, err, "%d");
   }
 
   PASS();
@@ -188,7 +180,11 @@ GREATEST_MAIN_DEFS();
 int main(int argc, char **argv) {
 #if defined(_MSC_VER)
   _set_invalid_parameter_handler(my_invalid_parameter_handler);
-  _CrtSetReportMode(_CRT_ASSERT, 0);
+#if defined(_DEBUG)
+  if (!GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {
+    _CrtSetReportMode(_CRT_ASSERT, 0);
+  }
+#endif
 #endif
   GREATEST_MAIN_BEGIN();
   RUN_SUITE(benchmarks_suite);

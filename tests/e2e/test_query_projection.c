@@ -114,7 +114,7 @@ static int alloc_count_qp = 0;
 static void *mock_malloc_qp_second(size_t size) {
   if (alloc_count_qp == 0) {
     alloc_count_qp++;
-    return c_orm_malloc(size);
+    return malloc(size);
   }
   return NULL;
 }

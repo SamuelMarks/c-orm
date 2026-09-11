@@ -57,6 +57,16 @@ TEST test_abstract_struct_oom_coverage(void) {
   c_orm_set_allocators(old_malloc, mock_realloc_astruct, c_orm_free);
   ASSERT_EQ(EINVAL, cdd_c_abstract_struct_array_append(&arr, &astruct));
 
+  /* test mock_realloc_astruct with countdown > 0 */
+  {
+    void *tmp;
+    astruct_oom_active = 1;
+    astruct_oom_countdown = 1;
+    tmp = mock_realloc_astruct(NULL, 16);
+    free(tmp);
+    astruct_oom_active = 0;
+  }
+
   astruct_oom_active = 0;
   c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
   cdd_c_abstract_struct_array_free(&arr);
@@ -145,6 +155,70 @@ TEST test_abstract_struct_oom_coverage(void) {
   astruct_oom_active = 0;
   c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
   cdd_c_abstract_struct_array_free(&arr);
+
+  /* cdd_c_abstract_hydrate failure in init_with_capacity */
+  {
+    cdd_c_column_meta_t col;
+    void *val_ptr = &v;
+    void *row[1];
+    row[0] = val_ptr;
+    col.name = "c";
+    col.inferred_type = 4;
+    astruct_oom_active = 1;
+    astruct_oom_countdown = 0;
+    c_orm_set_allocators(mock_malloc_astruct, old_realloc, c_orm_free);
+    ASSERT_EQ(EINVAL, cdd_c_abstract_hydrate(&astruct, row, &col, 1));
+    astruct_oom_active = 0;
+    c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
+  }
+
+  /* cdd_c_abstract_hydrate failure in cdd_c_abstract_set */
+  {
+    cdd_c_column_meta_t col;
+    void *val_ptr = &v;
+    void *row[1];
+    row[0] = val_ptr;
+    col.name = "c";
+    col.inferred_type = 4;
+    astruct_oom_active = 1;
+    astruct_oom_countdown = 1;
+    c_orm_set_allocators(mock_malloc_astruct, old_realloc, c_orm_free);
+    ASSERT_EQ(EINVAL, cdd_c_abstract_hydrate(&astruct, row, &col, 1));
+    astruct_oom_active = 0;
+    c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
+  }
+
+  /* cdd_c_specific_to_abstract failure in cdd_c_abstract_set */
+  {
+    cdd_c_prop_meta_t prop;
+    cdd_c_meta_t meta;
+    int dummy = 42;
+    memset(&prop, 0, sizeof(prop));
+    memset(&meta, 0, sizeof(meta));
+    prop.name = "p";
+    prop.type = "C_ORM_TYPE_INT32";
+    meta.props = &prop;
+    meta.num_props = 1;
+    astruct_oom_active = 1;
+    astruct_oom_countdown = 0;
+    c_orm_set_allocators(old_malloc, mock_realloc_astruct, c_orm_free);
+    ASSERT_EQ(EINVAL, cdd_c_specific_to_abstract(&astruct, &dummy, &meta));
+    astruct_oom_active = 0;
+    c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
+  }
+
+  /* serialize failure on mock malloc */
+  {
+    cdd_c_abstract_struct_t astruct_empty;
+    cdd_c_abstract_struct_init(&astruct_empty);
+    astruct_oom_active = 1;
+    astruct_oom_countdown = 2;
+    json_set_allocation_functions(mock_malloc_astruct, mock_parson_free);
+    ASSERT_EQ(EINVAL, cdd_c_abstract_struct_to_json(&astruct_empty, &json));
+    json_set_allocation_functions(malloc, free);
+    astruct_oom_active = 0;
+    cdd_c_abstract_struct_free(&astruct_empty);
+  }
 
   /* restore */
   astruct_oom_active = 0;

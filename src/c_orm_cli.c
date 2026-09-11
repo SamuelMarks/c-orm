@@ -24,6 +24,8 @@ static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_
 
 #if defined(_WIN32) || defined(_WIN64)
 extern __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
+extern __declspec(dllimport) void *__stdcall GetModuleHandleA(const char *);
+extern __declspec(dllimport) void *__stdcall GetProcAddress(void *, const char *);
 #include <direct.h>
 #define MKDIR(path) _mkdir(path)
 #if defined(_MSC_VER)
@@ -91,13 +93,15 @@ int main(int argc, char **argv) {
   int i;
 
 #if defined(_MSC_VER) && defined(_DEBUG)
-  _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
-  _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
-  _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
-  _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
-  _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
-  _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
-  _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+  if (!GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {
+    _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+  }
 #endif
 #if defined(_WIN32) || defined(_WIN64)
   { SetErrorMode(0x0001 | 0x0002 | 0x8000); }
@@ -105,7 +109,11 @@ int main(int argc, char **argv) {
 
 #if defined(_MSC_VER)
   _set_invalid_parameter_handler(my_invalid_parameter_handler);
-  _CrtSetReportMode(_CRT_ASSERT, 0);
+#if defined(_DEBUG)
+  if (!GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {
+    _CrtSetReportMode(_CRT_ASSERT, 0);
+  }
+#endif
 #endif
   LOG_DEBUG("main: entry");
 
@@ -240,8 +248,7 @@ int main(int argc, char **argv) {
       printf("No pending migrations found in %s\n", dir_path);
     }
 
-    if (db->vtable && db->vtable->disconnect)
-      db->vtable->disconnect(db);
+    db->vtable->disconnect(db);
   } else if (strcmp(command, "rollback") == 0) {
     printf("Rollback logic stubbed.\n");
   } else if (strcmp(command, "status") == 0) {
@@ -279,21 +286,17 @@ int main(int argc, char **argv) {
       for (j = 0; j < count; j++) {
         printf("  [%s] %s\n", applied[j].version, applied[j].name);
       }
-      if (applied) {
-        c_orm_migration_free_array(applied, count);
-      }
+      c_orm_migration_free_array(applied, count);
     } else {
       printf("Failed to fetch migration status or no migrations applied.\n");
-      if (db->vtable && db->vtable->disconnect)
-        db->vtable->disconnect(db);
+      db->vtable->disconnect(db);
       rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: failed to fetch migration status");
       LOG_DEBUG("main: exit");
       printf("RETURNING RC %d\n", rc);
       goto cleanup;
     }
-    if (db->vtable && db->vtable->disconnect)
-      db->vtable->disconnect(db);
+    db->vtable->disconnect(db);
   } else {
     printf("Unknown command: %s\n", command);
     print_usage(argv[0]);

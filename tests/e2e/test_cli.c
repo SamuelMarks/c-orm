@@ -126,7 +126,8 @@ TEST test_cli_create(void) {
                              "test_migrations_dir_cli"};
   const char *argv2[] = {"c-orm-cli", "create", "my_mig", "--dir",
                          "test_migrations_dir_cli"};
-  const char *argv3[] = {"c-orm-cli", "create", "my_mig", "--dir", ""};
+  const char *argv3[] = {"c-orm-cli", "create", "my_mig", "--dir",
+                         "nonexistent_dir_12345/sub"};
   const char *argv_multi[] = {"c-orm-cli", "create", "name1", "name2"};
   rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
@@ -184,6 +185,11 @@ TEST test_cli_migrate(void) {
 
   rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+
+  C_ORM_SETENV("C_ORM_DB_URL", "test_cli.db");
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
+  ASSERT_EQ(C_ORM_OK, rc);
+  C_ORM_UNSETENV("C_ORM_DB_URL");
 
   argc = 6;
   rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv2);

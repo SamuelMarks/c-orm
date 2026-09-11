@@ -223,9 +223,46 @@ TEST test_orm_gen_basic(void) {
   oom_active = 0;
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
 
+  {
+    void *tmp = mock_malloc_oom(16);
+    free(tmp);
+  }
+
   config.model_header = "valid.h";
   config.filename_base = "invalid/dir/base";
   ASSERT_EQ(0, openapi_orm_generate(&spec, &config));
+
+#ifndef __EMSCRIPTEN__
+#if defined(_WIN32)
+  system("mkdir test_conflict_c.c 2>nul");
+#else
+  system("mkdir -p test_conflict_c.c 2>/dev/null");
+#endif
+  config.model_header = "test_conflict_c.h";
+  config.filename_base = "test_gen";
+  ASSERT_EQ_FMT(EIO, openapi_orm_generate(&spec, &config), "%d");
+#if defined(_WIN32)
+  system("rmdir /S /Q test_conflict_c.c 2>nul");
+  remove("test_conflict_c.h");
+#else
+  system("rm -rf test_conflict_c.c test_conflict_c.h 2>/dev/null");
+#endif
+
+#if defined(_WIN32)
+  system("mkdir test_conflict_h.h 2>nul");
+#else
+  system("mkdir -p test_conflict_h.h 2>/dev/null");
+#endif
+  config.model_header = "test_conflict_h.h";
+  config.filename_base = "test_gen";
+  ASSERT_EQ_FMT(EIO, openapi_orm_generate(&spec, &config), "%d");
+#if defined(_WIN32)
+  system("rmdir /S /Q test_conflict_h.h 2>nul");
+  remove("test_conflict_h.c");
+#else
+  system("rm -rf test_conflict_h.h test_conflict_h.c 2>/dev/null");
+#endif
+#endif
 
   config.model_header = "test_gen_models.h";
   config.filename_base = "test_gen";

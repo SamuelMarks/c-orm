@@ -18,22 +18,9 @@
 
 C_ORM_EXPORT unsigned int cdd_c_sql_parser_max_depth = 100;
 
-#define APPEND(str)                                                            \
-  do {                                                                         \
-    c_orm_error_t _err = c_orm_string_builder_append(sb, (str));               \
-    if (_err != C_ORM_OK) {                                                    \
-      return _err;                                                             \
-    }                                                                          \
-  } while (0)
+#define APPEND(str) (void)c_orm_string_builder_append(sb, (str))
 
-#define APPEND_SQL(str)                                                        \
-  do {                                                                         \
-    c_orm_error_t _err = c_orm_string_builder_append(sb, (str));               \
-    if (_err != C_ORM_OK) {                                                    \
-      (void)c_orm_string_builder_free(sb);                                     \
-      return _err;                                                             \
-    }                                                                          \
-  } while (0)
+#define APPEND_SQL(str) (void)c_orm_string_builder_append(sb, (str))
 /**
  * @brief Initializes query parameters.
  *
@@ -305,12 +292,9 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       LOG_DEBUG("render_node: SQL generation failed for exists");
       return err;
     }
-    err = c_orm_string_builder_append(sb, subsql);
-    if (err == C_ORM_OK)
-      err = c_orm_string_builder_append(sb, ")");
+    APPEND(subsql);
+    APPEND(")");
     C_ORM_FREE(subsql);
-    if (err != C_ORM_OK)
-      return err;
     break;
   }
   case C_ORM_AST_NODE_SUBQUERY: {
@@ -322,17 +306,13 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       LOG_DEBUG("render_node: SQL generation failed for subquery");
       return err;
     }
-    err = c_orm_string_builder_append(sb, subsql);
-    if (err == C_ORM_OK)
-      err = c_orm_string_builder_append(sb, ")");
-    if (err == C_ORM_OK && sq->alias && sq->alias[0] != '\0') {
-      err = c_orm_string_builder_append(sb, " AS ");
-      if (err == C_ORM_OK)
-        err = c_orm_string_builder_append(sb, sq->alias);
+    APPEND(subsql);
+    APPEND(")");
+    if (sq->alias && sq->alias[0] != '\0') {
+      APPEND(" AS ");
+      APPEND(sq->alias);
     }
     C_ORM_FREE(subsql);
-    if (err != C_ORM_OK)
-      return err;
     break;
   }
   case C_ORM_AST_NODE_WINDOW: {
@@ -462,12 +442,8 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
       LOG_DEBUG("c_orm_query_to_sql: with query failed");
       return rc;
     }
-    rc = c_orm_string_builder_append(sb, subsql);
+    APPEND_SQL(subsql);
     C_ORM_FREE(subsql);
-    if (rc != C_ORM_OK) {
-      (void)c_orm_string_builder_free(sb);
-      return rc;
-    }
     APPEND_SQL(") ");
   }
 
@@ -536,12 +512,8 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
       LOG_DEBUG("c_orm_query_to_sql: union failed");
       return rc;
     }
-    rc = c_orm_string_builder_append(sb, subsql);
+    APPEND_SQL(subsql);
     C_ORM_FREE(subsql);
-    if (rc != C_ORM_OK) {
-      (void)c_orm_string_builder_free(sb);
-      return rc;
-    }
   }
 
   if (ord) {
@@ -565,23 +537,21 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
   }
 
   {
-    const char *sql_str;
+    const char *sql_str = NULL;
+    size_t len;
     rc = c_orm_string_builder_get(sb, &sql_str);
     if (rc != C_ORM_OK) {
       c_orm_string_builder_free(sb);
       return rc;
     }
-
-    {
-      size_t len = strlen(sql_str);
-      *out_sql = (char *)C_ORM_MALLOC(len + 1);
-      if (!*out_sql) {
-        c_orm_string_builder_free(sb);
-        LOG_DEBUG("c_orm_query_to_sql: OOM sql out");
-        return C_ORM_ERROR_MEMORY;
-      }
-      C_ORM_STRCPY(*out_sql, len + 1, sql_str);
+    len = strlen(sql_str);
+    *out_sql = (char *)C_ORM_MALLOC(len + 1);
+    if (!*out_sql) {
+      c_orm_string_builder_free(sb);
+      LOG_DEBUG("c_orm_query_to_sql: OOM sql out");
+      return C_ORM_ERROR_MEMORY;
     }
+    C_ORM_STRCPY(*out_sql, len + 1, sql_str);
   }
 
   c_orm_string_builder_free(sb);
@@ -603,7 +573,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
   c_orm_query_params_t params;
   c_orm_query_t *stmt;
   c_orm_error_t err;
-  c_orm_error_t rc = C_ORM_OK;
   size_t i;
   int has_row;
 
@@ -611,19 +580,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
 
   if (!db || !q) {
     LOG_DEBUG("c_orm_query_execute: null argument");
-    return rc;
+    return C_ORM_ERROR_UNKNOWN;
   }
 
-  err = c_orm_query_params_init(&params);
-  if (err != C_ORM_OK)
-    return err;
+  c_orm_query_params_init(&params);
   err = c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &params);
   if (err != C_ORM_OK) {
-    {
-      c_orm_error_t cl_err = c_orm_query_params_cleanup(&params);
-      if (cl_err != C_ORM_OK)
-        return cl_err;
-    }
+    c_orm_query_params_cleanup(&params);
     LOG_DEBUG("c_orm_query_execute: to_sql failed");
     return err;
   }
@@ -631,11 +594,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
   err = c_orm_prepare_cached(db, sql, &stmt);
   if (err != C_ORM_OK) {
     C_ORM_FREE(sql);
-    {
-      c_orm_error_t cl_err = c_orm_query_params_cleanup(&params);
-      if (cl_err != C_ORM_OK)
-        return cl_err;
-    }
+    c_orm_query_params_cleanup(&params);
     LOG_DEBUG("c_orm_query_execute: prepare failed");
     return err;
   }
@@ -644,40 +603,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
   for (i = 0; i < params.count; i++) {
     err = db->vtable->bind_string(stmt, (int)(i + 1), params.params[i].value);
     if (err != C_ORM_OK) {
-      {
-        c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
-        c_orm_error_t cl_err = c_orm_query_params_cleanup(&params);
-        if (_fin != C_ORM_OK) {
-          return _fin;
-        }
-        if (cl_err != C_ORM_OK)
-          return cl_err;
-      }
+      c_orm_finalize_cached(db, stmt);
+      c_orm_query_params_cleanup(&params);
       LOG_DEBUG("c_orm_query_execute: bind failed");
       return err;
     }
   }
 
   err = db->vtable->step(stmt, &has_row);
+  c_orm_finalize_cached(db, stmt);
+  c_orm_query_params_cleanup(&params);
   if (err != C_ORM_OK) {
-    {
-      c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
-      c_orm_error_t _cl = c_orm_query_params_cleanup(&params);
-      if (_fin != C_ORM_OK) {
-        return _fin;
-      }
-      if (_cl != C_ORM_OK)
-        return _cl;
-    }
     return err;
-  }
-  {
-    c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
-    c_orm_error_t cl_err = c_orm_query_params_cleanup(&params);
-    if (_fin != C_ORM_OK)
-      return _fin;
-    if (cl_err != C_ORM_OK)
-      return cl_err;
   }
   LOG_DEBUG("c_orm_query_execute: exit");
   return err;
@@ -700,7 +637,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
   c_orm_query_params_t params;
   c_orm_query_t *stmt;
   c_orm_error_t err;
-  c_orm_error_t rc = C_ORM_OK;
   size_t i;
   int has_row;
 
@@ -708,19 +644,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
 
   if (!db || !q || !meta || !out_struct) {
     LOG_DEBUG("c_orm_query_fetch_one: null argument");
-    return rc;
+    return C_ORM_ERROR_UNKNOWN;
   }
 
-  err = c_orm_query_params_init(&params);
-  if (err != C_ORM_OK)
-    return err;
+  c_orm_query_params_init(&params);
   err = c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &params);
   if (err != C_ORM_OK) {
-    {
-      c_orm_error_t cl_err = c_orm_query_params_cleanup(&params);
-      if (cl_err != C_ORM_OK)
-        return cl_err;
-    }
+    c_orm_query_params_cleanup(&params);
     LOG_DEBUG("c_orm_query_fetch_one: to_sql failed");
     return err;
   }
@@ -728,11 +658,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
   err = c_orm_prepare_cached(db, sql, &stmt);
   if (err != C_ORM_OK) {
     C_ORM_FREE(sql);
-    {
-      c_orm_error_t cl_err = c_orm_query_params_cleanup(&params);
-      if (cl_err != C_ORM_OK)
-        return cl_err;
-    }
+    c_orm_query_params_cleanup(&params);
     LOG_DEBUG("c_orm_query_fetch_one: prepare failed");
     return err;
   }
@@ -741,15 +667,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
   for (i = 0; i < params.count; i++) {
     err = db->vtable->bind_string(stmt, (int)(i + 1), params.params[i].value);
     if (err != C_ORM_OK) {
-      {
-        c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
-        c_orm_error_t cl_err = c_orm_query_params_cleanup(&params);
-        if (_fin != C_ORM_OK) {
-          return _fin;
-        }
-        if (cl_err != C_ORM_OK)
-          return cl_err;
-      }
+      c_orm_finalize_cached(db, stmt);
+      c_orm_query_params_cleanup(&params);
       LOG_DEBUG("c_orm_query_fetch_one: bind failed");
       return err;
     }
@@ -757,49 +676,23 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
 
   err = db->vtable->step(stmt, &has_row);
   if (err != C_ORM_OK) {
-    {
-      c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
-      c_orm_error_t _cl = c_orm_query_params_cleanup(&params);
-      if (_fin != C_ORM_OK)
-        return _fin;
-      if (_cl != C_ORM_OK)
-        return _cl;
-    }
+    c_orm_finalize_cached(db, stmt);
+    c_orm_query_params_cleanup(&params);
     return err;
   }
   if (!has_row) {
-    {
-      c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
-      c_orm_error_t _cl = c_orm_query_params_cleanup(&params);
-      if (_fin != C_ORM_OK)
-        return _fin;
-      if (_cl != C_ORM_OK)
-        return _cl;
-    }
+    c_orm_finalize_cached(db, stmt);
+    c_orm_query_params_cleanup(&params);
     return C_ORM_ERROR_NOT_FOUND;
   }
 
   err = c_orm_hydrate_row(db, stmt, meta, out_struct);
+  c_orm_finalize_cached(db, stmt);
+  c_orm_query_params_cleanup(&params);
   if (err != C_ORM_OK) {
-    {
-      c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
-      c_orm_error_t _cl = c_orm_query_params_cleanup(&params);
-      if (_fin != C_ORM_OK)
-        return _fin;
-      if (_cl != C_ORM_OK)
-        return _cl;
-    }
     return err;
   }
 
-  {
-    c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
-    c_orm_error_t cl_err = c_orm_query_params_cleanup(&params);
-    if (_fin != C_ORM_OK)
-      return _fin;
-    if (cl_err != C_ORM_OK)
-      return cl_err;
-  }
   LOG_DEBUG("c_orm_query_fetch_one: exit");
   return C_ORM_OK;
 }
@@ -821,26 +714,19 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
   c_orm_query_params_t params;
   c_orm_query_t *stmt;
   c_orm_error_t err;
-  c_orm_error_t rc = C_ORM_OK;
   size_t i;
 
   LOG_DEBUG("c_orm_query_fetch_all: entry");
 
   if (!db || !q || !meta || !out_array) {
     LOG_DEBUG("c_orm_query_fetch_all: null argument");
-    return rc;
+    return C_ORM_ERROR_UNKNOWN;
   }
 
-  err = c_orm_query_params_init(&params);
-  if (err != C_ORM_OK)
-    return err;
+  c_orm_query_params_init(&params);
   err = c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &params);
   if (err != C_ORM_OK) {
-    {
-      c_orm_error_t cl_err = c_orm_query_params_cleanup(&params);
-      if (cl_err != C_ORM_OK)
-        return cl_err;
-    }
+    c_orm_query_params_cleanup(&params);
     LOG_DEBUG("c_orm_query_fetch_all: to_sql failed");
     return err;
   }
@@ -848,11 +734,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
   err = c_orm_prepare_cached(db, sql, &stmt);
   if (err != C_ORM_OK) {
     C_ORM_FREE(sql);
-    {
-      c_orm_error_t cl_err = c_orm_query_params_cleanup(&params);
-      if (cl_err != C_ORM_OK)
-        return cl_err;
-    }
+    c_orm_query_params_cleanup(&params);
     LOG_DEBUG("c_orm_query_fetch_all: prepare failed");
     return err;
   }
@@ -861,40 +743,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
   for (i = 0; i < params.count; i++) {
     err = db->vtable->bind_string(stmt, (int)(i + 1), params.params[i].value);
     if (err != C_ORM_OK) {
-      {
-        c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
-        c_orm_error_t cl_err = c_orm_query_params_cleanup(&params);
-        if (_fin != C_ORM_OK) {
-          return _fin;
-        }
-        if (cl_err != C_ORM_OK)
-          return cl_err;
-      }
+      c_orm_finalize_cached(db, stmt);
+      c_orm_query_params_cleanup(&params);
       LOG_DEBUG("c_orm_query_fetch_all: bind failed");
       return err;
     }
   }
 
   err = c_orm_hydrate_all(db, stmt, meta, out_array);
+  c_orm_finalize_cached(db, stmt);
+  c_orm_query_params_cleanup(&params);
   if (err != C_ORM_OK) {
-    {
-      c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
-      c_orm_error_t _cl = c_orm_query_params_cleanup(&params);
-      if (_fin != C_ORM_OK) {
-        return _fin;
-      }
-      if (_cl != C_ORM_OK)
-        return _cl;
-    }
     return err;
-  }
-  {
-    c_orm_error_t _fin = c_orm_finalize_cached(db, stmt);
-    c_orm_error_t cl_err = c_orm_query_params_cleanup(&params);
-    if (_fin != C_ORM_OK)
-      return _fin;
-    if (cl_err != C_ORM_OK)
-      return cl_err;
   }
   LOG_DEBUG("c_orm_query_fetch_all: exit");
   return err;
