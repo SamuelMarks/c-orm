@@ -5459,16 +5459,16 @@ empty */
     if (desc_pos) {
       is_desc = 1;
       C_ORM_STRNCPY(order_col, sizeof(order_col), rel->order_by,
-                    desc_pos - rel->order_by);
-      order_col[desc_pos - rel->order_by] = '\0';
+                    (size_t)(desc_pos - rel->order_by));
+      order_col[(size_t)(desc_pos - rel->order_by)] = '\0';
     } else {
       const char *asc_pos = strstr(rel->order_by, " ASC");
       if (!asc_pos)
         asc_pos = strstr(rel->order_by, " asc");
       if (asc_pos) {
         C_ORM_STRNCPY(order_col, sizeof(order_col), rel->order_by,
-                      asc_pos - rel->order_by);
-        order_col[asc_pos - rel->order_by] = '\0';
+                      (size_t)(asc_pos - rel->order_by));
+        order_col[(size_t)(asc_pos - rel->order_by)] = '\0';
       } else {
         C_ORM_STRCPY(order_col, sizeof(order_col), rel->order_by);
       }

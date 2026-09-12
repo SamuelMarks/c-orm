@@ -311,7 +311,7 @@ int main(int argc, char **argv) {
   LOG_DEBUG("main: exit");
   printf("RETURNING RC %d\n", rc);
 cleanup:
-  return rc;
+  return (int)rc;
 }
 
 #if defined(__clang__) || defined(__GNUC__)

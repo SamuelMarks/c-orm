@@ -976,8 +976,9 @@ TEST qb_exhaustive_oom_all(void) {
     target_col.name = "id";
     target_col.is_pk = 1;
 
-    memset(tgt_name, 'R', extra);
-    C_ORM_STRCPY(tgt_name + extra, sizeof(tgt_name) - extra, "target_tbl");
+    memset(tgt_name, 'R', (size_t)extra);
+    C_ORM_STRCPY(tgt_name + extra, sizeof(tgt_name) - (size_t)extra,
+                 "target_tbl");
 
     memset(&target_meta, 0, sizeof(target_meta));
     target_meta.name = tgt_name;
@@ -1004,7 +1005,7 @@ TEST qb_exhaustive_oom_all(void) {
       char tname[513];
       c_orm_table_meta_t meta;
       pad = pad_step * 250;
-      memset(tname, 'T', pad);
+      memset(tname, 'T', (size_t)pad);
       tname[pad] = '\0';
       memset(&meta, 0, sizeof(meta));
       meta.name = tname;

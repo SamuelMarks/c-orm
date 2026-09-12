@@ -53,14 +53,14 @@ static c_orm_error_t check_db_schema(const struct StructField *field,
       if (fk_start) {
         char *fk_end = strchr(fk_start, ']');
         if (fk_end && (size_t)(fk_end - fk_start - 4) < fk_buf_size) {
+          size_t fk_len = (size_t)(fk_end - fk_start - 4);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
     defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-          strncpy_s(fk_buf, fk_buf_size, fk_start + 4, fk_end - fk_start - 4);
+          strncpy_s(fk_buf, fk_buf_size, fk_start + 4, fk_len);
 #else
-          C_ORM_STRNCPY(fk_buf, fk_end - fk_start - 4 + 1, fk_start + 4,
-                        fk_end - fk_start - 4);
+          C_ORM_STRNCPY(fk_buf, fk_len + 1, fk_start + 4, fk_len);
 #endif
-          fk_buf[fk_end - fk_start - 4] = '\0';
+          fk_buf[fk_len] = '\0';
         }
       }
     }
