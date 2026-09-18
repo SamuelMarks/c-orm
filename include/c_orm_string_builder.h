@@ -66,6 +66,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
 C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
     const c_orm_string_builder_t *builder, size_t *out_len);
 
+/**
+ * @brief Countdown counter to simulate string builder append allocation
+ * failure.
+ */
+C_ORM_EXPORT extern int c_orm_mock_string_builder_append_countdown;
+
+/**
+ * @brief Flag to simulate string builder get failure.
+ */
+C_ORM_EXPORT extern int c_orm_mock_string_builder_get_fail;
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

@@ -374,6 +374,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
                                              void **out_ptr);
 
 /**
+ * @brief Duplicate a string using memory allocated from the arena.
+ * @param arena The arena.
+ * @param str String to duplicate.
+ * @param out_copy Pointer to receive the duplicated string.
+ * @return 0 on success, non-zero on failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_arena_strdup(c_orm_arena_t *arena,
+                                              const char *str,
+                                              const char **out_copy);
+
+/**
  * @brief Free all memory in the arena and the arena itself.
  * @param arena The arena.
  */

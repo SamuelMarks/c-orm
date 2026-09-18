@@ -43,6 +43,12 @@ TEST test_arena_coverage(void) {
   malloc_fail_countdown = 0;
   rc = c_orm_arena_alloc(arena, 10, &ptr);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+
+  /* Test OOM in arena_strdup */
+  malloc_fail_countdown = 0;
+  rc = c_orm_arena_strdup(arena, "fail", (const char **)&ptr);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+
   c_orm_arena_free(arena);
 
   /* Reset */
@@ -74,6 +80,24 @@ TEST test_arena_coverage(void) {
   rc = c_orm_arena_alloc(arena, 5000, &ptr);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(ptr != NULL);
+
+  /* arena_strdup coverage */
+  {
+    const char *dup_str = NULL;
+    rc = c_orm_arena_strdup(NULL, "test", &dup_str);
+    ASSERT_NEQ(0, rc);
+
+    rc = c_orm_arena_strdup(arena, "test", NULL);
+    ASSERT_NEQ(0, rc);
+
+    rc = c_orm_arena_strdup(arena, NULL, &dup_str);
+    ASSERT_EQ(C_ORM_OK, rc);
+    ASSERT(dup_str == NULL);
+
+    rc = c_orm_arena_strdup(arena, "hello", &dup_str);
+    ASSERT_EQ(C_ORM_OK, rc);
+    ASSERT_STR_EQ("hello", dup_str);
+  }
 
   c_orm_arena_free(NULL);
   c_orm_arena_free(arena);

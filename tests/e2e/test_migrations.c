@@ -1,5 +1,15 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_migrations.c
+ * @brief Unit tests for database migration runner, locking, dry-run, schema
+ * introspection, and rollback flows.
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
@@ -11,9 +21,83 @@
 #include <string.h>
 /* clang-format on */
 
+/**
+ * @brief Forward declaration for test_migration_init.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_migration_init(void);
+
+/**
+ * @brief Forward declaration for test_migrate_all_dry_run.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_migrate_all_dry_run(void);
+
+/**
+ * @brief Forward declaration for test_migrate_all_execute.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_migrate_all_execute(void);
+
+/**
+ * @brief Forward declaration for test_c_orm_fetch_table_schema.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_c_orm_fetch_table_schema(void);
+
+/**
+ * @brief Forward declaration for test_migration_load_and_free_branches.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_migration_load_and_free_branches(void);
+
+/**
+ * @brief Forward declaration for test_migration_lock_unlock_branches.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_migration_lock_unlock_branches(void);
+
+/**
+ * @brief Forward declaration for test_migrate_all_failure_branches.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_migrate_all_failure_branches(void);
+
+/**
+ * @brief Forward declaration for test_migrate_rollback_failure_branches.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_migrate_rollback_failure_branches(void);
+
+/**
+ * @brief Forward declaration for test_migrate_up_down_branches.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_migrate_up_down_branches(void);
+
+/**
+ * @brief Forward declaration for test_fetch_table_schema_failure_branches.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_fetch_table_schema_failure_branches(void);
+
+/**
+ * @brief Forward declaration for test_get_applied_failure_branches.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_get_applied_failure_branches(void);
+
+/** @brief Counter decremented before triggering OOM failure. */
 static int oom_countdown = -1;
+
+/** @brief Flag activating mock out-of-memory errors. */
 static int oom_active = 0;
 
+/**
+ * @brief Mock malloc callback returning NULL on countdown expiration.
+ * @param size Allocation size in bytes.
+ * @return Allocated block or NULL on OOM.
+ */
 static void *m_mock_malloc(size_t size) {
   if (oom_active) {
     if (oom_countdown == 0) {
@@ -24,6 +108,13 @@ static void *m_mock_malloc(size_t size) {
   }
   return malloc(size);
 }
+
+/**
+ * @brief Mock realloc callback returning NULL on countdown expiration.
+ * @param ptr Existing pointer.
+ * @param size New allocation size in bytes.
+ * @return Reallocated block or NULL on OOM.
+ */
 static void *m_mock_realloc(void *ptr, size_t size) {
   if (oom_active) {
     if (oom_countdown == 0) {
@@ -34,8 +125,20 @@ static void *m_mock_realloc(void *ptr, size_t size) {
   }
   return realloc(ptr, size);
 }
+
+/**
+ * @brief Mock free wrapper.
+ * @param ptr Pointer to memory to free.
+ */
 static void m_mock_free(void *ptr) { free(ptr); }
 
+/**
+ * @brief Pre-migration callback to simulate hook failures.
+ * @param db Database handle.
+ * @param mig Migration descriptor.
+ * @param user_data User data pointer.
+ * @return C_ORM_OK or C_ORM_ERROR_VALIDATION on failure injection.
+ */
 static c_orm_error_t
 my_pre_migrate(c_orm_db_t *db, const c_orm_migration_t *mig, void *user_data) {
   (void)db;
@@ -45,6 +148,14 @@ my_pre_migrate(c_orm_db_t *db, const c_orm_migration_t *mig, void *user_data) {
   }
   return C_ORM_OK;
 }
+
+/**
+ * @brief Post-migration callback to simulate hook failures.
+ * @param db Database handle.
+ * @param mig Migration descriptor.
+ * @param user_data User data pointer.
+ * @return C_ORM_OK or C_ORM_ERROR_VALIDATION on failure injection.
+ */
 static c_orm_error_t
 my_post_migrate(c_orm_db_t *db, const c_orm_migration_t *mig, void *user_data) {
   (void)db;
@@ -55,33 +166,74 @@ my_post_migrate(c_orm_db_t *db, const c_orm_migration_t *mig, void *user_data) {
   return C_ORM_OK;
 }
 
+/** @brief Flag simulating table initialization failure. */
 static int fail_init = 0;
+/** @brief Flag simulating migration insert failure. */
 static int fail_insert = 0;
+/** @brief Flag simulating migration record delete failure. */
 static int fail_delete = 0;
+/** @brief Flag simulating applied migrations query failure. */
 static int fail_applied = 0;
+/** @brief Flag simulating up-migration SQL failure. */
 static int fail_up = 0;
+/** @brief Flag simulating down-migration SQL failure. */
 static int fail_down = 0;
+/** @brief Flag simulating check-applied query failure. */
 static int fail_check_applied = 0;
+/** @brief Flag simulating PRAGMA table_info prepare failure. */
 static int fail_prep_schema = 0;
+/** @brief Flag simulating applied migrations query prepare failure. */
 static int fail_prep_applied = 0;
+/** @brief Flag simulating SQLite lock acquisition failure. */
 static int fail_sqlite_lock = 0;
+/** @brief Flag simulating Postgres advisory lock failure. */
 static int fail_pg_advisory = 0;
+/** @brief Flag simulating generic lock failure on all drivers. */
 static int fail_lock_all = 0;
+/** @brief Flag stubbing Postgres lock query success with dummy query. */
 static int stub_pg_lock = 0;
+/** @brief Flag stubbing MySQL GET_LOCK query success with dummy query. */
 static int stub_get_lock = 0;
+/** @brief Flag stubbing unlock query success with dummy query. */
 static int stub_unlock = 0;
+/** @brief Flag simulating unlock failure. */
 static int fail_unlock = 0;
+/** @brief Flag simulating savepoint error during migrate_all. */
+static int fail_savepoint_mig = 0;
+/** @brief Flag simulating release savepoint error during migrate_all. */
+static int fail_release_mig = 0;
+/** @brief Flag simulating savepoint error during migrate_rollback. */
+static int fail_savepoint_rb = 0;
+/** @brief Flag simulating release savepoint error during migrate_rollback. */
+static int fail_release_rb = 0;
+/** @brief Flag simulating query step failure. */
 static int fail_step = 0;
+/** @brief Flag simulating query finalize failure. */
 static int fail_finalize = 0;
+/** @brief Flag simulating get_string retrieval failure. */
 static int fail_get_string_err = 0;
+/** @brief Index of column that should trigger get_string failure (-1 for all).
+ */
 static int fail_get_string_idx = -1;
+/** @brief Index of column that should return NULL string. */
 static int null_get_string_idx = -1;
 
+/** @brief Saved original prepare function pointer. */
 static c_orm_error_t (*orig_prep)(c_orm_db_t *, const char *, c_orm_query_t **);
+/** @brief Saved original step function pointer. */
 static c_orm_error_t (*orig_step)(c_orm_query_t *, int *);
+/** @brief Saved original get_string function pointer. */
 static c_orm_error_t (*orig_get_string)(c_orm_query_t *, int, const char **);
+/** @brief Saved original finalize function pointer. */
 static c_orm_error_t (*orig_finalize)(c_orm_query_t *);
 
+/**
+ * @brief Custom prepare callback injecting SQL failure simulations.
+ * @param db_v Database handle.
+ * @param sql SQL statement string.
+ * @param out_query Pointer to receive query handle.
+ * @return C_ORM_OK or error enum.
+ */
 static c_orm_error_t my_mig_prep(c_orm_db_t *db_v, const char *sql,
                                  c_orm_query_t **out_query) {
   if (fail_lock_all &&
@@ -145,10 +297,31 @@ static c_orm_error_t my_mig_prep(c_orm_db_t *db_v, const char *sql,
       strstr(sql, "SELECT version, name, hash FROM _c_orm_migrations")) {
     return C_ORM_ERROR_SQL;
   }
+  if (fail_savepoint_mig && strstr(sql, "SAVEPOINT c_orm_mig_step") &&
+      !strstr(sql, "SAVEPOINT c_orm_mig_step_rb") && !strstr(sql, "RELEASE")) {
+    return C_ORM_ERROR_SQL;
+  }
+  if (fail_release_mig && strstr(sql, "RELEASE SAVEPOINT c_orm_mig_step") &&
+      !strstr(sql, "RELEASE SAVEPOINT c_orm_mig_step_rb")) {
+    return C_ORM_ERROR_SQL;
+  }
+  if (fail_savepoint_rb && strstr(sql, "SAVEPOINT c_orm_mig_step_rb") &&
+      !strstr(sql, "RELEASE")) {
+    return C_ORM_ERROR_SQL;
+  }
+  if (fail_release_rb && strstr(sql, "RELEASE SAVEPOINT c_orm_mig_step_rb")) {
+    return C_ORM_ERROR_SQL;
+  }
 
   return orig_prep(db_v, sql, out_query);
 }
 
+/**
+ * @brief Custom step callback injecting step failure simulations.
+ * @param query Query handle.
+ * @param out_has_row Pointer to receive row availability indicator.
+ * @return C_ORM_OK or error enum.
+ */
 static c_orm_error_t my_mig_step(c_orm_query_t *query, int *out_has_row) {
   if (query == (c_orm_query_t *)0x1234) {
     *out_has_row = 0;
@@ -160,6 +333,13 @@ static c_orm_error_t my_mig_step(c_orm_query_t *query, int *out_has_row) {
   return orig_step(query, out_has_row);
 }
 
+/**
+ * @brief Custom get_string callback injecting string retrieval failures.
+ * @param query Query handle.
+ * @param index Column index.
+ * @param out_val Pointer to receive string pointer.
+ * @return C_ORM_OK or error enum.
+ */
 static c_orm_error_t my_mig_get_string(c_orm_query_t *query, int index,
                                        const char **out_val) {
   if (fail_get_string_err &&
@@ -173,6 +353,11 @@ static c_orm_error_t my_mig_get_string(c_orm_query_t *query, int index,
   return orig_get_string(query, index, out_val);
 }
 
+/**
+ * @brief Custom finalize callback injecting finalize failures.
+ * @param query Query handle.
+ * @return C_ORM_OK or error enum.
+ */
 static c_orm_error_t my_mig_finalize(c_orm_query_t *query) {
   if (query == (c_orm_query_t *)0x1234) {
     return C_ORM_OK;
@@ -185,11 +370,20 @@ static c_orm_error_t my_mig_finalize(c_orm_query_t *query) {
 
 SUITE(migrations_suite);
 
+/**
+ * @brief Test logger callback returning success.
+ * @param msg Log message string.
+ * @return C_ORM_OK.
+ */
 static c_orm_error_t test_log_cb(const char *msg) {
   (void)msg;
   return C_ORM_OK;
 }
 
+/**
+ * @brief Tests migration schema initialization and table creation.
+ * @return GREATEST test result.
+ */
 TEST test_migration_init(void) {
   c_orm_db_t *db = NULL;
   c_orm_driver_vtable_t orig_vt;
@@ -223,6 +417,10 @@ TEST test_migration_init(void) {
   PASS();
 }
 
+/**
+ * @brief Tests migration runner dry-run mode without applying schema changes.
+ * @return GREATEST test result.
+ */
 TEST test_migrate_all_dry_run(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -256,6 +454,11 @@ TEST test_migrate_all_dry_run(void) {
   PASS();
 }
 
+/**
+ * @brief Tests applying all forward migrations and idempotence on repeated
+ * runs.
+ * @return GREATEST test result.
+ */
 TEST test_migrate_all_execute(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -288,12 +491,20 @@ TEST test_migrate_all_execute(void) {
   PASS();
 }
 
+/**
+ * @brief Tests introspecting table schema definitions from database catalogs.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_fetch_table_schema(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
   cdd_c_meta_t *schema = NULL;
-  int found_id = 0, found_name = 0;
+  int found_id;
+  int found_name;
   size_t i;
+
+  found_id = 0;
+  found_name = 0;
 
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ(C_ORM_OK, err);
@@ -323,12 +534,18 @@ TEST test_c_orm_fetch_table_schema(void) {
   PASS();
 }
 
+/**
+ * @brief Tests loading migrations from directories and memory cleanup routines.
+ * @return GREATEST test result.
+ */
 TEST test_migration_load_and_free_branches(void) {
   c_orm_migration_t *migs = NULL;
-  size_t count = 0;
+  size_t count;
   c_orm_error_t err;
   cdd_c_meta_t *schema = NULL;
   cdd_c_prop_meta_t *props_buf = NULL;
+
+  count = 0;
 
   /* Validation checks for load_dir */
   err = c_orm_migration_load_dir(NULL, &migs, &count);
@@ -381,6 +598,10 @@ TEST test_migration_load_and_free_branches(void) {
   PASS();
 }
 
+/**
+ * @brief Tests migration distributed locking and unlocking across driver types.
+ * @return GREATEST test result.
+ */
 TEST test_migration_lock_unlock_branches(void) {
   c_orm_db_t *db = NULL;
   c_orm_db_t db_mem;
@@ -507,6 +728,11 @@ TEST test_migration_lock_unlock_branches(void) {
   PASS();
 }
 
+/**
+ * @brief Tests failure branches during migration execution including locks, SQL
+ * errors, and hook rejections.
+ * @return GREATEST test result.
+ */
 TEST test_migrate_all_failure_branches(void) {
   c_orm_db_t *db = NULL;
   c_orm_driver_vtable_t orig_vt;
@@ -564,7 +790,8 @@ TEST test_migrate_all_failure_branches(void) {
   ASSERT_EQ(C_ORM_ERROR_SQL, err);
   fail_init = 0;
   fail_unlock = 0;
-  (void)c_orm_execute_raw(db, "ROLLBACK");
+  err = c_orm_execute_raw(db, "ROLLBACK");
+  ASSERT(err == C_ORM_OK || err == C_ORM_ERROR_SQL);
 
   /* pre_migrate failure where unlock succeeds */
   C_ORM_STRCPY(mig.version, sizeof(mig.version), "103");
@@ -580,7 +807,8 @@ TEST test_migrate_all_failure_branches(void) {
   err = c_orm_migrate_all(db, &mig, 1, &opts);
   ASSERT_EQ(C_ORM_ERROR_SQL, err);
   fail_unlock = 0;
-  (void)c_orm_execute_raw(db, "ROLLBACK");
+  err = c_orm_execute_raw(db, "ROLLBACK");
+  ASSERT(err == C_ORM_OK || err == C_ORM_ERROR_SQL);
 
   /* pre_migrate success branch (hits line 215) */
   C_ORM_STRCPY(mig.version, sizeof(mig.version), "105");
@@ -605,7 +833,8 @@ TEST test_migrate_all_failure_branches(void) {
   ASSERT_EQ(C_ORM_ERROR_SQL, err);
   fail_up = 0;
   fail_unlock = 0;
-  (void)c_orm_execute_raw(db, "ROLLBACK");
+  err = c_orm_execute_raw(db, "ROLLBACK");
+  ASSERT(err == C_ORM_OK || err == C_ORM_ERROR_SQL);
 
   /* insert migration record failure where unlock succeeds */
   C_ORM_STRCPY(mig.version, sizeof(mig.version), "108");
@@ -622,7 +851,8 @@ TEST test_migrate_all_failure_branches(void) {
   ASSERT_EQ(C_ORM_ERROR_SQL, err);
   fail_insert = 0;
   fail_unlock = 0;
-  (void)c_orm_execute_raw(db, "ROLLBACK");
+  err = c_orm_execute_raw(db, "ROLLBACK");
+  ASSERT(err == C_ORM_OK || err == C_ORM_ERROR_SQL);
 
   /* post_migrate failure where unlock succeeds */
   C_ORM_STRCPY(mig.version, sizeof(mig.version), "110");
@@ -638,7 +868,8 @@ TEST test_migrate_all_failure_branches(void) {
   err = c_orm_migrate_all(db, &mig, 1, &opts);
   ASSERT_EQ(C_ORM_ERROR_SQL, err);
   fail_unlock = 0;
-  (void)c_orm_execute_raw(db, "ROLLBACK");
+  err = c_orm_execute_raw(db, "ROLLBACK");
+  ASSERT(err == C_ORM_OK || err == C_ORM_ERROR_SQL);
 
   /* post_migrate success branch (hits line 262) */
   C_ORM_STRCPY(mig.version, sizeof(mig.version), "112");
@@ -654,7 +885,8 @@ TEST test_migrate_all_failure_branches(void) {
   err = c_orm_migrate_all(db, &mig, 1, &opts);
   ASSERT_EQ(C_ORM_ERROR_SQL, err);
   fail_unlock = 0;
-  (void)c_orm_execute_raw(db, "ROLLBACK");
+  err = c_orm_execute_raw(db, "ROLLBACK");
+  ASSERT(err == C_ORM_OK || err == C_ORM_ERROR_SQL);
 
   /* Empty hash and empty up_sql branch */
   mig.hash[0] = '\0';
@@ -677,11 +909,49 @@ TEST test_migrate_all_failure_branches(void) {
   ASSERT_EQ(C_ORM_OK, err);
   fail_check_applied = 0;
 
+  /* Savepoint failure during migrate_all where unlock succeeds */
+  C_ORM_STRCPY(mig.version, sizeof(mig.version), "117");
+  fail_savepoint_mig = 1;
+  fail_unlock = 0;
+  err = c_orm_migrate_all(db, &mig, 1, &opts);
+  ASSERT_EQ(C_ORM_ERROR_SQL, err);
+
+  /* Savepoint failure during migrate_all where unlock fails */
+  C_ORM_STRCPY(mig.version, sizeof(mig.version), "118");
+  fail_unlock = 1;
+  err = c_orm_migrate_all(db, &mig, 1, &opts);
+  ASSERT_EQ(C_ORM_ERROR_SQL, err);
+  fail_savepoint_mig = 0;
+  fail_unlock = 0;
+  err = c_orm_execute_raw(db, "ROLLBACK");
+  ASSERT(err == C_ORM_OK || err == C_ORM_ERROR_SQL);
+
+  /* Release savepoint failure during migrate_all where unlock succeeds */
+  C_ORM_STRCPY(mig.version, sizeof(mig.version), "119");
+  fail_release_mig = 1;
+  fail_unlock = 0;
+  err = c_orm_migrate_all(db, &mig, 1, &opts);
+  ASSERT_EQ(C_ORM_ERROR_SQL, err);
+
+  /* Release savepoint failure during migrate_all where unlock fails */
+  C_ORM_STRCPY(mig.version, sizeof(mig.version), "120");
+  fail_unlock = 1;
+  err = c_orm_migrate_all(db, &mig, 1, &opts);
+  ASSERT_EQ(C_ORM_ERROR_SQL, err);
+  fail_release_mig = 0;
+  fail_unlock = 0;
+  err = c_orm_execute_raw(db, "ROLLBACK");
+  ASSERT(err == C_ORM_OK || err == C_ORM_ERROR_SQL);
+
   db->vtable = (const c_orm_driver_vtable_t *)&orig_vt;
   db->vtable->disconnect(db);
   PASS();
 }
 
+/**
+ * @brief Tests failure branches during migration rollbacks and step bounds.
+ * @return GREATEST test result.
+ */
 TEST test_migrate_rollback_failure_branches(void) {
   c_orm_db_t *db = NULL;
   c_orm_db_t *empty_db = NULL;
@@ -742,7 +1012,8 @@ TEST test_migrate_rollback_failure_branches(void) {
   ASSERT_EQ(C_ORM_ERROR_SQL, err);
   fail_applied = 0;
   fail_unlock = 0;
-  (void)c_orm_execute_raw(db, "ROLLBACK");
+  err = c_orm_execute_raw(db, "ROLLBACK");
+  ASSERT(err == C_ORM_OK || err == C_ORM_ERROR_SQL);
 
   /* Migration in db not found in local migrations array */
   {
@@ -780,7 +1051,8 @@ TEST test_migrate_rollback_failure_branches(void) {
   err = c_orm_migrate_rollback(db, &mig, 1, 1, &opts);
   ASSERT_EQ(C_ORM_ERROR_SQL, err);
   fail_unlock = 0;
-  (void)c_orm_execute_raw(db, "ROLLBACK");
+  err = c_orm_execute_raw(db, "ROLLBACK");
+  ASSERT(err == C_ORM_OK || err == C_ORM_ERROR_SQL);
 
   /* NULL and empty down_sql */
   mig.down_sql = NULL;
@@ -793,6 +1065,23 @@ TEST test_migrate_rollback_failure_branches(void) {
   mig.down_sql = "";
   err = c_orm_migrate_rollback(db, &mig, 1, 0, &opts);
   ASSERT_EQ(C_ORM_OK, err);
+
+  /* Savepoint failure during rollback */
+  mig.down_sql = "SELECT 1;";
+  err = c_orm_migrate_all(db, &mig, 1, &opts);
+  ASSERT_EQ(C_ORM_OK, err);
+  fail_savepoint_rb = 1;
+  err = c_orm_migrate_rollback(db, &mig, 1, 1, &opts);
+  ASSERT_EQ(C_ORM_ERROR_SQL, err);
+  fail_savepoint_rb = 0;
+
+  /* Release savepoint failure during rollback */
+  err = c_orm_migrate_all(db, &mig, 1, &opts);
+  ASSERT_EQ(C_ORM_OK, err);
+  fail_release_rb = 1;
+  err = c_orm_migrate_rollback(db, &mig, 1, 1, &opts);
+  ASSERT_EQ(C_ORM_ERROR_SQL, err);
+  fail_release_rb = 0;
 
   /* Rollback on empty database where applied is NULL (hits line 376 false
    * branch) */
@@ -809,6 +1098,11 @@ TEST test_migrate_rollback_failure_branches(void) {
   PASS();
 }
 
+/**
+ * @brief Tests migrate up and down directory dispatch routines and parameter
+ * validation.
+ * @return GREATEST test result.
+ */
 TEST test_migrate_up_down_branches(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -845,6 +1139,11 @@ TEST test_migrate_up_down_branches(void) {
   PASS();
 }
 
+/**
+ * @brief Tests failure branches and memory allocation failures during schema
+ * introspection.
+ * @return GREATEST test result.
+ */
 TEST test_fetch_table_schema_failure_branches(void) {
   c_orm_db_t *db = NULL;
   c_orm_driver_vtable_t orig_vt;
@@ -955,7 +1254,10 @@ TEST test_fetch_table_schema_failure_branches(void) {
     oom_active = 1;
     oom_countdown = i;
     fail_finalize = 0;
-    (void)c_orm_migration_fetch_table_schema(db, "schema_test", &schema);
+    err = c_orm_migration_fetch_table_schema(db, "schema_test", &schema);
+    if (err == C_ORM_OK) {
+      ASSERT(schema != NULL);
+    }
     oom_active = 0;
     if (schema) {
       c_orm_migration_free_table_schema(schema);
@@ -969,7 +1271,8 @@ TEST test_fetch_table_schema_failure_branches(void) {
     oom_active = 1;
     oom_countdown = i;
     fail_finalize = 1;
-    (void)c_orm_migration_fetch_table_schema(db, "schema_test", &schema);
+    err = c_orm_migration_fetch_table_schema(db, "schema_test", &schema);
+    ASSERT(err != C_ORM_OK);
     oom_active = 0;
     fail_finalize = 0;
   }
@@ -979,14 +1282,21 @@ TEST test_fetch_table_schema_failure_branches(void) {
   PASS();
 }
 
+/**
+ * @brief Tests failure branches and memory allocation failures during applied
+ * migrations query.
+ * @return GREATEST test result.
+ */
 TEST test_get_applied_failure_branches(void) {
   c_orm_db_t *db = NULL;
   c_orm_driver_vtable_t orig_vt;
   c_orm_driver_vtable_t mock_vt;
   c_orm_migration_t *migs = NULL;
-  size_t count = 0;
+  size_t count;
   c_orm_error_t err;
   int i, j;
+
+  count = 0;
 
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ(C_ORM_OK, err);
@@ -1128,7 +1438,9 @@ TEST test_get_applied_failure_branches(void) {
     oom_active = 1;
     oom_countdown = i;
     fail_finalize = 0;
-    (void)c_orm_migration_get_applied(db, &migs, &count);
+    err = c_orm_migration_get_applied(db, &migs, &count);
+    ASSERT(err == C_ORM_OK || err == C_ORM_ERROR_MEMORY ||
+           err == C_ORM_ERROR_SQL);
     oom_active = 0;
     if (migs) {
       c_orm_migration_free_array(migs, count);
@@ -1143,7 +1455,9 @@ TEST test_get_applied_failure_branches(void) {
     oom_active = 1;
     oom_countdown = i;
     fail_finalize = 1;
-    (void)c_orm_migration_get_applied(db, &migs, &count);
+    err = c_orm_migration_get_applied(db, &migs, &count);
+    ASSERT(err == C_ORM_OK || err == C_ORM_ERROR_MEMORY ||
+           err == C_ORM_ERROR_SQL);
     oom_active = 0;
     fail_finalize = 0;
   }
@@ -1153,10 +1467,17 @@ TEST test_get_applied_failure_branches(void) {
   PASS();
 }
 
+/**
+ * @brief Test suite registering migration framework test cases.
+ */
 SUITE(migrations_suite) {
-  void *(*old_malloc)(size_t) = c_orm_malloc;
-  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
-  void (*old_free)(void *) = c_orm_free;
+  void *(*old_malloc)(size_t);
+  void *(*old_realloc)(void *, size_t);
+  void (*old_free)(void *);
+
+  old_malloc = c_orm_malloc;
+  old_realloc = c_orm_realloc;
+  old_free = c_orm_free;
 
   c_orm_set_allocators(m_mock_malloc, m_mock_realloc, m_mock_free);
 
@@ -1177,3 +1498,7 @@ SUITE(migrations_suite) {
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */

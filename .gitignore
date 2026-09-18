@@ -92,6 +92,19 @@ $RECYCLE.BIN/
 *.sqlite3
 c_orm_token.dat
 test_cli.db
+dummy.sql
+oom_schema.sql
+test_schema.sql
+valid.c
+valid.h
+test_gen_models.c
+test_gen_models.h
+test_test_gen_models.c
+migrations/
+test_migrations_dir_cli/
+test_migrations_dir_init/
+test_out/
+test_conflict/
 
 # Extra Build / Coverage / IDE
 *.dSYM/

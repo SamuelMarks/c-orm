@@ -380,6 +380,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
 }
 
 /**
+ * @brief Flag to simulate cached finalize failure.
+ */
+C_ORM_EXPORT int c_orm_mock_finalize_cached_fail = 0;
+
+/**
+ * @brief Countdown counter to simulate cached finalize failure.
+ */
+C_ORM_EXPORT int c_orm_mock_finalize_cached_countdown = -1;
+
+/**
  * @brief Finalizes a cached statement, releasing it back to the cache pool.
  *
  * @param db The database connection.
@@ -398,6 +408,22 @@ C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
     LOG_DEBUG("c_orm_finalize_cached: invalid arguments");
     rc = C_ORM_ERROR_MEMORY;
     return rc;
+  }
+
+  if (c_orm_mock_finalize_cached_fail) {
+    LOG_DEBUG("c_orm_finalize_cached: mock failure");
+    rc = C_ORM_ERROR_UNKNOWN;
+    return rc;
+  }
+
+  if (c_orm_mock_finalize_cached_countdown >= 0) {
+    if (c_orm_mock_finalize_cached_countdown == 0) {
+      c_orm_mock_finalize_cached_countdown = -1;
+      LOG_DEBUG("c_orm_finalize_cached: mock countdown failure");
+      rc = C_ORM_ERROR_UNKNOWN;
+      return rc;
+    }
+    c_orm_mock_finalize_cached_countdown--;
   }
 
   if (!db->stmt_cache) {

@@ -1,5 +1,13 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_query_projection.c
+ * @brief Unit tests for query projection structures and field operations.
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "query_projection.h"
@@ -164,6 +172,10 @@ SUITE(query_projection_suite) {
   RUN_TEST(test_query_projection_duplicate_string_oom_original_name);
   RUN_TEST(test_query_projection_add_field_cap_expansion);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif

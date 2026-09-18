@@ -9,6 +9,7 @@
 #include "c_orm_ast.h"
 #include "c_orm_log.h"
 #include <stdlib.h>
+#include <string.h>
 /* clang-format on */
 
 /**
@@ -117,6 +118,50 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
   rc = C_ORM_OK;
   LOG_DEBUG("c_orm_arena_alloc: exit");
   return rc;
+}
+
+/**
+ * @brief Duplicate a string using memory allocated from the arena.
+ *
+ * @param arena The arena.
+ * @param str String to duplicate.
+ * @param out_copy Pointer to receive the duplicated string.
+ * @return 0 on success, non-zero on failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_arena_strdup(c_orm_arena_t *arena,
+                                              const char *str,
+                                              const char **out_copy) {
+  char *copy;
+  size_t len;
+  c_orm_error_t rc;
+
+  LOG_DEBUG("c_orm_arena_strdup: entry");
+
+  if (!out_copy) {
+    LOG_DEBUG("c_orm_arena_strdup: invalid arguments");
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  *out_copy = NULL;
+  if (!str) {
+    LOG_DEBUG("c_orm_arena_strdup: null string");
+    return C_ORM_OK;
+  }
+  if (!arena) {
+    LOG_DEBUG("c_orm_arena_strdup: null arena");
+    return C_ORM_ERROR_UNKNOWN;
+  }
+
+  len = strlen(str) + 1;
+  rc = c_orm_arena_alloc(arena, len, (void **)&copy);
+  if (rc != C_ORM_OK) {
+    LOG_DEBUG("c_orm_arena_strdup: OOM");
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  memcpy(copy, str, len);
+  *out_copy = copy;
+  LOG_DEBUG("c_orm_arena_strdup: exit");
+  return C_ORM_OK;
 }
 
 /**

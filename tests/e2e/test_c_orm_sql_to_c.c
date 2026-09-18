@@ -1,5 +1,14 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_c_orm_sql_to_c.c
+ * @brief Unit tests for SQL to C model code generation and query projections.
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_sql_to_c.h"
@@ -9,31 +18,39 @@
 #include <errno.h>
 /* clang-format on */
 
+/**
+ * @brief Test emitting C header from SQL CREATE TABLE.
+ * @return GREATEST test result.
+ */
 TEST test_sql_to_c_header_emit(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
       "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true, "
       "bio VARCHAR(255));";
-  az_span span = az_span_create_from_str((char *)sql);
-  struct sql_token_list_t *list = NULL;
-  struct sql_table_t *table = NULL;
+  az_span span;
+  struct sql_token_list_t *list;
+  struct sql_table_t *table;
   struct sql_parse_error_t err_info;
-  c_orm_error_t err;
-
   char buf[4096];
   FILE *fp;
+  c_orm_error_t rc;
 
-  err = sql_lex(span, &list);
-  ASSERT_EQ(0, err);
+  span = az_span_create_from_str((char *)sql);
+  list = NULL;
+  table = NULL;
+  fp = NULL;
 
-  err = sql_parse_table(list, &table, &err_info);
-  ASSERT_EQ(0, err);
+  rc = sql_lex(span, &list);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  rc = sql_parse_table(list, &table, &err_info);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   C_ORM_TMPFILE(&fp);
   ASSERT(fp != NULL);
 
-  err = sql_to_c_header_emit(fp, table);
-  ASSERT_EQ(0, err);
+  rc = sql_to_c_header_emit(fp, table);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   rewind(fp);
   memset(buf, 0, sizeof(buf));
@@ -49,35 +66,43 @@ TEST test_sql_to_c_header_emit(void) {
   ASSERT(strstr(buf, "struct Users_Array {") != NULL);
 
   sql_table_C_ORM_FREE(table);
-  free(table);
+  C_ORM_FREE(table);
   sql_token_list_free(list);
   PASS();
 }
 
+/**
+ * @brief Test emitting C source file from SQL CREATE TABLE.
+ * @return GREATEST test result.
+ */
 TEST test_sql_to_c_source_emit(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
       "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true);";
-  az_span span = az_span_create_from_str((char *)sql);
-  struct sql_token_list_t *list = NULL;
-  struct sql_table_t *table = NULL;
+  az_span span;
+  struct sql_token_list_t *list;
+  struct sql_table_t *table;
   struct sql_parse_error_t err_info;
-  c_orm_error_t err;
-
   char buf[4096];
   FILE *fp;
+  c_orm_error_t rc;
 
-  err = sql_lex(span, &list);
-  ASSERT_EQ(0, err);
+  span = az_span_create_from_str((char *)sql);
+  list = NULL;
+  table = NULL;
+  fp = NULL;
 
-  err = sql_parse_table(list, &table, &err_info);
-  ASSERT_EQ(0, err);
+  rc = sql_lex(span, &list);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  rc = sql_parse_table(list, &table, &err_info);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   C_ORM_TMPFILE(&fp);
   ASSERT(fp != NULL);
 
-  err = sql_to_c_source_emit(fp, table, "users.h");
-  ASSERT_EQ(0, err);
+  rc = sql_to_c_source_emit(fp, table, "users.h");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   rewind(fp);
   memset(buf, 0, sizeof(buf));
@@ -91,119 +116,144 @@ TEST test_sql_to_c_source_emit(void) {
   ASSERT(strstr(buf, "c_orm_error_t Users_Array_deepcopy(") != NULL);
 
   sql_table_C_ORM_FREE(table);
-  free(table);
+  C_ORM_FREE(table);
   sql_token_list_free(list);
   PASS();
 }
 
+/**
+ * @brief Test error cases and NULL checks in sql_to_c emission APIs.
+ * @return GREATEST test result.
+ */
 TEST test_sql_to_c_errors(void) {
   struct sql_table_t empty_table;
   cdd_c_query_projection_t empty_proj;
   c_orm_uint64_t hash;
   FILE *fp;
+  c_orm_error_t rc;
 
+  fp = NULL;
+  hash = 0;
   memset(&empty_table, 0, sizeof(empty_table));
   memset(&empty_proj, 0, sizeof(empty_proj));
 
   C_ORM_FOPEN(&fp, "dummy_err.h", "w");
+  ASSERT(fp != NULL);
 
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit(NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit(fp, NULL));
-  ASSERT_EQ(C_ORM_ERROR_VALIDATION, sql_to_c_header_emit(fp, &empty_table));
+  rc = sql_to_c_header_emit(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_header_emit(fp, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_header_emit(fp, &empty_table);
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_source_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_source_emit(fp, NULL, "dummy.h"));
-  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
-            sql_to_c_source_emit(fp, &empty_table, NULL));
+  rc = sql_to_c_source_emit(NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_source_emit(fp, NULL, "dummy.h");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_source_emit(fp, &empty_table, NULL);
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_struct_emit(NULL, NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_struct_emit(fp, NULL, "Proj", &hash));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_struct_emit(fp, &empty_proj, NULL, &hash));
+  rc = sql_to_c_projection_struct_emit(NULL, NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_struct_emit(fp, NULL, "Proj", &hash);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_struct_emit(fp, &empty_proj, NULL, &hash);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_free_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_free_emit(fp, NULL, "Proj"));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_free_emit(fp, &empty_proj, NULL));
+  rc = sql_to_c_projection_free_emit(NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_free_emit(fp, NULL, "Proj");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_free_emit(fp, &empty_proj, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_meta_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_meta_emit(fp, NULL, "Proj"));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_meta_emit(fp, &empty_proj, NULL));
+  rc = sql_to_c_projection_meta_emit(NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_meta_emit(fp, NULL, "Proj");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_meta_emit(fp, &empty_proj, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_hydrate_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_hydrate_emit(fp, NULL, "Proj"));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_hydrate_emit(fp, &empty_proj, NULL));
+  rc = sql_to_c_projection_hydrate_emit(NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_hydrate_emit(fp, NULL, "Proj");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_hydrate_emit(fp, &empty_proj, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_dehydrate_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_dehydrate_emit(fp, NULL, "Proj"));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_dehydrate_emit(fp, &empty_proj, NULL));
+  rc = sql_to_c_projection_dehydrate_emit(NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_dehydrate_emit(fp, NULL, "Proj");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_dehydrate_emit(fp, &empty_proj, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_nested_struct_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_nested_struct_emit(fp, NULL, "Proj"));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_nested_struct_emit(fp, &empty_proj, NULL));
+  rc = sql_to_c_projection_nested_struct_emit(NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_nested_struct_emit(fp, NULL, "Proj");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_nested_struct_emit(fp, &empty_proj, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_nested_array_emit(NULL, NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_nested_array_emit(fp, NULL, "Proj", "Arr"));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_projection_nested_array_emit(
-                                    fp, &empty_proj, NULL, "Arr"));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_projection_nested_array_emit(
-                                    fp, &empty_proj, "Proj", NULL));
+  rc = sql_to_c_projection_nested_array_emit(NULL, NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_nested_array_emit(fp, NULL, "Proj", "Arr");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_nested_array_emit(fp, &empty_proj, NULL, "Arr");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_nested_array_emit(fp, &empty_proj, "Proj", NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_dirty_bitmask_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_dirty_bitmask_emit(fp, NULL, "Proj"));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_dirty_bitmask_emit(fp, &empty_proj, NULL));
+  rc = sql_to_c_projection_dirty_bitmask_emit(NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_dirty_bitmask_emit(fp, NULL, "Proj");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_dirty_bitmask_emit(fp, &empty_proj, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_union_struct_emit(NULL, NULL, 0, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_union_struct_emit(fp, NULL, 0, "Proj"));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_union_struct_emit(fp, &empty_proj, 0, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_union_struct_emit(fp, &empty_proj, 0, "Proj"));
+  rc = sql_to_c_projection_union_struct_emit(NULL, NULL, 0, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_union_struct_emit(fp, NULL, 0, "Proj");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_union_struct_emit(fp, &empty_proj, 0, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_union_struct_emit(fp, &empty_proj, 0, "Proj");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_polymorphic_struct_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_polymorphic_struct_emit(fp, NULL, "Proj"));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_polymorphic_struct_emit(fp, &empty_proj, NULL));
+  rc = sql_to_c_projection_polymorphic_struct_emit(NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_polymorphic_struct_emit(fp, NULL, "Proj");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_to_c_projection_polymorphic_struct_emit(fp, &empty_proj, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
   fclose(fp);
   remove("dummy_err.h");
   PASS();
 }
 
+/**
+ * @brief Test projection emissions for struct, meta, hydration, and bitmasks.
+ * @return GREATEST test result.
+ */
 TEST test_sql_to_c_projections(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
   c_orm_uint64_t out_hash;
+  c_orm_error_t rc;
+
+  fp = NULL;
+  out_hash = 0;
   C_ORM_TMPFILE(&fp);
+  ASSERT(fp != NULL);
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 2;
-  proj.fields = calloc(2, sizeof(*proj.fields));
+  proj.fields = (cdd_c_query_projection_field_t *)calloc(
+      2, sizeof(cdd_c_query_projection_field_t));
+  ASSERT(proj.fields != NULL);
+
   proj.fields[0].name = "id";
   proj.fields[0].type = SQL_TYPE_INT;
   proj.fields[0].is_array = 0;
@@ -212,64 +262,95 @@ TEST test_sql_to_c_projections(void) {
   proj.fields[1].type = SQL_TYPE_VARCHAR;
   proj.fields[1].is_array = 1;
 
-  ASSERT_EQ(0,
-            sql_to_c_projection_struct_emit(fp, &proj, "ProjTest", &out_hash));
-  ASSERT_EQ(0, sql_to_c_projection_free_emit(fp, &proj, "ProjTest"));
-  ASSERT_EQ(0, sql_to_c_projection_meta_emit(fp, &proj, "ProjTest"));
-  ASSERT_EQ(0, sql_to_c_projection_hydrate_emit(fp, &proj, "ProjTest"));
-  ASSERT_EQ(0, sql_to_c_projection_dehydrate_emit(fp, &proj, "ProjTest"));
-  ASSERT_EQ(0, sql_to_c_projection_nested_struct_emit(fp, &proj, "ProjTest"));
-  ASSERT_EQ(0, sql_to_c_projection_nested_array_emit(fp, &proj, "ProjTest",
-                                                     "ProjTestArray"));
-  ASSERT_EQ(0, sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "ProjTest"));
-  ASSERT_EQ(0, sql_to_c_projection_union_struct_emit(fp, &proj, 1, "ProjTest"));
-  ASSERT_EQ(0,
-            sql_to_c_projection_polymorphic_struct_emit(fp, &proj, "ProjTest"));
+  rc = sql_to_c_projection_struct_emit(fp, &proj, "ProjTest", &out_hash);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_free_emit(fp, &proj, "ProjTest");
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_meta_emit(fp, &proj, "ProjTest");
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_hydrate_emit(fp, &proj, "ProjTest");
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_dehydrate_emit(fp, &proj, "ProjTest");
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_nested_struct_emit(fp, &proj, "ProjTest");
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_nested_array_emit(fp, &proj, "ProjTest",
+                                             "ProjTestArray");
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "ProjTest");
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_union_struct_emit(fp, &proj, 1, "ProjTest");
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_polymorphic_struct_emit(fp, &proj, "ProjTest");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   free(proj.fields);
   fclose(fp);
   PASS();
 }
 
+/**
+ * @brief Test emitting polymorphic struct definitions.
+ * @return GREATEST test result.
+ */
 TEST test_sql_to_c_polymorphic(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
+  c_orm_error_t rc;
+
+  fp = NULL;
   C_ORM_TMPFILE(&fp);
+  ASSERT(fp != NULL);
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 1;
-  proj.fields = calloc(1, sizeof(*proj.fields));
+  proj.fields = (cdd_c_query_projection_field_t *)calloc(
+      1, sizeof(cdd_c_query_projection_field_t));
+  ASSERT(proj.fields != NULL);
+
   proj.fields[0].name = "dynamic_field";
   proj.fields[0].type = SQL_TYPE_DOUBLE;
   proj.fields[0].is_array = 0;
 
-  ASSERT_EQ(0,
-            sql_to_c_projection_polymorphic_struct_emit(fp, &proj, "PolyTest"));
+  rc = sql_to_c_projection_polymorphic_struct_emit(fp, &proj, "PolyTest");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   free(proj.fields);
   fclose(fp);
   PASS();
 }
 
+/**
+ * @brief Test emitting union struct definitions.
+ * @return GREATEST test result.
+ */
 TEST test_sql_to_c_union(void) {
   FILE *fp;
   cdd_c_query_projection_t projs[2];
+  c_orm_error_t rc;
+
+  fp = NULL;
   C_ORM_TMPFILE(&fp);
+  ASSERT(fp != NULL);
   memset(projs, 0, sizeof(projs));
 
   projs[0].n_fields = 1;
-  projs[0].fields = calloc(1, sizeof(cdd_c_query_projection_field_t));
+  projs[0].fields = (cdd_c_query_projection_field_t *)calloc(
+      1, sizeof(cdd_c_query_projection_field_t));
+  ASSERT(projs[0].fields != NULL);
   projs[0].fields[0].name = "branch_0_f";
   projs[0].fields[0].type = SQL_TYPE_INT;
 
   projs[1].n_fields = 1;
-  projs[1].fields = calloc(1, sizeof(cdd_c_query_projection_field_t));
+  projs[1].fields = (cdd_c_query_projection_field_t *)calloc(
+      1, sizeof(cdd_c_query_projection_field_t));
+  ASSERT(projs[1].fields != NULL);
   projs[1].fields[0].name = "branch_1_f";
   projs[1].fields[0].type = SQL_TYPE_VARCHAR;
   projs[1].fields[0].length = 64;
 
-  ASSERT_EQ(0,
-            sql_to_c_projection_union_struct_emit(fp, projs, 2, "UnionTest"));
+  rc = sql_to_c_projection_union_struct_emit(fp, projs, 2, "UnionTest");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   free(projs[0].fields);
   free(projs[1].fields);
@@ -277,49 +358,75 @@ TEST test_sql_to_c_union(void) {
   PASS();
 }
 
+/**
+ * @brief Test dirty bitmask generation across different field sizes.
+ * @return GREATEST test result.
+ */
 TEST test_sql_to_c_bitmask_sizes(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
+  c_orm_error_t rc;
+
+  fp = NULL;
   C_ORM_TMPFILE(&fp);
+  ASSERT(fp != NULL);
   memset(&proj, 0, sizeof(proj));
 
   /* 0 fields */
   proj.n_fields = 0;
-  ASSERT_EQ(0, sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "Mask0"));
+  rc = sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "Mask0");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* 8 fields */
   proj.n_fields = 8;
-  ASSERT_EQ(0, sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "Mask8"));
+  rc = sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "Mask8");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* 16 fields */
   proj.n_fields = 16;
-  ASSERT_EQ(0, sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "Mask16"));
+  rc = sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "Mask16");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* 32 fields */
   proj.n_fields = 32;
-  ASSERT_EQ(0, sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "Mask32"));
+  rc = sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "Mask32");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* 64 fields */
   proj.n_fields = 64;
-  ASSERT_EQ(0, sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "Mask64"));
+  rc = sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "Mask64");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* 100 fields */
   proj.n_fields = 100;
-  ASSERT_EQ(0, sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "Mask100"));
+  rc = sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "Mask100");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   fclose(fp);
   PASS();
 }
 
+/**
+ * @brief Test projection emitting with diverse column types.
+ * @return GREATEST test result.
+ */
 TEST test_sql_to_c_projection_types(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
   c_orm_uint64_t hash;
+  c_orm_error_t rc;
+
+  fp = NULL;
+  hash = 0;
   C_ORM_TMPFILE(&fp);
+  ASSERT(fp != NULL);
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 4;
-  proj.fields = calloc(4, sizeof(*proj.fields));
+  proj.fields = (cdd_c_query_projection_field_t *)calloc(
+      4, sizeof(cdd_c_query_projection_field_t));
+  ASSERT(proj.fields != NULL);
+
   proj.fields[0].name = "unknown_field";
   proj.fields[0].type = SQL_TYPE_UNKNOWN;
 
@@ -336,60 +443,76 @@ TEST test_sql_to_c_projection_types(void) {
   proj.fields[3].length = 255;
   proj.fields[3].is_secure = 1;
 
-  ASSERT_EQ(0, sql_to_c_projection_struct_emit(fp, &proj, "ProjTypes", &hash));
-  ASSERT_EQ(0, sql_to_c_projection_free_emit(fp, &proj, "ProjTypes"));
-  ASSERT_EQ(0, sql_to_c_projection_hydrate_emit(fp, &proj, "ProjTypes"));
-  ASSERT_EQ(0, sql_to_c_projection_dehydrate_emit(fp, &proj, "ProjTypes"));
+  rc = sql_to_c_projection_struct_emit(fp, &proj, "ProjTypes", &hash);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_free_emit(fp, &proj, "ProjTypes");
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_hydrate_emit(fp, &proj, "ProjTypes");
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_dehydrate_emit(fp, &proj, "ProjTypes");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   free(proj.fields);
   fclose(fp);
   PASS();
 }
 
+/**
+ * @brief Test edge cases in SQL to C generation and projection handling.
+ * @return GREATEST test result.
+ */
 TEST test_sql_to_c_edge_cases(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
   cdd_c_query_projection_t projs[1];
+  c_orm_error_t rc;
+  const char *out;
+
+  fp = NULL;
+  out = NULL;
   C_ORM_TMPFILE(&fp);
+  ASSERT(fp != NULL);
   memset(&proj, 0, sizeof(proj));
   memset(projs, 0, sizeof(projs));
 
   proj.n_fields = 2;
-  proj.fields = calloc(2, sizeof(*proj.fields));
+  proj.fields = (cdd_c_query_projection_field_t *)calloc(
+      2, sizeof(cdd_c_query_projection_field_t));
+  ASSERT(proj.fields != NULL);
 
   /* Fallback double coverage in type mapping */
   proj.fields[0].name = "dbl_field";
   proj.fields[0].type = SQL_TYPE_DOUBLE;
   proj.fields[0].is_array = 0;
 
-  /* Force str_to_upper empty */
-  /* This is hard to force directly without private API access, but we'll cover
-   * other types */
   proj.fields[1].name = "unknown_field";
-  proj.fields[1].type = SQL_TYPE_DATE; /* maps to C_ORM_TYPE_DATE but no
-                                          hydration case explicitly */
+  proj.fields[1].type = SQL_TYPE_DATE;
 
-  ASSERT_EQ(0, sql_to_c_projection_struct_emit(fp, &proj, "EdgeType", NULL));
-  ASSERT_EQ(0, sql_to_c_projection_meta_emit(fp, &proj, "EdgeType"));
-  ASSERT_EQ(0, sql_to_c_projection_hydrate_emit(fp, &proj, "EdgeType"));
-  ASSERT_EQ(0, sql_to_c_projection_dehydrate_emit(fp, &proj, "EdgeType"));
+  rc = sql_to_c_projection_struct_emit(fp, &proj, "EdgeType", NULL);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_meta_emit(fp, &proj, "EdgeType");
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_hydrate_emit(fp, &proj, "EdgeType");
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_to_c_projection_dehydrate_emit(fp, &proj, "EdgeType");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* Polymorphic specific coverage */
-  ASSERT_EQ(0,
-            sql_to_c_projection_polymorphic_struct_emit(fp, &proj, "PolyEdge"));
+  rc = sql_to_c_projection_polymorphic_struct_emit(fp, &proj, "PolyEdge");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* Union coverage */
   projs[0] = proj;
-  ASSERT_EQ(0,
-            sql_to_c_projection_union_struct_emit(fp, projs, 1, "UnionEdge"));
+  rc = sql_to_c_projection_union_struct_emit(fp, projs, 1, "UnionEdge");
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* Nested array failure propagation coverage */
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_projection_nested_array_emit(
-                                    NULL, &proj, "struct", "arr"));
+  rc = sql_to_c_projection_nested_array_emit(NULL, &proj, "struct", "arr");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
   /* Null array name coverage */
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_nested_array_emit(fp, &proj, "struct", NULL));
+  rc = sql_to_c_projection_nested_array_emit(fp, &proj, "struct", NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
   free(proj.fields);
 
@@ -398,8 +521,10 @@ TEST test_sql_to_c_edge_cases(void) {
     struct sql_table_t empty_table;
     memset(&empty_table, 0, sizeof(empty_table));
     empty_table.name = "";
-    ASSERT_EQ(0, sql_to_c_header_emit(fp, &empty_table));
-    ASSERT_EQ(0, sql_to_c_source_emit(fp, &empty_table, "empty.h"));
+    rc = sql_to_c_header_emit(fp, &empty_table);
+    ASSERT_EQ(C_ORM_OK, rc);
+    rc = sql_to_c_source_emit(fp, &empty_table, "empty.h");
+    ASSERT_EQ(C_ORM_OK, rc);
   }
 
   /* No Primary Key coverage */
@@ -413,7 +538,8 @@ TEST test_sql_to_c_edge_cases(void) {
     nopk_table.columns = cols;
     cols[0].name = "id";
     cols[0].type = SQL_TYPE_INT;
-    ASSERT_EQ(0, sql_to_c_source_emit(fp, &nopk_table, "nopk.h"));
+    rc = sql_to_c_source_emit(fp, &nopk_table, "nopk.h");
+    ASSERT_EQ(C_ORM_OK, rc);
   }
 
   /* Unknown column type in table source emit */
@@ -427,7 +553,8 @@ TEST test_sql_to_c_edge_cases(void) {
     unk_table.columns = cols;
     cols[0].name = "bad_col";
     cols[0].type = (enum SqlDataType)999;
-    ASSERT_EQ(0, sql_to_c_source_emit(fp, &unk_table, "unk_col_tbl.h"));
+    rc = sql_to_c_source_emit(fp, &unk_table, "unk_col_tbl.h");
+    ASSERT_EQ(C_ORM_OK, rc);
   }
 
   /* Unknown field type in union and meta emit */
@@ -440,9 +567,10 @@ TEST test_sql_to_c_edge_cases(void) {
     u_field.type = (enum SqlDataType)999;
     unk_u_proj.n_fields = 1;
     unk_u_proj.fields = &u_field;
-    ASSERT_EQ(0, sql_to_c_projection_meta_emit(fp, &unk_u_proj, "UnkMeta"));
-    ASSERT_EQ(0, sql_to_c_projection_union_struct_emit(fp, &unk_u_proj, 1,
-                                                       "UnkUnion"));
+    rc = sql_to_c_projection_meta_emit(fp, &unk_u_proj, "UnkMeta");
+    ASSERT_EQ(C_ORM_OK, rc);
+    rc = sql_to_c_projection_union_struct_emit(fp, &unk_u_proj, 1, "UnkUnion");
+    ASSERT_EQ(C_ORM_OK, rc);
   }
 
   /* Unknown Field Type and String freeing without security */
@@ -456,7 +584,7 @@ TEST test_sql_to_c_edge_cases(void) {
     unk_proj.fields = fields;
 
     fields[0].name = "weird_type";
-    fields[0].type = 999; /* Unknown type */
+    fields[0].type = (enum SqlDataType)999;
 
     fields[1].name = "unsecured_str";
     fields[1].type = SQL_TYPE_VARCHAR;
@@ -468,12 +596,12 @@ TEST test_sql_to_c_edge_cases(void) {
     fields[2].length = 128;
     fields[2].is_secure = 0;
 
-    ASSERT_EQ(0,
-              sql_to_c_projection_struct_emit(fp, &unk_proj, "UnkType", NULL));
-    ASSERT_EQ(0, sql_to_c_projection_free_emit(fp, &unk_proj, "UnkType"));
-    /* Hit polymorphic string array/length logic */
-    ASSERT_EQ(0, sql_to_c_projection_polymorphic_struct_emit(fp, &unk_proj,
-                                                             "UnkPoly"));
+    rc = sql_to_c_projection_struct_emit(fp, &unk_proj, "UnkType", NULL);
+    ASSERT_EQ(C_ORM_OK, rc);
+    rc = sql_to_c_projection_free_emit(fp, &unk_proj, "UnkType");
+    ASSERT_EQ(C_ORM_OK, rc);
+    rc = sql_to_c_projection_polymorphic_struct_emit(fp, &unk_proj, "UnkPoly");
+    ASSERT_EQ(C_ORM_OK, rc);
   }
 
   /* Target table name emit */
@@ -481,29 +609,36 @@ TEST test_sql_to_c_edge_cases(void) {
     cdd_c_query_projection_t table_proj;
     memset(&table_proj, 0, sizeof(table_proj));
     table_proj.source_table = "my_source_table";
-    ASSERT_EQ(
-        0, sql_to_c_projection_struct_emit(fp, &table_proj, "TableProj", NULL));
+    rc = sql_to_c_projection_struct_emit(fp, &table_proj, "TableProj", NULL);
+    ASSERT_EQ(C_ORM_OK, rc);
   }
 
   /* sql_type_to_c_orm_type coverage */
-  {
-    const char *out;
-    ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_type_to_c_orm_type(SQL_TYPE_INT, NULL));
-    ASSERT_EQ(0, sql_type_to_c_orm_type(999, &out));
-    ASSERT_STR_EQ("C_ORM_TYPE_UNKNOWN", out);
-    ASSERT_EQ(0, sql_type_to_c_orm_type(SQL_TYPE_FLOAT, &out));
-    ASSERT_STR_EQ("C_ORM_TYPE_FLOAT", out);
-    ASSERT_EQ(0, sql_type_to_c_orm_type(SQL_TYPE_TIMESTAMP, &out));
-    ASSERT_STR_EQ("C_ORM_TYPE_TIMESTAMP", out);
-    ASSERT_EQ(0, sql_type_to_c_orm_type(SQL_TYPE_DOUBLE, &out));
-    ASSERT_STR_EQ("C_ORM_TYPE_DOUBLE", out);
-    ASSERT_EQ(0, sql_type_to_c_orm_type(SQL_TYPE_DECIMAL, &out));
-    ASSERT_STR_EQ("C_ORM_TYPE_DOUBLE", out);
-  }
+  rc = sql_type_to_c_orm_type(SQL_TYPE_INT, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = sql_type_to_c_orm_type((enum SqlDataType)999, &out);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_STR_EQ("C_ORM_TYPE_UNKNOWN", out);
+  rc = sql_type_to_c_orm_type(SQL_TYPE_FLOAT, &out);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_STR_EQ("C_ORM_TYPE_FLOAT", out);
+  rc = sql_type_to_c_orm_type(SQL_TYPE_TIMESTAMP, &out);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_STR_EQ("C_ORM_TYPE_TIMESTAMP", out);
+  rc = sql_type_to_c_orm_type(SQL_TYPE_DOUBLE, &out);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_STR_EQ("C_ORM_TYPE_DOUBLE", out);
+  rc = sql_type_to_c_orm_type(SQL_TYPE_DECIMAL, &out);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_STR_EQ("C_ORM_TYPE_DOUBLE", out);
 
   fclose(fp);
   PASS();
 }
+
+/**
+ * @brief Test suite runner for SQL to C code generation.
+ */
 SUITE(sql_to_c_suite) {
   RUN_TEST(test_sql_to_c_header_emit);
   RUN_TEST(test_sql_to_c_source_emit);
@@ -515,6 +650,10 @@ SUITE(sql_to_c_suite) {
   RUN_TEST(test_sql_to_c_projection_types);
   RUN_TEST(test_sql_to_c_edge_cases);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif

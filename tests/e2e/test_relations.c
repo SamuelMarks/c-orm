@@ -1,6 +1,17 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_relations.c
+ * @brief Unit tests for relational mappings, cascade delete/update, lazy/eager
+ * loading, and self-referencing relations.
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_struct.h"
 #include "c_orm_sqlite.h"
@@ -10,6 +21,72 @@
 #include <stdlib.h>
 #include <string.h>
 /* clang-format on */
+
+/**
+ * @brief Forward declaration for test_c_orm_cascade_delete_and_update.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_c_orm_cascade_delete_and_update(void);
+
+/**
+ * @brief Forward declaration for test_c_orm_lazy_load_relations.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_c_orm_lazy_load_relations(void);
+
+/**
+ * @brief Forward declaration for test_c_orm_eager_load_relations.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_c_orm_eager_load_relations(void);
+
+/**
+ * @brief Forward declaration for test_c_orm_nested_insert_relations.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_c_orm_nested_insert_relations(void);
+
+/**
+ * @brief Forward declaration for test_c_orm_one_to_many_lazy_load.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_c_orm_one_to_many_lazy_load(void);
+
+/**
+ * @brief Forward declaration for test_c_orm_lazy_load_paginated.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_c_orm_lazy_load_paginated(void);
+
+/**
+ * @brief Forward declaration for test_c_orm_many_to_many_cascade_delete.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_c_orm_many_to_many_cascade_delete(void);
+
+/**
+ * @brief Forward declaration for test_c_orm_deeply_nested_eager_loads.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_c_orm_deeply_nested_eager_loads(void);
+
+/**
+ * @brief Forward declaration for test_c_orm_query_builder_relation_filtering.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_c_orm_query_builder_relation_filtering(void);
+
+/**
+ * @brief Forward declaration for test_c_orm_self_referencing_tree.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_c_orm_self_referencing_tree(void);
+
+/**
+ * @brief Forward declaration for test_c_orm_relation_advanced_features.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_c_orm_relation_advanced_features(void);
 
 #define TEAM_FIELDS(X, S)                                                      \
   X(S, C_ORM_TYPE_INT32, int32_t, id)                                          \
@@ -32,18 +109,25 @@ C_ORM_STRUCT_WITH_RELATIONS(User, USER_FIELDS, USER_RELS)
 
 C_ORM_STRUCT_WITH_RELATIONS(UserCascade, USER_FIELDS, USER_CASCADE_RELS)
 
+/**
+ * @brief Tests cascade delete and update behavior across relational models.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_cascade_delete_and_update(void) {
-  c_orm_db_t *db = NULL;
+  c_orm_db_t *db;
   c_orm_error_t err;
   struct UserCascade user;
   struct Team new_team;
-  int exists = 0;
+  int exists;
 
   c_orm_column_meta_t team_cols[3];
   c_orm_column_meta_t user_cols[3];
   c_orm_relation_meta_t user_rels[1];
   c_orm_table_meta_t team_m;
   c_orm_table_meta_t user_m;
+
+  db = NULL;
+  exists = 0;
 
   memcpy(team_cols, Team_columns, sizeof(Team_columns));
   memcpy(user_cols, UserCascade_columns, sizeof(UserCascade_columns));
@@ -118,6 +202,10 @@ TEST test_c_orm_cascade_delete_and_update(void) {
   PASS();
 }
 
+/**
+ * @brief Tests lazy-loading related entity models on demand.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_lazy_load_relations(void) {
   /* Using sqlite in-memory for testing relations via query building/routing
    * conceptually */
@@ -183,6 +271,10 @@ TEST test_c_orm_lazy_load_relations(void) {
   PASS();
 }
 
+/**
+ * @brief Tests eager-loading related entity models during query execution.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_eager_load_relations(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -224,6 +316,9 @@ TEST test_c_orm_eager_load_relations(void) {
   /* Setup mock data */
   err = c_orm_execute_raw(
       db, "INSERT INTO Team (id, name, is_active) VALUES (20, 'Sales', 1)");
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  err = c_orm_execute_raw(
+      db, "INSERT INTO Team (id, name, is_active) VALUES (2, 'Sales2', 1)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   err = c_orm_execute_raw(db, "INSERT INTO User (id, team_id) VALUES (2, 20)");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -308,6 +403,11 @@ TEST test_c_orm_eager_load_relations(void) {
   PASS();
 }
 
+/**
+ * @brief Tests inserting nested relational entities and auto-assigning foreign
+ * keys.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_nested_insert_relations(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -405,6 +505,10 @@ C_ORM_STRUCT(Post, POST_FIELDS)
 
 C_ORM_STRUCT_WITH_RELATIONS(UserWithPosts, USER_FIELDS, USER_WITH_POSTS_RELS)
 
+/**
+ * @brief Tests one-to-many lazy loading of child collections.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_one_to_many_lazy_load(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -503,6 +607,11 @@ TEST test_c_orm_one_to_many_lazy_load(void) {
   PASS();
 }
 
+/**
+ * @brief Tests paginated lazy loading of child collections using LIMIT and
+ * OFFSET.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_lazy_load_paginated(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -652,6 +761,10 @@ C_ORM_STRUCT_WITH_RELATIONS(UserWithRoles, USER_FIELDS, USER_WITH_ROLES_RELS)
 
 C_ORM_STRUCT(Role, ROLE_FIELDS)
 
+/**
+ * @brief Tests many-to-many relationship cascade deletion through join table.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_many_to_many_cascade_delete(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -728,7 +841,10 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
   {
     struct UserWithRoles eager_user;
     memset(&eager_user, 0, sizeof(eager_user));
+    eager_user.id = 5;
     err = c_orm_find_with_relation_int32(db, &user_m, 5, "roles", &eager_user);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+    err = c_orm_lazy_load(db, &user_m, &eager_user, "roles");
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     if (eager_user.roles.data.data) {
       size_t ri;
@@ -783,14 +899,16 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
   /* Assert join table is empty */
   {
     c_orm_query_t *query;
-    int count = 0;
+    int count;
+    count = 0;
     err = c_orm_prepare_cached(db, "SELECT COUNT(*) FROM user_roles", &query);
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     db->vtable->step(query, &exists);
     if (exists) {
       db->vtable->get_int32(query, 0, &count);
     }
-    (void)c_orm_finalize_cached(db, query);
+    err = c_orm_finalize_cached(db, query);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     ASSERT_EQ_FMT(0, count, "%d");
   }
 
@@ -818,6 +936,10 @@ C_ORM_STRUCT_WITH_RELATIONS(PostWithComments, POST_FIELDS,
 C_ORM_STRUCT_WITH_RELATIONS(UserWithDeepPosts, USER_FIELDS,
                             USER_WITH_DEEP_POSTS_RELS)
 
+/**
+ * @brief Tests deeply nested eager-loading across multiple relation levels.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_deeply_nested_eager_loads(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -1002,6 +1124,11 @@ TEST test_c_orm_deeply_nested_eager_loads(void) {
   PASS();
 }
 
+/**
+ * @brief Tests query builder relation filtering and SQL generation with EXISTS
+ * subqueries.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_query_builder_relation_filtering(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -1064,8 +1191,11 @@ TEST test_c_orm_query_builder_relation_filtering(void) {
 
   {
     c_orm_query_t *q;
-    int has_row = 0;
-    int32_t user_id = 0;
+    int has_row;
+    int32_t user_id;
+
+    has_row = 0;
+    user_id = 0;
     err = c_orm_prepare_cached(db, sql, &q);
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     err = db->vtable->bind_string(q, 1, "Target Post");
@@ -1078,7 +1208,8 @@ TEST test_c_orm_query_builder_relation_filtering(void) {
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     ASSERT_EQ_FMT(5, user_id, "%d");
 
-    (void)c_orm_finalize_cached(db, q);
+    err = c_orm_finalize_cached(db, q);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   }
 
   C_ORM_FREE(sql);
@@ -1104,6 +1235,10 @@ struct NodeTree;
 
 C_ORM_STRUCT_WITH_RELATIONS(NodeTree, NODE_FIELDS, NODE_RELS)
 
+/**
+ * @brief Tests self-referencing hierarchy and tree structure queries.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_self_referencing_tree(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -1204,29 +1339,42 @@ TEST test_c_orm_self_referencing_tree(void) {
   PASS();
 }
 
+/**
+ * @brief Generic array container for test relations.
+ */
 struct Generic_Array {
-  void *data;
-  size_t length;
-  size_t capacity;
+  void *data;      /**< Pointer to array elements buffer. */
+  size_t length;   /**< Current number of elements. */
+  size_t capacity; /**< Total allocated capacity. */
 };
 
+/**
+ * @brief Test structure containing foreign keys and lazy relation contexts.
+ */
+struct TestObj {
+  char *str_fk; /**< String foreign key. */
+  float flt_fk; /**< Float foreign key for invalid type testing. */
+  void *child;  /**< Pointer to child entity. */
+  struct Generic_Array items_arr; /**< Array of through-relation items. */
+  c_orm_lazy_load_context_t ctx;  /**< Lazy loading context. */
+};
+
+/**
+ * @brief Tests advanced relation features including string foreign keys,
+ * through relations, and error handling.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_relation_advanced_features(void) {
-  c_orm_db_t *db = NULL;
+  c_orm_db_t *db;
   c_orm_error_t err;
   c_orm_table_meta_t p_meta;
   c_orm_table_meta_t c_meta;
   c_orm_column_meta_t p_cols[2];
   c_orm_column_meta_t c_cols[3];
   c_orm_relation_meta_t rels[2];
+  struct TestObj obj;
 
-  struct TestObj {
-    char *str_fk;
-    float flt_fk;
-    void *child;
-    struct Generic_Array items_arr;
-    c_orm_lazy_load_context_t ctx;
-  } obj;
-
+  db = NULL;
   memset(&obj, 0, sizeof(obj));
   memset(p_cols, 0, sizeof(p_cols));
   memset(c_cols, 0, sizeof(c_cols));
@@ -1245,16 +1393,17 @@ TEST test_c_orm_relation_advanced_features(void) {
 
   c_cols[1].name = "code";
   c_cols[1].type = C_ORM_TYPE_STRING;
-  c_cols[1].offset = sizeof(int32_t);
+  c_cols[1].offset = sizeof(void *);
 
   c_cols[2].name = "deleted_at";
   c_cols[2].type = C_ORM_TYPE_STRING;
-  c_cols[2].offset = sizeof(int32_t) + sizeof(char *);
+  c_cols[2].is_nullable = 1;
+  c_cols[2].offset = sizeof(void *) + sizeof(char *);
 
   c_meta.name = "items";
   c_meta.columns = c_cols;
   c_meta.num_columns = 3;
-  c_meta.struct_size = sizeof(int32_t) + sizeof(char *) + sizeof(char *);
+  c_meta.struct_size = sizeof(void *) + 2 * sizeof(char *);
 
   /* Setup p_meta (source) */
   p_cols[0].name = "str_fk";
@@ -1315,10 +1464,20 @@ TEST test_c_orm_relation_advanced_features(void) {
   ASSERT_EQ(NULL, obj.child);
 
   /* 3. HAS_MANY_THROUGH with filter, order, soft delete, limit, offset */
+  c_orm_execute_raw(
+      db,
+      "INSERT INTO items (id, code, deleted_at) VALUES (1, 'item1', NULL);");
+  c_orm_execute_raw(
+      db, "INSERT INTO bridge (src_str, item_id) VALUES ('code_123', 1);");
+  err = c_orm_load_relation_ext(db, &obj, &p_meta, 1, 10, 0);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  if (obj.items_arr.data) {
+    C_ORM_FREE(obj.items_arr.data);
+    obj.items_arr.data = NULL;
+  }
+  obj.ctx.is_loaded = 0;
   err = c_orm_load_relation_ext(db, &obj, &p_meta, 1, 10, 5);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-  if (obj.items_arr.data)
-    C_ORM_FREE(obj.items_arr.data);
 
   /* 4. Missing join_table in HAS_MANY_THROUGH */
   obj.ctx.is_loaded = 0;
@@ -1343,6 +1502,9 @@ TEST test_c_orm_relation_advanced_features(void) {
   PASS();
 }
 
+/**
+ * @brief Test suite registering relational mapping and cascade operation tests.
+ */
 SUITE(relations_suite) {
   RUN_TEST(test_c_orm_lazy_load_relations);
   RUN_TEST(test_c_orm_eager_load_relations);
@@ -1359,3 +1521,7 @@ SUITE(relations_suite) {
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */

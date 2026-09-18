@@ -1135,11 +1135,11 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_step_cnt = 0;
     g_stage_step_max = 1;
     rc = c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1, &out_arr);
-    (void)rc;
-    if (out_arr.data) {
-      C_ORM_FREE(out_arr.data);
-      out_arr.data = NULL;
+    if (rc != C_ORM_OK) {
+      /* Expected error */
     }
+    C_ORM_FREE(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
     /* Nonexistent relation (line 1685) */
@@ -1577,10 +1577,8 @@ TEST test_api_driver_edge_cases(void) {
                                      &out_arr);
   c_orm_set_allocators(orig_m, orig_r, orig_f);
   g_deep_fail_realloc = -1;
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   memset(&out_arr, 0, sizeof(out_arr));
 
   /* 3. Line 1427: get_int32 error in M2M child query */
@@ -1905,10 +1903,8 @@ TEST test_api_driver_edge_cases(void) {
       (void)c_orm_scatter_gather_generic(sm, &Users_meta, &scat_data,
                                          &scat_cnt);
       c_orm_set_allocators(orig_m, orig_r, orig_f);
-      if (scat_data) {
-        free(scat_data);
-        scat_data = NULL;
-      }
+      free(scat_data);
+      scat_data = NULL;
     }
     g_deep_fail_realloc = -1;
     c_orm_shard_manager_free(sm);
@@ -2687,10 +2683,8 @@ TEST test_api_transactions_and_error_injection(void) {
     rels[0].order_by = "";
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
                                        &out_arr);
-    if (out_arr.data) {
-      C_ORM_FREE(out_arr.data);
-      out_arr.data = NULL;
-    }
+    C_ORM_FREE(out_arr.data);
+    out_arr.data = NULL;
     rels[0].custom_filter = NULL;
     rels[0].order_by = NULL;
 
@@ -2702,10 +2696,8 @@ TEST test_api_transactions_and_error_injection(void) {
     rels[0].lazy_ctx_offset = offsetof(struct FullParentObj, o2o_ctx);
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                        &out_arr);
-    if (out_arr.data) {
-      C_ORM_FREE(out_arr.data);
-      out_arr.data = NULL;
-    }
+    C_ORM_FREE(out_arr.data);
+    out_arr.data = NULL;
   }
 
   /* 11. Batch chunk_size calculations and iterator branches */
@@ -3035,8 +3027,7 @@ TEST test_api_transactions_and_error_injection(void) {
     sql_tbl.n_table_constraints = 1;
 
     (void)c_orm_build_relation_meta(&sql_tbl, &out_rels, &out_num);
-    if (out_rels)
-      C_ORM_FREE(out_rels);
+    C_ORM_FREE(out_rels);
   }
 
   /* 16. Identity map branches (lines 4872, 5055) */

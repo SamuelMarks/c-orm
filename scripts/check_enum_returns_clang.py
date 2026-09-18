@@ -81,18 +81,18 @@ def is_math_function(name: str) -> bool:
 
 
 def is_memory_management_function(name: str) -> bool:
-    """Checks if a function name implies memory cleanup (destroy/free).
+    """Checks if a function name implies memory management (destroy/free/alloc).
 
     Args:
         name (str): The name of the function to check.
 
     Returns:
-        bool: True if the function is a destroy or free function, False otherwise.
+        bool: True if the function is a memory management function, False otherwise.
     """
     if not name:
         return False
     name_lower = name.lower()
-    for kw in ["destroy", "free"]:
+    for kw in ["destroy", "free", "malloc", "realloc", "calloc", "alloc"]:
         if (
             name_lower == kw
             or name_lower.startswith(f"{kw}_")
@@ -452,10 +452,11 @@ def check_file(
                     ]:
                         continue
 
-                # Check for exception: memory management functions (destroy/free) returning void
-                if canon_type.kind == TypeKind.VOID and is_memory_management_function(
-                    cursor.spelling
-                ):
+                # Check for exception: memory management functions (destroy/free/alloc) returning void or pointer
+                if canon_type.kind in (
+                    TypeKind.VOID,
+                    TypeKind.POINTER,
+                ) and is_memory_management_function(cursor.spelling):
                     continue
                 if is_type_mapper(cursor.spelling):
                     continue
@@ -552,30 +553,78 @@ def main():
         else:
             clang.cindex.Config.set_library_file(args.libclang_path)
     else:
-        # Fallback for common linux locations where libclang.so or libclang-*.so might be
+        # Check if the default resolution works; if not, search common system paths
         try:
-            clang.cindex.Config().get_cindex_library()
-        except clang.cindex.LibclangError:
+            _ = clang.cindex.Config().lib
+        except (clang.cindex.LibclangError, Exception):
             import glob
 
             search_paths = [
+                # macOS Homebrew & MacPorts
+                "/opt/homebrew/opt/llvm/lib/libclang*.dylib",
+                "/opt/homebrew/opt/llvm*/lib/libclang*.dylib",
+                "/opt/homebrew/Cellar/llvm*/*/lib/libclang*.dylib",
+                "/usr/local/opt/llvm*/lib/libclang*.dylib",
+                "/opt/local/libexec/llvm-*/lib/libclang*.dylib",
+                # macOS Xcode / CommandLineTools
+                "/Library/Developer/CommandLineTools/usr/lib/libclang*.dylib",
+                "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/libclang*.dylib",
+                # Linux common locations
                 "/usr/lib/llvm-*/lib/libclang-[0-9]*.so*",
                 "/usr/lib/llvm-*/lib/libclang.so*",
                 "/usr/lib/x86_64-linux-gnu/libclang-[0-9]*.so*",
+                "/usr/lib/aarch64-linux-gnu/libclang-[0-9]*.so*",
                 "/usr/lib/x86_64-linux-gnu/libclang.so*",
+                "/usr/lib/aarch64-linux-gnu/libclang.so*",
                 "/usr/local/lib/libclang.so*",
                 "/usr/lib/libclang.so*",
+                # Windows
+                "C:/Program Files/LLVM/bin/libclang.dll",
+                "C:/Program Files (x86)/LLVM/bin/libclang.dll",
             ]
-            found = False
+
+            candidates = []
             for pattern in search_paths:
-                matches = glob.glob(pattern)
-                for match in matches:
-                    if "libclang-cpp" not in match:
-                        clang.cindex.Config.set_library_file(match)
-                        found = True
-                        break
-                if found:
+                for match in glob.glob(pattern):
+                    if match not in candidates:
+                        candidates.append(match)
+
+            try:
+                if hasattr(clang, "__file__") and clang.__file__:
+                    for match in glob.glob(
+                        os.path.join(
+                            os.path.dirname(clang.__file__), "native", "libclang*.*"
+                        )
+                    ):
+                        if match not in candidates:
+                            candidates.append(match)
+            except Exception:
+                pass
+
+            resolved = False
+            for match in candidates:
+                if "libclang-cpp" in match or not os.path.isfile(match):
+                    continue
+                try:
+                    clang.cindex.Config.set_library_file(match)
+                    _ = clang.cindex.Config().lib
+                    resolved = True
                     break
+                except Exception:
+                    continue
+
+            if not resolved:
+                for match in candidates:
+                    if "libclang-cpp" in match or not os.path.isfile(match):
+                        continue
+                    try:
+                        clang.cindex.Config.set_library_file(match)
+                        clang.cindex.Config.set_compatibility_check(False)
+                        _ = clang.cindex.Config().lib
+                        resolved = True
+                        break
+                    except Exception:
+                        continue
 
     compile_args = ["-x", "c"]
     if args.compile_args:

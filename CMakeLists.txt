@@ -66,6 +66,12 @@ endif()
 list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/modules")
 
 set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP ON CACHE INTERNAL "Skip system runtime libs")
+if(CMAKE_CROSSCOMPILING AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+  find_program(LLVM_NM_PATH NAMES llvm-nm PATHS /opt/homebrew/opt/llvm/bin /opt/homebrew/bin /usr/local/bin NO_DEFAULT_PATH)
+  if(LLVM_NM_PATH)
+    set(CMAKE_NM "${LLVM_NM_PATH}" CACHE FILEPATH "Path to llvm-nm" FORCE)
+  endif()
+endif()
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 add_compile_definitions(C_ORM_TEST_ALLOCATOR)
 
@@ -202,7 +208,7 @@ set(C_REST_FRAMEWORK_FETCH_CDD_C OFF CACHE BOOL "Disable cdd_c fetch in c_rest_f
 
 if(TARGET cfs)
     # Target already populated natively
-elseif(FALSE)
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-fs/CMakeLists.txt")
     FetchContent_Declare(cfs SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-fs")
     FetchContent_MakeAvailable(cfs)
 else()
@@ -212,7 +218,7 @@ endif()
 
 if(TARGET parson)
     # Target already populated natively
-elseif(FALSE)
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../parson/CMakeLists.txt")
     FetchContent_Declare(parson SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../parson")
     FetchContent_MakeAvailable(parson)
     if(TARGET parson AND NOT TARGET parson::parson)
@@ -231,9 +237,6 @@ endif()
 
 if(TARGET c-abstract-http)
     # Target already populated natively
-elseif(FALSE)
-    FetchContent_Declare(c-abstract-http SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-abstract-http")
-    FetchContent_MakeAvailable(c-abstract-http)
 else()
     FetchContent_Declare(c-abstract-http GIT_REPOSITORY https://github.com/SamuelMarks/c-abstract-http.git GIT_TAG master)
     FetchContent_MakeAvailable(c-abstract-http)
@@ -241,13 +244,20 @@ endif()
 
 if(TARGET c_cdd)
     # Target already populated natively
-elseif(FALSE)
+elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../cdd-c/CMakeLists.txt")
     FetchContent_Declare(cdd_c SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cdd-c")
     set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
+    add_compile_definitions(CDD_BUILD_TESTS=1)
     FetchContent_MakeAvailable(cdd_c)
 else()
-    FetchContent_Declare(cdd_c GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git GIT_TAG master)
+    FetchContent_Declare(
+        cdd_c
+        GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git
+        GIT_TAG master
+        PATCH_COMMAND ${CMAKE_COMMAND} -DCDD_SRC_DIR=<SOURCE_DIR> -P ${CMAKE_CURRENT_LIST_DIR}/cmake/patch_cdd_c.cmake
+    )
     set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
+    add_compile_definitions(CDD_BUILD_TESTS=1)
     FetchContent_MakeAvailable(cdd_c)
 endif()
 
@@ -448,6 +458,31 @@ endif()
 if(BUILD_TESTING)
     add_test(NAME benchmarks COMMAND c_orm_benchmarks)
 endif()
+endif()
+
+add_executable(c_orm_standalone_fixtures tests/test_standalone_fixtures.c)
+target_link_libraries(c_orm_standalone_fixtures PRIVATE c-orm)
+target_include_directories(c_orm_standalone_fixtures PRIVATE tests ${greatest_SOURCE_DIR})
+if(C_ORM_STRICT_OPTIONS)
+    target_compile_options(c_orm_standalone_fixtures PRIVATE ${C_ORM_STRICT_OPTIONS})
+endif()
+if(BUILD_TESTING)
+    add_test(NAME standalone_fixtures COMMAND c_orm_standalone_fixtures)
+endif()
+
+add_executable(c_orm_legacy_cdd_db tests/test_legacy_cdd_db.c)
+target_link_libraries(c_orm_legacy_cdd_db PRIVATE c-orm)
+target_include_directories(c_orm_legacy_cdd_db PRIVATE
+    src
+    tests
+    tests/e2e
+    ${greatest_SOURCE_DIR}
+)
+if(C_ORM_STRICT_OPTIONS)
+    target_compile_options(c_orm_legacy_cdd_db PRIVATE ${C_ORM_STRICT_OPTIONS})
+endif()
+if(BUILD_TESTING)
+    add_test(NAME legacy_cdd_db COMMAND c_orm_legacy_cdd_db)
 endif()
 
 if(C_ORM_BUILD_EXAMPLES)

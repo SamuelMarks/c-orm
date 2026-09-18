@@ -85,6 +85,17 @@ C_ORM_EXPORT void c_orm_string_builder_free(c_orm_string_builder_t *builder) {
 }
 
 /**
+ * @brief Countdown counter to simulate string builder append allocation
+ * failure.
+ */
+C_ORM_EXPORT int c_orm_mock_string_builder_append_countdown = -1;
+
+/**
+ * @brief Flag to simulate string builder get failure.
+ */
+C_ORM_EXPORT int c_orm_mock_string_builder_get_fail = 0;
+
+/**
  * @brief Append a string to the builder.
  *
  * @param builder The builder.
@@ -111,6 +122,16 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
     LOG_DEBUG("c_orm_string_builder_append: builder in invalid state");
     rc = C_ORM_ERROR_MEMORY;
     return rc;
+  }
+
+  if (c_orm_mock_string_builder_append_countdown >= 0) {
+    if (c_orm_mock_string_builder_append_countdown == 0) {
+      c_orm_mock_string_builder_append_countdown = -1;
+      builder->valid = 0;
+      rc = C_ORM_ERROR_MEMORY;
+      return rc;
+    }
+    c_orm_mock_string_builder_append_countdown--;
   }
 
   len = strlen(str);
@@ -167,6 +188,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
 
   if (!builder->valid) {
     LOG_DEBUG("c_orm_string_builder_get: builder in invalid state");
+    rc = C_ORM_ERROR_MEMORY;
+    return rc;
+  }
+
+  if (c_orm_mock_string_builder_get_fail) {
+    LOG_DEBUG("c_orm_string_builder_get: mock failure");
     rc = C_ORM_ERROR_MEMORY;
     return rc;
   }

@@ -18,9 +18,21 @@
 
 C_ORM_EXPORT unsigned int cdd_c_sql_parser_max_depth = 100;
 
-#define APPEND(str) (void)c_orm_string_builder_append(sb, (str))
+#define APPEND(str)                                                            \
+  do {                                                                         \
+    c_orm_error_t _app_rc = c_orm_string_builder_append(sb, (str));            \
+    if (_app_rc != C_ORM_OK)                                                   \
+      return _app_rc;                                                          \
+  } while (0)
 
-#define APPEND_SQL(str) (void)c_orm_string_builder_append(sb, (str))
+#define APPEND_SQL(str)                                                        \
+  do {                                                                         \
+    rc = c_orm_string_builder_append(sb, (str));                               \
+    if (rc != C_ORM_OK) {                                                      \
+      c_orm_string_builder_free(sb);                                           \
+      return rc;                                                               \
+    }                                                                          \
+  } while (0)
 /**
  * @brief Initializes query parameters.
  *

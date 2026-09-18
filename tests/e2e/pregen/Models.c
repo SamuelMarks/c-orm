@@ -16,8 +16,6 @@ c_orm_error_t Users_Array_init(struct Users_Array *arr,
                             (void **)&arr->data) != C_ORM_OK) {
       return C_ORM_ERROR_MEMORY;
     }
-    if (!arr->data)
-      return C_ORM_ERROR_MEMORY;
   } else {
     arr->data = NULL;
   }
@@ -247,8 +245,6 @@ c_orm_error_t Posts_Array_init(struct Posts_Array *arr,
                             (void **)&arr->data) != C_ORM_OK) {
       return C_ORM_ERROR_MEMORY;
     }
-    if (!arr->data)
-      return C_ORM_ERROR_MEMORY;
   } else {
     arr->data = NULL;
   }
@@ -450,8 +446,6 @@ c_orm_error_t Oauth2_tokens_Array_init(struct Oauth2_tokens_Array *arr,
                             (void **)&arr->data) != C_ORM_OK) {
       return C_ORM_ERROR_MEMORY;
     }
-    if (!arr->data)
-      return C_ORM_ERROR_MEMORY;
   } else {
     arr->data = NULL;
   }

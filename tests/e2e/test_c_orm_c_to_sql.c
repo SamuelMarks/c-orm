@@ -1,5 +1,15 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_c_orm_c_to_sql.c
+ * @brief Unit tests for C struct to SQL generation, schema diffing, and
+ * topological sort.
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_c_to_sql.h"
@@ -9,6 +19,10 @@
 #include <greatest.h>
 /* clang-format on */
 
+/**
+ * @brief Test write_struct_to_sql_create_table with basic SQLite schema.
+ * @return GREATEST test result.
+ */
 TEST test_write_struct_to_sql_create_table(void) {
   struct StructField fields[3];
   struct StructFields sf;
@@ -16,6 +30,7 @@ TEST test_write_struct_to_sql_create_table(void) {
   FILE *fp;
   c_orm_error_t rc;
 
+  fp = NULL;
   memset(buf, 0, sizeof(buf));
   memset(fields, 0, sizeof(fields));
   C_ORM_STRCPY(fields[0].name, sizeof(fields[0].name), "id");
@@ -38,7 +53,7 @@ TEST test_write_struct_to_sql_create_table(void) {
 
   rc = write_struct_to_sql_create_table(fp, "users", &sf,
                                         C_TO_SQL_DIALECT_SQLITE);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   rewind(fp);
   fread(buf, 1, sizeof(buf) - 1, fp);
@@ -52,12 +67,17 @@ TEST test_write_struct_to_sql_create_table(void) {
   PASS();
 }
 
+/**
+ * @brief Test cdd_c_meta_to_sql_create_table with MySQL dialect.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_meta_to_sql_create_table(void) {
   cdd_c_prop_meta_t props[2];
   cdd_c_meta_t meta;
-  char *out_sql = NULL;
+  char *out_sql;
   c_orm_error_t rc;
 
+  out_sql = NULL;
   memset(&meta, 0, sizeof(meta));
   memset(props, 0, sizeof(props));
 
@@ -72,24 +92,32 @@ TEST test_cdd_c_meta_to_sql_create_table(void) {
   meta.num_props = 2;
 
   rc = cdd_c_meta_to_sql_create_table(&meta, C_TO_SQL_DIALECT_MYSQL, &out_sql);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(out_sql != NULL);
   ASSERT(strstr(out_sql, "CREATE TABLE company") != NULL);
   ASSERT(strstr(out_sql, "id INT PRIMARY KEY") != NULL);
   ASSERT(strstr(out_sql, "name VARCHAR(255)") != NULL);
 
-  free(out_sql);
+  C_ORM_FREE(out_sql);
   PASS();
 }
 
+/**
+ * @brief Test schema difference calculation and SQL generation.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_meta_diff_and_sql(void) {
   cdd_c_prop_meta_t props_old[1];
   cdd_c_prop_meta_t props_new[2];
-  cdd_c_meta_t old_meta, new_meta;
+  cdd_c_meta_t old_meta;
+  cdd_c_meta_t new_meta;
   cdd_c_meta_diff_t diff;
-  char *up_sql = NULL, *down_sql = NULL;
+  char *up_sql;
+  char *down_sql;
   c_orm_error_t rc;
 
+  up_sql = NULL;
+  down_sql = NULL;
   memset(&old_meta, 0, sizeof(old_meta));
   memset(&new_meta, 0, sizeof(new_meta));
   memset(props_old, 0, sizeof(props_old));
@@ -98,76 +126,94 @@ TEST test_cdd_c_meta_diff_and_sql(void) {
   props_old[0].name = "id";
   props_old[0].type = "int";
 
-  props_new[0].name = "id";
-  props_new[0].type = "int";
-  props_new[1].name = "description";
-  props_new[1].type = "char*";
-
   old_meta.name = "test_table";
   old_meta.props = props_old;
   old_meta.num_props = 1;
+
+  props_new[0].name = "id";
+  props_new[0].type = "int";
+
+  props_new[1].name = "description";
+  props_new[1].type = "char*";
 
   new_meta.name = "test_table";
   new_meta.props = props_new;
   new_meta.num_props = 2;
 
   rc = cdd_c_meta_diff(&old_meta, &new_meta, &diff);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(1, diff.num_added);
   ASSERT_EQ(0, diff.num_dropped);
   ASSERT_EQ(0, diff.num_altered);
 
   rc = cdd_c_meta_diff_to_sql("test_table", &diff, C_TO_SQL_DIALECT_POSTGRESQL,
                               &up_sql, &down_sql);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(up_sql != NULL);
   ASSERT(down_sql != NULL);
   ASSERT(strstr(up_sql, "ADD COLUMN description TEXT") != NULL);
   ASSERT(strstr(down_sql, "DROP COLUMN description") != NULL);
 
-  free(up_sql);
-  free(down_sql);
+  C_ORM_FREE(up_sql);
+  C_ORM_FREE(down_sql);
   cdd_c_meta_diff_free(&diff);
   PASS();
 }
 
+/**
+ * @brief Test retrieving schema inspection queries.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_get_schema_inspection_query(void) {
-  char *query = NULL;
+  char *query;
   c_orm_error_t rc;
 
+  query = NULL;
   rc = cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_POSTGRESQL, "users",
                                          &query);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(query != NULL);
   ASSERT(strstr(query, "information_schema") != NULL);
-  free(query);
+  C_ORM_FREE(query);
 
   PASS();
 }
 
+/**
+ * @brief Test CREATE and DROP INDEX SQL emission.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_emit_index(void) {
-  char *query = NULL;
+  char *query;
   c_orm_error_t rc;
 
+  query = NULL;
   rc = cdd_c_emit_create_index("users", "idx_users_email", "email", 1, &query);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(query != NULL);
   ASSERT(strstr(query, "UNIQUE INDEX idx_users_email ON users (email)") !=
          NULL);
-  free(query);
+  C_ORM_FREE(query);
+  query = NULL;
 
   rc = cdd_c_emit_drop_index("idx_users_email", &query);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(query != NULL);
   ASSERT(strstr(query, "DROP INDEX idx_users_email") != NULL);
-  free(query);
+  C_ORM_FREE(query);
 
   PASS();
 }
 
+/**
+ * @brief Test topological sorting of interdependent schemas.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_meta_topological_sort(void) {
-  cdd_c_prop_meta_t p_user[1], p_post[2];
-  cdd_c_meta_t m_user, m_post;
+  cdd_c_prop_meta_t p_user[1];
+  cdd_c_prop_meta_t p_post[2];
+  cdd_c_meta_t m_user;
+  cdd_c_meta_t m_post;
   const cdd_c_meta_t *schemas[2];
   const cdd_c_meta_t *out_schemas[2];
   c_orm_error_t rc;
@@ -196,22 +242,29 @@ TEST test_cdd_c_meta_topological_sort(void) {
   schemas[1] = &m_user;
 
   rc = cdd_c_meta_topological_sort(schemas, 2, out_schemas);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(out_schemas[0] == &m_user);
   ASSERT(out_schemas[1] == &m_post);
 
   PASS();
 }
 
+/**
+ * @brief Test error validation and NULL inputs across c_to_sql API.
+ * @return GREATEST test result.
+ */
 TEST test_c_to_sql_errors(void) {
   struct StructFields sf;
   cdd_c_meta_t meta;
   cdd_c_meta_diff_t diff;
-  char *str = NULL;
+  char *str;
   FILE *fp;
   const cdd_c_meta_t *schemas[1];
   const cdd_c_meta_t *out_schemas[1];
+  c_orm_error_t rc;
 
+  str = NULL;
+  fp = NULL;
   memset(&sf, 0, sizeof(sf));
   memset(&meta, 0, sizeof(meta));
   memset(&diff, 0, sizeof(diff));
@@ -219,129 +272,186 @@ TEST test_c_to_sql_errors(void) {
   C_ORM_TMPFILE(&fp);
 
   /* write_struct_to_sql_create_table NULL variations */
-  ASSERT_EQ(1, write_struct_to_sql_create_table(NULL, "t", &sf,
-                                                C_TO_SQL_DIALECT_SQLITE));
-  ASSERT_EQ(1, write_struct_to_sql_create_table(fp, NULL, &sf,
-                                                C_TO_SQL_DIALECT_SQLITE));
-  ASSERT_EQ(1, write_struct_to_sql_create_table(fp, "t", NULL,
-                                                C_TO_SQL_DIALECT_SQLITE));
-  fclose(fp);
+  rc =
+      write_struct_to_sql_create_table(NULL, "t", &sf, C_TO_SQL_DIALECT_SQLITE);
+  ASSERT(rc != C_ORM_OK);
+  rc = write_struct_to_sql_create_table(fp, NULL, &sf, C_TO_SQL_DIALECT_SQLITE);
+  ASSERT(rc != C_ORM_OK);
+  rc = write_struct_to_sql_create_table(fp, "t", NULL, C_TO_SQL_DIALECT_SQLITE);
+  ASSERT(rc != C_ORM_OK);
+  if (fp != NULL) {
+    fclose(fp);
+    fp = NULL;
+  }
 
   /* cdd_c_meta_to_sql_create_table NULL variations */
-  ASSERT_EQ(
-      1, cdd_c_meta_to_sql_create_table(NULL, C_TO_SQL_DIALECT_SQLITE, &str));
-  ASSERT_EQ(
-      1, cdd_c_meta_to_sql_create_table(&meta, C_TO_SQL_DIALECT_SQLITE, NULL));
+  rc = cdd_c_meta_to_sql_create_table(NULL, C_TO_SQL_DIALECT_SQLITE, &str);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_meta_to_sql_create_table(&meta, C_TO_SQL_DIALECT_SQLITE, NULL);
+  ASSERT(rc != C_ORM_OK);
 
   /* cdd_c_meta_diff NULL variations */
-  ASSERT_EQ(1, cdd_c_meta_diff(NULL, &meta, &diff));
-  ASSERT_EQ(1, cdd_c_meta_diff(&meta, NULL, &diff));
-  ASSERT_EQ(1, cdd_c_meta_diff(&meta, &meta, NULL));
+  rc = cdd_c_meta_diff(NULL, &meta, &diff);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_meta_diff(&meta, NULL, &diff);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_meta_diff(&meta, &meta, NULL);
+  ASSERT(rc != C_ORM_OK);
 
   /* cdd_c_meta_diff_to_sql NULL variations */
-  ASSERT_EQ(1, cdd_c_meta_diff_to_sql(NULL, &diff, C_TO_SQL_DIALECT_SQLITE,
-                                      &str, &str));
-  ASSERT_EQ(1, cdd_c_meta_diff_to_sql("t", NULL, C_TO_SQL_DIALECT_SQLITE, &str,
-                                      &str));
-  ASSERT_EQ(1, cdd_c_meta_diff_to_sql("t", &diff, C_TO_SQL_DIALECT_SQLITE, NULL,
-                                      &str));
-  ASSERT_EQ(1, cdd_c_meta_diff_to_sql("t", &diff, C_TO_SQL_DIALECT_SQLITE, &str,
-                                      NULL));
+  rc = cdd_c_meta_diff_to_sql(NULL, &diff, C_TO_SQL_DIALECT_SQLITE, &str, &str);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_meta_diff_to_sql("t", NULL, C_TO_SQL_DIALECT_SQLITE, &str, &str);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_meta_diff_to_sql("t", &diff, C_TO_SQL_DIALECT_SQLITE, NULL, &str);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_meta_diff_to_sql("t", &diff, C_TO_SQL_DIALECT_SQLITE, &str, NULL);
+  ASSERT(rc != C_ORM_OK);
 
   /* cdd_c_get_schema_inspection_query NULL & dialect variations */
-  ASSERT_EQ(1, cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_SQLITE, NULL,
-                                                 &str));
-  ASSERT_EQ(
-      1, cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_SQLITE, "t", NULL));
-  ASSERT_EQ(
-      1, cdd_c_get_schema_inspection_query((c_to_sql_dialect_t)99, "t", &str));
+  rc = cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_SQLITE, NULL, &str);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_SQLITE, "t", NULL);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_get_schema_inspection_query((c_to_sql_dialect_t)99, "t", &str);
+  ASSERT(rc != C_ORM_OK);
 
   /* cdd_c_emit_create_index NULL variations */
-  ASSERT_EQ(1, cdd_c_emit_create_index(NULL, "i", "c", 0, &str));
-  ASSERT_EQ(1, cdd_c_emit_create_index("t", NULL, "c", 0, &str));
-  ASSERT_EQ(1, cdd_c_emit_create_index("t", "i", NULL, 0, &str));
-  ASSERT_EQ(1, cdd_c_emit_create_index("t", "i", "c", 0, NULL));
+  rc = cdd_c_emit_create_index(NULL, "i", "c", 0, &str);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_emit_create_index("t", NULL, "c", 0, &str);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_emit_create_index("t", "i", NULL, 0, &str);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_emit_create_index("t", "i", "c", 0, NULL);
+  ASSERT(rc != C_ORM_OK);
 
   /* cdd_c_emit_drop_index NULL variations */
-  ASSERT_EQ(1, cdd_c_emit_drop_index(NULL, &str));
-  ASSERT_EQ(1, cdd_c_emit_drop_index("i", NULL));
+  rc = cdd_c_emit_drop_index(NULL, &str);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_emit_drop_index("i", NULL);
+  ASSERT(rc != C_ORM_OK);
 
   /* cdd_c_meta_topological_sort NULL variations */
-  ASSERT_EQ(1, cdd_c_meta_topological_sort(NULL, 1, out_schemas));
-  ASSERT_EQ(1, cdd_c_meta_topological_sort(schemas, 1, NULL));
-  ASSERT_EQ(1, cdd_c_meta_topological_sort(schemas, 0, out_schemas));
+  rc = cdd_c_meta_topological_sort(NULL, 1, out_schemas);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_meta_topological_sort(schemas, 1, NULL);
+  ASSERT(rc != C_ORM_OK);
+  rc = cdd_c_meta_topological_sort(schemas, 0, out_schemas);
+  ASSERT(rc != C_ORM_OK);
 
   PASS();
 }
 
+/**
+ * @brief Test cdd_c_meta_to_sql_create_table with PostgreSQL and SQLite
+ * dialect.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_meta_to_sql_create_table_pg(void) {
   cdd_c_prop_meta_t props[5];
   cdd_c_meta_t meta;
-  char *out_sql = NULL;
+  char *out_sql;
+  c_orm_error_t rc;
 
+  out_sql = NULL;
   memset(&meta, 0, sizeof(meta));
   memset(props, 0, sizeof(props));
 
   props[0].name = "id";
   props[0].type = "int";
+
   props[1].name = "name";
   props[1].type = "char*";
+
   props[2].name = "score";
-  props[2].type = "float";
+  props[2].type = "double";
+
   props[3].name = "is_active";
   props[3].type = "bool";
+
   props[4].name = "user_id";
   props[4].type = "int";
 
-  meta.name = "company";
+  meta.name = "users";
   meta.props = props;
   meta.num_props = 5;
 
-  ASSERT_EQ(0, cdd_c_meta_to_sql_create_table(
-                   &meta, C_TO_SQL_DIALECT_POSTGRESQL, &out_sql));
+  rc = cdd_c_meta_to_sql_create_table(&meta, C_TO_SQL_DIALECT_POSTGRESQL,
+                                      &out_sql);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(out_sql != NULL);
   ASSERT(strstr(out_sql, "id INTEGER PRIMARY KEY") != NULL);
   ASSERT(strstr(out_sql, "name TEXT") != NULL);
   ASSERT(strstr(out_sql, "score DOUBLE PRECISION") != NULL);
   ASSERT(strstr(out_sql, "is_active BOOLEAN") != NULL);
   ASSERT(strstr(out_sql, "user_id INTEGER REFERENCES user(id)") != NULL);
-  free(out_sql);
+  C_ORM_FREE(out_sql);
+  out_sql = NULL;
 
-  ASSERT_EQ(0, cdd_c_meta_to_sql_create_table(&meta, C_TO_SQL_DIALECT_SQLITE,
-                                              &out_sql));
+  rc = cdd_c_meta_to_sql_create_table(&meta, C_TO_SQL_DIALECT_SQLITE, &out_sql);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(out_sql != NULL);
   ASSERT(strstr(out_sql, "id INTEGER PRIMARY KEY AUTOINCREMENT") != NULL);
   ASSERT(strstr(out_sql, "is_active INTEGER") != NULL);
-  free(out_sql);
+  C_ORM_FREE(out_sql);
 
   PASS();
 }
 
+/**
+ * @brief Test inspection queries for SQLite and MySQL.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_get_schema_inspection_query_sqlite_mysql(void) {
-  char *query = NULL;
+  char *query;
+  c_orm_error_t rc;
 
-  ASSERT_EQ(0, cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_SQLITE,
-                                                 "users", &query));
+  query = NULL;
+  rc = cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_SQLITE, "users",
+                                         &query);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT(query != NULL);
   ASSERT(strstr(query, "PRAGMA table_info(users);") != NULL);
-  free(query);
+  C_ORM_FREE(query);
+  query = NULL;
 
-  ASSERT_EQ(0, cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_MYSQL,
-                                                 "users", &query));
+  rc = cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_MYSQL, "users",
+                                         &query);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT(query != NULL);
   ASSERT(strstr(query, "SHOW COLUMNS FROM users;") != NULL);
-  free(query);
+  C_ORM_FREE(query);
+  query = NULL;
 
   /* invalid dialect */
-  ASSERT_EQ(1, cdd_c_get_schema_inspection_query(999, "users", &query));
+  rc = cdd_c_get_schema_inspection_query((c_to_sql_dialect_t)999, "users",
+                                         &query);
+  ASSERT(rc != C_ORM_OK);
 
   PASS();
 }
 
+/**
+ * @brief Test SQLite schema diff handling without DROP COLUMN support.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_meta_diff_sqlite(void) {
   cdd_c_prop_meta_t props_old[1];
   cdd_c_prop_meta_t props_new[2];
-  cdd_c_meta_t old_meta, new_meta;
+  cdd_c_meta_t old_meta;
+  cdd_c_meta_t new_meta;
   cdd_c_meta_diff_t diff;
-  char *up_sql = NULL, *down_sql = NULL;
+  char *up_sql;
+  char *down_sql;
+  c_orm_error_t rc;
+
+  up_sql = NULL;
+  down_sql = NULL;
+  memset(&old_meta, 0, sizeof(old_meta));
+  memset(&new_meta, 0, sizeof(new_meta));
+  memset(props_old, 0, sizeof(props_old));
+  memset(props_new, 0, sizeof(props_new));
 
   props_old[0].name = "id";
   props_old[0].type = "int";
@@ -357,15 +467,17 @@ TEST test_cdd_c_meta_diff_sqlite(void) {
   new_meta.props = props_new;
   new_meta.num_props = 2;
 
-  ASSERT_EQ(0, cdd_c_meta_diff(&old_meta, &new_meta, &diff));
+  rc = cdd_c_meta_diff(&old_meta, &new_meta, &diff);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  ASSERT_EQ(0,
-            cdd_c_meta_diff_to_sql("test_table", &diff, C_TO_SQL_DIALECT_SQLITE,
-                                   &up_sql, &down_sql));
+  rc = cdd_c_meta_diff_to_sql("test_table", &diff, C_TO_SQL_DIALECT_SQLITE,
+                              &up_sql, &down_sql);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT(down_sql != NULL);
   ASSERT(strstr(down_sql, "ALTER TABLE test_table DROP COLUMN description") !=
          NULL);
-  free(up_sql);
-  free(down_sql);
+  C_ORM_FREE(up_sql);
+  C_ORM_FREE(down_sql);
 
   cdd_c_meta_diff_free(&diff);
   cdd_c_meta_diff_free(NULL); /* coverage */
@@ -373,41 +485,70 @@ TEST test_cdd_c_meta_diff_sqlite(void) {
   PASS();
 }
 
+/**
+ * @brief Test cycle detection in topological sorting.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_meta_topological_sort_cycle(void) {
-  cdd_c_prop_meta_t p_a[1], p_b[1];
-  cdd_c_meta_t m_a, m_b;
+  cdd_c_prop_meta_t p_a[2];
+  cdd_c_prop_meta_t p_b[2];
+  cdd_c_meta_t m_a;
+  cdd_c_meta_t m_b;
   const cdd_c_meta_t *schemas[2];
   const cdd_c_meta_t *out_schemas[2];
+  c_orm_error_t rc;
 
-  p_a[0].name = "b_id";
+  memset(&m_a, 0, sizeof(m_a));
+  memset(&m_b, 0, sizeof(m_b));
+  memset(p_a, 0, sizeof(p_a));
+  memset(p_b, 0, sizeof(p_b));
+
+  p_a[0].name = "id";
   p_a[0].type = "int";
+  p_a[1].name = "b_id";
+  p_a[1].type = "int";
   m_a.name = "a";
   m_a.props = p_a;
-  m_a.num_props = 1;
+  m_a.num_props = 2;
 
-  p_b[0].name = "a_id";
+  p_b[0].name = "id";
   p_b[0].type = "int";
+  p_b[1].name = "a_id";
+  p_b[1].type = "int";
   m_b.name = "b";
   m_b.props = p_b;
-  m_b.num_props = 1;
+  m_b.num_props = 2;
 
   schemas[0] = &m_a;
   schemas[1] = &m_b;
 
-  ASSERT_EQ(2, cdd_c_meta_topological_sort(schemas, 2, out_schemas));
+  rc = cdd_c_meta_topological_sort(schemas, 2, out_schemas);
+  ASSERT(rc != C_ORM_OK);
 
   PASS();
 }
 
+/**
+ * @brief Test edge cases in type mappings and schema diffing.
+ * @return GREATEST test result.
+ */
 TEST test_c_to_sql_edge_cases(void) {
   struct StructField fields[2];
   struct StructFields sf;
-  cdd_c_prop_meta_t p_old[2], p_new[2];
-  cdd_c_meta_t m_old, m_new;
+  cdd_c_prop_meta_t p_old[2];
+  cdd_c_prop_meta_t p_new[2];
+  cdd_c_meta_t m_old;
+  cdd_c_meta_t m_new;
   cdd_c_meta_diff_t diff;
   char buf[4096];
   FILE *fp;
-  char *up = NULL, *down = NULL;
+  char *up;
+  char *down;
+  c_orm_error_t rc;
+
+  up = NULL;
+  down = NULL;
+  fp = NULL;
 
   /* C Type fallback and struct mapping edges */
   memset(fields, 0, sizeof(fields));
@@ -420,24 +561,40 @@ TEST test_c_to_sql_edge_cases(void) {
   sf.fields = fields;
 
   C_ORM_TMPFILE(&fp);
-  ASSERT_EQ(0, write_struct_to_sql_create_table(fp, "test", &sf,
-                                                C_TO_SQL_DIALECT_MYSQL));
+  ASSERT(fp != NULL);
+  rc =
+      write_struct_to_sql_create_table(fp, "test", &sf, C_TO_SQL_DIALECT_MYSQL);
+  ASSERT_EQ(C_ORM_OK, rc);
   rewind(fp);
   memset(buf, 0, sizeof(buf));
   fread(buf, 1, sizeof(buf) - 1, fp);
   fclose(fp);
+  fp = NULL;
   ASSERT(strstr(buf, "unknown_field BLOB") != NULL);
 
   /* Dialect type maps */
   C_ORM_TMPFILE(&fp);
+  ASSERT(fp != NULL);
+  C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "float");
+  C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "bool");
+  rc =
+      write_struct_to_sql_create_table(fp, "test", &sf, C_TO_SQL_DIALECT_MYSQL);
+  ASSERT_EQ(C_ORM_OK, rc);
+  fclose(fp);
+  fp = NULL;
+
+  C_ORM_TMPFILE(&fp);
+  ASSERT(fp != NULL);
   C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "double");
   C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "bool");
-  ASSERT_EQ(0, write_struct_to_sql_create_table(fp, "test", &sf,
-                                                C_TO_SQL_DIALECT_MYSQL));
+  rc =
+      write_struct_to_sql_create_table(fp, "test", &sf, C_TO_SQL_DIALECT_MYSQL);
+  ASSERT_EQ(C_ORM_OK, rc);
   rewind(fp);
   memset(buf, 0, sizeof(buf));
   fread(buf, 1, sizeof(buf) - 1, fp);
   fclose(fp);
+  fp = NULL;
   ASSERT(strstr(buf, "unknown_field DOUBLE") != NULL);
   ASSERT(strstr(buf, "id TINYINT(1)") != NULL);
 
@@ -459,38 +616,53 @@ TEST test_c_to_sql_edge_cases(void) {
   m_new.props = p_new;
   m_new.num_props = 1;
 
-  ASSERT_EQ(0, cdd_c_meta_diff(&m_old, &m_new, &diff));
+  rc = cdd_c_meta_diff(&m_old, &m_new, &diff);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(1, diff.num_dropped);
   ASSERT_EQ(1, diff.num_altered);
 
-  ASSERT_EQ(0, cdd_c_meta_diff_to_sql("diff_table", &diff,
-                                      C_TO_SQL_DIALECT_SQLITE, &up, &down));
-  free(up);
-  free(down);
-  ASSERT_EQ(0, cdd_c_meta_diff_to_sql("diff_table", &diff,
-                                      C_TO_SQL_DIALECT_MYSQL, &up, &down));
-  free(up);
-  free(down);
+  rc = cdd_c_meta_diff_to_sql("diff_table", &diff, C_TO_SQL_DIALECT_SQLITE, &up,
+                              &down);
+  ASSERT_EQ(C_ORM_OK, rc);
+  C_ORM_FREE(up);
+  C_ORM_FREE(down);
+  up = NULL;
+  down = NULL;
+
+  rc = cdd_c_meta_diff_to_sql("diff_table", &diff, C_TO_SQL_DIALECT_MYSQL, &up,
+                              &down);
+  ASSERT_EQ(C_ORM_OK, rc);
+  C_ORM_FREE(up);
+  C_ORM_FREE(down);
+  up = NULL;
+  down = NULL;
 
   cdd_c_meta_diff_free(&diff);
 
   /* NULL check out_sql */
-  ASSERT_EQ(1, write_struct_to_sql_create_table(
-                   NULL, "test", &sf,
-                   C_TO_SQL_DIALECT_SQLITE)); /* Already covered, but just
-                                                 ensure coverage hit */
+  rc = write_struct_to_sql_create_table(NULL, "test", &sf,
+                                        C_TO_SQL_DIALECT_SQLITE);
+  ASSERT(rc != C_ORM_OK);
 
   PASS();
 }
 
+/**
+ * @brief Test additional branch coverage for table dialect emission and sort.
+ * @return GREATEST test result.
+ */
 TEST test_c_to_sql_additional_branches(void) {
   struct StructField fields[6];
   struct StructFields sf;
   cdd_c_prop_meta_t p_props[3];
   cdd_c_meta_t m_meta;
-  char *out_sql = NULL;
+  char *out_sql;
   FILE *fp;
   char buf[2048];
+  c_orm_error_t rc;
+
+  out_sql = NULL;
+  fp = NULL;
 
   /* 1. Primary key name variations: "Id", "ID", and descriptions */
   memset(fields, 0, sizeof(fields));
@@ -521,23 +693,29 @@ TEST test_c_to_sql_additional_branches(void) {
 
   /* SQLite: Id is char* (TEXT), so AUTOINCREMENT is NOT emitted! */
   C_ORM_TMPFILE(&fp);
-  ASSERT_EQ(0, write_struct_to_sql_create_table(fp, "my_table", &sf,
-                                                C_TO_SQL_DIALECT_SQLITE));
+  ASSERT(fp != NULL);
+  rc = write_struct_to_sql_create_table(fp, "my_table", &sf,
+                                        C_TO_SQL_DIALECT_SQLITE);
+  ASSERT_EQ(C_ORM_OK, rc);
   rewind(fp);
   memset(buf, 0, sizeof(buf));
   fread(buf, 1, sizeof(buf) - 1, fp);
   fclose(fp);
+  fp = NULL;
   ASSERT(strstr(buf, "Id TEXT PRIMARY KEY") != NULL);
   ASSERT(strstr(buf, "ID REAL PRIMARY KEY NOT NULL") != NULL);
 
   /* PostgreSQL dialect check for double, number, bool, string */
   C_ORM_TMPFILE(&fp);
-  ASSERT_EQ(0, write_struct_to_sql_create_table(fp, "my_table_pg", &sf,
-                                                C_TO_SQL_DIALECT_POSTGRESQL));
+  ASSERT(fp != NULL);
+  rc = write_struct_to_sql_create_table(fp, "my_table_pg", &sf,
+                                        C_TO_SQL_DIALECT_POSTGRESQL);
+  ASSERT_EQ(C_ORM_OK, rc);
   rewind(fp);
   memset(buf, 0, sizeof(buf));
   fread(buf, 1, sizeof(buf) - 1, fp);
   fclose(fp);
+  fp = NULL;
   ASSERT(strstr(buf, "ID DOUBLE PRECISION PRIMARY KEY NOT NULL") != NULL);
   ASSERT(strstr(buf, "a BOOLEAN") != NULL);
   ASSERT(strstr(buf, "target_id TEXT REFERENCES target(id)") != NULL);
@@ -556,16 +734,24 @@ TEST test_c_to_sql_additional_branches(void) {
   m_meta.props = p_props;
   m_meta.num_props = 3;
 
-  ASSERT_EQ(0, cdd_c_meta_to_sql_create_table(&m_meta, C_TO_SQL_DIALECT_SQLITE,
-                                              &out_sql));
+  rc = cdd_c_meta_to_sql_create_table(&m_meta, C_TO_SQL_DIALECT_SQLITE,
+                                      &out_sql);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(strstr(out_sql, "id TEXT PRIMARY KEY") != NULL);
   ASSERT(strstr(out_sql, "AUTOINCREMENT") == NULL);
-  free(out_sql);
+  C_ORM_FREE(out_sql);
+  out_sql = NULL;
 
   /* 3. Multi-level / multi-dependency topological sort */
   {
-    cdd_c_prop_meta_t p_u[1], p_c[1], p_p[5], p_cm[2];
-    cdd_c_meta_t m_u, m_c, m_p, m_cm;
+    cdd_c_prop_meta_t p_u[1];
+    cdd_c_prop_meta_t p_c[1];
+    cdd_c_prop_meta_t p_p[5];
+    cdd_c_prop_meta_t p_cm[2];
+    cdd_c_meta_t m_u;
+    cdd_c_meta_t m_c;
+    cdd_c_meta_t m_p;
+    cdd_c_meta_t m_cm;
     const cdd_c_meta_t *all_schemas[4];
     const cdd_c_meta_t *sorted[4];
 
@@ -617,7 +803,8 @@ TEST test_c_to_sql_additional_branches(void) {
     all_schemas[2] = &m_u;
     all_schemas[3] = &m_c;
 
-    ASSERT_EQ(0, cdd_c_meta_topological_sort(all_schemas, 4, sorted));
+    rc = cdd_c_meta_topological_sort(all_schemas, 4, sorted);
+    ASSERT_EQ(C_ORM_OK, rc);
     ASSERT(sorted[2] == &m_p);
     ASSERT(sorted[3] == &m_cm);
   }
@@ -625,6 +812,9 @@ TEST test_c_to_sql_additional_branches(void) {
   PASS();
 }
 
+/**
+ * @brief Test suite runner for C to SQL generation.
+ */
 SUITE(c_to_sql_suite) {
   RUN_TEST(test_write_struct_to_sql_create_table);
   RUN_TEST(test_cdd_c_meta_to_sql_create_table);
@@ -640,6 +830,10 @@ SUITE(c_to_sql_suite) {
   RUN_TEST(test_c_to_sql_edge_cases);
   RUN_TEST(test_c_to_sql_additional_branches);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif

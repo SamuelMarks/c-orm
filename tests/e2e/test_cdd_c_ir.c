@@ -12,23 +12,35 @@ TEST test_cdd_c_ir_basic(void) {
   cdd_c_ir_t ir;
   struct sql_table_t tbl;
   cdd_c_query_projection_t proj;
+  c_orm_error_t rc;
 
   memset(&tbl, 0, sizeof(tbl));
 
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_init(NULL));
-  ASSERT_EQ(C_ORM_OK, cdd_c_ir_init(&ir));
+  rc = cdd_c_ir_init(NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_table(NULL, &tbl));
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_table(&ir, NULL));
-  ASSERT_EQ(C_ORM_OK, cdd_c_ir_add_table(&ir, &tbl));
+  rc = cdd_c_ir_add_table(NULL, &tbl);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = cdd_c_ir_add_table(&ir, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = cdd_c_ir_add_table(&ir, &tbl);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  ASSERT_EQ(C_ORM_OK, cdd_c_query_projection_init(&proj));
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(NULL, &proj));
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, NULL));
-  ASSERT_EQ(C_ORM_OK, cdd_c_ir_add_projection(&ir, &proj));
+  rc = cdd_c_query_projection_init(&proj);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_ir_add_projection(NULL, &proj);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = cdd_c_ir_add_projection(&ir, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = cdd_c_ir_add_projection(&ir, &proj);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_free(NULL));
-  ASSERT_EQ(C_ORM_OK, cdd_c_ir_free(&ir));
+  rc = cdd_c_ir_free(NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   cdd_c_query_projection_free(&proj);
 
   PASS();
@@ -36,38 +48,57 @@ TEST test_cdd_c_ir_basic(void) {
 
 TEST test_cdd_c_ir_parse_sql(void) {
   cdd_c_ir_t ir;
-  cdd_c_ir_init(&ir);
+  c_orm_error_t rc;
 
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, parse_sql_into_ir(NULL, &ir));
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, parse_sql_into_ir("invalid", NULL));
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  rc = parse_sql_into_ir(NULL, &ir);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = parse_sql_into_ir("invalid", NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   /* basic */
-  ASSERT_EQ(C_ORM_OK, parse_sql_into_ir("CREATE TABLE x (id INT);", &ir));
+  rc = parse_sql_into_ir("CREATE TABLE x (id INT);", &ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(1, ir.n_tables);
 
-  cdd_c_ir_free(&ir);
-  cdd_c_ir_init(&ir);
-  parse_sql_into_ir("SELECT id FROM x;", &ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = parse_sql_into_ir("SELECT id FROM x;", &ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  cdd_c_ir_free(&ir);
-  cdd_c_ir_init(&ir);
-  parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  cdd_c_ir_free(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   PASS();
 }
 
 TEST test_cdd_c_ir_projection(void) {
   cdd_c_ir_t ir;
   cdd_c_query_projection_t proj;
-  cdd_c_query_projection_init(&proj);
+  c_orm_error_t rc;
+
+  rc = cdd_c_query_projection_init(&proj);
+  ASSERT_EQ(C_ORM_OK, rc);
   proj.source_table = "test";
   proj.mapping_meta.target_name = "test_map";
 
-  cdd_c_ir_init(&ir);
-  ASSERT_EQ(C_ORM_OK, cdd_c_ir_add_projection(&ir, &proj));
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_ir_add_projection(&ir, &proj);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  cdd_c_ir_free(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   PASS();
 }
 
@@ -75,36 +106,47 @@ TEST test_cdd_c_ir_alloc(void) {
   cdd_c_ir_t ir;
   struct sql_table_t tbl;
   cdd_c_query_projection_t proj;
+  c_orm_error_t rc;
   int i;
 
   memset(&tbl, 0, sizeof(tbl));
 
-  cdd_c_ir_init(&ir);
-  cdd_c_query_projection_init(&proj);
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_query_projection_init(&proj);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   for (i = 0; i < 6; i++) {
-    cdd_c_ir_add_table(&ir, &tbl);
-    cdd_c_ir_add_projection(&ir, &proj);
+    rc = cdd_c_ir_add_table(&ir, &tbl);
+    ASSERT_EQ(C_ORM_OK, rc);
+    rc = cdd_c_ir_add_projection(&ir, &proj);
+    ASSERT_EQ(C_ORM_OK, rc);
   }
 
   ASSERT_EQ(6, ir.n_tables);
   ASSERT_EQ(6, ir.n_projections);
 
-  cdd_c_ir_free(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   PASS();
 }
 
 TEST test_cdd_c_ir_parse_sql_failure(void) {
   cdd_c_ir_t ir;
-  cdd_c_ir_init(&ir);
+  c_orm_error_t rc;
 
-  ASSERT_EQ(C_ORM_OK,
-            parse_sql_into_ir("select * from not_create_table;", &ir));
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  rc = parse_sql_into_ir("select * from not_create_table;", &ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* parser failure */
-  ASSERT(parse_sql_into_ir("CREATE TABLE x (id);", &ir) != C_ORM_OK);
+  rc = parse_sql_into_ir("CREATE TABLE x (id);", &ir);
+  ASSERT(rc != C_ORM_OK);
 
-  cdd_c_ir_free(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   PASS();
 }
 

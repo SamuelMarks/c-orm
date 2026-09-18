@@ -151,6 +151,36 @@ TEST test_c_orm_string_builder(void) {
     c_orm_string_builder_free(manual_sb);
   }
 
+  /* Test mock append countdown and get fail */
+  {
+    c_orm_string_builder_t *msb = NULL;
+    const char *mstr = NULL;
+    c_orm_mock_string_builder_append_countdown = 1;
+    rc = c_orm_string_builder_init(&msb);
+    ASSERT_EQ(C_ORM_OK, rc);
+    rc = c_orm_string_builder_append(msb, "first");
+    ASSERT_EQ(C_ORM_OK, rc);
+    rc = c_orm_string_builder_append(msb, "second");
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+    c_orm_string_builder_free(msb);
+
+    c_orm_mock_string_builder_append_countdown = 0;
+    rc = c_orm_string_builder_init(&msb);
+    ASSERT_EQ(C_ORM_OK, rc);
+    rc = c_orm_string_builder_append(msb, "zero");
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+    c_orm_string_builder_free(msb);
+    c_orm_mock_string_builder_append_countdown = -1;
+
+    rc = c_orm_string_builder_init(&msb);
+    ASSERT_EQ(C_ORM_OK, rc);
+    c_orm_mock_string_builder_get_fail = 1;
+    rc = c_orm_string_builder_get(msb, &mstr);
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+    c_orm_mock_string_builder_get_fail = 0;
+    c_orm_string_builder_free(msb);
+  }
+
 #ifdef C_ORM_TEST_ALLOCATOR
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);

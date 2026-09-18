@@ -1,5 +1,13 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_inline_macros.c
+ * @brief Unit tests for C-ORM inline macros and model/view definitions.
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /* clang-format off */
 #include "c_orm_api.h"
@@ -227,6 +235,10 @@ SUITE(inline_macros_suite) {
   RUN_TEST(test_inline_macros_crud);
   RUN_TEST(test_spatial_crud);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif

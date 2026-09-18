@@ -1,7 +1,7 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 /**
- * @file sql_to_c.c
+ * @file c_orm_sql_to_c.c
  * @brief Emits C structures and array containers from SQL DDL AST.
  */
 
@@ -277,7 +277,6 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
           "(void **)&arr->data) != C_ORM_OK) {\n        return "
           "C_ORM_ERROR_MEMORY;\n      }\n",
           struct_name);
-  fprintf(fp, "    if (!arr->data) return C_ORM_ERROR_MEMORY;\n");
   fprintf(fp, "  } else {\n");
   fprintf(fp, "    arr->data = NULL;\n");
   fprintf(fp, "  }\n");

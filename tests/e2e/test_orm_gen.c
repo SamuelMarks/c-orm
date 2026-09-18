@@ -1,5 +1,13 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_orm_gen.c
+ * @brief Unit tests for OpenAPI to ORM model code generation.
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include <errno.h>
@@ -277,6 +285,10 @@ TEST test_orm_gen_basic(void) {
 }
 
 SUITE(orm_gen_suite) { RUN_TEST(test_orm_gen_basic); }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif

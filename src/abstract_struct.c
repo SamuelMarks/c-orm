@@ -68,6 +68,11 @@ static void cdd_c_free(void *ptr) {
   }
 }
 
+/**
+ * @brief Gets currently tracked allocated byte count.
+ * @param[out] out_bytes Pointer to receive byte count.
+ * @return C_ORM_OK or error code.
+ */
 c_orm_error_t cdd_c_get_allocated_bytes(size_t *out_bytes) {
   if (!out_bytes)
     return EINVAL;
@@ -75,6 +80,11 @@ c_orm_error_t cdd_c_get_allocated_bytes(size_t *out_bytes) {
   return 0;
 }
 
+/**
+ * @brief Gets count of tracked free calls.
+ * @param[out] out_calls Pointer to receive call count.
+ * @return C_ORM_OK or error code.
+ */
 c_orm_error_t cdd_c_get_freed_calls(size_t *out_calls) {
   if (!out_calls)
     return EINVAL;
@@ -82,7 +92,12 @@ c_orm_error_t cdd_c_get_freed_calls(size_t *out_calls) {
   return 0;
 }
 
-/* Array logic */
+/**
+ * @brief Initializes an abstract struct array container.
+ * @param[out] arr Array container to initialize.
+ * @param[in] capacity Initial element capacity.
+ * @return C_ORM_OK or error code.
+ */
 c_orm_error_t
 cdd_c_abstract_struct_array_init(cdd_c_abstract_struct_array_t *arr,
                                  size_t capacity) {
@@ -104,6 +119,12 @@ cdd_c_abstract_struct_array_init(cdd_c_abstract_struct_array_t *arr,
   return 0;
 }
 
+/**
+ * @brief Appends an abstract struct to the array.
+ * @param[in,out] arr Array container.
+ * @param[in,out] astruct Abstract struct to append.
+ * @return C_ORM_OK or error code.
+ */
 c_orm_error_t
 cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
                                    cdd_c_abstract_struct_t *astruct) {
@@ -135,6 +156,11 @@ cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
   return 0;
 }
 
+/**
+ * @brief Frees resources in an abstract struct array.
+ * @param[in,out] arr Array container to free.
+ * @return C_ORM_OK or error code.
+ */
 c_orm_error_t
 cdd_c_abstract_struct_array_free(cdd_c_abstract_struct_array_t *arr) {
   size_t i;

@@ -1,5 +1,13 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_oom_coverage.c
+ * @brief Out-Of-Memory stress tests for various ORM subsystems.
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_db.h"
@@ -146,6 +154,8 @@ static void do_qb_oom(void) {
   c_orm_update_builder_t *ub = NULL;
   c_orm_table_meta_t meta;
   char *sql = NULL;
+  c_orm_error_t ib_rc;
+  c_orm_error_t compile_rc;
   memset(&meta, 0, sizeof(meta));
   meta.name = "12345678901234";
 
@@ -153,7 +163,10 @@ static void do_qb_oom(void) {
     int j;
     for (j = 0; j < 3; j++)
       c_orm_select_where_eq(sb, "1234567");
-    c_orm_select_builder_compile(sb, &sql);
+    compile_rc = c_orm_select_builder_compile(sb, &sql);
+    if (compile_rc != C_ORM_OK) {
+      /* compile failed under simulated OOM */
+    }
     if (sql) {
       c_orm_free(sql);
       sql = NULL;
@@ -161,12 +174,19 @@ static void do_qb_oom(void) {
     c_orm_select_builder_free(sb);
   }
 
-  (void)c_orm_insert_builder_init(&meta, &ib);
+  ib_rc = c_orm_insert_builder_init(&meta, &ib);
+  if (ib_rc != C_ORM_OK) {
+    /* insert builder init returned error */
+  }
+  c_orm_insert_builder_free(ib);
 
   if (c_orm_update_builder_init(&meta, &ub) == C_ORM_OK && ub) {
     c_orm_update_set(ub, "1234567");
     c_orm_update_where_eq(ub, "1234567");
-    c_orm_update_builder_compile(ub, &sql);
+    compile_rc = c_orm_update_builder_compile(ub, &sql);
+    if (compile_rc != C_ORM_OK) {
+      /* compile failed under simulated OOM */
+    }
     if (sql) {
       c_orm_free(sql);
       sql = NULL;
@@ -200,6 +220,10 @@ SUITE(oom_coverage_suite) {
 
   c_orm_set_allocators(old_malloc, old_realloc, old_free);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif

@@ -16,7 +16,7 @@
 #include "c_orm_safe_crt.h"
 #include <stdlib.h>
 #include <string.h>
-#include "c_cdd/log.h"
+#include "c_orm_log.h"
 /* clang-format on */
 
 /**
@@ -230,7 +230,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
   }
 
   if (!model_h) {
-    C_CDD_LOG_DEBUG("ENOMEM: OOM\n");
+    LOG_DEBUG("ENOMEM: OOM\n");
     return ENOMEM;
   }
 

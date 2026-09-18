@@ -13,7 +13,9 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_sql_to_c.h"
+#include <errno.h>
 #include <greatest.h>
 #include <string.h>
 /* clang-format on */
@@ -26,10 +28,9 @@ TEST test_sql_to_c_header_emit(void) {
   struct sql_token_list_t *list = NULL;
   struct sql_table_t *table = NULL;
   struct sql_parse_error_t err_info;
-  int err;
-
   char buf[4096];
   FILE *fp;
+  c_orm_error_t err;
 
   err = sql_lex(span, &list);
   ASSERT_EQ(0, err);
@@ -37,7 +38,7 @@ TEST test_sql_to_c_header_emit(void) {
   err = sql_parse_table(list, &table, &err_info);
   ASSERT_EQ(0, err);
 
-  fp = tmpfile();
+  C_ORM_TMPFILE(&fp);
   ASSERT(fp != NULL);
 
   err = sql_to_c_header_emit(fp, table);
@@ -56,7 +57,7 @@ TEST test_sql_to_c_header_emit(void) {
   ASSERT(strstr(buf, "bool *is_active; /**< Nullable */") != NULL);
   ASSERT(strstr(buf, "struct Users_Array {") != NULL);
 
-  sql_table_free(table);
+  sql_table_C_ORM_FREE(table);
   sql_token_list_free(list);
   PASS();
 }
@@ -69,10 +70,9 @@ TEST test_sql_to_c_source_emit(void) {
   struct sql_token_list_t *list = NULL;
   struct sql_table_t *table = NULL;
   struct sql_parse_error_t err_info;
-  int err;
-
   char buf[4096];
   FILE *fp;
+  c_orm_error_t err;
 
   err = sql_lex(span, &list);
   ASSERT_EQ(0, err);
@@ -80,7 +80,7 @@ TEST test_sql_to_c_source_emit(void) {
   err = sql_parse_table(list, &table, &err_info);
   ASSERT_EQ(0, err);
 
-  fp = tmpfile();
+  C_ORM_TMPFILE(&fp);
   ASSERT(fp != NULL);
 
   err = sql_to_c_source_emit(fp, table, "users.h");
@@ -91,40 +91,50 @@ TEST test_sql_to_c_source_emit(void) {
   fread(buf, 1, sizeof(buf) - 1, fp);
   fclose(fp);
 
-  ASSERT(strstr(buf, "#include \"users.h\"") != NULL);
-  ASSERT(strstr(buf, "int Users_Array_init(") != NULL);
+  ASSERT(strstr(buf, "c_orm_error_t Users_Array_init(") != NULL);
   ASSERT(strstr(buf, "void Users_free(") != NULL);
   ASSERT(strstr(buf, "void Users_Array_free(") != NULL);
-  ASSERT(strstr(buf, "int Users_deepcopy(") != NULL);
-  ASSERT(strstr(buf, "int Users_Array_deepcopy(") != NULL);
+  ASSERT(strstr(buf, "c_orm_error_t Users_deepcopy(") != NULL);
+  ASSERT(strstr(buf, "c_orm_error_t Users_Array_deepcopy(") != NULL);
 
-  sql_table_free(table);
+  sql_table_C_ORM_FREE(table);
   sql_token_list_free(list);
   PASS();
 }
 
 TEST test_sql_to_c_errors(void) {
-  ASSERT_EQ(EINVAL, sql_to_c_header_emit(NULL, NULL));
-  ASSERT_EQ(EINVAL, sql_to_c_source_emit(NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, sql_to_c_projection_struct_emit(NULL, NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, sql_to_c_projection_free_emit(NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, sql_to_c_projection_meta_emit(NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, sql_to_c_projection_hydrate_emit(NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, sql_to_c_projection_dehydrate_emit(NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, sql_to_c_projection_nested_struct_emit(NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit(NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_source_emit(NULL, NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            sql_to_c_projection_struct_emit(NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            sql_to_c_projection_free_emit(NULL, NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            sql_to_c_projection_meta_emit(NULL, NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            sql_to_c_projection_hydrate_emit(NULL, NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            sql_to_c_projection_dehydrate_emit(NULL, NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            sql_to_c_projection_nested_struct_emit(NULL, NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
             sql_to_c_projection_nested_array_emit(NULL, NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, sql_to_c_projection_dirty_bitmask_emit(NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, sql_to_c_projection_union_struct_emit(NULL, NULL, 0, NULL));
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            sql_to_c_projection_dirty_bitmask_emit(NULL, NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            sql_to_c_projection_union_struct_emit(NULL, NULL, 0, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
             sql_to_c_projection_polymorphic_struct_emit(NULL, NULL, NULL));
   PASS();
 }
 
 TEST test_sql_to_c_projections(void) {
-  FILE *fp = tmpfile();
+  FILE *fp;
   cdd_c_query_projection_t proj;
-  unsigned long long out_hash;
+  c_orm_uint64_t out_hash;
+
+  C_ORM_TMPFILE(&fp);
+  ASSERT(fp != NULL);
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 2;

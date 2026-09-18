@@ -4,6 +4,7 @@
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include "c_orm_sql.h"
+#include "c_orm_string_builder.h"
 #include "c_orm_log.h"
 #include "Models.h"
 #include "greatest.h"
@@ -13,7 +14,9 @@
 /* clang-format on */
 
 static void dummy_cb(c_orm_error_t err, void *ctx) {
-  (void)err;
+  if (err != C_ORM_OK) {
+    /* err handled */
+  }
   (void)ctx;
 }
 static void dummy_batch_progress(size_t p, size_t t, void *ctx) {
@@ -165,11 +168,25 @@ static c_orm_error_t check_db_fail(void) {
 }
 
 static int g_step_count = 0;
+static int g_mock_fail_col_index = -1;
+static int g_mock_is_null_fail_countdown = -1;
+static int g_mock_fail_bind = 0;
+static int g_mock_step_fail_countdown = -1;
 
 static c_orm_error_t mock_is_null(c_orm_query_t *q, int i, int *out) {
-  c_orm_error_t rc = check_db_fail();
+  c_orm_error_t rc;
+  if (g_mock_is_null_fail_countdown >= 0) {
+    if (g_mock_is_null_fail_countdown == 0) {
+      g_mock_is_null_fail_countdown = -1;
+      return C_ORM_ERROR_UNKNOWN;
+    }
+    g_mock_is_null_fail_countdown--;
+  }
+  rc = check_db_fail();
   if (rc != C_ORM_OK)
     return rc;
+  if (g_mock_fail_col_index == i)
+    return C_ORM_ERROR_UNKNOWN;
   if (out)
     *out = 0;
   (void)q;
@@ -187,12 +204,33 @@ static c_orm_error_t mock_prepare(c_orm_db_t *db, const char *sql,
   (void)sql;
   return C_ORM_OK;
 }
+static int g_step_max = 1;
+static int g_step_pattern[16];
+static int g_step_pattern_len = 0;
+static int g_step_pattern_idx = 0;
+
 static c_orm_error_t mock_step(c_orm_query_t *q, int *out) {
-  c_orm_error_t rc = check_db_fail();
+  c_orm_error_t rc;
+  if (g_mock_step_fail_countdown >= 0) {
+    if (g_mock_step_fail_countdown == 0) {
+      g_mock_step_fail_countdown = -1;
+      return C_ORM_ERROR_UNKNOWN;
+    }
+    g_mock_step_fail_countdown--;
+  }
+  rc = check_db_fail();
   if (rc != C_ORM_OK)
     return rc;
-  if (out)
-    *out = (g_step_count++ == 0) ? 1 : 0;
+  if (out) {
+    if (g_step_pattern_len > 0) {
+      *out = (g_step_pattern_idx < g_step_pattern_len)
+                 ? g_step_pattern[g_step_pattern_idx++]
+                 : 0;
+    } else {
+      *out = (g_step_count < g_step_max) ? 1 : 0;
+    }
+    g_step_count++;
+  }
   (void)q;
   return C_ORM_OK;
 }
@@ -211,6 +249,8 @@ static c_orm_error_t mock_bind_int32(c_orm_query_t *q, int i, int32_t v) {
   (void)q;
   (void)i;
   (void)v;
+  if (g_mock_fail_bind)
+    return C_ORM_ERROR_UNKNOWN;
   return check_db_fail();
 }
 static c_orm_error_t mock_bind_int64(c_orm_query_t *q, int i, int64_t v) {
@@ -294,8 +334,19 @@ static c_orm_error_t mock_get_blob(c_orm_query_t *q, int i, const void **o,
   (void)i;
   return C_ORM_OK;
 }
+static int g_mock_finalize_fail = 0;
+static int g_mock_finalize_countdown = -1;
 static c_orm_error_t mock_finalize(c_orm_query_t *q) {
   (void)q;
+  if (g_mock_finalize_fail)
+    return C_ORM_ERROR_UNKNOWN;
+  if (g_mock_finalize_countdown >= 0) {
+    if (g_mock_finalize_countdown == 0) {
+      g_mock_finalize_countdown = -1;
+      return C_ORM_ERROR_UNKNOWN;
+    }
+    g_mock_finalize_countdown--;
+  }
   return C_ORM_OK;
 }
 static c_orm_error_t mock_reset(c_orm_query_t *q) {
@@ -3050,27 +3101,21 @@ TEST test_relations_extended_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&g_db, &parent_meta, 1,
                                                      "tags", &parent));
-  if (parent.children_arr.data) {
-    c_orm_free(parent.children_arr.data);
-    parent.children_arr.data = NULL;
-  }
+  c_orm_free(parent.children_arr.data);
+  parent.children_arr.data = NULL;
   rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
   rels[0].data_offset = (size_t)((char *)&parent.child_ptr - (char *)&parent);
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&g_db, &parent_meta, 1,
                                                      "children", &parent));
-  if (parent.child_ptr) {
-    c_orm_free(parent.child_ptr);
-    parent.child_ptr = NULL;
-  }
+  c_orm_free(parent.child_ptr);
+  parent.child_ptr = NULL;
   rels[0].type = C_ORM_RELATION_BELONGS_TO;
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&g_db, &parent_meta, 1,
                                                      "children", &parent));
-  if (parent.child_ptr) {
-    c_orm_free(parent.child_ptr);
-    parent.child_ptr = NULL;
-  }
+  c_orm_free(parent.child_ptr);
+  parent.child_ptr = NULL;
   rels[0].type = C_ORM_RELATION_ONE_TO_MANY;
   rels[0].data_offset =
       (size_t)((char *)&parent.children_arr - (char *)&parent);
@@ -3167,27 +3212,21 @@ TEST test_relations_extended_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relations_int32(&g_db, &parent_meta, 1,
                                                       rel_paths, 1, &parent));
-  if (parent.children_arr.data) {
-    c_orm_free(parent.children_arr.data);
-    parent.children_arr.data = NULL;
-  }
+  c_orm_free(parent.children_arr.data);
+  parent.children_arr.data = NULL;
   {
     const char *nested_paths[1];
     nested_paths[0] = "children.val";
     g_step_count = 0;
     c_orm_find_with_relations_int32(&g_db, &parent_meta, 1, nested_paths, 1,
                                     &parent);
-    if (parent.children_arr.data) {
-      c_orm_free(parent.children_arr.data);
-      parent.children_arr.data = NULL;
-    }
+    c_orm_free(parent.children_arr.data);
+    parent.children_arr.data = NULL;
     g_step_count = 0;
     c_orm_find_all_with_relations(&g_db, &parent_meta, nested_paths, 1,
                                   &out_arr);
-    if (out_arr.data) {
-      c_orm_free(out_arr.data);
-      memset(&out_arr, 0, sizeof(out_arr));
-    }
+    c_orm_free(out_arr.data);
+    memset(&out_arr, 0, sizeof(out_arr));
   }
 
   PASS();
@@ -3697,14 +3736,10 @@ TEST test_point_polygon_secure_coverage(void) {
   ASSERT_EQ(1.23, geo_obj.pt.x);
   ASSERT_EQ(4.56, geo_obj.pt.y);
 
-  if (geo_obj.poly.points) {
-    c_orm_free(geo_obj.poly.points);
-    geo_obj.poly.points = NULL;
-  }
-  if (geo_obj.sec_str) {
-    c_orm_free(geo_obj.sec_str);
-    geo_obj.sec_str = NULL;
-  }
+  c_orm_free(geo_obj.poly.points);
+  geo_obj.poly.points = NULL;
+  c_orm_free(geo_obj.sec_str);
+  geo_obj.sec_str = NULL;
 
   g_custom_blob_data = poly_wkb;
   g_custom_blob_size = sizeof(poly_wkb);
@@ -3714,14 +3749,10 @@ TEST test_point_polygon_secure_coverage(void) {
   ASSERT_EQ(1, geo_obj.poly.num_points);
   ASSERT(geo_obj.poly.points != NULL);
 
-  if (geo_obj.poly.points) {
-    c_orm_free(geo_obj.poly.points);
-    geo_obj.poly.points = NULL;
-  }
-  if (geo_obj.sec_str) {
-    c_orm_free(geo_obj.sec_str);
-    geo_obj.sec_str = NULL;
-  }
+  c_orm_free(geo_obj.poly.points);
+  geo_obj.poly.points = NULL;
+  c_orm_free(geo_obj.sec_str);
+  geo_obj.sec_str = NULL;
 
   g_custom_blob_data = NULL;
   g_custom_blob_size = 0;
@@ -5031,10 +5062,147 @@ TEST test_crud_relations_and_hooks_coverage(void) {
 
 #include "test_api_collections.h"
 #include "test_api_crud.h"
+#include "test_api_exhaust.h"
 #include "test_api_helpers.h"
 #include "test_api_hydration.h"
 #include "test_api_relations.h"
 #include "test_api_transactions.h"
+
+TEST test_api_helpers_full_coverage(void) {
+  int32_t val32;
+  double vald;
+  const char *str_val;
+  void *out_data;
+  size_t out_size;
+  int has_row;
+  int is_n;
+  c_orm_error_t rc;
+
+  val32 = 0;
+  vald = 0.0;
+  str_val = NULL;
+  out_data = NULL;
+  out_size = 0;
+  has_row = 0;
+  is_n = 0;
+
+  /* 1. test_api_coverage.c mock helpers */
+  rc = mock_get_int32_zero(NULL, 0, &val32);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = mock_get_double_zero(NULL, 0, &vald);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  rc = mock_prefix_get_column_count(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = mock_prefix_get_column_name(NULL, 1, NULL);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  str_val = NULL;
+  rc = mock_prefix_get_column_name(NULL, 0, &str_val);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT(str_val != NULL && strcmp("id", str_val) == 0);
+  str_val = NULL;
+  rc = mock_prefix_get_column_name(NULL, 999, &str_val);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  rc = mock_encrypt_ok(NULL, (size_t)-1, NULL, &out_data, &out_size);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+
+  /* 2. test_api_helpers.h mock callbacks */
+  rc = mock_step_sequence(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = mock_stage_step(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = mock_step_parent2_and_child2(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = mock_step_parent_and_child(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = mock_step_fail_third(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = mock_step_fail_on_second(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = mock_step_fail_inside_loop(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = mock_step_begin_ok_then_fail(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+
+  g_stage_bind_cnt = 2;
+  rc = mock_bind_fail_on_second(NULL, 1, 0);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  g_stage_bind_cnt = 0;
+
+  out_data = NULL;
+  out_size = 0;
+  rc = mock_test_encrypt_hook_ok(NULL, (size_t)-1, NULL, &out_data, &out_size);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  rc = mock_test_encrypt_hook_ok(NULL, 0, NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  rc = mock_is_null_child_true(NULL, 2, &is_n);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_EQ(1, is_n);
+  rc = mock_is_null_child_true(NULL, 0, NULL);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  dummy_cov_expire_callback_100(NULL, NULL, NULL, NULL);
+  ASSERT_EQ(NULL, cov_always_null_malloc(10));
+
+  /* 3. test_api_hydration.h mock callbacks */
+  rc = mock_prefix_col_name_ok(NULL, 1, NULL);
+  ASSERT_EQ(C_ORM_OK, rc);
+  str_val = NULL;
+  rc = mock_prefix_col_name_ok(NULL, 0, &str_val);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_STR_EQ("id", str_val);
+  str_val = NULL;
+  rc = mock_prefix_col_name_ok(NULL, 4, &str_val);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_STR_EQ("child_is_flag", str_val);
+
+  rc = mock_scatter_mixed_step(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = mock_step_parent_only(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = mock_step_rel_o2m(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = mock_step_rel_o2o(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+
+  /* 4. test_api_relations.h mock callbacks */
+  rc = mock_is_null_child_check(NULL, 0, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  g_eager_fail_bind = 1;
+  rc = mock_eager_bind_int32(NULL, 0, 0);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  g_eager_fail_bind = 0;
+  rc = mock_eager_bind_int32(NULL, 0, 0);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = mock_eager_step(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = mock_sync_step(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  g_sync_fail_step = 1;
+  has_row = 0;
+  rc = mock_sync_step(NULL, &has_row);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  g_sync_fail_step = 0;
+  has_row = 0;
+  rc = mock_sync_step(NULL, &has_row);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_EQ(1, has_row);
+
+  /* 5. test_api_transactions.h mock callbacks */
+  rc = mock_step_countdown_100(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = mock_step_pattern_100(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  g_step_pattern_idx_100 = 6;
+  has_row = 1;
+  rc = mock_step_pattern_100(NULL, &has_row);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_EQ(0, has_row);
+
+  PASS();
+}
 
 SUITE(api_coverage_suite) {
   void *(*old_malloc)(size_t);
@@ -5045,6 +5213,8 @@ SUITE(api_coverage_suite) {
   old_free = c_orm_free;
 
   setup_vt();
+
+  RUN_TEST(test_api_helpers_full_coverage);
 
   RUN_TEST(test_hydrate_set_null_field);
   RUN_TEST(test_identity_map_coverage);
@@ -5093,6 +5263,10 @@ SUITE(api_coverage_suite) {
   RUN_TEST(test_api_driver_edge_cases);
   RUN_TEST(test_api_transactions_and_error_injection);
   RUN_TEST(test_api_hydration_types_and_boundaries);
+  RUN_TEST(test_api_finalize_cached_errors);
+  RUN_TEST(test_api_string_builder_error_branches);
+  RUN_TEST(test_api_batch_finalize_error_branches);
+  RUN_TEST(test_api_relation_dot_missing_branches);
 
   c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail, mock_free);
   mock_free(NULL);

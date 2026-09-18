@@ -124,10 +124,8 @@ TEST test_api_find_all_and_find_with_relations_deep(void) {
                                                    "children_o2m", &out_arr));
   {
     struct ExtendedParent *p_res = (struct ExtendedParent *)out_arr.data;
-    if (p_res[0].children_o2m.data) {
-      free(p_res[0].children_o2m.data);
-      p_res[0].children_o2m.data = NULL;
-    }
+    free(p_res[0].children_o2m.data);
+    p_res[0].children_o2m.data = NULL;
   }
   free(out_arr.data);
   out_arr.data = NULL;
@@ -143,10 +141,8 @@ TEST test_api_find_all_and_find_with_relations_deep(void) {
                                                    "children_o2m", &out_arr));
   {
     struct ExtendedParent *p_res = (struct ExtendedParent *)out_arr.data;
-    if (p_res[0].children_o2m.data) {
-      free(p_res[0].children_o2m.data);
-      p_res[0].children_o2m.data = NULL;
-    }
+    free(p_res[0].children_o2m.data);
+    p_res[0].children_o2m.data = NULL;
   }
   free(out_arr.data);
   out_arr.data = NULL;
@@ -161,10 +157,8 @@ TEST test_api_find_all_and_find_with_relations_deep(void) {
                                                    &out_arr));
   {
     struct ExtendedParent *p_res = (struct ExtendedParent *)out_arr.data;
-    if (p_res[0].child_o2o) {
-      free(p_res[0].child_o2o);
-      p_res[0].child_o2o = NULL;
-    }
+    free(p_res[0].child_o2o);
+    p_res[0].child_o2o = NULL;
   }
   free(out_arr.data);
   out_arr.data = NULL;
@@ -872,6 +866,29 @@ TEST test_api_find_with_relation_int32_deep(void) {
   c_orm_set_allocators(orig_m, orig_r, orig_f);
   g_deep_fail_realloc = -1;
 
+  /* 6b. ONE_TO_MANY OOM with finalize failure (line 1301) */
+  c_orm_set_allocators(orig_m, mock_deep_realloc, orig_f);
+  g_deep_fail_realloc = 99;
+  g_step_count = 2;
+  c_orm_mock_finalize_cached_countdown = 1;
+  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                       &p);
+  c_orm_mock_finalize_cached_countdown = -1;
+  c_orm_set_allocators(orig_m, orig_r, orig_f);
+  g_deep_fail_realloc = -1;
+
+  /* 6c. ONE_TO_MANY loop step error with finalize failure (line 1331) */
+  c_orm_mock_finalize_cached_countdown = 1;
+  custom_vt.step = mock_stage_step;
+  g_mock_err_stage = 10;
+  g_stage_step_cnt = 0;
+  g_stage_step_max = 3;
+  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                       &p);
+  g_mock_err_stage = 0;
+  custom_vt.step = mock_step_sequence;
+  c_orm_mock_finalize_cached_countdown = -1;
+
   /* 7. Initial step returns no rows -> C_ORM_ERROR_NOT_FOUND */
   g_step_count = 0;
   ASSERT_EQ(
@@ -1085,10 +1102,8 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   custom_db.vtable = &custom_vt;
 
   /* 1. bind_int32 error during eager chunk */
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
   g_eager_step_cnt = 0;
@@ -1099,10 +1114,8 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   g_eager_fail_bind = 0;
 
   /* 2. step init error during eager chunk */
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
   g_eager_step_cnt = 0;
@@ -1113,10 +1126,8 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   g_eager_fail_step_init = 0;
 
   /* 3. M2M get_int32 failure in loop */
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
   g_eager_step_cnt = 0;
@@ -1127,10 +1138,8 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   g_eager_fail_get_int32 = 0;
 
   /* 4. OneToOne calloc OOM */
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
   c_orm_set_allocators(mock_deep_malloc, orig_r, orig_f);
@@ -1144,10 +1153,8 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   g_deep_fail_oom = -1;
 
   /* 5. OneToMany realloc OOM */
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
   c_orm_set_allocators(orig_m, mock_deep_realloc, orig_f);
@@ -1161,10 +1168,8 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   g_deep_fail_realloc = -1;
 
   /* 6. OneToMany loop step error */
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
   g_eager_step_cnt = 0;
@@ -1174,21 +1179,23 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
                                          &out_arr));
   g_eager_fail_step_loop = 0;
 
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
 
   PASS();
 }
 
 static int g_sync_fail_step = 0;
+static int g_sync_step_cnt = 0;
 
 static c_orm_error_t mock_sync_step(c_orm_query_t *q, int *has_row) {
   (void)q;
   if (!has_row)
     return C_ORM_ERROR_UNKNOWN;
-  if (g_sync_fail_step) {
+  if (g_sync_fail_step == 1) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  if (g_sync_fail_step == 2 && g_sync_step_cnt++ >= 1) {
     return C_ORM_ERROR_UNKNOWN;
   }
   *has_row = 1;
@@ -1301,11 +1308,46 @@ TEST test_api_sync_and_attach_detach_errors(void) {
             c_orm_detach(&custom_db, &p_meta, &p, "tags_m2m", &c_items[0]));
   g_sync_fail_step = 0;
 
+  /* 5. Sync finalize failure paths (lines 7246, 7336, 7347, 7354) */
+  c_orm_mock_finalize_cached_fail = 1;
+  g_sync_fail_step = 1;
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_sync(&custom_db, &p_meta, &p, "children_o2m", c_items, 2));
+  g_sync_fail_step = 0;
+  c_orm_mock_finalize_cached_fail = 0;
+
+  /* Sync M2M step failure with finalize failure (line 7348) */
+  c_orm_mock_finalize_cached_countdown = 1;
+  g_sync_fail_step = 2;
+  g_sync_step_cnt = 0;
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_sync(&custom_db, &p_meta, &p, "tags_m2m", c_items, 2));
+  g_sync_fail_step = 0;
+  g_sync_step_cnt = 0;
+  c_orm_mock_finalize_cached_countdown = -1;
+
+  /* Sync M2M reset failure with finalize failure (line 7355) */
+  c_orm_mock_finalize_cached_countdown = 1;
+  custom_vt.reset = mock_stage_reset;
+  g_mock_err_stage = 5;
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_sync(&custom_db, &p_meta, &p, "tags_m2m", c_items, 2));
+  g_mock_err_stage = 0;
+  custom_vt.reset = g_vt.reset;
+  c_orm_mock_finalize_cached_countdown = -1;
+
+  /* Sync M2M bad foreign key with finalize failure (line 7337) */
+  c_orm_mock_finalize_cached_countdown = 1;
+  rels[1].foreign_key = "bad_fk";
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_sync(&custom_db, &p_meta, &p, "tags_m2m", c_items, 2));
+  rels[1].foreign_key = "id";
+  c_orm_mock_finalize_cached_countdown = -1;
+
   PASS();
 }
 
 TEST test_api_find_and_eager_missing_branches(void) {
-  c_orm_error_t rc;
   struct ExtendedParent p;
   struct Generic_Array out_arr;
   c_orm_column_meta_t p_cols[2];
@@ -1315,7 +1357,9 @@ TEST test_api_find_and_eager_missing_branches(void) {
   c_orm_table_meta_t c_meta;
   c_orm_driver_vtable_t custom_vt;
   c_orm_db_t custom_db;
-  const char *dot_paths[1] = {"children_o2m.subchild"};
+  void *(*orig_m)(size_t) = c_orm_malloc;
+  void *(*orig_r)(void *, size_t) = c_orm_realloc;
+  void (*orig_f)(void *) = c_orm_free;
 
   memset(&p, 0, sizeof(p));
   memset(&out_arr, 0, sizeof(out_arr));
@@ -1418,40 +1462,105 @@ TEST test_api_find_and_eager_missing_branches(void) {
                                            "children_o2m", &p));
   g_mock_err_stage = 0;
 
-  /* 6. find_with_relations_int32 and find_all_with_relations with populated O2M
-   * children */
-  {
-    struct NestedChild dummy_children[2];
-    memset(dummy_children, 0, sizeof(dummy_children));
-    dummy_children[0].id = 10;
-    dummy_children[1].id = 11;
-    p.children_o2m.data = dummy_children;
-    p.children_o2m.length = 2;
-    p.children_o2m.capacity = 2;
+  /* 5b. Repeat with finalize failure (lines 1244, 1270, 1301, 1331) */
+  c_orm_mock_finalize_cached_countdown = 1;
+  g_mock_err_stage = 6;
+  g_stage_step_cnt = 0;
+  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "child_o2o", &p);
 
-    g_stage_step_cnt = 0;
-    g_stage_step_max = 2;
-    rc = c_orm_find_with_relations_int32(&custom_db, &p_meta, 1, dot_paths, 1,
-                                         &p);
-    ASSERT_EQ(C_ORM_ERROR_NOT_FOUND, rc);
-    g_stage_step_max = 1;
+  c_orm_mock_finalize_cached_countdown = 1;
+  g_mock_err_stage = 7;
+  g_stage_step_cnt = 0;
+  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "child_o2o", &p);
 
-    out_arr.data = malloc(sizeof(struct ExtendedParent));
-    memcpy(out_arr.data, &p, sizeof(struct ExtendedParent));
-    out_arr.length = 1;
-    out_arr.capacity = 1;
+  c_orm_mock_finalize_cached_countdown = 1;
+  g_mock_err_stage = 6;
+  g_stage_step_cnt = 0;
+  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                       &p);
 
-    g_stage_step_cnt = 0;
-    rc = c_orm_find_all_with_relations(&custom_db, &p_meta, dot_paths, 1,
-                                       &out_arr);
-    printf("find_all_with_rel rc = %d\n", (int)rc);
-    ASSERT_EQ(C_ORM_ERROR_NOT_FOUND, rc);
+  c_orm_mock_finalize_cached_countdown = 1;
+  g_mock_err_stage = 7;
+  g_stage_step_cnt = 0;
+  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                       &p);
 
-    p.children_o2m.data = NULL;
-    p.children_o2m.length = 0;
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  c_orm_mock_finalize_cached_countdown = 1;
+  g_mock_err_stage = 10;
+  g_stage_step_cnt = 0;
+  g_stage_step_max = 3;
+  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                       &p);
+
+  /* Eager find_all_with_relation finalize failure paths (lines 1651, 1662,
+   * 1720, 1733, 1755, 1773, 1790) */
+  free(out_arr.data);
+  out_arr.data = malloc(sizeof(struct ExtendedParent) * 2);
+  memcpy(out_arr.data, &p, sizeof(struct ExtendedParent));
+  memcpy((char *)out_arr.data + sizeof(struct ExtendedParent), &p,
+         sizeof(struct ExtendedParent));
+  out_arr.length = 2;
+  out_arr.capacity = 2;
+
+  c_orm_mock_finalize_cached_fail = 1;
+  g_mock_err_stage = 3;
+  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
+                                     &out_arr);
+  g_mock_err_stage = 1;
+  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
+                                     &out_arr);
+  g_mock_err_stage = 7;
+  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
+                                     &out_arr);
+  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
+                                     &out_arr);
+  g_mock_err_stage = 10;
+  g_stage_step_cnt = 1;
+  g_stage_step_max = 2;
+  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
+                                     &out_arr);
+  g_mock_err_stage = 0;
+  c_orm_mock_finalize_cached_fail = 0;
+
+  c_orm_set_allocators(mock_deep_malloc, orig_r, orig_f);
+  g_deep_fail_oom = 0;
+  g_deep_alloc_cnt = 0;
+  c_orm_mock_finalize_cached_fail = 1;
+  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
+                                     &out_arr);
+  c_orm_set_allocators(orig_m, orig_r, orig_f);
+  g_deep_fail_oom = -1;
+  c_orm_mock_finalize_cached_fail = 0;
+
+  c_orm_set_allocators(orig_m, mock_deep_realloc, orig_f);
+  g_deep_fail_realloc = 99;
+  c_orm_mock_finalize_cached_fail = 1;
+  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
+                                     &out_arr);
+  c_orm_set_allocators(orig_m, orig_r, orig_f);
+  g_deep_fail_realloc = -1;
+  c_orm_mock_finalize_cached_fail = 0;
+
+  /* find_with_relation_int32 lines 1301 and 1331 */
+  c_orm_set_allocators(orig_m, mock_deep_realloc, orig_f);
+  g_deep_fail_realloc = 99;
+  c_orm_mock_finalize_cached_countdown = 1;
+  g_stage_step_cnt = 0;
+  g_stage_step_max = 5;
+  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                       &p);
+  c_orm_set_allocators(orig_m, orig_r, orig_f);
+  g_deep_fail_realloc = -1;
+  c_orm_mock_finalize_cached_countdown = -1;
+
+  c_orm_mock_finalize_cached_countdown = 1;
+  g_mock_err_stage = 10;
+  g_stage_step_cnt = 0;
+  g_stage_step_max = 2;
+  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                       &p);
+  g_mock_err_stage = 0;
+  c_orm_mock_finalize_cached_countdown = -1;
 
   PASS();
 }

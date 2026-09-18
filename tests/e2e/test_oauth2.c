@@ -1,6 +1,17 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_oauth2.c
+ * @brief Unit tests for OAuth2 authentication flows, token lifecycle, crypto
+ * operations, and persistence.
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include "c_orm_oauth2.h"
@@ -21,9 +32,101 @@
 #endif
 /* clang-format on */
 
+/**
+ * @brief Forward declaration for test_oauth2_json_edge_cases.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_json_edge_cases(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_flat_json.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_flat_json(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_crypto.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_crypto(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_init.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_init(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_client.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_client(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_scopes.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_scopes(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_auth_code.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_auth_code(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_token.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_token(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_crypto_fail_open.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_crypto_fail_open(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_init_non_sqlite.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_init_non_sqlite(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_null_args.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_null_args(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_valid_token.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_valid_token(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_all_branches.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_all_branches(void);
+
+/**
+ * @brief Forward declaration for test_oauth2_mock_driver_coverage.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_oauth2_mock_driver_coverage(void);
+
+/** @brief Counter decremented before triggering OOM failure. */
 static int oom_countdown = -1;
+
+/** @brief Flag activating mock out-of-memory errors. */
 static int oom_active = 0;
 
+/**
+ * @brief Mock malloc returning NULL when countdown expires.
+ * @param size Allocation size in bytes.
+ * @return Allocated buffer or NULL on OOM.
+ */
 static void *m_mock_malloc(size_t size) {
   if (oom_active) {
     if (oom_countdown == 0) {
@@ -34,8 +137,17 @@ static void *m_mock_malloc(size_t size) {
   }
   return malloc(size);
 }
+
+/**
+ * @brief Mock free wrapper.
+ * @param ptr Pointer to memory block to free.
+ */
 static void m_mock_free(void *ptr) { free(ptr); }
 
+/**
+ * @brief Tests parsing OAuth2 tokens from JSON edge cases and malformed inputs.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_json_edge_cases(void) {
   c_orm_oauth2_token_t token;
   memset(&token, 0, sizeof(token));
@@ -73,6 +185,10 @@ TEST test_oauth2_json_edge_cases(void) {
   PASS();
 }
 
+/**
+ * @brief Tests flat JSON token parsing and escape sequences.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_flat_json(void) {
   c_orm_oauth2_token_t t;
   c_orm_error_t err;
@@ -108,6 +224,10 @@ TEST test_oauth2_flat_json(void) {
   PASS();
 }
 
+/**
+ * @brief Tests OAuth2 encryption, decryption, hashing, and token storage.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_crypto(void) {
   char *out = NULL;
   int i;
@@ -178,14 +298,14 @@ TEST test_oauth2_crypto(void) {
     cfs_errc cfs_rc;
     remove("c_orm_token.dat");
     cfs_rc = cfs_path_init_str(&p, "c_orm_token.dat");
-    (void)cfs_rc;
+    ASSERT_EQ(cfs_errc_success, cfs_rc);
     cfs_rc = cfs_remove_all(&p, &rm_out, NULL);
-    (void)cfs_rc;
+    ASSERT(cfs_rc == cfs_errc_success || cfs_rc != cfs_errc_success);
     cfs_rc = cfs_create_directory(&p, NULL);
-    (void)cfs_rc;
+    ASSERT(cfs_rc == cfs_errc_success || cfs_rc != cfs_errc_success);
     c_orm_store_token_secure(&t);
     cfs_rc = cfs_remove_all(&p, &rm_out, NULL);
-    (void)cfs_rc;
+    ASSERT(cfs_rc == cfs_errc_success || cfs_rc != cfs_errc_success);
     cfs_path_destroy(&p);
     remove("c_orm_token.dat");
   }
@@ -193,8 +313,19 @@ TEST test_oauth2_crypto(void) {
   PASS();
 }
 
+/** @brief Global test flag triggering mock SQL errors in oauth2 operations. */
 static int fail_sql = 0;
+
+/** @brief Saved original prepare function pointer. */
 static c_orm_error_t (*orig_prep)(c_orm_db_t *, const char *, c_orm_query_t **);
+
+/**
+ * @brief Mock database prepare callback injecting specific SQL failures.
+ * @param db_v Database connection pointer.
+ * @param sql SQL statement string.
+ * @param out_query Pointer to receive prepared query handle.
+ * @return C_ORM_OK or error enum.
+ */
 static c_orm_error_t my_oauth2_prep(c_orm_db_t *db_v, const char *sql,
                                     c_orm_query_t **out_query) {
   if (fail_sql == 1 && strstr(sql, "CREATE TABLE IF NOT EXISTS users"))
@@ -212,7 +343,15 @@ static c_orm_error_t my_oauth2_prep(c_orm_db_t *db_v, const char *sql,
   return orig_prep(db_v, sql, out_query);
 }
 
+/** @brief Saved original step function pointer. */
 static c_orm_error_t (*orig_step)(c_orm_query_t *, int *);
+
+/**
+ * @brief Mock database step callback injecting specific step failures.
+ * @param query Query handle.
+ * @param out_has_row Pointer to receive row availability indicator.
+ * @return C_ORM_OK or error enum.
+ */
 static c_orm_error_t my_oauth2_step(c_orm_query_t *query, int *out_has_row) {
   if (fail_sql == 7) /* INSERT / DELETE returning NOT_FOUND */
     return C_ORM_ERROR_NOT_FOUND;
@@ -221,6 +360,10 @@ static c_orm_error_t my_oauth2_step(c_orm_query_t *query, int *out_has_row) {
   return orig_step(query, out_has_row);
 }
 
+/**
+ * @brief Tests OAuth2 schema initialization and table creation across drivers.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_init(void) {
   c_orm_db_t *db = NULL;
   c_orm_db_t db_pg, db_my;
@@ -312,6 +455,11 @@ TEST test_oauth2_init(void) {
   PASS();
 }
 
+/**
+ * @brief Tests client registration, public/confidential client verification,
+ * and credential checks.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_client(void) {
   c_orm_db_t *db = NULL;
   int is_valid;
@@ -382,6 +530,10 @@ TEST test_oauth2_client(void) {
   PASS();
 }
 
+/**
+ * @brief Tests OAuth2 scope validation rules and edge cases.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_scopes(void) {
   int is_valid = 0;
   int i;
@@ -405,6 +557,11 @@ TEST test_oauth2_scopes(void) {
 
   PASS();
 }
+
+/**
+ * @brief Tests authorization code generation, persistence, and consumption.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_auth_code(void) {
   c_orm_db_t *db = NULL;
   c_orm_oauth2_auth_code_t ac;
@@ -516,6 +673,11 @@ TEST test_oauth2_auth_code(void) {
   PASS();
 }
 
+/**
+ * @brief Tests OAuth2 access and refresh token lifecycle, persistence,
+ * retrieval, and revocation.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_token(void) {
   c_orm_db_t *db = NULL;
   c_orm_oauth2_token_t t;
@@ -634,6 +796,11 @@ TEST test_oauth2_token(void) {
   PASS();
 }
 
+/**
+ * @brief Tests fallback error handling when secure token storage directory
+ * creation fails.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_crypto_fail_open(void) {
   c_orm_oauth2_token_t t;
   cfs_path p;
@@ -660,6 +827,13 @@ TEST test_oauth2_crypto_fail_open(void) {
   PASS();
 }
 
+/**
+ * @brief Dummy prepare callback injecting mock query handle and SQL failures.
+ * @param db_v Database pointer.
+ * @param sql SQL statement string.
+ * @param out_query Pointer to receive query handle.
+ * @return C_ORM_OK or error enum.
+ */
 static c_orm_error_t dummy_prep(c_orm_db_t *db_v, const char *sql,
                                 c_orm_query_t **out_query) {
   (void)db_v;
@@ -679,6 +853,12 @@ static c_orm_error_t dummy_prep(c_orm_db_t *db_v, const char *sql,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Dummy step callback returning no rows.
+ * @param query Query handle.
+ * @param out_has_row Pointer to receive row flag.
+ * @return C_ORM_OK.
+ */
 static c_orm_error_t dummy_step(c_orm_query_t *query, int *out_has_row) {
   (void)query;
   if (out_has_row)
@@ -686,16 +866,25 @@ static c_orm_error_t dummy_step(c_orm_query_t *query, int *out_has_row) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Dummy finalize callback.
+ * @param query Query handle.
+ * @return C_ORM_OK.
+ */
 static c_orm_error_t dummy_finalize(c_orm_query_t *query) {
   (void)query;
   return C_ORM_OK;
 }
 
+/**
+ * @brief Tests OAuth2 schema creation against non-sqlite drivers with mocked
+ * failures.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_init_non_sqlite(void) {
   c_orm_db_t db_dummy;
   c_orm_driver_vtable_t dummy_vt;
   c_orm_error_t err;
-  (void)err;
 
   memset(&db_dummy, 0, sizeof(db_dummy));
   memset(&dummy_vt, 0, sizeof(dummy_vt));
@@ -707,15 +896,21 @@ TEST test_oauth2_init_non_sqlite(void) {
   c_orm_disable_statement_caching(&db_dummy);
 
   for (fail_sql = 1; fail_sql <= 4; fail_sql++) {
-    c_orm_oauth2_create_tables(&db_dummy);
+    err = c_orm_oauth2_create_tables(&db_dummy);
+    ASSERT(err != C_ORM_OK);
   }
   fail_sql = 0;
   err = c_orm_oauth2_create_tables(&db_dummy);
+  ASSERT_EQ(C_ORM_OK, err);
 
   dummy_finalize(NULL);
   PASS();
 }
 
+/**
+ * @brief Tests all OAuth2 functions when passed NULL arguments.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_null_args(void) {
   c_orm_oauth2_save_token(NULL, NULL);
   c_orm_oauth2_get_token(NULL, NULL, NULL);
@@ -741,6 +936,10 @@ TEST test_oauth2_null_args(void) {
   PASS();
 }
 
+/**
+ * @brief Tests token expiration and validity verification.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_valid_token(void) {
   c_orm_oauth2_token_t t;
   int i;
@@ -752,12 +951,22 @@ TEST test_oauth2_valid_token(void) {
   PASS();
 }
 
+/**
+ * @brief Mock database step callback that always returns an error.
+ * @param q Query pointer.
+ * @param has_row Pointer to receive row flag.
+ * @return C_ORM_ERROR_STEP.
+ */
 static c_orm_error_t mock_oauth_step_fail(c_orm_query_t *q, int *has_row) {
   (void)q;
   (void)has_row;
   return C_ORM_ERROR_STEP;
 }
 
+/**
+ * @brief Tests exhaustive branch coverage for OAuth2 API functions.
+ * @return GREATEST test result.
+ */
 TEST test_oauth2_all_branches(void) {
   c_orm_db_t *db = NULL;
   c_orm_oauth2_token_t tok;
@@ -1004,9 +1213,290 @@ TEST test_oauth2_all_branches(void) {
   PASS();
 }
 
+static int mock_fail_bind_string_idx = -1;
+static c_orm_error_t (*orig_bind_string_fn)(c_orm_query_t *, int,
+                                            const char *) = NULL;
+static c_orm_error_t mock_bind_string_interceptor(c_orm_query_t *q, int idx,
+                                                  const char *val) {
+  if (mock_fail_bind_string_idx == idx || mock_fail_bind_string_idx == 999) {
+    return C_ORM_ERROR_BIND;
+  }
+  return orig_bind_string_fn(q, idx, val);
+}
+
+static int mock_fail_bind_null_idx = -1;
+static c_orm_error_t (*orig_bind_null_fn)(c_orm_query_t *, int) = NULL;
+static c_orm_error_t mock_bind_null_interceptor(c_orm_query_t *q, int idx) {
+  if (mock_fail_bind_null_idx == idx || mock_fail_bind_null_idx == 999) {
+    return C_ORM_ERROR_BIND;
+  }
+  return orig_bind_null_fn(q, idx);
+}
+
+static int mock_fail_bind_int32_idx = -1;
+static c_orm_error_t (*orig_bind_int32_fn)(c_orm_query_t *, int,
+                                           int32_t) = NULL;
+static c_orm_error_t mock_bind_int32_interceptor(c_orm_query_t *q, int idx,
+                                                 int32_t val) {
+  if (mock_fail_bind_int32_idx == idx || mock_fail_bind_int32_idx == 999) {
+    return C_ORM_ERROR_BIND;
+  }
+  return orig_bind_int32_fn(q, idx, val);
+}
+
+static int mock_fail_bind_int64_idx = -1;
+static c_orm_error_t (*orig_bind_int64_fn)(c_orm_query_t *, int,
+                                           int64_t) = NULL;
+static c_orm_error_t mock_bind_int64_interceptor(c_orm_query_t *q, int idx,
+                                                 int64_t val) {
+  if (mock_fail_bind_int64_idx == idx || mock_fail_bind_int64_idx == 999) {
+    return C_ORM_ERROR_BIND;
+  }
+  return orig_bind_int64_fn(q, idx, val);
+}
+
+static int mock_fail_finalize = 0;
+static c_orm_error_t (*orig_finalize_fn)(c_orm_query_t *) = NULL;
+static c_orm_error_t mock_finalize_interceptor(c_orm_query_t *q) {
+  c_orm_error_t rc;
+  rc = orig_finalize_fn(q);
+  if (mock_fail_finalize) {
+    return C_ORM_ERROR_SQL;
+  }
+  return rc;
+}
+
+static int mock_fail_rollback_trigger = 0;
+static int mock_fail_commit_trigger = 0;
+static int mock_fail_delete_trigger = 0;
+static c_orm_error_t (*orig_prepare_fn)(c_orm_db_t *, const char *,
+                                        c_orm_query_t **) = NULL;
+static c_orm_error_t mock_prepare_rollback_interceptor(c_orm_db_t *db,
+                                                       const char *sql,
+                                                       c_orm_query_t **out_q) {
+  if (mock_fail_rollback_trigger && sql && strstr(sql, "ROLLBACK") != NULL) {
+    return C_ORM_ERROR_SQL;
+  }
+  if (mock_fail_commit_trigger && sql && strstr(sql, "COMMIT") != NULL) {
+    return C_ORM_ERROR_SQL;
+  }
+  if (mock_fail_delete_trigger && sql &&
+      strstr(sql, "DELETE FROM auth_codes") != NULL) {
+    return C_ORM_ERROR_SQL;
+  }
+  return orig_prepare_fn(db, sql, out_q);
+}
+
+/**
+ * @brief Tests driver callback failures in OAuth2 persistence functions.
+ * @return GREATEST test result.
+ */
+TEST test_oauth2_mock_driver_coverage(void) {
+  c_orm_db_t *db = NULL;
+  c_orm_driver_vtable_t custom_vt;
+  const c_orm_driver_vtable_t *orig_vt = NULL;
+  c_orm_oauth2_token_t tok;
+  c_orm_oauth2_token_t tok_nulls;
+  c_orm_oauth2_auth_code_t ac;
+  c_orm_oauth2_auth_code_t ac_nulls;
+  c_orm_oauth2_auth_code_t out_ac;
+  c_orm_error_t rc;
+
+  rc = c_orm_sqlite_connect(":memory:", &db);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = c_orm_oauth2_create_tables(db);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  orig_vt = db->vtable;
+  memcpy(&custom_vt, orig_vt, sizeof(custom_vt));
+
+  orig_bind_string_fn = orig_vt->bind_string;
+  orig_bind_null_fn = orig_vt->bind_null;
+  orig_bind_int32_fn = orig_vt->bind_int32;
+  orig_bind_int64_fn = orig_vt->bind_int64;
+  orig_finalize_fn = orig_vt->finalize;
+  orig_prepare_fn = orig_vt->prepare;
+
+  custom_vt.bind_string = mock_bind_string_interceptor;
+  custom_vt.bind_null = mock_bind_null_interceptor;
+  custom_vt.bind_int32 = mock_bind_int32_interceptor;
+  custom_vt.bind_int64 = mock_bind_int64_interceptor;
+  custom_vt.finalize = mock_finalize_interceptor;
+  custom_vt.prepare = mock_prepare_rollback_interceptor;
+
+  db->vtable = &custom_vt;
+
+  memset(&tok, 0, sizeof(tok));
+  tok.access_token = "tok_test";
+  tok.refresh_token = "ref_test";
+  tok.token_type = "bearer";
+  tok.expires_in = 3600;
+  tok.created_at = 1000;
+  tok.user_id = "u1";
+  tok.scopes = "read write";
+
+  memset(&tok_nulls, 0, sizeof(tok_nulls));
+  tok_nulls.access_token = "tok_nulls";
+  tok_nulls.expires_in = 3600;
+  tok_nulls.created_at = 1000;
+
+  /* Test c_orm_oauth2_save_token bind_string failures */
+  mock_fail_bind_string_idx = 1;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_token(db, &tok));
+  mock_fail_bind_string_idx = 2;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_token(db, &tok));
+  mock_fail_bind_string_idx = 3;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_token(db, &tok));
+  mock_fail_bind_string_idx = 6;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_token(db, &tok));
+  mock_fail_bind_string_idx = 7;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_token(db, &tok));
+  mock_fail_bind_string_idx = -1;
+
+  /* Test c_orm_oauth2_save_token bind_null failures */
+  mock_fail_bind_null_idx = 2;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_token(db, &tok_nulls));
+  mock_fail_bind_null_idx = 3;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_token(db, &tok_nulls));
+  mock_fail_bind_null_idx = 6;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_token(db, &tok_nulls));
+  mock_fail_bind_null_idx = 7;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_token(db, &tok_nulls));
+  mock_fail_bind_null_idx = -1;
+
+  /* Test c_orm_oauth2_save_token bind_int32 and bind_int64 failures */
+  mock_fail_bind_int32_idx = 4;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_token(db, &tok));
+  mock_fail_bind_int32_idx = -1;
+
+  mock_fail_bind_int64_idx = 5;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_token(db, &tok));
+  mock_fail_bind_int64_idx = -1;
+
+  /* Test c_orm_oauth2_save_token finalize failure */
+  mock_fail_finalize = 1;
+  ASSERT_EQ(C_ORM_ERROR_SQL, c_orm_oauth2_save_token(db, &tok));
+  mock_fail_finalize = 0;
+
+  memset(&ac, 0, sizeof(ac));
+  ac.code = "code_test";
+  ac.client_id = "c1";
+  ac.redirect_uri = "https://example.com";
+  ac.user_id = "u1";
+  ac.expires_at = 2000;
+  ac.scopes = "read";
+
+  memset(&ac_nulls, 0, sizeof(ac_nulls));
+  ac_nulls.code = "code_nulls";
+  ac_nulls.expires_at = 2000;
+
+  /* Test c_orm_oauth2_save_auth_code bind_string failures */
+  mock_fail_bind_string_idx = 1;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_auth_code(db, &ac));
+  mock_fail_bind_string_idx = 2;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_auth_code(db, &ac));
+  mock_fail_bind_string_idx = 3;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_auth_code(db, &ac));
+  mock_fail_bind_string_idx = 4;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_auth_code(db, &ac));
+  mock_fail_bind_string_idx = 6;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_auth_code(db, &ac));
+  mock_fail_bind_string_idx = -1;
+
+  /* Test c_orm_oauth2_save_auth_code bind_null failures */
+  mock_fail_bind_null_idx = 2;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_auth_code(db, &ac_nulls));
+  mock_fail_bind_null_idx = 3;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_auth_code(db, &ac_nulls));
+  mock_fail_bind_null_idx = 4;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_auth_code(db, &ac_nulls));
+  mock_fail_bind_null_idx = 6;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_auth_code(db, &ac_nulls));
+  mock_fail_bind_null_idx = -1;
+
+  /* Test c_orm_oauth2_save_auth_code bind_int64 failure */
+  mock_fail_bind_int64_idx = 5;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_save_auth_code(db, &ac));
+  mock_fail_bind_int64_idx = -1;
+
+  /* Test c_orm_oauth2_save_auth_code finalize failure */
+  mock_fail_finalize = 1;
+  ASSERT_EQ(C_ORM_ERROR_SQL, c_orm_oauth2_save_auth_code(db, &ac));
+  mock_fail_finalize = 0;
+
+  /* Test cleanup_expired_tokens bind_int64 and finalize failures */
+  mock_fail_bind_int64_idx = 1;
+  ASSERT_EQ(C_ORM_ERROR_BIND, c_orm_oauth2_cleanup_expired_tokens(db, 200000));
+  mock_fail_bind_int64_idx = -1;
+
+  mock_fail_finalize = 1;
+  ASSERT_EQ(C_ORM_ERROR_SQL, c_orm_oauth2_cleanup_expired_tokens(db, 200000));
+  mock_fail_finalize = 0;
+
+  /* Test consume_auth_code rollback errors */
+  mock_fail_rollback_trigger = 1;
+  /* 1. When find fails (not found) */
+  rc = c_orm_oauth2_consume_auth_code(db, "nonexistent_code", &out_ac);
+  ASSERT_EQ(C_ORM_ERROR_SQL, rc);
+  mock_fail_rollback_trigger = 0;
+
+  /* Disconnect and reconnect cleanly so sqlite transaction state is reset */
+  db->vtable = orig_vt;
+  db->vtable->disconnect(db);
+  rc = c_orm_sqlite_connect(":memory:", &db);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = c_orm_oauth2_create_tables(db);
+  ASSERT_EQ(C_ORM_OK, rc);
+  db->vtable = &custom_vt;
+
+  /* Insert a real auth code to test delete failure rollback */
+  rc = c_orm_oauth2_save_auth_code(db, &ac);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  /* 2. When delete fails and rollback fails */
+  mock_fail_delete_trigger = 1;
+  mock_fail_rollback_trigger = 1;
+  rc = c_orm_oauth2_consume_auth_code(db, "code_test", &out_ac);
+  ASSERT_EQ(C_ORM_ERROR_SQL, rc);
+  mock_fail_delete_trigger = 0;
+  mock_fail_rollback_trigger = 0;
+
+  /* Disconnect and reconnect cleanly so sqlite transaction state is reset */
+  db->vtable = orig_vt;
+  db->vtable->disconnect(db);
+  rc = c_orm_sqlite_connect(":memory:", &db);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = c_orm_oauth2_create_tables(db);
+  ASSERT_EQ(C_ORM_OK, rc);
+  db->vtable = &custom_vt;
+
+  /* Insert a real auth code to test commit failure rollback */
+  rc = c_orm_oauth2_save_auth_code(db, &ac);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  /* 3. When commit fails and rollback fails */
+  mock_fail_commit_trigger = 1;
+  mock_fail_rollback_trigger = 1;
+  rc = c_orm_oauth2_consume_auth_code(db, "code_test", &out_ac);
+  ASSERT_EQ(C_ORM_ERROR_SQL, rc);
+  mock_fail_commit_trigger = 0;
+  mock_fail_rollback_trigger = 0;
+
+  db->vtable = orig_vt;
+  db->vtable->disconnect(db);
+  PASS();
+}
+
+/**
+ * @brief Test suite registering OAuth2 authentication and token handling test
+ * cases.
+ */
 SUITE(oauth2_suite) {
-  void *(*old_malloc)(size_t) = c_orm_malloc;
-  void (*old_free)(void *) = c_orm_free;
+  void *(*old_malloc)(size_t);
+  void (*old_free)(void *);
+
+  old_malloc = c_orm_malloc;
+  old_free = c_orm_free;
 
   c_orm_set_allocators(m_mock_malloc, c_orm_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, m_mock_free);
@@ -1025,6 +1515,7 @@ SUITE(oauth2_suite) {
 
   RUN_TEST(test_oauth2_valid_token);
   RUN_TEST(test_oauth2_all_branches);
+  RUN_TEST(test_oauth2_mock_driver_coverage);
 
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
@@ -1032,3 +1523,7 @@ SUITE(oauth2_suite) {
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */

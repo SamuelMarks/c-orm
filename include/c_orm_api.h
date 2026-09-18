@@ -1318,6 +1318,21 @@ C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
                                                  c_orm_query_t *query);
 
 /**
+ * @brief Flag to simulate cached finalize failure.
+ */
+C_ORM_EXPORT extern int c_orm_mock_finalize_cached_fail;
+
+/**
+ * @brief Countdown counter to simulate cached finalize failure.
+ */
+C_ORM_EXPORT extern int c_orm_mock_finalize_cached_countdown;
+
+/**
+ * @brief Countdown counter to simulate find_relation_meta failure.
+ */
+C_ORM_EXPORT extern int c_orm_mock_find_relation_meta_countdown;
+
+/**
  * @name Generic CRUD Backend
  * @{
  */

@@ -39,7 +39,8 @@ def main():
         doc_cov = (doc_decls / total_decls) * 100.0
 
     test_cov = None
-    if os.name != "nt" and is_tool("gcovr") and os.path.exists("build_gcc"):
+    cov_dir = "build_cov" if os.path.exists("build_cov") else "build_gcc"
+    if os.name != "nt" and is_tool("gcovr") and os.path.exists(cov_dir):
         res = subprocess.run(
             [
                 "gcovr",
@@ -49,7 +50,7 @@ def main():
                 "--gcov-ignore-parse-errors=all",
                 "--print-summary",
             ],
-            cwd="build_gcc",
+            cwd=cov_dir,
             capture_output=True,
             text=True,
         )

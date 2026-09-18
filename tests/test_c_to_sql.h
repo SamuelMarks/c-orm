@@ -15,6 +15,7 @@ extern "C" {
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_c_to_sql.h"
+#include <greatest.h>
 #include <string.h>
 #include <stdlib.h>
 /* clang-format on */
@@ -24,7 +25,7 @@ TEST test_write_struct_to_sql_create_table(void) {
   struct StructFields sf;
   char buf[1024];
   FILE *fp;
-  int rc;
+  c_orm_error_t rc;
 
   memset(buf, 0, sizeof(buf));
   memset(fields, 0, sizeof(fields));
@@ -59,6 +60,7 @@ TEST test_write_struct_to_sql_create_table(void) {
   ASSERT(strstr(buf, "username TEXT UNIQUE NOT NULL") != NULL);
   ASSERT(strstr(buf, "company_id INTEGER REFERENCES company(id)") != NULL);
 
+  remove("test_c_to_sql.txt");
   PASS();
 }
 
@@ -66,7 +68,7 @@ TEST test_cdd_c_meta_to_sql_create_table(void) {
   cdd_c_prop_meta_t props[2];
   cdd_c_meta_t meta;
   char *out_sql = NULL;
-  int rc;
+  c_orm_error_t rc;
 
   memset(&meta, 0, sizeof(meta));
   memset(props, 0, sizeof(props));
@@ -98,7 +100,7 @@ TEST test_cdd_c_meta_diff_and_sql(void) {
   cdd_c_meta_t old_meta, new_meta;
   cdd_c_meta_diff_t diff;
   char *up_sql = NULL, *down_sql = NULL;
-  int rc;
+  c_orm_error_t rc;
 
   memset(&old_meta, 0, sizeof(old_meta));
   memset(&new_meta, 0, sizeof(new_meta));
@@ -143,7 +145,7 @@ TEST test_cdd_c_meta_diff_and_sql(void) {
 
 TEST test_cdd_c_get_schema_inspection_query(void) {
   char *query = NULL;
-  int rc;
+  c_orm_error_t rc;
 
   rc = cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_POSTGRESQL, "users",
                                          &query);
@@ -157,7 +159,7 @@ TEST test_cdd_c_get_schema_inspection_query(void) {
 
 TEST test_cdd_c_emit_index(void) {
   char *query = NULL;
-  int rc;
+  c_orm_error_t rc;
 
   rc = cdd_c_emit_create_index("users", "idx_users_email", "email", 1, &query);
   ASSERT_EQ(0, rc);
@@ -180,7 +182,7 @@ TEST test_cdd_c_meta_topological_sort(void) {
   cdd_c_meta_t m_user, m_post;
   const cdd_c_meta_t *schemas[2];
   const cdd_c_meta_t *out_schemas[2];
-  int rc;
+  c_orm_error_t rc;
 
   memset(&m_user, 0, sizeof(m_user));
   memset(&m_post, 0, sizeof(m_post));

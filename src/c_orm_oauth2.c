@@ -965,40 +965,73 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
     return rc;
   }
 
-  (void)db->vtable->bind_string(query, 1, token->access_token);
+  rc = db->vtable->bind_string(query, 1, token->access_token);
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
+  }
 
   if (token->refresh_token) {
-    (void)db->vtable->bind_string(query, 2, token->refresh_token);
+    rc = db->vtable->bind_string(query, 2, token->refresh_token);
   } else {
-    (void)db->vtable->bind_null(query, 2);
+    rc = db->vtable->bind_null(query, 2);
+  }
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
   }
 
   if (token->token_type) {
-    (void)db->vtable->bind_string(query, 3, token->token_type);
+    rc = db->vtable->bind_string(query, 3, token->token_type);
   } else {
-    (void)db->vtable->bind_null(query, 3);
+    rc = db->vtable->bind_null(query, 3);
+  }
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
   }
 
-  (void)db->vtable->bind_int32(query, 4, token->expires_in);
-  (void)db->vtable->bind_int64(query, 5, token->created_at);
+  rc = db->vtable->bind_int32(query, 4, token->expires_in);
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
+  }
+  rc = db->vtable->bind_int64(query, 5, token->created_at);
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
+  }
 
   if (token->user_id) {
-    (void)db->vtable->bind_string(query, 6, token->user_id);
+    rc = db->vtable->bind_string(query, 6, token->user_id);
   } else {
-    (void)db->vtable->bind_null(query, 6);
+    rc = db->vtable->bind_null(query, 6);
+  }
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
   }
 
   if (token->scopes) {
-    (void)db->vtable->bind_string(query, 7, token->scopes);
+    rc = db->vtable->bind_string(query, 7, token->scopes);
   } else {
-    (void)db->vtable->bind_null(query, 7);
+    rc = db->vtable->bind_null(query, 7);
+  }
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
   }
 
   rc = db->vtable->step(query, &has_row);
 
-  (void)c_orm_finalize_cached(db, query);
-  if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
-    return rc;
+  {
+    c_orm_error_t fin_rc = c_orm_finalize_cached(db, query);
+    if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
+      return rc;
+    }
+    if (fin_rc != C_ORM_OK) {
+      return fin_rc;
+    }
   }
 
   LOG_DEBUG("c_orm_oauth2_save_token: exiting");
@@ -1162,39 +1195,68 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
     return rc;
   }
 
-  (void)db->vtable->bind_string(query, 1, auth_code->code);
+  rc = db->vtable->bind_string(query, 1, auth_code->code);
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
+  }
 
   if (auth_code->client_id) {
-    (void)db->vtable->bind_string(query, 2, auth_code->client_id);
+    rc = db->vtable->bind_string(query, 2, auth_code->client_id);
   } else {
-    (void)db->vtable->bind_null(query, 2);
+    rc = db->vtable->bind_null(query, 2);
+  }
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
   }
 
   if (auth_code->redirect_uri) {
-    (void)db->vtable->bind_string(query, 3, auth_code->redirect_uri);
+    rc = db->vtable->bind_string(query, 3, auth_code->redirect_uri);
   } else {
-    (void)db->vtable->bind_null(query, 3);
+    rc = db->vtable->bind_null(query, 3);
+  }
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
   }
 
   if (auth_code->user_id) {
-    (void)db->vtable->bind_string(query, 4, auth_code->user_id);
+    rc = db->vtable->bind_string(query, 4, auth_code->user_id);
   } else {
-    (void)db->vtable->bind_null(query, 4);
+    rc = db->vtable->bind_null(query, 4);
+  }
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
   }
 
-  (void)db->vtable->bind_int64(query, 5, auth_code->expires_at);
+  rc = db->vtable->bind_int64(query, 5, auth_code->expires_at);
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
+  }
 
   if (auth_code->scopes) {
-    (void)db->vtable->bind_string(query, 6, auth_code->scopes);
+    rc = db->vtable->bind_string(query, 6, auth_code->scopes);
   } else {
-    (void)db->vtable->bind_null(query, 6);
+    rc = db->vtable->bind_null(query, 6);
+  }
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
   }
 
   rc = db->vtable->step(query, &has_row);
 
-  (void)c_orm_finalize_cached(db, query);
-  if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
-    return rc;
+  {
+    c_orm_error_t fin_rc = c_orm_finalize_cached(db, query);
+    if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
+      return rc;
+    }
+    if (fin_rc != C_ORM_OK) {
+      return fin_rc;
+    }
   }
 
   LOG_DEBUG("c_orm_oauth2_save_auth_code: exiting");
@@ -1211,6 +1273,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
     c_orm_db_t *db, const char *code, c_orm_oauth2_auth_code_t *out_auth_code) {
   c_orm_error_t rc;
+  c_orm_error_t rb_rc;
 
   LOG_DEBUG("c_orm_oauth2_consume_auth_code: entered");
 
@@ -1230,21 +1293,27 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_consume_auth_code(
 
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: auth code not found");
-    (void)c_orm_transaction_rollback(db);
+    rb_rc = c_orm_transaction_rollback(db);
+    if (rb_rc != C_ORM_OK)
+      return rb_rc;
     return rc;
   }
 
   rc = c_orm_delete_by_id_string(db, &c_orm_auth_code_meta, code);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: delete error");
-    (void)c_orm_transaction_rollback(db);
+    rb_rc = c_orm_transaction_rollback(db);
+    if (rb_rc != C_ORM_OK)
+      return rb_rc;
     return rc;
   }
 
   rc = c_orm_transaction_commit(db);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_oauth2_consume_auth_code: commit failed");
-    (void)c_orm_transaction_rollback(db);
+    rb_rc = c_orm_transaction_rollback(db);
+    if (rb_rc != C_ORM_OK)
+      return rb_rc;
     return rc;
   }
 
@@ -1262,6 +1331,7 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
   c_orm_query_t *query;
   c_orm_error_t rc;
+  c_orm_error_t fin_rc;
 
   int has_row;
 
@@ -1279,11 +1349,18 @@ c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
     return rc;
   }
 
-  (void)db->vtable->bind_int64(query, 1, current_time);
+  rc = db->vtable->bind_int64(query, 1, current_time);
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
+  }
   rc = db->vtable->step(query, &has_row);
-  (void)c_orm_finalize_cached(db, query);
+  fin_rc = c_orm_finalize_cached(db, query);
   if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
     return rc;
+  }
+  if (fin_rc != C_ORM_OK) {
+    return fin_rc;
   }
 
   LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: exiting");

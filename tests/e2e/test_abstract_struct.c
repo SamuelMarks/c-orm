@@ -5,6 +5,10 @@
  * @brief Tests for abstract_struct generic representations.
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "abstract_struct.h"
@@ -1148,6 +1152,10 @@ SUITE(abstract_struct_suite) {
   RUN_TEST(test_abstract_struct_allocation_limits);
   RUN_TEST(test_abstract_struct_oom_coverage);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif

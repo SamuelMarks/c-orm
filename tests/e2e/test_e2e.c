@@ -1273,7 +1273,6 @@ static void run_all_suites(void) {
   RUN_SUITE(sql_parser_suite);
   RUN_SUITE(oauth2_suite);
   RUN_SUITE(models_coverage_suite);
-  test_greatest_internals_coverage();
 }
 
 #ifdef __EMSCRIPTEN__
@@ -1299,11 +1298,16 @@ static void emscripten_test_callback(int err) {
   }
 #endif
 #endif
+  test_greatest_internals_coverage();
   GREATEST_MAIN_BEGIN();
   run_all_suites();
 
   /* Manual exit because we are in an async callback */
-  exit(greatest_info.failed + GREATEST_FAILURE_ABORT());
+  {
+    int ret =
+        (greatest_info.failed > 0U || GREATEST_FAILURE_ABORT() != 0) ? 1 : 0;
+    exit(ret);
+  }
 }
 
 int main(int argc, char **argv) {
@@ -1316,7 +1320,6 @@ int main(int argc, char **argv) {
 }
 #else
 int main(int argc, char **argv) {
-  c_orm_error_t rc;
 #if defined(_MSC_VER) && defined(_DEBUG)
   if (!GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {
     _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
@@ -1331,7 +1334,6 @@ int main(int argc, char **argv) {
 #if defined(_WIN32) || defined(_WIN64)
   { SetErrorMode(0x0001 | 0x0002 | 0x8000); }
 #endif
-  (void)rc;
 #if defined(_MSC_VER)
   _set_invalid_parameter_handler(my_invalid_parameter_handler);
 #if defined(_DEBUG)
@@ -1340,6 +1342,7 @@ int main(int argc, char **argv) {
   }
 #endif
 #endif
+  test_greatest_internals_coverage();
   GREATEST_MAIN_BEGIN();
   run_all_suites();
   GREATEST_MAIN_END();

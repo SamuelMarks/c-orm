@@ -2,6 +2,7 @@
 #endif
 /* clang-format off */
 #include "c_orm_api.h"
+#include "c_orm_safe_crt.h"
 #include "c_orm_sql.h"
 #include "c_orm_codegen.h"
 #include "greatest.h"
@@ -17,21 +18,21 @@ static void *mock_malloc(size_t size) {
   return malloc(size);
 }
 
-
-
-#include "c_orm_codegen.h"
+static void write_test_file(const char *path, const char *content) {
+  FILE *f;
+  C_ORM_FOPEN(&f, path, "w");
+  if (f) {
+    if (content) {
+      fprintf(f, "%s", content);
+    }
+    fclose(f);
+  }
+}
 
 /* clang-format on */
 
 TEST test_codegen_parse_fail(void) {
-  {
-    FILE *f;
-    C_ORM_FOPEN(&f, "dummy.sql", "w");
-    if (f) {
-      fprintf(f, "INVALID SQL SYNTAX;\n");
-      fclose(f);
-    }
-  }
+  write_test_file("dummy.sql", "INVALID SQL SYNTAX;\n");
 #ifdef _WIN32
   system("mkdir test_out 2>nul");
 #else
@@ -42,11 +43,7 @@ TEST test_codegen_parse_fail(void) {
 }
 
 TEST test_codegen_fread_fail(void) {
-  FILE *f;
-  C_ORM_FOPEN(&f, "empty_schema.sql", "w");
-  if (f) {
-    fclose(f);
-  }
+  write_test_file("empty_schema.sql", NULL);
 #ifdef _WIN32
   system("mkdir test_out 2>nul");
 #else
@@ -59,14 +56,8 @@ TEST test_codegen_fread_fail(void) {
 
 TEST test_codegen_fopen_h_fail(void) {
   /* Fail fopen for output by providing an invalid directory path */
-  {
-    FILE *f;
-    C_ORM_FOPEN(&f, "dummy.sql", "w");
-    if (f) {
-      fprintf(f, "CREATE TABLE t (id INT);\n");
-      fclose(f);
-    }
-  }
+  write_test_file("dummy.sql", "CREATE TABLE t (id INT);\n");
+  write_test_file("/invalid/path/that/does/not/exist/fail.sql", NULL);
   c_orm_codegen_generate("dummy.sql", "/invalid/path/that/does/not/exist");
 
   /* Test read error by passing a directory as schema file */
@@ -75,12 +66,7 @@ TEST test_codegen_fopen_h_fail(void) {
 }
 
 TEST test_codegen_fopen_c_fail(void) {
-  FILE *f;
-  C_ORM_FOPEN(&f, "dummy.sql", "w");
-  if (f) {
-    fprintf(f, "CREATE TABLE t (id INT);\n");
-    fclose(f);
-  }
+  write_test_file("dummy.sql", "CREATE TABLE t (id INT);\n");
 #ifdef _WIN32
   system("mkdir test_conflict 2>nul");
   system("mkdir test_conflict\\Models.c 2>nul");
@@ -100,14 +86,7 @@ TEST test_codegen_malloc_fail(void) {
   int i;
   void *(*old_malloc)(size_t) = c_orm_malloc;
   c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free);
-  {
-    FILE *f;
-    C_ORM_FOPEN(&f, "dummy.sql", "w");
-    if (f) {
-      fprintf(f, "CREATE TABLE t (id INT);\n");
-      fclose(f);
-    }
-  }
+  write_test_file("dummy.sql", "CREATE TABLE t (id INT);\n");
   for (i = 1; i <= 3; i++) {
     mock_malloc_calls = 0;
     mock_malloc_fail_count = i;
@@ -125,11 +104,19 @@ TEST test_codegen_malloc_fail(void) {
 }
 
 SUITE(codegen_coverage_suite) {
+  static int recursed = 0;
   RUN_TEST(test_codegen_parse_fail);
   RUN_TEST(test_codegen_fread_fail);
   RUN_TEST(test_codegen_fopen_h_fail);
   RUN_TEST(test_codegen_fopen_c_fail);
   RUN_TEST(test_codegen_malloc_fail);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    codegen_coverage_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #if defined(__clang__) || defined(__GNUC__)

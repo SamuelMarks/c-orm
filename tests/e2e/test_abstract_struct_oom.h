@@ -1,11 +1,35 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_abstract_struct_oom.h
+ * @brief Out-of-memory fault injection tests for abstract struct data
+ * structures.
+ */
 
+#ifndef TEST_ABSTRACT_STRUCT_OOM_H
+#define TEST_ABSTRACT_STRUCT_OOM_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+/** @brief Countdown counter before injecting allocation failure. */
 static int astruct_oom_countdown = 0;
+
+/** @brief Flag indicating whether abstract struct OOM simulation is active. */
 static int astruct_oom_active = 0;
+
+/** @brief Saved original malloc allocator pointer. */
 static void *(*old_malloc)(size_t) = NULL;
+
+/** @brief Saved original realloc allocator pointer. */
 static void *(*old_realloc)(void *, size_t) = NULL;
 
+/**
+ * @brief Mock malloc allocator with countdown fault injection.
+ * @param size Allocation size in bytes.
+ * @return Allocated memory pointer or NULL on failure.
+ */
 static void *mock_malloc_astruct(size_t size) {
   if (astruct_oom_active) {
     if (astruct_oom_countdown == 0) {
@@ -17,6 +41,12 @@ static void *mock_malloc_astruct(size_t size) {
   return old_malloc ? old_malloc(size) : malloc(size);
 }
 
+/**
+ * @brief Mock realloc allocator with countdown fault injection.
+ * @param ptr Pointer to existing memory block.
+ * @param size New allocation size in bytes.
+ * @return Reallocated memory pointer or NULL on failure.
+ */
 static void *mock_realloc_astruct(void *ptr, size_t size) {
   if (astruct_oom_active) {
     if (astruct_oom_countdown == 0) {
@@ -28,14 +58,30 @@ static void *mock_realloc_astruct(void *ptr, size_t size) {
   return old_realloc ? old_realloc(ptr, size) : realloc(ptr, size);
 }
 
+/**
+ * @brief Parson-compatible mock free callback.
+ * @param ptr Pointer to free.
+ */
 static void mock_parson_free(void *ptr) { free(ptr); }
 
+/**
+ * @brief Forward declaration for test_abstract_struct_oom_coverage.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_abstract_struct_oom_coverage(void);
+
+/**
+ * @brief Comprehensive OOM coverage tests for abstract struct operations and
+ * serializations.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_struct_oom_coverage(void) {
   cdd_c_abstract_struct_array_t arr;
   cdd_c_abstract_struct_t astruct;
   cdd_c_variant_t v;
-  char *json = NULL;
+  char *json;
 
+  json = NULL;
   cdd_c_abstract_struct_init(&astruct);
 
   old_malloc = c_orm_malloc;
@@ -159,8 +205,9 @@ TEST test_abstract_struct_oom_coverage(void) {
   /* cdd_c_abstract_hydrate failure in init_with_capacity */
   {
     cdd_c_column_meta_t col;
-    void *val_ptr = &v;
+    void *val_ptr;
     void *row[1];
+    val_ptr = &v;
     row[0] = val_ptr;
     col.name = "c";
     col.inferred_type = 4;
@@ -175,8 +222,9 @@ TEST test_abstract_struct_oom_coverage(void) {
   /* cdd_c_abstract_hydrate failure in cdd_c_abstract_set */
   {
     cdd_c_column_meta_t col;
-    void *val_ptr = &v;
+    void *val_ptr;
     void *row[1];
+    val_ptr = &v;
     row[0] = val_ptr;
     col.name = "c";
     col.inferred_type = 4;
@@ -192,7 +240,8 @@ TEST test_abstract_struct_oom_coverage(void) {
   {
     cdd_c_prop_meta_t prop;
     cdd_c_meta_t meta;
-    int dummy = 42;
+    int dummy;
+    dummy = 42;
     memset(&prop, 0, sizeof(prop));
     memset(&meta, 0, sizeof(meta));
     prop.name = "p";
@@ -227,6 +276,12 @@ TEST test_abstract_struct_oom_coverage(void) {
 
   PASS();
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* TEST_ABSTRACT_STRUCT_OOM_H */
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif

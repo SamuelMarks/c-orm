@@ -22,7 +22,7 @@ TEST test_sql_lexer_basic(void) {
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255));";
   az_span span = az_span_create_from_str((char *)sql);
   struct sql_token_list_t *list = NULL;
-  int err;
+  c_orm_error_t err;
 
   err = sql_lex(span, &list);
   ASSERT_EQ(0, err);
@@ -49,7 +49,7 @@ TEST test_sql_lexer_types(void) {
   const char *sql = "id BIGINT, is_active BOOLEAN DEFAULT true";
   az_span span = az_span_create_from_str((char *)sql);
   struct sql_token_list_t *list = NULL;
-  int err;
+  c_orm_error_t err;
 
   err = sql_lex(span, &list);
   ASSERT_EQ(0, err);
@@ -67,19 +67,12 @@ TEST test_sql_parser_basic(void) {
   struct sql_token_list_t *list = NULL;
   struct sql_table_t *table = NULL;
   struct sql_parse_error_t err_info;
-  int err;
+  c_orm_error_t err;
 
   err = sql_lex(span, &list);
   ASSERT_EQ(0, err);
 
   err = sql_parse_table(list, &table, &err_info);
-  if (err != 0) {
-    printf("SQL Parse Error: %s\n", err_info.message);
-    if (err_info.token) {
-      printf("At token: %.*s\n", (int)err_info.token->length,
-             err_info.token->start);
-    }
-  }
   ASSERT_EQ(0, err);
   ASSERT(table != NULL);
   ASSERT_STR_EQ("users", table->name);
@@ -113,7 +106,7 @@ TEST test_sql_parser_basic(void) {
   ASSERT_EQ(SQL_CONSTRAINT_DEFAULT, table->columns[3].constraints[0].type);
   ASSERT_STR_EQ("true", table->columns[3].constraints[0].default_value);
 
-  sql_table_free(table);
+  sql_table_C_ORM_FREE(table);
   sql_token_list_free(list);
   PASS();
 }
@@ -122,7 +115,10 @@ TEST test_sql_lexer_strings_unknown(void) {
   const char *sql = "DEFAULT 'some_string' ^ ~";
   az_span span = az_span_create_from_str((char *)sql);
   struct sql_token_list_t *list = NULL;
-  int err;
+  c_orm_error_t err;
+  int has_str = 0;
+  int has_unknown = 0;
+  size_t i;
 
   err = sql_lex(span, &list);
   ASSERT_EQ(0, err);
@@ -136,9 +132,6 @@ TEST test_sql_lexer_strings_unknown(void) {
   /* space */
   /* ~ -> SQL_TOKEN_UNKNOWN */
 
-  int has_str = 0;
-  int has_unknown = 0;
-  size_t i;
   for (i = 0; i < list->size; i++) {
     if (list->tokens[i].kind == SQL_TOKEN_STRING)
       has_str = 1;
@@ -165,25 +158,23 @@ TEST test_sql_parser_foreign_keys_defaults(void) {
   const char *sql = "CREATE TABLE t1 (id INT PRIMARY KEY, "
                     "ref_id INT REFERENCES other_table(id), "
                     "status VARCHAR(255) DEFAULT 'active');";
+  const char *sql_err = "CREATE TABLE t2 (";
   struct sql_table_t *tables = NULL;
   size_t n_tables = 0;
-  int err;
-
+  struct sql_table_t *tables_err = NULL;
+  size_t n_tables_err = 0;
   struct sql_token_list_t *list = NULL;
+  struct sql_token_list_t *list_err = NULL;
+  size_t i;
+  c_orm_error_t err;
+
   err = sql_lex(az_span_create_from_str((char *)sql), &list);
   ASSERT_EQ(0, err);
 
   err = parse_sql_ddl(sql, &tables, &n_tables);
-  if (err != 0) {
-    printf("SQL ERROR!\n");
-  }
   ASSERT_EQ(0, err);
 
   /* Add a test for parser error (e.g. invalid syntax) */
-  const char *sql_err = "CREATE TABLE t2 (";
-  struct sql_table_t *tables_err = NULL;
-  size_t n_tables_err = 0;
-  struct sql_token_list_t *list_err = NULL;
   err = sql_lex(az_span_create_from_str((char *)sql_err), &list_err);
   ASSERT_EQ(0, err);
 
@@ -191,21 +182,13 @@ TEST test_sql_parser_foreign_keys_defaults(void) {
   ASSERT_EQ(0, n_tables_err);
 
   if (tables) {
-    size_t i;
     for (i = 0; i < n_tables; ++i) {
-      sql_table_free(&tables[i]);
+      sql_table_C_ORM_FREE(&tables[i]);
     }
     free(tables);
   }
 
-  if (tables_err) {
-    size_t i;
-    for (i = 0; i < n_tables_err; ++i) {
-      sql_table_free(&tables_err[i]);
-    }
-    free(tables_err);
-  }
-
+  free(tables_err);
   sql_token_list_free(list);
   sql_token_list_free(list_err);
 

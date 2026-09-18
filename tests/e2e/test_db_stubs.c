@@ -1,23 +1,45 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_db_stubs.c
+ * @brief Unit tests covering database driver stubs, async APIs, and hooks.
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include "c_orm_mysql.h"
 #include "c_orm_postgres.h"
+#include "c_orm_codegen.h"
 #include "greatest.h"
 #include <stdio.h>
 #include <string.h>
+/* clang-format on */
 
 #ifndef __EMSCRIPTEN__
+/**
+ * @brief Test PostgreSQL driver stub functions and unimplemented error codes.
+ * @return GREATEST test result.
+ */
 TEST test_postgres_stubs_edge_cases(void) {
-  c_orm_db_t *db = NULL;
-  const c_orm_driver_vtable_t *vt = NULL;
+  c_orm_db_t *db;
+  const c_orm_driver_vtable_t *vt;
   c_orm_error_t err;
   unsigned int oid;
-  void *fd = NULL;
-  size_t read_len = 0;
-  size_t written_len = 0;
+  void *fd;
+  size_t read_len;
+  size_t written_len;
+
+  db = NULL;
+  vt = NULL;
+  fd = NULL;
+  read_len = 0;
+  written_len = 0;
 
   err = c_orm_postgres_connect("fake", &db);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
@@ -47,10 +69,17 @@ TEST test_postgres_stubs_edge_cases(void) {
   PASS();
 }
 
+/**
+ * @brief Test MySQL driver stub functions and unimplemented error codes.
+ * @return GREATEST test result.
+ */
 TEST test_mysql_stubs_edge_cases(void) {
-  c_orm_db_t *db = NULL;
-  const c_orm_driver_vtable_t *vt = NULL;
+  c_orm_db_t *db;
+  const c_orm_driver_vtable_t *vt;
   c_orm_error_t err;
+
+  db = NULL;
+  vt = NULL;
 
   err = c_orm_mysql_connect("fake", &db);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
@@ -66,49 +95,134 @@ TEST test_mysql_stubs_edge_cases(void) {
 }
 #endif
 
-static void test_hook(c_orm_db_t *db, const char *sql, void *user_data) { (void)db; (void)sql; (void)user_data; }
-static c_orm_error_t crypto_enc_hook(const void *in, size_t in_len, void *ctx,
-                                     void **out, size_t *out_len) { (void)in; (void)in_len; (void)ctx; (void)out; (void)out_len;
-  return C_ORM_OK;
+/**
+ * @brief Test database hook callback.
+ * @param db Database handle.
+ * @param sql Executed SQL.
+ * @param user_data Context pointer.
+ */
+static void test_hook(c_orm_db_t *db, const char *sql, void *user_data) {
+  (void)db;
+  (void)sql;
+  (void)user_data;
 }
-static c_orm_error_t crypto_dec_hook(const void *in, size_t in_len, void *ctx,
-                                     void **out, size_t *out_len) { (void)in; (void)in_len; (void)ctx; (void)out; (void)out_len;
-  return C_ORM_OK;
-}
-static void test_log_cb(const char *msg, void *user_data) { (void)msg; (void)user_data; }
-static void test_expire_cb(c_orm_db_t *db, const c_orm_table_meta_t *meta,
-                           void *obj, void *user_data) { (void)db; (void)meta; (void)obj; (void)user_data; }
 
-static c_orm_error_t get_last_err_mock(c_orm_db_t *db, const char **out) { (void)db; (void)out;
+/**
+ * @brief Mock encryption hook.
+ * @param in Input buffer.
+ * @param in_len Input length.
+ * @param ctx Context pointer.
+ * @param out Output buffer pointer.
+ * @param out_len Output length pointer.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t crypto_enc_hook(const void *in, size_t in_len, void *ctx,
+                                     void **out, size_t *out_len) {
+  (void)in;
+  (void)in_len;
+  (void)ctx;
+  (void)out;
+  (void)out_len;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock decryption hook.
+ * @param in Input buffer.
+ * @param in_len Input length.
+ * @param ctx Context pointer.
+ * @param out Output buffer pointer.
+ * @param out_len Output length pointer.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t crypto_dec_hook(const void *in, size_t in_len, void *ctx,
+                                     void **out, size_t *out_len) {
+  (void)in;
+  (void)in_len;
+  (void)ctx;
+  (void)out;
+  (void)out_len;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Test logging callback.
+ * @param msg Log message.
+ * @param user_data Context pointer.
+ */
+static void test_log_cb(const char *msg, void *user_data) {
+  (void)msg;
+  (void)user_data;
+}
+
+/**
+ * @brief Test expiration callback.
+ * @param db Database handle.
+ * @param meta Table metadata.
+ * @param obj Object pointer.
+ * @param user_data Context pointer.
+ */
+static void test_expire_cb(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                           void *obj, void *user_data) {
+  (void)db;
+  (void)meta;
+  (void)obj;
+  (void)user_data;
+}
+
+/**
+ * @brief Mock get last error callback.
+ * @param db Database handle.
+ * @param out Pointer to receive error message.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t get_last_err_mock(c_orm_db_t *db, const char **out) {
+  (void)db;
+  (void)out;
   *out = "mock";
   return C_ORM_OK;
 }
-static c_orm_error_t get_last_trace_mock(c_orm_db_t *db, const char **out) { (void)db; (void)out;
+
+/**
+ * @brief Mock get last trace callback.
+ * @param db Database handle.
+ * @param out Pointer to receive trace string.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t get_last_trace_mock(c_orm_db_t *db, const char **out) {
+  (void)db;
+  (void)out;
   *out = "trace";
   return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_db_attach_identity_map(c_orm_db_t *db, c_orm_identity_map_t *map);
-C_ORM_EXPORT c_orm_error_t c_orm_register_query_interceptor(c_orm_db_t *db,
-                                                   c_orm_interceptor_cb hook,
-                                                   void *context);
-C_ORM_EXPORT c_orm_error_t
-c_orm_register_hydration_interceptor(c_orm_db_t *db, c_orm_interceptor_cb hook,
-                                     void *context);
+C_ORM_EXPORT c_orm_error_t c_orm_register_query_interceptor(
+    c_orm_db_t *db, c_orm_interceptor_cb hook, void *context);
+C_ORM_EXPORT c_orm_error_t c_orm_register_hydration_interceptor(
+    c_orm_db_t *db, c_orm_interceptor_cb hook, void *context);
 
+/**
+ * @brief Test database handle configuration, hooks, and telemetry.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_db_coverage(void) {
   c_orm_db_t db;
   c_orm_driver_vtable_t vt;
-  const char *msg = NULL;
+  const char *msg;
   c_orm_error_t rc;
   c_orm_pool_telemetry_t tel;
   c_orm_timezone_t tz;
 
+  msg = NULL;
+
   /* call the hooks */
   test_hook(NULL, NULL, NULL);
-  if (crypto_enc_hook(NULL, 0, NULL, NULL, NULL)) { return GREATEST_TEST_RES_PASS; }
-  if (crypto_dec_hook(NULL, 0, NULL, NULL, NULL)) {}
+  rc = crypto_enc_hook(NULL, 0, NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = crypto_dec_hook(NULL, 0, NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_OK, rc);
   test_log_cb(NULL, NULL);
   test_expire_cb(NULL, NULL, NULL, NULL);
 
@@ -171,7 +285,6 @@ TEST test_c_orm_db_coverage(void) {
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
   rc = c_orm_get_telemetry(&db, &tel);
-
   ASSERT_EQ(C_ORM_OK, rc);
 
   c_orm_set_expire_callback(NULL, NULL, NULL);
@@ -180,17 +293,22 @@ TEST test_c_orm_db_coverage(void) {
   rc = c_orm_db_attach_identity_map(NULL, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
   rc = c_orm_db_attach_identity_map(&db, NULL);
-
   ASSERT_EQ(C_ORM_OK, rc);
 
-  c_orm_register_query_interceptor(NULL, NULL, NULL);
-  c_orm_register_query_interceptor(&db, test_hook, NULL);
+  rc = c_orm_register_query_interceptor(NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = c_orm_register_query_interceptor(&db, test_hook, NULL);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  c_orm_register_hydration_interceptor(NULL, NULL, NULL);
-  c_orm_register_hydration_interceptor(&db, test_hook, NULL);
+  rc = c_orm_register_hydration_interceptor(NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = c_orm_register_hydration_interceptor(&db, test_hook, NULL);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  c_orm_register_crypto_hooks(NULL, NULL, NULL, NULL);
-  c_orm_register_crypto_hooks(&db, crypto_enc_hook, crypto_dec_hook, NULL);
+  rc = c_orm_register_crypto_hooks(NULL, NULL, NULL, NULL);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = c_orm_register_crypto_hooks(&db, crypto_enc_hook, crypto_dec_hook, NULL);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   c_orm_set_timezone(NULL, tz);
   c_orm_set_timezone(&db, tz);
@@ -198,16 +316,31 @@ TEST test_c_orm_db_coverage(void) {
   PASS();
 }
 
+/**
+ * @brief Async query completion callback.
+ * @param err Error enum.
+ * @param ctx Context pointer.
+ */
 static void async_cb(c_orm_error_t err, void *ctx) {
-  (void)err;
+  if (err != C_ORM_OK) {
+    /* err handled */
+  }
   (void)ctx;
 }
 
+/**
+ * @brief Test async CRUD APIs and error handling.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_async_coverage(void) {
-  c_orm_db_t db = {0};
-  c_orm_table_meta_t meta = {0};
-  int obj = 0;
+  c_orm_db_t db;
+  c_orm_table_meta_t meta;
+  int obj;
   c_orm_error_t rc;
+
+  memset(&db, 0, sizeof(db));
+  memset(&meta, 0, sizeof(meta));
+  obj = 0;
 
   rc = c_orm_insert_async(NULL, NULL, NULL, NULL, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
@@ -242,15 +375,17 @@ TEST test_c_orm_async_coverage(void) {
   PASS();
 }
 
-#include "c_orm_codegen.h"
-/* clang-format on */
-
 #ifndef __EMSCRIPTEN__
+/**
+ * @brief Test codegen API error validation and file generation.
+ * @return GREATEST test result.
+ */
 TEST test_codegen_coverage(void) {
   c_orm_error_t rc;
   const char *schema_path;
   FILE *f;
 
+  f = NULL;
   rc = c_orm_codegen_generate(NULL, NULL);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
@@ -260,14 +395,13 @@ TEST test_codegen_coverage(void) {
   rc = c_orm_codegen_generate("fake.sql", "fake_dir");
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
-  {
-    C_ORM_FOPEN(&f, "test_stubs_schema.sql", "w");
-    if (f) {
-      fprintf(f, "CREATE TABLE t_stubs (id INTEGER PRIMARY KEY);\n");
-      fclose(f);
-    }
-    schema_path = "test_stubs_schema.sql";
+  C_ORM_FOPEN(&f, "test_stubs_schema.sql", "w");
+  if (f != NULL) {
+    fprintf(f, "%s\n", "CREATE TABLE t_stubs (id INTEGER PRIMARY KEY);");
+    fclose(f);
   }
+  schema_path = "test_stubs_schema.sql";
+
   rc = c_orm_codegen_generate(schema_path, "test_out");
   remove("test_stubs_schema.sql");
 
@@ -277,9 +411,15 @@ TEST test_codegen_coverage(void) {
 }
 #endif
 
+/**
+ * @brief Test database modality setting and context inspection.
+ * @return GREATEST test result.
+ */
 TEST test_modality_coverage(void) {
   c_orm_db_t db;
   c_orm_error_t rc;
+
+  memset(&db, 0, sizeof(db));
 
   rc = c_orm_set_modality(NULL, 0, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
@@ -292,6 +432,9 @@ TEST test_modality_coverage(void) {
   PASS();
 }
 
+/**
+ * @brief Database stubs and hooks test suite runner.
+ */
 SUITE(db_stubs_suite) {
 #ifndef __EMSCRIPTEN__
   RUN_TEST(test_postgres_stubs_edge_cases);
@@ -304,6 +447,10 @@ SUITE(db_stubs_suite) {
 #endif
   RUN_TEST(test_modality_coverage);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif

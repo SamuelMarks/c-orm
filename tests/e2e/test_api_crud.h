@@ -6,18 +6,42 @@
 #ifndef TEST_API_CRUD_H
 #define TEST_API_CRUD_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 #include "test_api_helpers.h"
 
+/** @brief Object representation with string primary key. */
 struct StringPkObj {
   char *id;
   char *name;
 };
 
+/** @brief Object representation with int64 primary key. */
 struct Int64PkObj {
   int64_t id;
   char *name;
 };
 
+/** @brief Model object representing a record with multiple columns for batch
+ * updates. */
+struct MultiColObj {
+  int32_t id;
+  char *name;
+  int32_t score;
+};
+
+/**
+ * @brief Forward declaration for test_api_crud_string_and_int64_pks.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_api_crud_string_and_int64_pks(void);
+
+/**
+ * @brief Tests CRUD operations with string and int64 primary keys and cascades.
+ * @return GREATEST test result.
+ */
 TEST test_api_crud_string_and_int64_pks(void) {
   struct StringPkObj sobj;
   struct Int64PkObj iobj;
@@ -217,14 +241,9 @@ TEST test_api_crud_string_and_int64_pks(void) {
     ASSERT_EQ(C_ORM_OK, c_orm_update_batch(&g_db, &imeta, iarr, 2, 800));
   }
 
-  /* Multi-column update batch (triggers line 3353: ', ' between multiple
-   * columns) */
+  /* Multi-column update batch */
   {
-    struct MultiColObj {
-      int32_t id;
-      char *name;
-      int32_t score;
-    } marr[2];
+    struct MultiColObj marr[2];
     c_orm_column_meta_t mcols[3];
     c_orm_table_meta_t mmeta;
 
@@ -264,15 +283,27 @@ TEST test_api_crud_string_and_int64_pks(void) {
   PASS();
 }
 
+/**
+ * @brief Forward declaration for test_api_batch_and_iterator_branches.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_api_batch_and_iterator_branches(void);
+
+/**
+ * @brief Tests batch find operations and query iterator lifecycle.
+ * @return GREATEST test result.
+ */
 TEST test_api_batch_and_iterator_branches(void) {
-  struct c_orm_iterator *iter = NULL;
-  size_t fetched = 0;
+  struct c_orm_iterator *iter;
+  size_t fetched;
   char out_buf[128];
   c_orm_column_meta_t cols[1];
   c_orm_table_meta_t meta;
   c_orm_driver_vtable_t custom_vt;
   c_orm_db_t custom_db;
 
+  iter = NULL;
+  fetched = 0;
   memset(cols, 0, sizeof(cols));
   memset(&meta, 0, sizeof(meta));
   cols[0].name = "id";
@@ -347,13 +378,18 @@ TEST test_api_batch_and_iterator_branches(void) {
   PASS();
 }
 
-/* ========================================================================= */
-/* --- Batch Operations and Iterator Deep Coverage --- */
-/* ========================================================================= */
-
+/** @brief Failure stage selector for mock batch driver. */
 static int g_batch_fail_vtable = -1;
+/** @brief Error code flag for iterator hydration tests. */
 static int g_iter_hydrate_fail = 0;
 
+/**
+ * @brief Mock batch prepare callback with failure injection.
+ * @param db Database handle.
+ * @param sql SQL string.
+ * @param q Output query pointer.
+ * @return C_ORM_OK on success or C_ORM_ERROR_UNKNOWN on injected failure.
+ */
 static c_orm_error_t mock_batch_prepare(c_orm_db_t *db, const char *sql,
                                         c_orm_query_t **q) {
   (void)db;
@@ -369,6 +405,13 @@ static c_orm_error_t mock_batch_prepare(c_orm_db_t *db, const char *sql,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock batch bind_int32 callback with failure injection.
+ * @param q Query pointer.
+ * @param i Parameter index.
+ * @param val Parameter value.
+ * @return C_ORM_OK on success or C_ORM_ERROR_UNKNOWN on injected failure.
+ */
 static c_orm_error_t mock_batch_bind_int32(c_orm_query_t *q, int i,
                                            int32_t val) {
   (void)q;
@@ -379,6 +422,12 @@ static c_orm_error_t mock_batch_bind_int32(c_orm_query_t *q, int i,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock batch step callback with failure injection.
+ * @param q Query pointer.
+ * @param has_row Output receiving 1 if row exists.
+ * @return C_ORM_OK on success or C_ORM_ERROR_UNKNOWN on injected failure.
+ */
 static c_orm_error_t mock_batch_step(c_orm_query_t *q, int *has_row) {
   (void)q;
   if (g_batch_fail_vtable == 3)
@@ -388,6 +437,11 @@ static c_orm_error_t mock_batch_step(c_orm_query_t *q, int *has_row) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock batch finalize callback with failure injection.
+ * @param q Query pointer.
+ * @return C_ORM_OK on success or C_ORM_ERROR_UNKNOWN on injected failure.
+ */
 static c_orm_error_t mock_batch_finalize(c_orm_query_t *q) {
   (void)q;
   if (g_batch_fail_vtable == 5)
@@ -395,6 +449,13 @@ static c_orm_error_t mock_batch_finalize(c_orm_query_t *q) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock batch get_int32 callback with hydration error simulation.
+ * @param q Query pointer.
+ * @param i Column index.
+ * @param out Output receiving int32 value.
+ * @return C_ORM_OK on success or simulated error code.
+ */
 static c_orm_error_t mock_batch_get_int32(c_orm_query_t *q, int i,
                                           int32_t *out) {
   (void)q;
@@ -411,15 +472,32 @@ static c_orm_error_t mock_batch_get_int32(c_orm_query_t *q, int i,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Forward declaration for test_api_batch_crud_deep_errors.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_api_batch_crud_deep_errors(void);
+
+/**
+ * @brief Tests deep error branches for batch insert, update, delete, and
+ * iteration.
+ * @return GREATEST test result.
+ */
 TEST test_api_batch_crud_deep_errors(void) {
   struct Users items[2];
   c_orm_driver_vtable_t bvt;
   c_orm_db_t bdb;
-  struct c_orm_iterator *iter = NULL;
-  size_t has_row = 0;
-  void *(*orig_m)(size_t) = c_orm_malloc;
-  void *(*orig_r)(void *, size_t) = c_orm_realloc;
-  void (*orig_f)(void *) = c_orm_free;
+  struct c_orm_iterator *iter;
+  size_t has_row;
+  void *(*orig_m)(size_t);
+  void *(*orig_r)(void *, size_t);
+  void (*orig_f)(void *);
+
+  iter = NULL;
+  has_row = 0;
+  orig_m = c_orm_malloc;
+  orig_r = c_orm_realloc;
+  orig_f = c_orm_free;
 
   memset(items, 0, sizeof(items));
   memset(&bvt, 0, sizeof(bvt));
@@ -604,6 +682,18 @@ TEST test_api_batch_crud_deep_errors(void) {
 
   PASS();
 }
+
+/**
+ * @brief Forward declaration for test_api_crud_missing_error_branches.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res test_api_crud_missing_error_branches(void);
+
+/**
+ * @brief Tests missing error branches for hooks, bindings, and multi-stage
+ * operations.
+ * @return GREATEST test result.
+ */
 TEST test_api_crud_missing_error_branches(void) {
   struct Users u;
   c_orm_driver_vtable_t custom_vt;
@@ -764,5 +854,9 @@ TEST test_api_crud_missing_error_branches(void) {
 
   PASS();
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* TEST_API_CRUD_H */

@@ -4,6 +4,7 @@
 #include "c_orm_api.h"
 #include "c_orm_ast.h"
 #include "c_orm_sqlite.h"
+#include "c_orm_string_builder.h"
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -238,11 +239,14 @@ TEST test_fluent_oom(void) {
   int i;
   {
     c_orm_query_t *oq = NULL;
+    c_orm_error_t q_rc;
     oom_active = 1;
     oom_countdown = 0;
-    c_orm_query_new(&oq);
+    q_rc = c_orm_query_new(&oq);
+    ASSERT(q_rc != C_ORM_OK && oq == NULL);
     oom_countdown = 1;
-    (void)c_orm_query_new(&oq);
+    q_rc = c_orm_query_new(&oq);
+    ASSERT(q_rc != C_ORM_OK && oq == NULL);
     oom_active = 0;
   }
 
@@ -299,6 +303,40 @@ TEST test_fluent_oom(void) {
   TEST_OOM(oq->window(oq, "f", "p", "o", "a"));
 
 #undef TEST_OOM
+
+#define TEST_OOM_COUNT(expr, count)                                            \
+  do {                                                                         \
+    c_orm_query_t *oq = NULL;                                                  \
+    void *dummy = NULL;                                                        \
+    c_orm_ast_node_t *n = (c_orm_ast_node_t *)1;                               \
+    c_orm_query_t *sq = (c_orm_query_t *)1;                                    \
+    c_orm_query_new(&oq);                                                      \
+    c_orm_arena_alloc(oq->arena, 4096, &dummy);                                \
+    oom_active = 1;                                                            \
+    oom_countdown = (count);                                                   \
+    (void)sq;                                                                  \
+    (void)n;                                                                   \
+    (void)dummy;                                                               \
+    expr;                                                                      \
+    oom_active = 0;                                                            \
+    c_orm_query_free(oq);                                                      \
+  } while (0)
+
+  TEST_OOM_COUNT(oq->raw(oq, "1"), 1);
+  TEST_OOM_COUNT(oq->col(oq, "1"), 1);
+  TEST_OOM_COUNT(oq->select_(oq, "1"), 1);
+  TEST_OOM_COUNT(oq->from(oq, "1"), 1);
+  TEST_OOM_COUNT(oq->order_by(oq, "1", 0), 1);
+  TEST_OOM_COUNT(oq->join(oq, "1", "2", n), 1);
+  TEST_OOM_COUNT(oq->join(oq, "1", "2", n), 2);
+  TEST_OOM_COUNT(oq->raw(oq, NULL), 0);
+  TEST_OOM_COUNT(oq->col(oq, NULL), 0);
+  TEST_OOM_COUNT(oq->select_(oq, NULL), 0);
+  TEST_OOM_COUNT(oq->from(oq, NULL), 0);
+  TEST_OOM_COUNT(oq->order_by(oq, NULL, 0), 0);
+  TEST_OOM_COUNT(oq->join(oq, NULL, "2", n), 0);
+  TEST_OOM_COUNT(oq->join(oq, NULL, NULL, n), 0);
+#undef TEST_OOM_COUNT
 
   {
     int count = 0;
@@ -495,6 +533,27 @@ TEST test_sql_oom(void) {
   char *sql = NULL;
   c_orm_query_params_t p;
   int i;
+
+  /* Target lines 560-565 in c_orm_query_sql.c: out_sql malloc OOM */
+  {
+    c_orm_query_t *simple_q = NULL;
+    c_orm_error_t oom_rc;
+    c_orm_query_new(&simple_q);
+    simple_q->select_(simple_q, "1");
+    for (i = 0; i < 10; i++) {
+      oom_active = 1;
+      oom_countdown = i;
+      sql = NULL;
+      oom_rc = c_orm_query_to_sql(simple_q, C_ORM_DIALECT_SQLITE, &sql, NULL);
+      oom_active = 0;
+      if (oom_rc == C_ORM_OK && sql) {
+        c_orm_free(sql);
+        sql = NULL;
+      }
+    }
+    c_orm_query_free(simple_q);
+  }
+
   c_orm_query_new(&q);
   c_orm_query_params_init(&p);
 
@@ -1078,9 +1137,7 @@ TEST test_query_sql_to_sql_fail(void) {
         qb->where(qb, (c_orm_ast_node_t *)bw);
       }
 
-      c_orm_set_allocators(mock_malloc_fail, c_orm_realloc, c_orm_free);
-      c_orm_set_allocators(c_orm_malloc, mock_realloc_fail, c_orm_free);
-      c_orm_set_allocators(c_orm_malloc, c_orm_realloc, mock_free);
+      c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail, mock_free);
 
       g_malloc_target = 0;
       g_malloc_count = 0;
@@ -1113,9 +1170,7 @@ TEST test_query_sql_to_sql_fail(void) {
                             &fake_struct);
 
       g_malloc_fail = 0;
-      c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
-      c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
-      c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
+      c_orm_set_allocators(old_malloc, old_realloc, old_free);
 
       c_orm_query_free(qb);
     }
@@ -1941,15 +1996,292 @@ TEST test_query_sql_all_branches(void) {
   PASS();
 }
 
+/**
+ * @brief Helper to exercise string builder append countdown across query SQL
+ * generation.
+ * @param q The query to convert.
+ * @param dialect The SQL dialect.
+ * @param params_ptr Pointer to query parameters, or NULL.
+ * @param max_countdown The maximum countdown value to sweep.
+ * @return C_ORM_OK on completion.
+ */
+static c_orm_error_t run_query_countdown(c_orm_query_t *q,
+                                         c_orm_dialect_t dialect,
+                                         c_orm_query_params_t *params_ptr,
+                                         int max_countdown) {
+  int i;
+  char *sql;
+  c_orm_error_t rc;
+
+  for (i = 0; i <= max_countdown; i++) {
+    sql = NULL;
+    c_orm_mock_string_builder_append_countdown = i;
+    rc = c_orm_query_to_sql(q, dialect, &sql, params_ptr);
+    if (rc != C_ORM_OK) {
+      /* Expected OOM from mock append countdown */
+    }
+    if (sql) {
+      c_orm_free(sql);
+      sql = NULL;
+    }
+  }
+  c_orm_mock_string_builder_append_countdown = -1;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Tests all append error branches and mock get failure in
+ * c_orm_query_to_sql.
+ * @return GREATEST test result.
+ */
+TEST test_query_sql_append_oom_branches(void) {
+  c_orm_query_t *q = NULL;
+  c_orm_query_t *subq = NULL;
+  c_orm_query_t *cte_q = NULL;
+  c_orm_query_t *uni_q = NULL;
+  c_orm_query_params_t params;
+  c_orm_ast_select_t *sel_node;
+  c_orm_ast_operator_t *unary_op;
+  c_orm_ast_node_t *raw_left;
+  char *sql = NULL;
+  c_orm_error_t err;
+
+  c_orm_query_params_init(&params);
+
+  /* Build subqueries */
+  err = c_orm_query_new(&subq);
+  ASSERT_EQ(C_ORM_OK, err);
+  subq->select_(subq, "1")->from(subq, "sub_table");
+
+  err = c_orm_query_new(&cte_q);
+  ASSERT_EQ(C_ORM_OK, err);
+  cte_q->select_(cte_q, "id, val")->from(cte_q, "cte_source");
+
+  err = c_orm_query_new(&uni_q);
+  ASSERT_EQ(C_ORM_OK, err);
+  uni_q->select_(uni_q, "id, name")->from(uni_q, "archive_users");
+
+  /* Build comprehensive main query */
+  err = c_orm_query_new(&q);
+  ASSERT_EQ(C_ORM_OK, err);
+
+  q->with(q, "my_cte", cte_q);
+  q->select_(q, "u.id, u.name");
+  sel_node = (c_orm_ast_select_t *)q->ast_head;
+  if (sel_node && sel_node->base.type == C_ORM_AST_NODE_SELECT) {
+    sel_node->is_distinct = 1;
+  }
+
+  q->from_alias(q, "users", "u");
+  q->join(q, "roles", "INNER", q->eq(q, "u.role_id", "roles.id", 0));
+  q->join(q, "departments", "LEFT", q->eq(q, "u.dept_id", "departments.id", 0));
+
+  /* WHERE conditions covering all node types */
+  q->where(q, q->col(q, "u.id"));
+  q->and_where(q, q->lit(q, "alice", 1));
+  q->and_where(q, q->lit(q, "42", 0));
+  q->and_where(q, q->raw(q, "1 = 1"));
+  q->and_where(q, q->eq(q, "u.status", "active", 1));
+
+  /* Unary operator without right operand */
+  raw_left = q->col(q, "u.deleted_at");
+  unary_op = (c_orm_ast_operator_t *)malloc(sizeof(c_orm_ast_operator_t));
+  if (unary_op) {
+    memset(unary_op, 0, sizeof(c_orm_ast_operator_t));
+    unary_op->base.type = C_ORM_AST_NODE_OPERATOR;
+    unary_op->left = raw_left;
+    unary_op->op = "IS NULL";
+    unary_op->right = NULL;
+    q->and_where(q, (c_orm_ast_node_t *)unary_op);
+  }
+
+  q->and_where(q, q->group(q, q->eq(q, "u.verified", "1", 0)));
+  q->and_where(q, q->cast_(q, "u.age", "INTEGER"));
+  q->and_where(q, q->func(q, "UPPER", "u.name", "upper_name"));
+  q->and_where(q, q->func(q, "LOWER", "u.name", ""));
+  q->and_where(q, q->func(q, "COUNT", "*", NULL));
+
+  q->and_where(q, q->between(q, "u.created_at", "2020-01-01", "2025-01-01", 1));
+  q->and_where(q, q->between(q, "u.age", "18", "65", 0));
+
+  q->and_where(q, q->exists(q, subq, 0));
+  q->and_where(q, q->exists(q, subq, 1));
+  q->and_where(q, q->subquery(q, subq, "sq_alias"));
+  q->and_where(q, q->subquery(q, subq, ""));
+  q->and_where(q, q->subquery(q, subq, NULL));
+
+  q->and_where(q, q->window(q, "ROW_NUMBER()", "dept", "salary DESC", "rn"));
+  q->and_where(q, q->window(q, "ROW_NUMBER()", "dept", "", ""));
+  q->and_where(q, q->window(q, "ROW_NUMBER()", "", "salary DESC", "rn"));
+  q->and_where(q, q->window(q, "ROW_NUMBER()", NULL, NULL, NULL));
+
+  q->group_by(q, "u.id, u.name");
+  q->having(q, q->gt(q, "COUNT(*)", "5", 0));
+  q->union_(q, uni_q, 1);    /* UNION ALL */
+  q->order_by(q, "u.id", 1); /* DESC */
+  q->limit(q, 50);
+  q->offset(q, 10);
+
+  /* 1. Sweep append countdown for SQLite with params */
+  err = run_query_countdown(q, C_ORM_DIALECT_SQLITE, &params, 120);
+  ASSERT_EQ(C_ORM_OK, err);
+
+  /* 2. Sweep append countdown for Postgres with params */
+  err = run_query_countdown(q, C_ORM_DIALECT_POSTGRES, &params, 120);
+  ASSERT_EQ(C_ORM_OK, err);
+
+  /* 3. Sweep append countdown for SQLite without params */
+  err = run_query_countdown(q, C_ORM_DIALECT_SQLITE, NULL, 120);
+  ASSERT_EQ(C_ORM_OK, err);
+
+  /* 4. Sweep append countdown for Postgres without params */
+  err = run_query_countdown(q, C_ORM_DIALECT_POSTGRES, NULL, 120);
+  ASSERT_EQ(C_ORM_OK, err);
+
+  /* 5. Variations: UNION without ALL, ORDER BY ASC, table without alias */
+  {
+    c_orm_query_t *q2 = NULL;
+    c_orm_ast_from_t *from_node;
+    err = c_orm_query_new(&q2);
+    ASSERT_EQ(C_ORM_OK, err);
+    q2->select_(q2, "x")->from(q2, "simple_tbl");
+    from_node = (c_orm_ast_from_t *)q2->ast_head;
+    if (from_node && from_node->base.type == C_ORM_AST_NODE_FROM) {
+      from_node->alias = "";
+    }
+    q2->union_(q2, uni_q, 0); /* UNION (is_all = 0) */
+    q2->order_by(q2, "x", 0); /* ASC (is_desc = 0) */
+    err = run_query_countdown(q2, C_ORM_DIALECT_SQLITE, NULL, 40);
+    ASSERT_EQ(C_ORM_OK, err);
+    c_orm_query_free(q2);
+  }
+
+  /* 6. Targeted EXISTS sweep */
+  {
+    c_orm_query_t *qe = NULL;
+    err = c_orm_query_new(&qe);
+    ASSERT_EQ(C_ORM_OK, err);
+    qe->select_(qe, "1")->from(qe, "t");
+    qe->where(qe, qe->exists(qe, subq, 0));
+    qe->and_where(qe, qe->exists(qe, subq, 1));
+    err = run_query_countdown(qe, C_ORM_DIALECT_SQLITE, &params, 40);
+    ASSERT_EQ(C_ORM_OK, err);
+    err = run_query_countdown(qe, C_ORM_DIALECT_SQLITE, NULL, 40);
+    ASSERT_EQ(C_ORM_OK, err);
+    c_orm_query_free(qe);
+  }
+
+  /* 7. Targeted SUBQUERY sweep */
+  {
+    c_orm_query_t *qs = NULL;
+    err = c_orm_query_new(&qs);
+    ASSERT_EQ(C_ORM_OK, err);
+    qs->select_(qs, "1")->from(qs, "t");
+    qs->where(qs, qs->subquery(qs, subq, "sub_alias"));
+    qs->and_where(qs, qs->subquery(qs, subq, ""));
+    qs->and_where(qs, qs->subquery(qs, subq, NULL));
+    err = run_query_countdown(qs, C_ORM_DIALECT_SQLITE, &params, 50);
+    ASSERT_EQ(C_ORM_OK, err);
+    err = run_query_countdown(qs, C_ORM_DIALECT_SQLITE, NULL, 50);
+    ASSERT_EQ(C_ORM_OK, err);
+    c_orm_query_free(qs);
+  }
+
+  /* 8. Targeted WINDOW sweep */
+  {
+    c_orm_query_t *qw = NULL;
+    err = c_orm_query_new(&qw);
+    ASSERT_EQ(C_ORM_OK, err);
+    qw->select_(qw, "1")->from(qw, "t");
+    qw->where(qw, qw->window(qw, "ROW_NUMBER()", "dept", "salary DESC", "rn"));
+    qw->and_where(qw, qw->window(qw, "ROW_NUMBER()", "dept", "", ""));
+    qw->and_where(qw, qw->window(qw, "ROW_NUMBER()", "", "salary DESC", "rn"));
+    qw->and_where(qw, qw->window(qw, "ROW_NUMBER()", NULL, NULL, NULL));
+    qw->and_where(qw, qw->window(qw, "ROW_NUMBER()", "dept", "salary", NULL));
+    err = run_query_countdown(qw, C_ORM_DIALECT_SQLITE, &params, 50);
+    ASSERT_EQ(C_ORM_OK, err);
+    err = run_query_countdown(qw, C_ORM_DIALECT_SQLITE, NULL, 50);
+    ASSERT_EQ(C_ORM_OK, err);
+    c_orm_query_free(qw);
+  }
+
+  /* 9. Targeted HAVING sweep */
+  {
+    c_orm_query_t *qh = NULL;
+    err = c_orm_query_new(&qh);
+    ASSERT_EQ(C_ORM_OK, err);
+    qh->select_(qh, "dept, COUNT(*)")->from(qh, "t")->group_by(qh, "dept");
+    qh->having(qh, qh->gt(qh, "COUNT(*)", "5", 0));
+    err = run_query_countdown(qh, C_ORM_DIALECT_SQLITE, &params, 30);
+    ASSERT_EQ(C_ORM_OK, err);
+    err = run_query_countdown(qh, C_ORM_DIALECT_SQLITE, NULL, 30);
+    ASSERT_EQ(C_ORM_OK, err);
+    c_orm_query_free(qh);
+  }
+
+  /* 10. Targeted UNION sweep */
+  {
+    c_orm_query_t *qu = NULL;
+    err = c_orm_query_new(&qu);
+    ASSERT_EQ(C_ORM_OK, err);
+    qu->select_(qu, "1")->from(qu, "t");
+    qu->union_(qu, subq, 0);
+    qu->union_(qu, subq, 1);
+    err = run_query_countdown(qu, C_ORM_DIALECT_SQLITE, &params, 30);
+    ASSERT_EQ(C_ORM_OK, err);
+    err = run_query_countdown(qu, C_ORM_DIALECT_SQLITE, NULL, 30);
+    ASSERT_EQ(C_ORM_OK, err);
+    c_orm_query_free(qu);
+  }
+
+  /* 11. Targeted LIMIT and OFFSET sweep */
+  {
+    c_orm_query_t *q_lim = NULL;
+    err = c_orm_query_new(&q_lim);
+    ASSERT_EQ(C_ORM_OK, err);
+    q_lim->select_(q_lim, "1")
+        ->from(q_lim, "t")
+        ->limit(q_lim, 5)
+        ->offset(q_lim, 10);
+    err = run_query_countdown(q_lim, C_ORM_DIALECT_SQLITE, NULL, 15);
+    ASSERT_EQ(C_ORM_OK, err);
+    c_orm_query_free(q_lim);
+  }
+
+  /* 12. Mock string builder get failure on simple query */
+  {
+    c_orm_query_t *q_simple = NULL;
+    err = c_orm_query_new(&q_simple);
+    ASSERT_EQ(C_ORM_OK, err);
+    q_simple->select_(q_simple, "1")->from(q_simple, "t");
+
+    c_orm_mock_string_builder_get_fail = 1;
+    sql = NULL;
+    err = c_orm_query_to_sql(q_simple, C_ORM_DIALECT_SQLITE, &sql, NULL);
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, err);
+    ASSERT_EQ(NULL, sql);
+    c_orm_mock_string_builder_get_fail = 0;
+
+    c_orm_query_free(q_simple);
+  }
+
+  /* Cleanup */
+  c_orm_query_free(q);
+  c_orm_query_free(subq);
+  c_orm_query_free(cte_q);
+  c_orm_query_free(uni_q);
+  c_orm_query_params_cleanup(&params);
+
+  PASS();
+}
+
 SUITE(query_fluent_coverage_suite) {
 
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void (*old_free)(void *) = c_orm_free;
   void *(*old_realloc)(void *, size_t) = c_orm_realloc;
 
-  c_orm_set_allocators(q_mock_malloc, c_orm_realloc, c_orm_free);
-  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, q_mock_free);
-  c_orm_set_allocators(c_orm_malloc, q_mock_realloc, c_orm_free);
+  c_orm_set_allocators(q_mock_malloc, q_mock_realloc, q_mock_free);
 
   RUN_TEST(test_query_fluent_coverage);
   RUN_TEST(test_query_sql_oom);
@@ -1961,10 +2293,9 @@ SUITE(query_fluent_coverage_suite) {
   RUN_TEST(query_sql_exhaustive_oom);
   RUN_TEST(test_fluent_error_state_branches);
   RUN_TEST(test_query_sql_all_branches);
+  RUN_TEST(test_query_sql_append_oom_branches);
 
-  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
-  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
-  c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
+  c_orm_set_allocators(old_malloc, old_realloc, old_free);
 }
 
 #if defined(__clang__) || defined(__GNUC__)

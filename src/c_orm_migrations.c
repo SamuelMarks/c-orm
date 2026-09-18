@@ -214,7 +214,16 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
       }
     }
 
-    (void)c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step");
+    rc = c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step");
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("c_orm_migrate_all: savepoint error");
+      unlock_rc = c_orm_migration_unlock(db);
+      if (unlock_rc != C_ORM_OK) {
+        LOG_DEBUG("c_orm_migrate_all: unlock failed during savepoint error");
+        return unlock_rc;
+      }
+      return rc;
+    }
 
     if (mig->up_sql && strlen(mig->up_sql) > 0) {
       rc = c_orm_execute_raw(db, mig->up_sql);
@@ -245,7 +254,17 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
       return rc;
     }
 
-    (void)c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step");
+    rc = c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step");
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("c_orm_migrate_all: release savepoint error");
+      unlock_rc = c_orm_migration_unlock(db);
+      if (unlock_rc != C_ORM_OK) {
+        LOG_DEBUG(
+            "c_orm_migrate_all: unlock failed during release savepoint error");
+        return unlock_rc;
+      }
+      return rc;
+    }
 
     if (options && options->post_migrate) {
       rc = options->post_migrate(db, mig, options->user_data);
@@ -349,7 +368,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
       continue;
     }
 
-    (void)c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step_rb");
+    rc = c_orm_execute_raw(db, "SAVEPOINT c_orm_mig_step_rb");
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("c_orm_migrate_rollback: savepoint error");
+      break;
+    }
 
     if (mig->down_sql && strlen(mig->down_sql) > 0) {
       rc = c_orm_execute_raw(db, mig->down_sql);
@@ -369,7 +392,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
       break;
     }
 
-    (void)c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step_rb");
+    rc = c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step_rb");
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("c_orm_migrate_rollback: release savepoint error");
+      break;
+    }
     rolled_back++;
   }
 

@@ -1,5 +1,13 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_generic.c
+ * @brief Unit tests for generic CRUD functions, telemetry, and allocations.
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 /* clang-format off */
 #include "Models.h"
 #include "c_orm_api.h"
@@ -254,9 +262,9 @@ TEST test_c_orm_alloc(void) {
   PASS();
 }
 
-C_ORM_EXPORT int C_CDD_LOG_DEBUG(const char *fmt, ...);
+C_ORM_EXPORT c_orm_error_t C_CDD_LOG_DEBUG(const char *fmt, ...);
 TEST test_cdd_c_compat_log(void) {
-  ASSERT_EQ(0, C_CDD_LOG_DEBUG("Test log\n"));
+  ASSERT_EQ(C_ORM_OK, C_CDD_LOG_DEBUG("Test log\n"));
   PASS();
 }
 
@@ -266,6 +274,10 @@ SUITE(generic_suite) {
   RUN_TEST(test_c_orm_alloc);
   RUN_TEST(test_cdd_c_compat_log);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif
