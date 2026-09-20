@@ -145,6 +145,11 @@ static c_orm_error_t check_cdd_annotations(const struct StructField *field,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Maps an OpenAPI struct field to a c-orm type string representation.
+ * @param field The OpenAPI struct field.
+ * @return String constant representing c-orm column type.
+ */
 static const char *openapi_type_to_c_orm_type(const struct StructField *field) {
   if (strcmp(field->type, "integer") == 0) {
     if (field->format[0]) {
@@ -171,6 +176,11 @@ static const char *openapi_type_to_c_orm_type(const struct StructField *field) {
   return "C_ORM_TYPE_UNKNOWN";
 }
 
+/**
+ * @brief Maps an OpenAPI struct field to a C type string representation.
+ * @param field The OpenAPI struct field.
+ * @return String constant representing C type.
+ */
 static const char *openapi_type_to_c_type(const struct StructField *field) {
   if (strcmp(field->type, "integer") == 0) {
     if (field->format[0]) {
@@ -202,6 +212,9 @@ static const char *openapi_type_to_c_type(const struct StructField *field) {
 
 /**
  * @brief Executes the openapi orm generate operation.
+ * @param spec The parsed OpenAPI specification.
+ * @param config Configuration options.
+ * @return C_ORM_OK on success, or error code on failure.
  */
 C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     const struct OpenAPI_Spec *spec, const struct OpenApiClientConfig *config) {

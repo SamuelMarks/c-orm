@@ -23,6 +23,13 @@
 #endif
 /* #include "abstract_struct.h" */
 /* clang-format on */
+
+/**
+ * @brief Free dynamically allocated column memory in an object.
+ *
+ * @param meta The table metadata.
+ * @param obj The structure instance to free column allocations for.
+ */
 C_ORM_EXPORT void c_orm_free_columns(const c_orm_table_meta_t *meta,
                                      void *obj) {
   size_t i;
@@ -62,8 +69,16 @@ C_ORM_EXPORT void c_orm_free_columns(const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function c_orm_hydrate_row_from.
- */
+ * @brief Hydrate a struct from a row in a query, starting at a specific column
+ index.
+  *
+  * @param db Database connection.
+  * @param query Prepared and optionally bound query.
+  * @param meta Table metadata.
+  * @param out_struct Pointer to an already allocated struct to hydrate.
+  * @param start_col The column index to start reading from.
+  * @return C_ORM_OK on success.
+  */
 C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
     c_orm_db_t *db, c_orm_query_t *query, const c_orm_table_meta_t *meta,
     void *out_struct, size_t start_col) {
@@ -485,7 +500,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
 }
 
 /**
- * @brief Function c_orm_hydrate_row.
+ * @brief Hydrate a single record from a prepared query into the struct.
+ *
+ * @param db Database connection.
+ * @param query Prepared and optionally bound query.
+ * @param meta Table metadata.
+ * @param out_struct Pointer to an already allocated struct to hydrate.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row(c_orm_db_t *db,
                                              c_orm_query_t *query,
@@ -640,7 +661,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_find_all.
+ * @brief Find all records.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param out_array Pointer to the generic Array struct. Data will be allocated
+ * dynamically.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_find_all(c_orm_db_t *db,
                                           const c_orm_table_meta_t *meta,
@@ -673,7 +700,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_find_by_composite_key.
+ * @brief Find a single record by a composite primary key.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param num_keys Number of primary key components.
+ * @param key_values Array of CddCVariant structures representing the key
+ * values.
+ * @param out_struct Pointer to an already allocated struct to hydrate.
+ * @return C_ORM_OK on success, C_ORM_ERROR_NOT_FOUND if no row.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_find_by_composite_key(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, size_t num_keys,
@@ -754,7 +789,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_by_composite_key(
 }
 
 /**
- * @brief Function c_orm_update_by_composite_key.
+ * @brief Update a record by a composite primary key.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param num_keys Number of primary key components.
+ * @param key_values Array of CddCVariant structures representing the key
+ * values.
+ * @param in_struct Pointer to the struct containing the updated data.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_update_by_composite_key(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, size_t num_keys,
@@ -784,7 +827,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_by_composite_key(
 }
 
 /**
- * @brief Function c_orm_delete_by_composite_key.
+ * @brief Delete a record by a composite primary key.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param num_keys Number of primary key components.
+ * @param key_values Array of CddCVariant structures representing the key
+ * values.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_delete_by_composite_key(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, size_t num_keys,
@@ -852,7 +902,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_by_composite_key(
 }
 
 /**
- * @brief Function c_orm_find_by_id_int32.
+ * @brief Find a single record by its primary key.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param id_val Primary key value to search for (assumes string/int is passed
+ * appropriately, but currently expects int32 for basic testing, we can pass as
+ * void*). For safety we will pass as int32_t for now.
+ * @param out_struct Pointer to an already allocated struct to hydrate.
+ * @return C_ORM_OK on success, C_ORM_ERROR_NOT_FOUND if no row.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_by_id_int32(c_orm_db_t *db, const c_orm_table_meta_t *meta,
@@ -923,21 +981,31 @@ c_orm_find_by_id_int32(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   return rc;
 }
 
-/* Array Layout matching cdd-c:
-   struct Type_Array {
-     struct Type *data;
-     size_t length;
-     size_t capacity;
-   }
-*/
+/**
+ * @brief Generic array layout matching cdd-c.
+ * @var data Pointer to contiguous array elements.
+ * @var length Current number of elements stored in the array.
+ * @var capacity Total allocated capacity of the array.
+ */
 struct Generic_Array {
+  /** @brief Pointer to contiguous array elements. */
   void *data;
+  /** @brief Current number of elements stored in the array. */
   size_t length;
+  /** @brief Total allocated capacity of the array. */
   size_t capacity;
 };
 
 /**
- * @brief Function c_orm_find_with_relation_int32.
+ * @brief Find a single record by its primary key, and eager-load a specific
+ * relationship via SQL JOIN.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata for the parent struct.
+ * @param id_val Primary key value of the parent struct.
+ * @param relation_name The name of the relation field to eager load.
+ * @param out_struct Pointer to the parent struct to hydrate.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, int32_t id_val,
@@ -1346,7 +1414,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
 }
 
 /**
- * @brief Function c_orm_find_all_with_relation.
+ * @brief Find all records, and eager-load a specific relationship via SQL JOIN.
+ * Deduplicates parent records.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata for the parent struct.
+ * @param relation_name The name of the relation field to eager load.
+ * @param out_array Pointer to an array of parent structs to hydrate.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
@@ -1814,7 +1889,13 @@ c_orm_find_all_with_relation(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function c_orm_hydrate_all.
+ * @brief Hydrate an array from an already prepared and optionally bound query.
+ *
+ * @param db Database connection.
+ * @param query Prepared and optionally bound query.
+ * @param meta Table metadata.
+ * @param out_array Pointer to the generic Array struct.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
                                              c_orm_query_t *query,
@@ -1917,9 +1998,16 @@ C_ORM_EXPORT int c_orm_mock_find_relation_meta_countdown = -1;
  * @param out_rel Pointer to receive found relation meta pointer.
  * @return C_ORM_OK if found, error otherwise.
  */
-static c_orm_error_t find_relation_meta(const c_orm_table_meta_t *meta,
-                                        const char *rel_name,
-                                        const c_orm_relation_meta_t **out_rel) {
+static /**
+        * @brief Find relation metadata by relation name.
+        * @param meta Table metadata.
+        * @param rel_name Name of the relation to look up.
+        * @param out_rel Output pointer to store the relation metadata.
+        * @return C_ORM_OK on success, or error code on failure.
+        */
+    c_orm_error_t
+    find_relation_meta(const c_orm_table_meta_t *meta, const char *rel_name,
+                       const c_orm_relation_meta_t **out_rel) {
   size_t i;
   *out_rel = NULL;
   if (c_orm_mock_find_relation_meta_countdown >= 0) {
@@ -1939,7 +2027,17 @@ static c_orm_error_t find_relation_meta(const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function c_orm_find_with_relations_int32.
+ * @brief Find a single record by its primary key, and eager-load multiple
+ * nested relationships.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata for the parent struct.
+ * @param id_val Primary key value of the parent struct.
+ * @param relation_paths An array of dot-separated relationship paths (e.g.
+ * "posts.comments").
+ * @param num_paths Number of paths in the array.
+ * @param out_struct Pointer to the parent struct to hydrate.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_find_with_relations_int32(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, int32_t id_val,
@@ -2045,7 +2143,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relations_int32(
 }
 
 /**
- * @brief Function c_orm_find_all_with_relations.
+ * @brief Find all records, and eager-load multiple nested relationships.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata for the parent struct.
+ * @param relation_paths An array of dot-separated relationship paths (e.g.
+ * "posts.comments").
+ * @param num_paths Number of paths in the array.
+ * @param out_array Pointer to an array of parent structs to hydrate.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_find_all_with_relations(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, const char **relation_paths,
@@ -2150,7 +2256,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_with_relations(
 }
 
 /**
- * @brief Function set_null_field.
+ * @brief Set a field to null in a struct.
+ * @param meta Table metadata.
+ * @param struct_ptr Pointer to the structure instance.
+ * @param field_name Name of the field to set null.
+ * @return C_ORM_OK on success, or error code on failure.
  */
 static c_orm_error_t set_null_field(const c_orm_table_meta_t *meta,
                                     void *struct_ptr, const char *field_name) {
@@ -2200,7 +2310,12 @@ static c_orm_error_t set_null_field(const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function set_int_field.
+ * @brief Set an integer field in a struct.
+ * @param meta Table metadata.
+ * @param struct_ptr Pointer to the structure instance.
+ * @param field_name Name of the integer field.
+ * @param val Integer value to assign.
+ * @return C_ORM_OK on success, or error code on failure.
  */
 static c_orm_error_t set_int_field(const c_orm_table_meta_t *meta,
                                    void *struct_ptr, const char *field_name,
@@ -2263,7 +2378,12 @@ static c_orm_error_t set_int_field(const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function get_int_field.
+ * @brief Get an integer field from a struct.
+ * @param meta Table metadata.
+ * @param struct_ptr Pointer to the structure instance.
+ * @param field_name Name of the integer field.
+ * @param out_val Pointer to store retrieved integer.
+ * @return C_ORM_OK on success, or error code on failure.
  */
 static c_orm_error_t get_int_field(const c_orm_table_meta_t *meta,
                                    const void *struct_ptr,
@@ -2319,7 +2439,15 @@ static c_orm_error_t get_int_field(const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function bind_row.
+ * @brief Bind row columns to query parameters.
+ * @param db Database connection.
+ * @param query Query handle.
+ * @param meta Table metadata.
+ * @param in_struct Input struct instance.
+ * @param skip_pk Non-zero to skip primary key column.
+ * @param skip_clean Non-zero to skip clean columns.
+ * @param bind_idx Pointer to current bind index (1-based), updated on exit.
+ * @return C_ORM_OK on success, or error code on failure.
  */
 static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
                               const c_orm_table_meta_t *meta,
@@ -2566,15 +2694,38 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
   }
 }
 
+/**
+ * @brief Batch find iterator structure.
+ * @var db Database connection instance.
+ * @var meta Table metadata.
+ * @var query Active prepared query.
+ * @var chunk_size Number of rows fetched per batch chunk.
+ */
 struct c_orm_iterator {
+  /** @brief Database connection instance. */
   c_orm_db_t *db;
+  /** @brief Table metadata. */
   const c_orm_table_meta_t *meta;
+  /** @brief Active prepared query. */
   c_orm_query_t *query;
+  /** @brief Number of rows fetched per batch chunk. */
   size_t chunk_size;
 };
 
 /**
- * @brief Function c_orm_insert_batch_ext.
+ * @brief Insert an array of records into the database in bulk with advanced
+ * options.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_array Pointer to an array of structs containing data to insert.
+ * @param num_items The total number of structs in the array.
+ * @param chunk_size The number of structs to process per SQL query. 0 to
+ * auto-calculate.
+ * @param conflict_policy Conflict resolution policy (e.g. UPSERT).
+ * @param progress_cb Callback for progress reporting. Can be NULL.
+ * @param progress_ctx Context passed to progress callback.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, const void *in_array,
@@ -2837,7 +2988,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
 }
 
 /**
- * @brief Function c_orm_insert_batch.
+ * @brief Insert an array of records into the database in bulk.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_array Pointer to an array of structs containing data to insert.
+ * @param num_items The total number of structs in the array.
+ * @param chunk_size The number of structs to process per SQL query. 0 to
+ * auto-calculate.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_insert_batch(c_orm_db_t *db,
                                               const c_orm_table_meta_t *meta,
@@ -2859,7 +3018,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_find_batch_init.
+ * @brief Initialize an iterator to fetch a large number of rows in batches.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param sql The custom query or NULL to find all.
+ * @param chunk_size The maximum number of structs to fetch per next() call.
+ * @param out_iter Pointer to receive the initialized iterator.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_find_batch_init(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *sql,
@@ -2910,7 +3076,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_batch_init(
 }
 
 /**
- * @brief Function c_orm_iterator_next.
+ * @brief Fetch the next chunk of rows into the provided array.
+ *
+ * @param iter The active iterator.
+ * @param out_array Pointer to a pre-allocated array of structs capable of
+ * holding chunk_size items.
+ * @param out_num_fetched Pointer to receive the number of rows actually fetched
+ * (0 if EOF).
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_iterator_next(struct c_orm_iterator *iter,
                                                void *out_array,
@@ -2970,7 +3143,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_iterator_next(struct c_orm_iterator *iter,
 }
 
 /**
- * @brief Function c_orm_iterator_close.
+ * @brief Close and free the iterator.
+ *
+ * @param iter The iterator to free.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_iterator_close(struct c_orm_iterator *iter) {
   c_orm_error_t rc = C_ORM_OK;
@@ -2998,7 +3174,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_iterator_close(struct c_orm_iterator *iter) {
 }
 
 /**
- * @brief Function c_orm_insert.
+ * @brief Insert a new record into the database.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_struct Pointer to the struct containing data to insert.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
                                         const c_orm_table_meta_t *meta,
@@ -3215,7 +3396,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_update.
+ * @brief Update an existing record in the database by its primary key.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_struct Pointer to the struct containing the updated data (and PK).
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
                                         const c_orm_table_meta_t *meta,
@@ -3396,7 +3582,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_save.
+ * @brief Save a record to the database via insert or update depending on PK.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_struct Pointer to record structure.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_save(c_orm_db_t *db,
                                       const c_orm_table_meta_t *meta,
@@ -3451,7 +3642,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_save(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_delete_batch.
+ * @brief Delete records matching the PKs in the given array in bulk.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_array Pointer to an array of structs containing the PKs to delete.
+ * @param num_items The total number of structs in the array.
+ * @param chunk_size The number of structs to process per SQL query. 0 to
+ * auto-calculate.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
                                               const c_orm_table_meta_t *meta,
@@ -3675,7 +3874,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_update_batch.
+ * @brief Update an array of records in the database in bulk.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_array Pointer to an array of structs containing data to update.
+ * @param num_items The total number of structs in the array.
+ * @param chunk_size The number of structs to process per SQL query. 0 to
+ * auto-calculate.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
                                               const c_orm_table_meta_t *meta,
@@ -4004,7 +4211,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_delete.
+ * @brief Delete a record from the database using a struct instance.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_struct Pointer to the struct containing data to delete.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
                                         const c_orm_table_meta_t *meta,
@@ -4241,7 +4453,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_delete_by_id_int32.
+ * @brief Delete a record from the database by its primary key.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param id_val Primary key value to delete.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_delete_by_id_int32(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, int32_t id_val) {
@@ -4301,7 +4518,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_by_id_int32(
 }
 
 /**
- * @brief Function c_orm_execute_raw.
+ * @brief Execute a raw query string that returns no results.
+ *
+ * @param db Database connection.
+ * @param sql Raw SQL statement string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_execute_raw(c_orm_db_t *db, const char *sql) {
   c_orm_error_t rc;
@@ -4340,7 +4561,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_execute_raw(c_orm_db_t *db, const char *sql) {
 }
 
 /**
- * @brief Function c_orm_transaction_begin.
+ * @brief Begin a database transaction.
+ *
+ * @param db Database connection.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_transaction_begin(c_orm_db_t *db) {
   c_orm_error_t rc;
@@ -4357,7 +4581,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_transaction_begin(c_orm_db_t *db) {
 }
 
 /**
- * @brief Function c_orm_transaction_commit.
+ * @brief Commit an active database transaction.
+ *
+ * @param db Database connection.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_transaction_commit(c_orm_db_t *db) {
   c_orm_error_t rc;
@@ -4374,7 +4601,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_transaction_commit(c_orm_db_t *db) {
 }
 
 /**
- * @brief Function c_orm_transaction_rollback.
+ * @brief Rollback an active database transaction.
+ *
+ * @param db Database connection.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_transaction_rollback(c_orm_db_t *db) {
   c_orm_error_t rc;
@@ -4391,7 +4621,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_transaction_rollback(c_orm_db_t *db) {
 }
 
 /**
- * @brief Function c_orm_savepoint_create.
+ * @brief Create a savepoint within an active transaction.
+ *
+ * @param db Database connection.
+ * @param savepoint_name Name of the savepoint.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_savepoint_create(c_orm_db_t *db,
                                                   const char *savepoint_name) {
@@ -4417,7 +4651,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_savepoint_create(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_savepoint_rollback.
+ * @brief Rollback to a specific savepoint.
+ *
+ * @param db Database connection.
+ * @param savepoint_name Name of the savepoint.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_savepoint_rollback(c_orm_db_t *db, const char *savepoint_name) {
@@ -4443,7 +4681,11 @@ c_orm_savepoint_rollback(c_orm_db_t *db, const char *savepoint_name) {
 }
 
 /**
- * @brief Function c_orm_savepoint_release.
+ * @brief Release a savepoint.
+ *
+ * @param db Database connection.
+ * @param savepoint_name Name of the savepoint.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_savepoint_release(c_orm_db_t *db,
                                                    const char *savepoint_name) {
@@ -4469,7 +4711,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_savepoint_release(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_find_by_id_string.
+ * @brief Find a single record by its string primary key.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param id_val Primary key value to search for.
+ * @param out_struct Pointer to an already allocated struct to hydrate.
+ * @return C_ORM_OK on success, C_ORM_ERROR_NOT_FOUND if no row.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_by_id_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
@@ -4540,7 +4788,14 @@ c_orm_find_by_id_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function c_orm_find_for_update_by_id_int32.
+ * @brief Implement pessimistic locking APIs (SELECT ... FOR UPDATE) for integer
+ * PK.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param id_val Primary key value.
+ * @param out_struct Output struct.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_find_for_update_by_id_int32(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, int32_t id_val,
@@ -4610,7 +4865,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_for_update_by_id_int32(
 }
 
 /**
- * @brief Function c_orm_find_for_update_by_id_string.
+ * @brief Find a single row by string primary key and apply row-level locking.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param id_val Primary key value.
+ * @param out_struct Output struct.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_find_for_update_by_id_string(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *id_val,
@@ -4680,7 +4941,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_for_update_by_id_string(
 }
 
 /**
- * @brief Function c_orm_delete_by_id_string.
+ * @brief Delete a record from the database by its string primary key.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param id_val Primary key string to delete.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_delete_by_id_string(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *id_val) {
@@ -4730,7 +4996,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_by_id_string(
 }
 
 /**
- * @brief Function c_orm_find_one_by_string.
+ * @brief Find a single record by a specific string column.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param column_name The column to filter by.
+ * @param value The value to search for.
+ * @param out_struct Pointer to an already allocated struct to hydrate.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_find_one_by_string(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, const char *column_name,
@@ -4823,7 +5096,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_one_by_string(
 }
 
 /**
- * @brief Function c_orm_dfs_validate_table.
+ * @brief DFS cycle detection for relation validation.
+ * @param tables Array of table metadata pointers.
+ * @param num_tables Total number of tables in the array.
+ * @param current Current table metadata being inspected.
+ * @param visited Array tracking visited tables.
+ * @return C_ORM_OK if valid, or error code if circular dependency found.
  */
 static c_orm_error_t c_orm_dfs_validate_table(const c_orm_table_meta_t **tables,
                                               size_t num_tables,
@@ -4894,7 +5172,12 @@ static c_orm_error_t c_orm_dfs_validate_table(const c_orm_table_meta_t **tables,
 }
 
 /**
- * @brief Function c_orm_validate.
+ * @brief Implement runtime validation wrapping cdd-c dynamic validation rules
+ * (Steps 154-156).
+ *
+ * @param meta Table metadata.
+ * @param obj Struct instance to validate.
+ * @return C_ORM_OK on success, C_ORM_ERROR_VALIDATION if validation fails.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_validate(const c_orm_table_meta_t *meta,
                                           const void *obj) {
@@ -4954,7 +5237,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_validate(const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function c_orm_validate_relations.
+ * @brief Implement validation logic for recursive relationship definitions
+ * across multiple tables.
+ *
+ * @param tables Array of table metadata pointers.
+ * @param num_tables Number of tables in the array.
+ * @return C_ORM_OK on success, C_ORM_ERROR_RECURSION if a cyclic dependency is
+ * detected.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_validate_relations(const c_orm_table_meta_t **tables, size_t num_tables) {
@@ -5010,7 +5299,13 @@ c_orm_validate_relations(const c_orm_table_meta_t **tables, size_t num_tables) {
 #endif
 
 /**
- * @brief Function c_orm_build_relation_meta.
+ * @brief Implement c_orm integration layer to parse FOREIGN KEY constraints
+ * into c_orm_relation_meta_t via cdd-c AST.
+ *
+ * @param sql_table Parsed table AST from cdd-c.
+ * @param out_relations Pointer to array of relation metadata to populate.
+ * @param out_num_relations Number of relations found and populated.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_build_relation_meta(
     const struct sql_table_t *sql_table, c_orm_relation_meta_t **out_relations,
@@ -5123,7 +5418,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_build_relation_meta(
 }
 
 /**
- * @brief Function c_orm_hydrate_abstract_all.
+ * @brief Implement fallback routing to cdd_c_abstract_struct_t if specific
+ * struct is absent
+ *
+ * @param db Database connection.
+ * @param query Compiled query object.
+ * @param out_array Pointer to cdd_c_abstract_struct_array_t to populate.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_hydrate_abstract_all(c_orm_db_t *db, c_orm_query_t *query,
@@ -5142,7 +5443,13 @@ c_orm_hydrate_abstract_all(c_orm_db_t *db, c_orm_query_t *query,
 }
 
 /**
- * @brief Function c_orm_select_raw.
+ * @brief Map custom SQL to an existing specific struct array.
+ *
+ * @param db Database connection.
+ * @param sql Raw SQL query.
+ * @param meta Table metadata.
+ * @param out_array Pointer to generic struct array block.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_select_raw(c_orm_db_t *db, const char *sql,
                                             const c_orm_table_meta_t *meta,
@@ -5162,7 +5469,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_raw(c_orm_db_t *db, const char *sql,
 }
 
 /**
- * @brief Function c_orm_find_all_abstract.
+ * @brief Execute query and return abstract dynamic rows.
+ *
+ * @param db Database connection.
+ * @param sql Raw SQL query.
+ * @param out_array Pointer to cdd_c_abstract_struct_array_t to populate.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_all_abstract(c_orm_db_t *db, const char *sql,
@@ -5181,7 +5493,9 @@ c_orm_find_all_abstract(c_orm_db_t *db, const char *sql,
 }
 
 /**
- * @brief Function c_orm_abstract_free.
+ * @brief Free an abstract array generated by find_all_abstract.
+ *
+ * @param arr The array.
  */
 C_ORM_EXPORT void c_orm_abstract_free(struct CddCAbstractStructArray *arr) {
   LOG_DEBUG("c_orm_abstract_free: entry");
@@ -5190,7 +5504,17 @@ C_ORM_EXPORT void c_orm_abstract_free(struct CddCAbstractStructArray *arr) {
 }
 
 /**
- * @brief Function c_orm_hydrate_routed.
+ * @brief Hydrate a row, leveraging the cdd-c hydrate_router.
+ *
+ * Checks the db's hydrate_router for a specific compiled struct mapping
+ * based on the query, and routes to it. Falls back to abstract struct
+ * if no specific mapping is available.
+ *
+ * @param db Database connection.
+ * @param query Compiled query object.
+ * @param query_hash The query's hash for routing.
+ * @param out_struct Pointer to allocated output struct or abstract struct.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_hydrate_routed(c_orm_db_t *db,
                                                 c_orm_query_t *query,
@@ -5211,7 +5535,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_routed(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_abstract_to_json.
+ * @brief Implement mapping from abstract struct to JSON for dynamic use cases.
+ *
+ * @param astruct The abstract struct.
+ * @param out_json Pointer to receive the allocated JSON string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_abstract_to_json(
     const struct CddCAbstractStruct *astruct, char **out_json) {
@@ -5228,7 +5556,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_abstract_to_json(
 }
 
 /**
- * @brief Function c_orm_get_field_value.
+ * @brief Implement dynamic struct field accessor wrapping cdd-c reflection
+ * (c_orm_get_field_value)
+ *
+ * @param meta Table metadata.
+ * @param obj Struct instance.
+ * @param field_name Name of the field.
+ * @param out_variant The parsed value from the struct.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_get_field_value(const c_orm_table_meta_t *meta, const void *obj,
@@ -5248,7 +5583,14 @@ c_orm_get_field_value(const c_orm_table_meta_t *meta, const void *obj,
 }
 
 /**
- * @brief Function c_orm_set_field_value.
+ * @brief Implement dynamic struct field mutator wrapping cdd-c reflection
+ * (c_orm_set_field_value)
+ *
+ * @param meta Table metadata.
+ * @param obj Struct instance.
+ * @param field_name Name of the field.
+ * @param in_variant The parsed value to apply to the struct.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_set_field_value(
     const c_orm_table_meta_t *meta, void *obj, const char *field_name,
@@ -5268,7 +5610,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_set_field_value(
 }
 
 /**
- * @brief Function c_orm_abstract_from_json.
+ * @brief Implement mapping from JSON back to abstract struct for dynamic use
+ * cases.
+ *
+ * @param json The JSON string.
+ * @param out_astruct Pointer to the initialized abstract struct.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_abstract_from_json(
     const char *json, struct CddCAbstractStruct *out_astruct) {
@@ -5285,7 +5632,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_abstract_from_json(
 }
 
 /**
- * @brief Function c_orm_to_json.
+ * @brief Implement c_orm_to_json serializer handling specific structs (Step
+ * 147).
+ *
+ * @param meta Table metadata.
+ * @param obj Struct instance.
+ * @param out_json Pointer to receive the allocated JSON string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_to_json(const c_orm_table_meta_t *meta,
                                          const void *obj, char **out_json) {
@@ -5303,7 +5656,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_to_json(const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function c_orm_from_json.
+ * @brief Implement c_orm_from_json deserializer for specific structs (Step
+ * 148).
+ *
+ * @param meta Table metadata.
+ * @param json The JSON string.
+ * @param out_obj Pointer to the uninitialized/allocated target struct.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_from_json(const c_orm_table_meta_t *meta,
                                            const char *json, void *out_obj) {
@@ -5321,7 +5680,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_from_json(const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function c_orm_to_dict.
+ * @brief Implement c_orm_to_dict (hashmap) representation (Step 152).
+ *
+ * @param meta Table metadata.
+ * @param obj Struct instance.
+ * @param out_dict Pointer to the target abstract struct dictionary.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_to_dict(const c_orm_table_meta_t *meta,
                                          const void *obj,
@@ -5340,7 +5704,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_to_dict(const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function c_orm_from_dict.
+ * @brief Implement c_orm_from_dict (Step 153).
+ *
+ * @param meta Table metadata.
+ * @param in_dict The source abstract struct dictionary.
+ * @param out_obj Pointer to the target struct.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_from_dict(const c_orm_table_meta_t *meta,
@@ -5359,7 +5728,12 @@ c_orm_from_dict(const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function c_orm_deep_free.
+ * @brief Implement deep free logic utilizing cdd-c nested struct traversals.
+ *
+ * @param meta The reflection metadata representing the struct type.
+ * @param obj The structure to recursively free. Does not free `obj` itself,
+ * only its allocations.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_deep_free(const struct cdd_c_meta *meta,
                                            void *obj) {
@@ -5385,7 +5759,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_deep_free(const struct cdd_c_meta *meta,
 }
 
 /**
- * @brief Function c_orm_deep_copy.
+ * @brief Implement deep copy logic utilizing cdd-c nested struct traversals.
+ *
+ * @param meta The reflection metadata representing the struct type.
+ * @param dest The destination structure (must be pre-allocated).
+ * @param src The source structure to copy from.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_deep_copy(const struct cdd_c_meta *meta,
                                            void *dest, const void *src) {
@@ -5412,7 +5791,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_deep_copy(const struct cdd_c_meta *meta,
 #define C_ORM_IDENTITY_MAP_DEFAULT_BUCKETS 64
 
 /**
- * @brief Function c_orm_identity_map_init.
+ * @brief Initialize an identity map.
+ * @param map Pointer to the identity map.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_identity_map_init(c_orm_identity_map_t *map) {
   c_orm_error_t rc;
@@ -5433,7 +5814,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_init(c_orm_identity_map_t *map) {
 }
 
 /**
- * @brief Function c_orm_identity_map_free.
+ * @brief Free an identity map.
+ * @param map Pointer to the identity map.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_identity_map_free(c_orm_identity_map_t *map) {
   c_orm_error_t rc;
@@ -5479,7 +5862,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_free(c_orm_identity_map_t *map) {
 }
 
 /**
- * @brief Function get_or_create_bucket.
+ * @brief Get or create identity map bucket for a table.
+ * @param map Identity map pointer.
+ * @param table Table name string.
+ * @param out_bucket Pointer to store the bucket pointer.
+ * @return C_ORM_OK on success, or error code on failure.
  */
 static c_orm_error_t
 get_or_create_bucket(c_orm_identity_map_t *map, const c_orm_table_meta_t *table,
@@ -5528,7 +5915,13 @@ get_or_create_bucket(c_orm_identity_map_t *map, const c_orm_table_meta_t *table,
 }
 
 /**
- * @brief Function c_orm_identity_map_get_or_set_int.
+ * @brief Add or retrieve an object from the identity map by integer PK.
+ * @param map Pointer to the identity map.
+ * @param table Pointer to the table metadata.
+ * @param pk_int The integer primary key.
+ * @param object_ptr The object to store (if not found).
+ * @param out_object Pointer to receive the cached object.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_int(
     c_orm_identity_map_t *map, const c_orm_table_meta_t *table, int32_t pk_int,
@@ -5598,7 +5991,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_int(
 }
 
 /**
- * @brief Function c_orm_identity_map_get_or_set_str.
+ * @brief Add or retrieve an object from the identity map by string PK.
+ * @param map Pointer to the identity map.
+ * @param table Pointer to the table metadata.
+ * @param pk_str The string primary key.
+ * @param object_ptr The object to store (if not found).
+ * @param out_object Pointer to receive the cached object.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_str(
     c_orm_identity_map_t *map, const c_orm_table_meta_t *table,
@@ -5685,7 +6084,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_identity_map_get_or_set_str(
 }
 
 /**
- * @brief Function c_orm_resolve_n_plus_one.
+ * @brief Function to detect and resolve N+1 query scenarios during iteration
+ *        by aggregating foreign keys into a single bulk IN clause dynamically.
+ *
+ * @param db Database connection.
+ * @param array Pointer to the array to inspect for unhydrated relations.
+ * @param meta The table metadata containing relation offsets.
+ * @param target_relation The specific relation index to resolve via bulk IN
+ * query.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_resolve_n_plus_one(
     c_orm_db_t *db, void *array, const c_orm_table_meta_t *meta,
@@ -5719,7 +6126,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_resolve_n_plus_one(
 }
 
 /**
- * @brief Function c_orm_hydrate_cache_row.
+ * @brief Implement row caching in c_orm_identity_map_t during hydration
+ *
+ * @param db Database connection handling hydration.
+ * @param meta Table metadata for the row being cached.
+ * @param hydrated_row The raw generated struct pointer just hydrated.
+ * @param out_cached_row Returns the pointer to the unique instance to use
+ * (aliased).
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_hydrate_cache_row(c_orm_db_t *db, const c_orm_table_meta_t *meta,
@@ -5788,7 +6202,13 @@ c_orm_hydrate_cache_row(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function c_orm_load_relation.
+ * @brief Manually trigger lazy loading for a specific relation.
+ *
+ * @param db Database connection.
+ * @param obj The object containing the lazy load context.
+ * @param meta Metadata for the table containing the relation.
+ * @param target_relation Index of the relation to load.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_load_relation(c_orm_db_t *db, void *obj,
                                                const c_orm_table_meta_t *meta,
@@ -5804,7 +6224,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation(c_orm_db_t *db, void *obj,
 }
 
 /**
- * @brief Function c_orm_load_relation_ext.
+ * @brief Manually trigger paginated lazy loading for a specific relation.
+ *
+ * @param db Database connection.
+ * @param obj The object containing the lazy load context.
+ * @param meta Metadata for the table containing the relation.
+ * @param target_relation Index of the relation to load.
+ * @param limit Maximum rows to return (0 for unlimited).
+ * @param offset Number of rows to skip.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
     c_orm_db_t *db, void *obj, const c_orm_table_meta_t *meta,
@@ -6065,7 +6493,16 @@ empty */
 }
 
 /**
- * @brief Function c_orm_free_relations.
+ * @brief Recursively free dynamically allocated memory associated with loaded
+ * relationships.
+ *
+ * Handles cleaning up nested lazy/eager loaded elements ensuring no memory
+ * leaks occur. Does not free the root `obj` pointer itself, nor does it free
+ * basic string columns.
+ *
+ * @param meta Metadata for the table containing the relations.
+ * @param obj The pointer to the structure.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
                                                 void *obj) {
@@ -6157,7 +6594,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function c_orm_config_sqlite_pragma.
+ * @brief Add support for SQLite specific PRAGMAs via ORM config (Step 200).
+ *
+ * Executed automatically during connection initialization if provided.
+ *
+ * @param db Database connection.
+ * @param pragma_string Raw PRAGMA statement to execute (e.g. `PRAGMA
+ * foreign_keys = ON;`).
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_config_sqlite_pragma(c_orm_db_t *db, const char *pragma_string) {
@@ -6181,7 +6625,12 @@ c_orm_config_sqlite_pragma(c_orm_db_t *db, const char *pragma_string) {
 }
 
 /**
- * @brief Function c_orm_config_postgres_set.
+ * @brief Add support for Postgres specific SET statements via ORM config (Step
+ * 201).
+ *
+ * @param db Database connection.
+ * @param set_string Raw SET statement (e.g. `SET timezone = 'UTC';`).
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_config_postgres_set(c_orm_db_t *db,
                                                      const char *set_string) {
@@ -6205,7 +6654,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_config_postgres_set(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_config_mysql_session.
+ * @brief Add support for MySQL specific session variables via ORM config (Step
+ * 202).
+ *
+ * @param db Database connection.
+ * @param session_var_string Raw session string (e.g. `SET SESSION sql_mode =
+ * 'STRICT_ALL_TABLES';`).
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_config_mysql_session(c_orm_db_t *db, const char *session_var_string) {
@@ -6228,13 +6683,25 @@ c_orm_config_mysql_session(c_orm_db_t *db, const char *session_var_string) {
   }
 }
 
+/**
+ * @brief Horizontal sharding manager.
+ * @var num_shards Total number of database shards configured.
+ * @var nodes Array of database connections for each shard.
+ */
 struct c_orm_shard_manager {
+  /** @brief Total number of database shards configured. */
   size_t num_shards;
+  /** @brief Array of database connections for each shard. */
   c_orm_db_t **nodes;
 };
 
 /**
- * @brief Function c_orm_shard_manager_init.
+ * @brief Initialize table partitioning helpers and sharding support (Steps 203,
+ * 204).
+ *
+ * @param num_shards Total number of database shards configured.
+ * @param out_manager Pointer to receive initialized manager instance.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_shard_manager_init(
     size_t num_shards, c_orm_shard_manager_t **out_manager) {
@@ -6287,7 +6754,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_shard_manager_init(
 }
 
 /**
- * @brief Function c_orm_shard_manager_add_node.
+ * @brief Bind a database connection (node) to a shard index.
+ *
+ * @param manager The shard manager.
+ * @param index Shard index (0 to num_shards - 1).
+ * @param node Live connection to the specific database instance.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_shard_manager_add_node(
     c_orm_shard_manager_t *manager, size_t index, c_orm_db_t *node) {
@@ -6308,7 +6780,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_shard_manager_add_node(
 }
 
 /**
- * @brief Function c_orm_shard_route_hash.
+ * @brief Implement hash-based shard routing algorithm (Step 205).
+ *
+ * @param manager The shard manager.
+ * @param routing_key String key to hash across available shards.
+ * @param out_node Pointer to receive the specific db connection to execute
+ * against.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_shard_route_hash(c_orm_shard_manager_t *manager, const char *routing_key,
@@ -6348,7 +6826,9 @@ c_orm_shard_route_hash(c_orm_shard_manager_t *manager, const char *routing_key,
 }
 
 /**
- * @brief Function c_orm_shard_manager_free.
+ * @brief Free resources linked to the shard manager.
+ *
+ * @param manager The shard manager.
  */
 C_ORM_EXPORT void c_orm_shard_manager_free(c_orm_shard_manager_t *manager) {
   LOG_DEBUG("c_orm_shard_manager_free: entry");
@@ -6359,7 +6839,14 @@ C_ORM_EXPORT void c_orm_shard_manager_free(c_orm_shard_manager_t *manager) {
 }
 
 /**
- * @brief Function c_orm_scatter_gather_generic.
+ * @brief Execute a scatter-gather find_all query across all shards in parallel.
+ *
+ * @param manager The shard manager.
+ * @param meta The table metadata to query.
+ * @param out_array Pointer to a void* to receive the dynamically allocated
+ * combined results array.
+ * @param out_count Pointer to receive the total number of combined results.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_scatter_gather_generic(
     c_orm_shard_manager_t *manager, const c_orm_table_meta_t *meta,
@@ -6456,7 +6943,19 @@ C_ORM_EXPORT c_orm_error_t c_orm_scatter_gather_generic(
 }
 
 /**
- * @brief Function c_orm_escape_string.
+ * @brief Escapes a string to prevent SQL injection vulnerabilities (Steps 241,
+ * 242).
+ *
+ * Designed to sanitize input buffers bound dynamically into abstract struct
+ * mapping pipelines when parameterized bindings are unavailable (e.g., dynamic
+ * IN clause array construction).
+ *
+ * @param db Database connection handling dialect-specific escaping rules.
+ * @param input Raw string to sanitize.
+ * @param output Pre-allocated buffer to store escaped string.
+ * @param output_size Size of the pre-allocated output buffer.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY if output buffer is too
+ * small.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_escape_string(c_orm_db_t *db,
                                                const char *input, char *output,
@@ -6509,7 +7008,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_escape_string(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_register_timestamp_hooks.
+ * @brief Registers default hooks on the given table metadata to automatically
+ * set 'updated_at' to the current timestamp on update, and 'created_at' on
+ * insert.
+ *
+ * @param meta Table metadata to modify (must be mutable before first use).
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_register_timestamp_hooks(c_orm_table_meta_t *meta) {
@@ -6531,7 +7035,12 @@ c_orm_register_timestamp_hooks(c_orm_table_meta_t *meta) {
 }
 
 /**
- * @brief Function c_orm_register_soft_delete_hook.
+ * @brief Registers a soft-delete hook on the given table metadata.
+ * Instead of deleting the row, it will update 'deleted_at' to the current
+ * timestamp.
+ *
+ * @param meta Table metadata to modify.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_register_soft_delete_hook(c_orm_table_meta_t *meta) {
@@ -6553,7 +7062,13 @@ c_orm_register_soft_delete_hook(c_orm_table_meta_t *meta) {
 }
 
 /**
- * @brief Function c_orm_update_partial.
+ * @brief Partially update an object in the database.
+ * @param db Database handle.
+ * @param meta Table metadata.
+ * @param obj Object containing updated values and ID.
+ * @param fields Array of column names to update.
+ * @param num_fields Number of columns in fields array.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
                                                 const c_orm_table_meta_t *meta,
@@ -6735,7 +7250,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_exists_int32.
+ * @brief Check if an object exists by INT32 ID.
+ * @param db Database handle.
+ * @param meta Table metadata.
+ * @param id The ID.
+ * @param out_exists Output boolean (1 = true, 0 = false).
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_exists_int32(c_orm_db_t *db,
                                               const c_orm_table_meta_t *meta,
@@ -6789,7 +7309,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_exists_int32(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_exists_string.
+ * @brief Check if an object exists by STRING ID.
+ * @param db Database handle.
+ * @param meta Table metadata.
+ * @param id The ID.
+ * @param out_exists Output boolean.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_exists_string(c_orm_db_t *db,
                                                const c_orm_table_meta_t *meta,
@@ -6858,7 +7383,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_exists_string(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_find_all_paginated.
+ * @brief Find all objects, paginated.
+ * @param db Database handle.
+ * @param meta Table metadata.
+ * @param limit Max objects to return.
+ * @param offset Number of objects to skip.
+ * @param out_array Output array.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_all_paginated(c_orm_db_t *db, const c_orm_table_meta_t *meta,
@@ -6892,7 +7423,17 @@ c_orm_find_all_paginated(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 }
 
 /**
- * @brief Function c_orm_lazy_load_paginated.
+ * @brief Performs a paginated lazy load for a specific relationship.
+ *
+ * Appends LIMIT and OFFSET specifically useful for HasMany and ManyToMany.
+ *
+ * @param db Database connection.
+ * @param parent_meta Metadata for the parent table/struct.
+ * @param parent_obj Pointer to the parent object containing the relationship.
+ * @param relation_name The name of the relationship field to load.
+ * @param limit Maximum number of records to return.
+ * @param offset Number of records to skip.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_lazy_load_paginated(
     c_orm_db_t *db, const c_orm_table_meta_t *parent_meta, void *parent_obj,
@@ -6922,7 +7463,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_lazy_load_paginated(
 }
 
 /**
- * @brief Function c_orm_lazy_load.
+ * @brief Performs a lazy load for a specific relationship on a given object.
+ *
+ * @param db Database connection.
+ * @param parent_meta Metadata for the parent table/struct.
+ * @param parent_obj Pointer to the parent object containing the relationship
+ * proxy.
+ * @param relation_name The name of the relationship field to load.
+ * @return C_ORM_OK on success, C_ORM_ERROR_NOT_FOUND if the target doesn't
+ * exist.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_lazy_load(c_orm_db_t *db, const c_orm_table_meta_t *parent_meta,
@@ -6942,7 +7491,16 @@ c_orm_lazy_load(c_orm_db_t *db, const c_orm_table_meta_t *parent_meta,
 }
 
 /**
- * @brief Function c_orm_attach.
+ * @brief Attach a child object to a parent object's relationship.
+ *
+ * Supports One-to-Many and Many-to-Many.
+ *
+ * @param db Database connection.
+ * @param parent_meta Metadata for the parent table/struct.
+ * @param parent_obj Pointer to the parent object.
+ * @param relation_name The name of the relationship field.
+ * @param child_obj Pointer to the child object.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_attach(c_orm_db_t *db,
                                         const c_orm_table_meta_t *parent_meta,
@@ -7060,7 +7618,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_attach(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_detach.
+ * @brief Detach a child object from a parent object's relationship.
+ *
+ * Supports One-to-Many and Many-to-Many.
+ *
+ * @param db Database connection.
+ * @param parent_meta Metadata for the parent table/struct.
+ * @param parent_obj Pointer to the parent object.
+ * @param relation_name The name of the relationship field.
+ * @param child_obj Pointer to the child object.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_detach(c_orm_db_t *db,
                                         const c_orm_table_meta_t *parent_meta,
@@ -7171,7 +7738,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_detach(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_sync.
+ * @brief Sync a parent object's relationship with an array of children.
+ *
+ * Replaces the entire set of related children for Many-to-Many and One-to-Many.
+ *
+ * @param db Database connection.
+ * @param parent_meta Metadata for the parent table/struct.
+ * @param parent_obj Pointer to the parent object.
+ * @param relation_name The name of the relationship field.
+ * @param children_array Pointer to the contiguous array of children structs.
+ * @param num_children The number of children in the array.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_sync(
     c_orm_db_t *db, const c_orm_table_meta_t *parent_meta, void *parent_obj,
@@ -7360,7 +7937,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_sync(
 }
 
 /**
- * @brief Function c_orm_delete_all.
+ * @brief Delete all objects from a table.
+ * @param db Database handle.
+ * @param meta Table metadata.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_delete_all(c_orm_db_t *db,
                                             const c_orm_table_meta_t *meta) {
@@ -7385,7 +7965,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_all(c_orm_db_t *db,
   }
 }
 /**
- * @brief Function c_orm_insert_generic.
+ * @brief Generic dynamically constructed insert.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param ptr Pointer to data struct to insert.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_insert_generic(c_orm_db_t *db,
                                                 const c_orm_table_meta_t *meta,
@@ -7513,7 +8098,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_generic(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_get_generic.
+ * @brief Generic dynamically constructed get by int32 PK.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param pk_val Primary key integer value.
+ * @param out_struct Output struct pointer receiving hydrated data.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_get_generic(c_orm_db_t *db,
                                              const c_orm_table_meta_t *meta,
@@ -7637,7 +8228,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_get_generic(c_orm_db_t *db,
 }
 
 /**
- * @brief Function c_orm_find_all_generic.
+ * @brief Generic dynamically constructed find_all with array allocation.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param out_array Pointer receiving allocated array of hydrated structs.
+ * @param out_count Pointer receiving count of returned items.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
@@ -7767,7 +8364,13 @@ c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
   }
 }
 /**
- * @brief Function c_orm_get_generic_string.
+ * @brief Generic dynamically constructed get by string PK.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param pk_val String primary key value.
+ * @param out_struct Output struct pointer receiving hydrated data.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
@@ -7918,20 +8521,40 @@ void c_orm_wasm_init_fs(void (*callback)(int)) {
 /* WebAssembly/Emscripten requires identical function signatures for indirect
  * calls. By explicitly marking these EMSCRIPTEN_KEEPALIVE, we ensure they are
  * not DCE'd and their signatures are preserved. */
-C_ORM_EXPORT void c_orm_system_free(void *ptr) {
+C_ORM_EXPORT /**
+              * @brief Free system memory allocated by
+              * c_orm_system_malloc/calloc/realloc.
+              * @param ptr Pointer to allocated memory block to free.
+              */
+    void
+    c_orm_system_free(void *ptr) {
   if (ptr)
     C_ORM_FREE(ptr);
 }
 
-C_ORM_EXPORT c_orm_error_t c_orm_system_malloc(size_t size, void **out_ptr) {
+C_ORM_EXPORT /**
+              * @brief Allocate system memory block.
+              * @param size Number of bytes to allocate.
+              * @param out_ptr Pointer to receive allocated memory pointer.
+              * @return C_ORM_OK on success, or error code on failure.
+              */
+    c_orm_error_t
+    c_orm_system_malloc(size_t size, void **out_ptr) {
   if (!out_ptr)
     return C_ORM_ERROR_MEMORY;
   *out_ptr = C_ORM_MALLOC(size);
   return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
-C_ORM_EXPORT c_orm_error_t c_orm_system_calloc(size_t nmemb, size_t size,
-                                               void **out_ptr) {
+C_ORM_EXPORT /**
+              * @brief Allocate and zero-initialize system memory.
+              * @param nmemb Number of elements.
+              * @param size Size of each element in bytes.
+              * @param out_ptr Pointer to receive allocated memory pointer.
+              * @return C_ORM_OK on success, or error code on failure.
+              */
+    c_orm_error_t
+    c_orm_system_calloc(size_t nmemb, size_t size, void **out_ptr) {
   if (!out_ptr)
     return C_ORM_ERROR_MEMORY;
   *out_ptr = C_ORM_MALLOC(nmemb * size);
@@ -7940,8 +8563,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_system_calloc(size_t nmemb, size_t size,
   return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
-C_ORM_EXPORT c_orm_error_t c_orm_system_realloc(void *ptr, size_t size,
-                                                void **out_ptr) {
+C_ORM_EXPORT /**
+              * @brief Reallocate system memory block.
+              * @param ptr Existing memory pointer or NULL.
+              * @param size New size in bytes.
+              * @param out_ptr Pointer to receive reallocated memory pointer.
+              * @return C_ORM_OK on success, or error code on failure.
+              */
+    c_orm_error_t
+    c_orm_system_realloc(void *ptr, size_t size, void **out_ptr) {
   if (!out_ptr)
     return C_ORM_ERROR_MEMORY;
   *out_ptr = C_ORM_REALLOC(ptr, size);

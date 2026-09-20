@@ -10,25 +10,34 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/* clang-format off */
 #include "test_api_helpers.h"
+/* clang-format on */
 
 /** @brief Object representation with string primary key. */
 struct StringPkObj {
+  /** @brief Primary key string identifier. */
   char *id;
+  /** @brief Name field value. */
   char *name;
 };
 
 /** @brief Object representation with int64 primary key. */
 struct Int64PkObj {
+  /** @brief Primary key 64-bit integer identifier. */
   int64_t id;
+  /** @brief Name field value. */
   char *name;
 };
 
 /** @brief Model object representing a record with multiple columns for batch
  * updates. */
 struct MultiColObj {
+  /** @brief Primary key integer identifier. */
   int32_t id;
+  /** @brief Name field value. */
   char *name;
+  /** @brief Score integer value. */
   int32_t score;
 };
 
@@ -393,15 +402,17 @@ static int g_iter_hydrate_fail = 0;
 static c_orm_error_t mock_batch_prepare(c_orm_db_t *db, const char *sql,
                                         c_orm_query_t **q) {
   (void)db;
-  if (g_batch_fail_vtable == 0 && strcmp(sql, "BEGIN") == 0)
+  if (g_batch_fail_vtable == 0)
     return C_ORM_ERROR_UNKNOWN;
-  if (g_batch_fail_vtable == 4 && strcmp(sql, "COMMIT") == 0)
-    return C_ORM_ERROR_UNKNOWN;
-  if (g_batch_fail_vtable == 1 && strncmp(sql, "BEGIN", 5) != 0 &&
-      strncmp(sql, "COMMIT", 6) != 0)
-    return C_ORM_ERROR_UNKNOWN;
-  if (q)
-    *q = (c_orm_query_t *)1;
+  if (g_batch_fail_vtable == 4) {
+    if (strcmp(sql, "COMMIT") == 0)
+      return C_ORM_ERROR_UNKNOWN;
+  }
+  if (g_batch_fail_vtable == 1) {
+    if (strcmp(sql, "BEGIN") != 0)
+      return C_ORM_ERROR_UNKNOWN;
+  }
+  *q = (c_orm_query_t *)1;
   return C_ORM_OK;
 }
 
@@ -432,8 +443,7 @@ static c_orm_error_t mock_batch_step(c_orm_query_t *q, int *has_row) {
   (void)q;
   if (g_batch_fail_vtable == 3)
     return C_ORM_ERROR_UNKNOWN;
-  if (has_row)
-    *has_row = 1;
+  *has_row = 1;
   return C_ORM_OK;
 }
 
@@ -467,8 +477,7 @@ static c_orm_error_t mock_batch_get_int32(c_orm_query_t *q, int i,
   if (g_iter_hydrate_fail == 2) {
     return C_ORM_ERROR_TYPE_MISMATCH;
   }
-  if (out)
-    *out = 123;
+  *out = 123;
   return C_ORM_OK;
 }
 

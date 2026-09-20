@@ -16,7 +16,30 @@ extern "C" {
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
 /**
@@ -279,10 +302,8 @@ TEST test_c_to_sql_errors(void) {
   ASSERT(rc != C_ORM_OK);
   rc = write_struct_to_sql_create_table(fp, "t", NULL, C_TO_SQL_DIALECT_SQLITE);
   ASSERT(rc != C_ORM_OK);
-  if (fp != NULL) {
-    fclose(fp);
-    fp = NULL;
-  }
+  fclose(fp);
+  fp = NULL;
 
   /* cdd_c_meta_to_sql_create_table NULL variations */
   rc = cdd_c_meta_to_sql_create_table(NULL, C_TO_SQL_DIALECT_SQLITE, &str);
@@ -814,8 +835,10 @@ TEST test_c_to_sql_additional_branches(void) {
 
 /**
  * @brief Test suite runner for C to SQL generation.
+ * @param c_to_sql_suite Suite runner function name.
  */
 SUITE(c_to_sql_suite) {
+  static int recursed = 0;
   RUN_TEST(test_write_struct_to_sql_create_table);
   RUN_TEST(test_cdd_c_meta_to_sql_create_table);
   RUN_TEST(test_cdd_c_meta_diff_and_sql);
@@ -829,6 +852,13 @@ SUITE(c_to_sql_suite) {
   RUN_TEST(test_cdd_c_meta_topological_sort_cycle);
   RUN_TEST(test_c_to_sql_edge_cases);
   RUN_TEST(test_c_to_sql_additional_branches);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    c_to_sql_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

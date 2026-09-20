@@ -14,15 +14,24 @@
 #include "c_orm_log.h"
 /* clang-format on */
 
-/** @brief Select builder structure */
+/**
+ * @brief Select builder structure
+ * @var meta Table metadata pointer.
+ * @var sb Dynamic string builder instance.
+ * @var has_where Flag indicating whether WHERE clause was added.
+ * @var has_order Flag indicating whether ORDER BY clause was added.
+ */
 struct c_orm_select_builder {
+  /** @brief Table metadata pointer. */
   const c_orm_table_meta_t *meta;
+  /** @brief Dynamic string builder instance. */
   c_orm_string_builder_t *sb;
+  /** @brief Flag indicating whether WHERE clause was added. */
   int has_where;
+  /** @brief Flag indicating whether ORDER BY clause was added. */
   int has_order;
 };
 
-/** @brief Init select builder */
 C_ORM_EXPORT c_orm_error_t c_orm_select_builder_init(
     const c_orm_table_meta_t *meta, c_orm_select_builder_t **out_builder) {
   c_orm_error_t rc;
@@ -71,7 +80,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_builder_init(
   return rc;
 }
 
-/** @brief Free select builder */
 C_ORM_EXPORT void c_orm_select_builder_free(c_orm_select_builder_t *builder) {
   LOG_DEBUG("c_orm_select_builder_free: entry");
   if (builder) {
@@ -81,7 +89,6 @@ C_ORM_EXPORT void c_orm_select_builder_free(c_orm_select_builder_t *builder) {
   LOG_DEBUG("c_orm_select_builder_free: exit");
 }
 
-/** @brief Compile select builder */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_builder_compile(c_orm_select_builder_t *builder, char **out_sql) {
   c_orm_error_t rc;
@@ -112,7 +119,13 @@ c_orm_select_builder_compile(c_orm_select_builder_t *builder, char **out_sql) {
   return rc;
 }
 
-/** @brief Append where clause */
+/**
+ * @brief Appends a condition clause to the WHERE builder.
+ * @param builder Select builder instance.
+ * @param column Column name.
+ * @param op Comparison operator string.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t append_where(c_orm_select_builder_t *builder,
                                   const char *column, const char *op) {
   c_orm_error_t rc;
@@ -142,7 +155,6 @@ static c_orm_error_t append_where(c_orm_select_builder_t *builder,
   return C_ORM_OK;
 }
 
-/** @brief Select where eq */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_eq(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -154,7 +166,6 @@ c_orm_select_where_eq(c_orm_select_builder_t *builder, const char *column) {
   return rc;
 }
 
-/** @brief Select where neq */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_neq(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -166,7 +177,6 @@ c_orm_select_where_neq(c_orm_select_builder_t *builder, const char *column) {
   return rc;
 }
 
-/** @brief Select where lt */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_lt(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -178,7 +188,6 @@ c_orm_select_where_lt(c_orm_select_builder_t *builder, const char *column) {
   return rc;
 }
 
-/** @brief Select where gt */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_gt(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -190,7 +199,6 @@ c_orm_select_where_gt(c_orm_select_builder_t *builder, const char *column) {
   return rc;
 }
 
-/** @brief Select where lte */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_lte(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -202,7 +210,6 @@ c_orm_select_where_lte(c_orm_select_builder_t *builder, const char *column) {
   return rc;
 }
 
-/** @brief Select where gte */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_gte(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -214,7 +221,6 @@ c_orm_select_where_gte(c_orm_select_builder_t *builder, const char *column) {
   return rc;
 }
 
-/** @brief Select where gt current timestamp */
 C_ORM_EXPORT c_orm_error_t c_orm_select_where_gt_current_timestamp(
     c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -226,7 +232,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_gt_current_timestamp(
   return rc;
 }
 
-/** @brief Select where lt current timestamp */
 C_ORM_EXPORT c_orm_error_t c_orm_select_where_lt_current_timestamp(
     c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -238,7 +243,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_lt_current_timestamp(
   return rc;
 }
 
-/** @brief Select where like */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_like(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -250,7 +254,6 @@ c_orm_select_where_like(c_orm_select_builder_t *builder, const char *column) {
   return rc;
 }
 
-/** @brief Select where in */
 C_ORM_EXPORT c_orm_error_t c_orm_select_where_in(
     c_orm_select_builder_t *builder, const char *column, size_t count) {
   c_orm_error_t rc;
@@ -296,7 +299,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_in(
   return rc;
 }
 
-/** @brief Select where in array */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_in_array(c_orm_select_builder_t *builder, const char *column,
                             void *array, const c_orm_table_meta_t *meta) {
@@ -313,7 +315,6 @@ c_orm_select_where_in_array(c_orm_select_builder_t *builder, const char *column,
   return rc;
 }
 
-/** @brief Select where between */
 C_ORM_EXPORT c_orm_error_t c_orm_select_where_between(
     c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -325,7 +326,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_between(
   return rc;
 }
 
-/** @brief Select where ilike */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_ilike(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -337,7 +337,16 @@ c_orm_select_where_ilike(c_orm_select_builder_t *builder, const char *column) {
   return rc;
 }
 
-/** @brief Build exists query */
+/**
+ * @brief Recursively builds an EXISTS subquery for relationship traversal.
+ * @param sb String builder destination.
+ * @param meta Current table metadata.
+ * @param path Relationship path dot-notation.
+ * @param operator_str Comparison operator or value expression.
+ * @param parent_alias Alias name of parent table in query.
+ * @param depth Current recursion depth level.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t build_exists_query(c_orm_string_builder_t *sb,
                                         const c_orm_table_meta_t *meta,
                                         const char *path,
@@ -530,7 +539,6 @@ static c_orm_error_t build_exists_query(c_orm_string_builder_t *sb,
   }
 }
 
-/** @brief Select where relation */
 C_ORM_EXPORT c_orm_error_t c_orm_select_where_relation(
     c_orm_select_builder_t *builder, const char *relation_name,
     const char *operator_str) {
@@ -560,7 +568,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_relation(
   return rc;
 }
 
-/** @brief Select group by */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_group_by(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -582,7 +589,6 @@ c_orm_select_group_by(c_orm_select_builder_t *builder, const char *column) {
   return rc;
 }
 
-/** @brief Select having */
 C_ORM_EXPORT c_orm_error_t c_orm_select_having(c_orm_select_builder_t *builder,
                                                const char *clause) {
   c_orm_error_t rc;
@@ -604,7 +610,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_having(c_orm_select_builder_t *builder,
   return rc;
 }
 
-/** @brief Select aggregate */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_aggregate(c_orm_select_builder_t *builder, const char *func,
                        const char *column, const char *alias) {
@@ -694,7 +699,6 @@ c_orm_select_aggregate(c_orm_select_builder_t *builder, const char *func,
   return rc;
 }
 
-/** @brief Select order by */
 C_ORM_EXPORT c_orm_error_t c_orm_select_order_by(
     c_orm_select_builder_t *builder, const char *column, int is_desc) {
   c_orm_error_t rc;
@@ -732,7 +736,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_order_by(
   return rc;
 }
 
-/** @brief Select limit */
 C_ORM_EXPORT c_orm_error_t c_orm_select_limit(c_orm_select_builder_t *builder,
                                               size_t limit) {
   c_orm_error_t rc;
@@ -754,7 +757,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_limit(c_orm_select_builder_t *builder,
   return rc;
 }
 
-/** @brief Select offset */
 C_ORM_EXPORT c_orm_error_t c_orm_select_offset(c_orm_select_builder_t *builder,
                                                size_t offset) {
   c_orm_error_t rc;
@@ -776,13 +778,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_offset(c_orm_select_builder_t *builder,
   return rc;
 }
 
-/** @brief Insert builder structure */
+/**
+ * @brief Insert builder structure
+ * @var meta Table metadata pointer.
+ * @var sb Dynamic string builder instance.
+ */
 struct c_orm_insert_builder {
+  /** @brief Table metadata pointer. */
   const c_orm_table_meta_t *meta;
+  /** @brief Dynamic string builder instance. */
   c_orm_string_builder_t *sb;
 };
 
-/** @brief Init insert builder */
 C_ORM_EXPORT c_orm_error_t c_orm_insert_builder_init(
     const c_orm_table_meta_t *meta, c_orm_insert_builder_t **out_builder) {
   c_orm_error_t rc;
@@ -794,14 +801,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_builder_init(
   return rc;
 }
 
-/** @brief Free insert builder */
 C_ORM_EXPORT void c_orm_insert_builder_free(c_orm_insert_builder_t *builder) {
   LOG_DEBUG("c_orm_insert_builder_free: entry");
   (void)builder;
   LOG_DEBUG("c_orm_insert_builder_free: exit");
 }
 
-/** @brief Compile insert builder */
 C_ORM_EXPORT c_orm_error_t
 c_orm_insert_builder_compile(c_orm_insert_builder_t *builder, char **out_sql) {
   c_orm_error_t rc;
@@ -813,15 +818,24 @@ c_orm_insert_builder_compile(c_orm_insert_builder_t *builder, char **out_sql) {
   return rc;
 }
 
-/** @brief Update builder structure */
+/**
+ * @brief Update builder structure
+ * @var meta Table metadata pointer.
+ * @var sb Dynamic string builder instance.
+ * @var has_set Flag indicating whether SET clause was added.
+ * @var has_where Flag indicating whether WHERE clause was added.
+ */
 struct c_orm_update_builder {
+  /** @brief Table metadata pointer. */
   const c_orm_table_meta_t *meta;
+  /** @brief Dynamic string builder instance. */
   c_orm_string_builder_t *sb;
+  /** @brief Flag indicating whether SET clause was added. */
   int has_set;
+  /** @brief Flag indicating whether WHERE clause was added. */
   int has_where;
 };
 
-/** @brief Init update builder */
 C_ORM_EXPORT c_orm_error_t c_orm_update_builder_init(
     const c_orm_table_meta_t *meta, c_orm_update_builder_t **out_builder) {
   c_orm_error_t rc;
@@ -876,7 +890,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_builder_init(
   return rc;
 }
 
-/** @brief Free update builder */
 C_ORM_EXPORT void c_orm_update_builder_free(c_orm_update_builder_t *builder) {
   LOG_DEBUG("c_orm_update_builder_free: entry");
   if (builder) {
@@ -886,7 +899,6 @@ C_ORM_EXPORT void c_orm_update_builder_free(c_orm_update_builder_t *builder) {
   LOG_DEBUG("c_orm_update_builder_free: exit");
 }
 
-/** @brief Update set */
 C_ORM_EXPORT c_orm_error_t c_orm_update_set(c_orm_update_builder_t *builder,
                                             const char *column) {
   c_orm_error_t rc;
@@ -919,7 +931,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_set(c_orm_update_builder_t *builder,
   return rc;
 }
 
-/** @brief Update where eq */
 C_ORM_EXPORT c_orm_error_t
 c_orm_update_where_eq(c_orm_update_builder_t *builder, const char *column) {
   c_orm_error_t rc;
@@ -951,7 +962,6 @@ c_orm_update_where_eq(c_orm_update_builder_t *builder, const char *column) {
   return rc;
 }
 
-/** @brief Compile update builder */
 C_ORM_EXPORT c_orm_error_t
 c_orm_update_builder_compile(c_orm_update_builder_t *builder, char **out_sql) {
   c_orm_error_t rc;

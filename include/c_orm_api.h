@@ -303,7 +303,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
                                               size_t num_items,
                                               size_t chunk_size);
 /**
- * @brief Save a record to the database via insert or update depending on PK
+ * @brief Save a record to the database via insert or update depending on PK.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_struct Pointer to record structure.
  * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_save(c_orm_db_t *db,
@@ -556,6 +560,10 @@ c_orm_hydrate_cache_row(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                         void *hydrated_row, void **out_cached_row);
 /**
  * @brief Execute a raw query string that returns no results.
+ *
+ * @param db Database connection.
+ * @param sql Raw SQL statement string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_execute_raw(c_orm_db_t *db, const char *sql);
 
@@ -934,6 +942,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_async(c_orm_db_t *db,
 
 /**
  * @brief Asynchronous fetch all stub (Step 209).
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param out_array Pointer to output array.
+ * @param cb Callback function on completion.
+ * @param ctx User context passed to callback.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, void *out_array,
@@ -1339,6 +1354,11 @@ C_ORM_EXPORT extern int c_orm_mock_find_relation_meta_countdown;
 
 /**
  * @brief Generic dynamically constructed insert.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param ptr Pointer to data struct to insert.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_insert_generic(c_orm_db_t *db,
                                                 const c_orm_table_meta_t *meta,
@@ -1346,6 +1366,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_generic(c_orm_db_t *db,
 
 /**
  * @brief Generic dynamically constructed get by int32 PK.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param pk_val Primary key integer value.
+ * @param out_struct Output struct pointer receiving hydrated data.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_get_generic(c_orm_db_t *db,
                                              const c_orm_table_meta_t *meta,
@@ -1353,6 +1379,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_get_generic(c_orm_db_t *db,
 
 /**
  * @brief Generic dynamically constructed find_all with array allocation.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param out_array Pointer receiving allocated array of hydrated structs.
+ * @param out_count Pointer receiving count of returned items.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
@@ -1360,6 +1392,12 @@ c_orm_find_all_generic(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 
 /**
  * @brief Generic dynamically constructed get by string PK.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param pk_val String primary key value.
+ * @param out_struct Output struct pointer receiving hydrated data.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,

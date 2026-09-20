@@ -1,5 +1,10 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_cdd_c_ir.h
+ * @brief Unit tests for CDD C IR construction, SQL parsing, and projections.
+ */
+
 #ifndef TEST_CDD_C_IR_H
 #define TEST_CDD_C_IR_H
 
@@ -10,125 +15,227 @@ extern "C" {
 /* clang-format off */
 #include "cdd_c_ir.h"
 #include "c_orm_safe_crt.h"
-#include <greatest.h>
+#define GREATEST_USE_LONGJMP 0
+#include "greatest.h"
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+
 #include "test_cdd_c_ir_oom.h"
 /* clang-format on */
 
+/**
+ * @brief Tests basic CDD C IR initialization, table addition, projection, and
+ * cleanup.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_ir_basic(void) {
   cdd_c_ir_t ir;
   struct sql_table_t tbl;
   cdd_c_query_projection_t proj;
+  c_orm_error_t rc;
 
   memset(&tbl, 0, sizeof(tbl));
 
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_init(NULL));
-  ASSERT_EQ(C_ORM_OK, cdd_c_ir_init(&ir));
+  rc = cdd_c_ir_init(NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_table(NULL, &tbl));
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_table(&ir, NULL));
-  ASSERT_EQ(C_ORM_OK, cdd_c_ir_add_table(&ir, &tbl));
+  rc = cdd_c_ir_add_table(NULL, &tbl);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = cdd_c_ir_add_table(&ir, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = cdd_c_ir_add_table(&ir, &tbl);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  ASSERT_EQ(C_ORM_OK, cdd_c_query_projection_init(&proj));
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(NULL, &proj));
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, NULL));
-  ASSERT_EQ(C_ORM_OK, cdd_c_ir_add_projection(&ir, &proj));
+  rc = cdd_c_query_projection_init(&proj);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_ir_add_projection(NULL, &proj);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = cdd_c_ir_add_projection(&ir, NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = cdd_c_ir_add_projection(&ir, &proj);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_free(NULL));
-  ASSERT_EQ(C_ORM_OK, cdd_c_ir_free(&ir));
+  rc = cdd_c_ir_free(NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   cdd_c_query_projection_free(&proj);
 
   PASS();
 }
 
+/**
+ * @brief Tests parsing various SQL statements (DDL, SELECT, INSERT) into IR.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_ir_parse_sql(void) {
   cdd_c_ir_t ir;
-  cdd_c_ir_init(&ir);
+  c_orm_error_t rc;
 
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, parse_sql_into_ir(NULL, &ir));
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, parse_sql_into_ir("invalid", NULL));
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  rc = parse_sql_into_ir(NULL, &ir);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  rc = parse_sql_into_ir("invalid", NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   /* basic */
-  ASSERT_EQ(C_ORM_OK, parse_sql_into_ir("CREATE TABLE x (id INT);", &ir));
+  rc = parse_sql_into_ir("CREATE TABLE x (id INT);", &ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(1, ir.n_tables);
 
-  cdd_c_ir_free(&ir);
-  cdd_c_ir_init(&ir);
-  parse_sql_into_ir("SELECT id FROM x;", &ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = parse_sql_into_ir("SELECT id FROM x;", &ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  cdd_c_ir_free(&ir);
-  cdd_c_ir_init(&ir);
-  parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  cdd_c_ir_free(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   PASS();
 }
 
+/**
+ * @brief Tests CDD C IR projection initialization and assignment.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_ir_projection(void) {
   cdd_c_ir_t ir;
   cdd_c_query_projection_t proj;
-  cdd_c_query_projection_init(&proj);
+  c_orm_error_t rc;
+
+  rc = cdd_c_query_projection_init(&proj);
+  ASSERT_EQ(C_ORM_OK, rc);
   proj.source_table = "test";
   proj.mapping_meta.target_name = "test_map";
 
-  cdd_c_ir_init(&ir);
-  ASSERT_EQ(C_ORM_OK, cdd_c_ir_add_projection(&ir, &proj));
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_ir_add_projection(&ir, &proj);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  cdd_c_ir_free(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   PASS();
 }
 
+/**
+ * @brief Tests multiple allocations of tables and projections in IR.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_ir_alloc(void) {
   cdd_c_ir_t ir;
   struct sql_table_t tbl;
   cdd_c_query_projection_t proj;
+  c_orm_error_t rc;
   int i;
 
   memset(&tbl, 0, sizeof(tbl));
 
-  cdd_c_ir_init(&ir);
-  cdd_c_query_projection_init(&proj);
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_query_projection_init(&proj);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   for (i = 0; i < 6; i++) {
-    cdd_c_ir_add_table(&ir, &tbl);
-    cdd_c_ir_add_projection(&ir, &proj);
+    rc = cdd_c_ir_add_table(&ir, &tbl);
+    ASSERT_EQ(C_ORM_OK, rc);
+    rc = cdd_c_ir_add_projection(&ir, &proj);
+    ASSERT_EQ(C_ORM_OK, rc);
   }
 
   ASSERT_EQ(6, ir.n_tables);
   ASSERT_EQ(6, ir.n_projections);
 
-  cdd_c_ir_free(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   PASS();
 }
 
+/**
+ * @brief Tests SQL parse failure handling in IR generator.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_ir_parse_sql_failure(void) {
   cdd_c_ir_t ir;
-  cdd_c_ir_init(&ir);
+  c_orm_error_t rc;
 
-  ASSERT_EQ(C_ORM_OK,
-            parse_sql_into_ir("select * from not_create_table;", &ir));
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  rc = parse_sql_into_ir("select * from not_create_table;", &ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* parser failure */
-  ASSERT(parse_sql_into_ir("CREATE TABLE x (id);", &ir) != C_ORM_OK);
+  rc = parse_sql_into_ir("CREATE TABLE x (id);", &ir);
+  ASSERT(rc != C_ORM_OK);
 
-  cdd_c_ir_free(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   PASS();
 }
 
+/**
+ * @brief CDD C IR test suite runner.
+ * @param cdd_c_ir_suite Suite runner function name.
+ */
 SUITE(cdd_c_ir_suite) {
+  static int recursed = 0;
   RUN_TEST(test_cdd_c_ir_basic);
   RUN_TEST(test_cdd_c_ir_parse_sql);
   RUN_TEST(test_cdd_c_ir_projection);
   RUN_TEST(test_cdd_c_ir_alloc);
   RUN_TEST(test_cdd_c_ir_parse_sql_failure);
   RUN_TEST(test_cdd_c_ir_oom);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    cdd_c_ir_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 #endif /* TEST_CDD_C_IR_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

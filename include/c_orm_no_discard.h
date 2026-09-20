@@ -1,5 +1,12 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file c_orm_no_discard.h
+ * @brief Macro definitions for nodiscard / warn_unused_result attributes.
+ * @defgroup c_orm_no_discard No Discard Macros
+ * @{
+ */
+
 #ifndef C_ORM_NO_DISCARD_H
 #define C_ORM_NO_DISCARD_H
 

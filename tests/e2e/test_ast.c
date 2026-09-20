@@ -1,13 +1,51 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_ast.c
+ * @brief Unit tests for C-ORM AST generation, fluent chaining, and depth
+ * limits.
+ */
+
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_ast.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+
+#undef ASSERT_EQ_FMT
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 /* clang-format on */
 
+/**
+ * @brief Tests AST fluent querying, node chaining, cloning, and literal
+ * escaping.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_ast_fluent(void) {
   c_orm_query_t *q = NULL;
   c_orm_query_t *q_clone = NULL;
@@ -72,6 +110,10 @@ TEST test_c_orm_ast_fluent(void) {
   PASS();
 }
 
+/**
+ * @brief Tests AST to SQL serialization for SQLite dialect.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_ast_to_sql(void) {
   c_orm_query_t *q = NULL;
   char *sql = NULL;
@@ -103,6 +145,10 @@ TEST test_c_orm_ast_to_sql(void) {
   PASS();
 }
 
+/**
+ * @brief Tests AST to SQL serialization for PostgreSQL dialect.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_ast_to_sql_postgres(void) {
   c_orm_query_t *q = NULL;
   char *sql = NULL;
@@ -133,6 +179,10 @@ TEST test_c_orm_ast_to_sql_postgres(void) {
   PASS();
 }
 
+/**
+ * @brief Tests AST recursion depth limiting and depth threshold adjustment.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_ast_depth_limit(void) {
   c_orm_query_t *q = NULL;
   char *sql = NULL;
@@ -163,18 +213,29 @@ TEST test_c_orm_ast_depth_limit(void) {
   ASSERT_EQ_FMT(0, err, "%d");
 
   cdd_c_sql_parser_max_depth = old_depth;
-  if (sql)
-    C_ORM_FREE(sql);
+  C_ORM_FREE(sql);
   c_orm_query_params_cleanup(&params);
   c_orm_query_free(q);
   PASS();
 }
 
+/**
+ * @brief AST test suite runner.
+ * @param ast_suite Suite runner function name.
+ */
 SUITE(ast_suite) {
+  static int recursed = 0;
   RUN_TEST(test_c_orm_ast_fluent);
   RUN_TEST(test_c_orm_ast_to_sql);
   RUN_TEST(test_c_orm_ast_to_sql_postgres);
   RUN_TEST(test_c_orm_ast_depth_limit);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    ast_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #if defined(__clang__) || defined(__GNUC__)

@@ -28,11 +28,7 @@ extern "C" {
  * @param[in] filepath Path to the migration file.
  * @return 0 on success, non-zero on failure.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Applies migration.
-                     */
-    c_orm_error_t
-    apply_migration(const char *filepath);
+extern C_ORM_EXPORT c_orm_error_t apply_migration(const char *filepath);
 
 /**
  * @brief Rollback a migration file (run the DOWN statements).
@@ -43,11 +39,7 @@ extern C_ORM_EXPORT /**
  * @param[in] filepath Path to the migration file.
  * @return 0 on success, non-zero on failure.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Executes the rollback migration operation.
-                     */
-    c_orm_error_t
-    rollback_migration(const char *filepath);
+extern C_ORM_EXPORT c_orm_error_t rollback_migration(const char *filepath);
 
 /**
  * @brief Run all pending UP migrations in a directory.
@@ -59,11 +51,8 @@ extern C_ORM_EXPORT /**
  * @param[in] migrations_dir Path to the directory containing `.sql` files.
  * @return 0 on success, non-zero on failure.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Executes the run pending migrations operation.
-                     */
-    c_orm_error_t
-    run_pending_migrations(const char *migrations_dir);
+extern C_ORM_EXPORT c_orm_error_t
+run_pending_migrations(const char *migrations_dir);
 
 /**
  * @brief Rollback the last applied DOWN migration.
@@ -75,11 +64,8 @@ extern C_ORM_EXPORT /**
  * @param[in] migrations_dir Path to the directory containing `.sql` files.
  * @return 0 on success, non-zero on failure.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Executes the rollback last migration operation.
-                     */
-    c_orm_error_t
-    rollback_last_migration(const char *migrations_dir);
+extern C_ORM_EXPORT c_orm_error_t
+rollback_last_migration(const char *migrations_dir);
 
 /**
  * @brief Create a new boilerplate migration file.
@@ -88,11 +74,8 @@ extern C_ORM_EXPORT /**
  * @param[in] name The name suffix for the migration file.
  * @return 0 on success, non-zero on failure.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Executes the create migration file operation.
-                     */
-    c_orm_error_t
-    create_migration_file(const char *migrations_dir, const char *name);
+extern C_ORM_EXPORT c_orm_error_t
+create_migration_file(const char *migrations_dir, const char *name);
 
 /**
  * @brief Drop and recreate the database schema, then run all pending
@@ -101,11 +84,7 @@ extern C_ORM_EXPORT /**
  * @param[in] migrations_dir Directory containing `.sql` files.
  * @return 0 on success, non-zero on failure.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Executes the reset database operation.
-                     */
-    c_orm_error_t
-    reset_database(const char *migrations_dir);
+extern C_ORM_EXPORT c_orm_error_t reset_database(const char *migrations_dir);
 
 /**
  * @brief Setup a test database dynamically in CI mode.
@@ -118,11 +97,8 @@ extern C_ORM_EXPORT /**
  * @param[in] migrations_dir Directory containing `.sql` migrations.
  * @return 0 on success, non-zero on failure.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Executes the setup test database operation.
-                     */
-    c_orm_error_t
-    setup_test_database(const char *db_name, const char *migrations_dir);
+extern C_ORM_EXPORT c_orm_error_t
+setup_test_database(const char *db_name, const char *migrations_dir);
 
 /**
  * @brief Seed the database with SQL test data.
@@ -130,11 +106,7 @@ extern C_ORM_EXPORT /**
  * @param[in] seed_filepath Path to the `.sql` seed file.
  * @return 0 on success, non-zero on failure.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Executes the seed database operation.
-                     */
-    c_orm_error_t
-    seed_database(const char *seed_filepath);
+extern C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath);
 
 /**
  * @brief Dump the current database schema to a file.
@@ -142,11 +114,7 @@ extern C_ORM_EXPORT /**
  * @param[in] out_filepath Path to the output file (e.g. `schema.sql`).
  * @return 0 on success, non-zero on failure.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Executes the dump schema operation.
-                     */
-    c_orm_error_t
-    dump_schema(const char *out_filepath);
+extern C_ORM_EXPORT c_orm_error_t dump_schema(const char *out_filepath);
 
 #ifdef __cplusplus
 }

@@ -14,6 +14,11 @@
 #include "c_orm_meta.h"
 /* clang-format on */
 
+/**
+ * @brief Initialize a CDD-C intermediate representation structure.
+ * @param ir Pointer to the IR structure to initialize.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN if ir is NULL.
+ */
 c_orm_error_t cdd_c_ir_init(cdd_c_ir_t *ir) {
   if (!ir)
     return C_ORM_ERROR_UNKNOWN;
@@ -50,6 +55,12 @@ c_orm_error_t cdd_c_ir_add_table(cdd_c_ir_t *ir,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Duplicates a query projection into a destination structure.
+ * @param dest Destination query projection pointer.
+ * @param src Source query projection pointer.
+ * @return C_ORM_OK on success, or error code on failure.
+ */
 static c_orm_error_t duplicate_projection(cdd_c_query_projection_t *dest,
                                           const cdd_c_query_projection_t *src) {
   size_t i;

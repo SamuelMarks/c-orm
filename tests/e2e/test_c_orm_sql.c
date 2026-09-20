@@ -13,9 +13,32 @@ extern "C" {
 #include "c_orm_safe_crt.h"
 #include "c_orm_sql.h"
 #include "query_projection.h"
+#define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
 #include <stdlib.h>
 #include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
 static int sql_oom_active = 0;
@@ -212,12 +235,11 @@ TEST test_sql_parser_foreign_keys_defaults(void) {
   rc = parse_sql_ddl(sql, &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
 
-  if (tables != NULL) {
-    for (i = 0; i < n_tables; ++i) {
-      sql_table_C_ORM_FREE(&tables[i]);
-    }
-    C_ORM_FREE(tables);
+  for (i = 0; i < n_tables; ++i) {
+    sql_table_C_ORM_FREE(&tables[i]);
   }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   PASS();
 }
@@ -331,9 +353,10 @@ TEST test_sql_parser_step_failures(void) {
       rc = sql_parse_table(list, &table, &err_info);
       c_orm_parser_set_fail(-1);
 
-      if (rc == C_ORM_OK && table != NULL) {
+      if (rc == C_ORM_OK) {
         sql_table_C_ORM_FREE(table);
         C_ORM_FREE(table);
+        table = NULL;
       }
       sql_token_list_free(list);
     }
@@ -379,7 +402,7 @@ TEST test_sql_parser_constraints_capacity(void) {
     sql_realloc_oom_active = 1;
     sql_realloc_oom_countdown = i;
     rc = sql_parse_table(list, &table, &err_info);
-    if (rc == C_ORM_OK && table != NULL) {
+    if (rc == C_ORM_OK) {
       sql_table_C_ORM_FREE(table);
       C_ORM_FREE(table);
       table = NULL;
@@ -473,10 +496,10 @@ TEST test_sql_lexer_and_cleanup_branches(void) {
   ASSERT_EQ(C_ORM_OK, rc);
   tbl = NULL;
   rc = sql_parse_table(empty_list, &tbl, NULL);
-  if (rc == C_ORM_OK && tbl != NULL) {
-    sql_table_C_ORM_FREE(tbl);
-    C_ORM_FREE(tbl);
-  }
+  ASSERT_EQ(C_ORM_OK, rc);
+  sql_table_C_ORM_FREE(tbl);
+  C_ORM_FREE(tbl);
+  tbl = NULL;
   sql_token_list_free(empty_list);
   empty_list = NULL;
 
@@ -485,10 +508,9 @@ TEST test_sql_lexer_and_cleanup_branches(void) {
 
   empty_list =
       (struct sql_token_list_t *)malloc(sizeof(struct sql_token_list_t));
-  if (empty_list != NULL) {
-    memset(empty_list, 0, sizeof(*empty_list));
-    sql_token_list_free(empty_list);
-  }
+  memset(empty_list, 0, sizeof(*empty_list));
+  sql_token_list_free(empty_list);
+  empty_list = NULL;
 
   /* sql_table_C_ORM_FREE branches (NULL table, and NULL column
    * name/constraints) */
@@ -496,27 +518,21 @@ TEST test_sql_lexer_and_cleanup_branches(void) {
 
   memset(&empty_table, 0, sizeof(empty_table));
   dummy_cols = (struct sql_column_t *)malloc(2 * sizeof(struct sql_column_t));
-  if (dummy_cols != NULL) {
-    memset(dummy_cols, 0, 2 * sizeof(struct sql_column_t));
-    dummy_cols[0].constraints =
-        (struct sql_constraint_t *)malloc(sizeof(struct sql_constraint_t));
-    if (dummy_cols[0].constraints != NULL) {
-      memset(dummy_cols[0].constraints, 0, sizeof(struct sql_constraint_t));
-      dummy_cols[0].constraints[0].columns = (char **)malloc(sizeof(char *));
-      if (dummy_cols[0].constraints[0].columns != NULL) {
-        dummy_cols[0].constraints[0].columns[0] = NULL;
-        dummy_cols[0].constraints[0].n_columns = 1;
-      }
-      dummy_cols[0].n_constraints = 1;
-    }
-    dummy_cols[1].constraints = NULL;
-    dummy_cols[1].n_constraints = 0;
-    empty_table.columns = dummy_cols;
-    empty_table.n_columns = 2;
-    sql_table_C_ORM_FREE(&empty_table);
-    empty_table.columns = NULL;
-    empty_table.n_columns = 0;
-  }
+  memset(dummy_cols, 0, 2 * sizeof(struct sql_column_t));
+  dummy_cols[0].constraints =
+      (struct sql_constraint_t *)malloc(sizeof(struct sql_constraint_t));
+  memset(dummy_cols[0].constraints, 0, sizeof(struct sql_constraint_t));
+  dummy_cols[0].constraints[0].columns = (char **)malloc(sizeof(char *));
+  dummy_cols[0].constraints[0].columns[0] = NULL;
+  dummy_cols[0].constraints[0].n_columns = 1;
+  dummy_cols[0].n_constraints = 1;
+  dummy_cols[1].constraints = NULL;
+  dummy_cols[1].n_constraints = 0;
+  empty_table.columns = dummy_cols;
+  empty_table.n_columns = 2;
+  sql_table_C_ORM_FREE(&empty_table);
+  empty_table.columns = NULL;
+  empty_table.n_columns = 0;
 
   /* parse_sql_ddl validation */
   rc = parse_sql_ddl(NULL, &tables, &n_tables);
@@ -530,32 +546,26 @@ TEST test_sql_lexer_and_cleanup_branches(void) {
   rc = parse_sql_ddl("NOT A VALID DDL STATEMENT;", &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  if (tables != NULL) {
-    C_ORM_FREE(tables);
-    tables = NULL;
-  }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   /* parse_sql_ddl with table failing parse */
   rc = parse_sql_ddl("CREATE TABLE t (invalid_syntax);", &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  if (tables != NULL) {
-    C_ORM_FREE(tables);
-    tables = NULL;
-  }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   /* parse_sql_ddl with multiple tables */
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT); CREATE TABLE t2 (name TEXT);",
                      &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(2, n_tables);
-  if (tables != NULL) {
-    for (i = 0; i < n_tables; ++i) {
-      sql_table_C_ORM_FREE(&tables[i]);
-    }
-    C_ORM_FREE(tables);
-    tables = NULL;
+  for (i = 0; i < n_tables; ++i) {
+    sql_table_C_ORM_FREE(&tables[i]);
   }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   /* parse_sql_ddl OOM allocating out_tables */
   sql_oom_active = 1;
@@ -609,8 +619,10 @@ TEST test_sql_parser_exhaustive_oom(void) {
 
 /**
  * @brief SQL test suite runner.
+ * @param sql_suite Suite runner function name.
  */
 SUITE(sql_suite) {
+  static int recursed = 0;
   void *(*old_malloc)(size_t);
   void *(*old_realloc)(void *, size_t);
   void (*old_free)(void *);
@@ -637,6 +649,14 @@ SUITE(sql_suite) {
   RUN_TEST(test_sql_parser_exhaustive_oom);
 
   c_orm_set_allocators(old_malloc, old_realloc, old_free);
+
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    sql_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

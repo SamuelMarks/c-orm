@@ -1,308 +1,408 @@
-import json
+"""Doc coverage analyzer and undercovered markdown report generator.
+
+Analyzes doc (arg, function, struct, struct field, file, module) coverage across
+all C source and header files and generates UNDERCOVERED.md.
+"""
+
+import glob
 import os
+import re
 import subprocess
+import sys
 
-# Auto-generate cov_summary if needed
-def ensure_cov_summary():
-    gcov_exec = "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-cov gcov"
-    if not os.path.exists(gcov_exec):
-        gcov_exec = "gcov"
-    cmd = [
-        "gcovr",
-        "--gcov-executable", gcov_exec,
-        "build_cov",
-        "--filter", "src/.*",
-        "--filter", "examples/.*",
-        "--filter", "tests/.*",
-        "--filter", "build_cov/tests/.*",
-        "--json-summary", "/tmp/cov_summary.json"
+import clang.cindex
+
+
+def find_and_init_libclang():
+    """Locate and initialize libclang across platforms."""
+    try:
+        _ = clang.cindex.Config().lib
+        return
+    except (clang.cindex.LibclangError, OSError):
+        pass
+
+    search_paths = [
+        # macOS Homebrew & MacPorts
+        "/opt/homebrew/opt/llvm/lib/libclang*.dylib",
+        "/opt/homebrew/opt/llvm*/lib/libclang*.dylib",
+        "/opt/homebrew/Cellar/llvm*/*/lib/libclang*.dylib",
+        "/usr/local/opt/llvm*/lib/libclang*.dylib",
+        "/opt/local/libexec/llvm-*/lib/libclang*.dylib",
+        # macOS Xcode / CommandLineTools
+        "/Library/Developer/CommandLineTools/usr/lib/libclang*.dylib",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/libclang*.dylib",
+        # Linux common locations
+        "/usr/lib/llvm-*/lib/libclang-[0-9]*.so*",
+        "/usr/lib/llvm-*/lib/libclang.so*",
+        "/usr/lib/x86_64-linux-gnu/libclang-[0-9]*.so*",
+        "/usr/lib/aarch64-linux-gnu/libclang-[0-9]*.so*",
+        "/usr/lib/x86_64-linux-gnu/libclang.so*",
+        "/usr/lib/aarch64-linux-gnu/libclang.so*",
+        "/usr/local/lib/libclang.so*",
+        "/usr/lib/libclang.so*",
+        # Windows
+        "C:/Program Files/LLVM/bin/libclang.dll",
+        "C:/Program Files (x86)/LLVM/bin/libclang.dll",
     ]
-    subprocess.run(cmd, check=True)
 
-ensure_cov_summary()
+    candidates = []
+    for pattern in search_paths:
+        for match in glob.glob(pattern):
+            if match not in candidates and os.path.isfile(match):
+                candidates.append(match)
 
-with open('/tmp/cov_summary.json') as f:
-    d = json.load(f)
+    for match in candidates:
+        if "libclang-cpp" in match:
+            continue
+        try:
+            clang.cindex.Config.set_library_file(match)
+            _ = clang.cindex.Config().lib
+            return
+        except (clang.cindex.LibclangError, OSError):
+            continue
 
-cov_map = {f['filename']: f for f in d['files']}
-for k in list(cov_map.keys()):
-    if k.endswith('tests/e2e/Models.c'):
-        cov_map['tests/e2e/pregen/Models.c'] = cov_map[k]
-        break
+    # Fallback without version checks
+    for match in candidates:
+        if "libclang-cpp" in match:
+            continue
+        try:
+            clang.cindex.Config.set_library_file(match)
+            clang.cindex.Config.set_compatibility_check(False)
+            _ = clang.cindex.Config().lib
+            return
+        except (clang.cindex.LibclangError, OSError):
+            continue
 
-def is_fully_covered(info):
-    if not info:
+
+def get_compile_args():
+    """Build compilation arguments including include directories and sysroot."""
+    compile_args = [
+        "-Iinclude",
+        "-Isrc",
+        "-Itests",
+        "-Itests/e2e",
+        "-Itests/e2e/pregen",
+        "-Iexamples",
+        "-x",
+        "c",
+        "-DC_ORM_TEST_ALLOCATOR",
+        "-D_GNU_SOURCE",
+        "-fparse-all-comments",
+    ]
+    if sys.platform == "darwin":
+        try:
+            sdk_path = subprocess.check_output(
+                ["xcrun", "--show-sdk-path"], text=True
+            ).strip()
+            if sdk_path and os.path.exists(sdk_path):
+                compile_args.extend(["-isysroot", sdk_path])
+        except (subprocess.SubprocessError, OSError):
+            pass
+    return compile_args
+
+
+def in_this_file(loc, filepath):
+    """Check if cursor location matches the file under evaluation."""
+    if not loc or not loc.file:
         return False
-    lp = info.get('line_percent', 0.0)
-    fp = info.get('function_percent', 0.0)
-    bp = info.get('branch_percent')
-    return (lp == 100.0 and fp == 100.0 and (bp is None or bp == 100.0))
+    try:
+        return os.path.samefile(loc.file.name, filepath)
+    except OSError:
+        return os.path.abspath(loc.file.name) == os.path.abspath(filepath)
 
-src_items = sorted([k for k in cov_map.keys() if k.startswith('src/') and not k.startswith('src/legacy_cdd_db/')], key=lambda x: x)
-ex_items = sorted([k for k in cov_map.keys() if k.startswith('examples/')], key=lambda x: x)
-e2e_items = sorted([k for k in cov_map.keys() if k.startswith('tests/e2e/') and not k.endswith('Models.c')], key=lambda x: x)
-bm_items = sorted([k for k in cov_map.keys() if k.startswith('tests/benchmarks/')], key=lambda x: x)
-legacy_src_items = sorted([k for k in cov_map.keys() if k.startswith('src/legacy_cdd_db/')], key=lambda x: x)
-legacy_test_items = sorted([k for k in cov_map.keys() if k.startswith('tests/') and not k.startswith('tests/e2e/') and not k.startswith('tests/benchmarks/')], key=lambda x: x)
-all_test_items = e2e_items + bm_items + legacy_test_items + legacy_src_items
 
-# Core Library metrics
-total_src_lines = sum(cov_map[k]['line_total'] for k in src_items)
-cov_src_lines = sum(cov_map[k]['line_covered'] for k in src_items)
-total_src_funcs = sum(cov_map[k]['function_total'] for k in src_items)
-cov_src_funcs = sum(cov_map[k]['function_covered'] for k in src_items)
-total_src_branches = sum(cov_map[k]['branch_total'] for k in src_items if cov_map[k]['branch_total'] is not None)
-cov_src_branches = sum(cov_map[k]['branch_covered'] for k in src_items if cov_map[k]['branch_covered'] is not None)
-src_line_pct = cov_src_lines * 100.0 / total_src_lines if total_src_lines else 0.0
-src_func_pct = cov_src_funcs * 100.0 / total_src_funcs if total_src_funcs else 0.0
-src_branch_pct = cov_src_branches * 100.0 / total_src_branches if total_src_branches else 0.0
+def analyze_file(filepath, idx, compile_args):
+    """Analyze documentation coverage for a single file across all 6 criteria."""
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as fp:
+        content = fp.read()
 
-undercovered_src = [k for k in src_items if not is_fully_covered(cov_map.get(k))]
-fully_covered_src = [k for k in src_items if is_fully_covered(cov_map.get(k))]
+    # 1. file documentation (@file tag or top-level file doc comment)
+    has_file_doc = bool(
+        re.search(r"/\*\*[\s\S]*?@file[\s\S]*?\*/", content)
+    ) or bool(re.search(r"/\*[\s\S]*?@file[\s\S]*?\*/", content))
 
-# Examples metrics
-total_ex_lines = sum(cov_map[k]['line_total'] for k in ex_items)
-cov_ex_lines = sum(cov_map[k]['line_covered'] for k in ex_items)
-total_ex_funcs = sum(cov_map[k]['function_total'] for k in ex_items)
-cov_ex_funcs = sum(cov_map[k]['function_covered'] for k in ex_items)
-total_ex_branches = sum(cov_map[k]['branch_total'] for k in ex_items if cov_map[k]['branch_total'] is not None)
-cov_ex_branches = sum(cov_map[k]['branch_covered'] for k in ex_items if cov_map[k]['branch_covered'] is not None)
-ex_line_pct = cov_ex_lines * 100.0 / total_ex_lines if total_ex_lines else 0.0
-ex_func_pct = cov_ex_funcs * 100.0 / total_ex_funcs if total_ex_funcs else 0.0
-ex_branch_pct = cov_ex_branches * 100.0 / total_ex_branches if total_ex_branches else 0.0
+    # 2. module documentation (@defgroup / @addtogroup / @module, or @file if file is module)
+    has_module_doc = bool(
+        re.search(r"/\*\*?[\s\S]*?@(defgroup|addtogroup|module)[\s\S]*?\*/", content)
+    ) or has_file_doc
 
-undercovered_ex = [k for k in ex_items if not is_fully_covered(cov_map.get(k))]
-fully_covered_ex = [k for k in ex_items if is_fully_covered(cov_map.get(k))]
+    tu = idx.parse(filepath, args=compile_args)
 
-# Models metrics
-m = cov_map.get('tests/e2e/pregen/Models.c')
-m_fully_covered = is_fully_covered(m)
+    struct_defs = {}
+    func_decls = {}
 
-# Test Suite metrics
-total_test_lines = sum(cov_map[k]['line_total'] for k in all_test_items)
-cov_test_lines = sum(cov_map[k]['line_covered'] for k in all_test_items)
-total_test_funcs = sum(cov_map[k]['function_total'] for k in all_test_items)
-cov_test_funcs = sum(cov_map[k]['function_covered'] for k in all_test_items)
-total_test_branches = sum(cov_map[k]['branch_total'] for k in all_test_items)
-cov_test_branches = sum(cov_map[k]['branch_covered'] for k in all_test_items)
-test_line_pct = cov_test_lines * 100.0 / total_test_lines if total_test_lines else 0.0
-test_func_pct = cov_test_funcs * 100.0 / total_test_funcs if total_test_funcs else 0.0
-test_branch_pct = cov_test_branches * 100.0 / total_test_branches if total_test_branches else 0.0
-undercovered_tests = [k for k in all_test_items if not is_fully_covered(cov_map.get(k))]
-fully_covered_tests = [k for k in all_test_items if is_fully_covered(cov_map.get(k))]
+    for c in tu.cursor.walk_preorder():
+        if not in_this_file(c.location, filepath):
+            continue
 
-lines = []
-lines.append("# Undercovered Files (< 100% Coverage)")
-lines.append("")
-lines.append("This document tracks all files with test coverage across functions, lines, or branches, measured using GCC/Clang coverage instrumentation (`--coverage`) and analyzed with `gcovr`.")
-lines.append("")
-lines.append("## Coverage Summary")
-lines.append("")
-lines.append("### Core Library Sources (`src/`)")
-lines.append("")
-lines.append(f"- **Total Source Files Analyzed:** {len(src_items)}")
-lines.append(f"- **Fully Covered Files (100% functions, lines, branches):** {len(fully_covered_src)} ({len(fully_covered_src)*100.0/len(src_items):.1f}%)")
-lines.append(f"- **Undercovered Files (<100% in function, line, or branch coverage):** {len(undercovered_src)} ({len(undercovered_src)*100.0/len(src_items):.1f}%)")
-lines.append(f"- **Library Line Coverage:** {cov_src_lines:,} / {total_src_lines:,} ({src_line_pct:.2f}%)")
-lines.append(f"- **Library Function Coverage:** {cov_src_funcs:,} / {total_src_funcs:,} ({src_func_pct:.2f}%)")
-lines.append(f"- **Library Branch Coverage:** {cov_src_branches:,} / {total_src_branches:,} ({src_branch_pct:.2f}%)")
-lines.append("")
-lines.append("### Example Applications (`examples/`)")
-lines.append("")
-lines.append(f"- **Total Example Files Analyzed:** {len(ex_items)}")
-lines.append(f"- **Fully Covered Files (100% functions, lines, branches):** {len(fully_covered_ex)} ({len(fully_covered_ex)*100.0/len(ex_items):.1f}%)")
-lines.append(f"- **Undercovered Files (<100% in function, line, or branch coverage):** {len(undercovered_ex)} ({len(undercovered_ex)*100.0/len(ex_items):.1f}%)")
-lines.append(f"- **Example Line Coverage:** {cov_ex_lines:,} / {total_ex_lines:,} ({ex_line_pct:.2f}%)")
-lines.append(f"- **Example Function Coverage:** {cov_ex_funcs:,} / {total_ex_funcs:,} ({ex_func_pct:.2f}%)")
-lines.append(f"- **Example Branch Coverage:** {cov_ex_branches:,} / {total_ex_branches:,} ({ex_branch_pct:.2f}%)")
-lines.append("")
-lines.append("### Generated Model Definitions (`tests/e2e/pregen/`)")
-lines.append("")
-lines.append("- **Total Model Files Analyzed:** 1")
-lines.append(f"- **Fully Covered Files (100% functions, lines, branches):** {1 if m_fully_covered else 0} ({100.0 if m_fully_covered else 0.0:.1f}%)")
-lines.append(f"- **Undercovered Files (<100% in function, line, or branch coverage):** {0 if m_fully_covered else 1} ({0.0 if m_fully_covered else 100.0:.1f}%)")
-if m:
-    lines.append(f"- **Model Line Coverage:** {m['line_covered']:,} / {m['line_total']:,} ({m['line_percent']:.2f}%)")
-    lines.append(f"- **Model Function Coverage:** {m['function_covered']:,} / {m['function_total']:,} ({m['function_percent']:.2f}%)")
-    lines.append(f"- **Model Branch Coverage:** {m['branch_covered']:,} / {m['branch_total']:,} ({m['branch_percent']:.2f}%)")
-lines.append("")
-lines.append("### Test Suite Sources & Fixtures (`tests/` & `src/legacy_cdd_db/`)")
-lines.append("")
-lines.append(f"- **Total Test Suite Files Analyzed:** {len(all_test_items)}")
-lines.append(f"- **Undercovered Test Suite Files (<100% branch/line/func coverage):** {len(undercovered_tests)} ({len(undercovered_tests)*100.0/len(all_test_items):.1f}%)")
-lines.append(f"- **Test Suite Line Coverage:** {cov_test_lines:,} / {total_test_lines:,} ({test_line_pct:.2f}%)")
-lines.append(f"- **Test Suite Function Coverage:** {cov_test_funcs:,} / {total_test_funcs:,} ({test_func_pct:.2f}%)")
-lines.append(f"- **Test Suite Branch Coverage:** {cov_test_branches:,} / {total_test_branches:,} ({test_branch_pct:.2f}%)")
-lines.append("")
-lines.append("---")
-lines.append("")
-lines.append("## Undercovered Files (< 100% Coverage)")
-lines.append("")
-lines.append("The following files currently have less than 100% test (function, line, branch) coverage:")
-lines.append("")
+        if c.kind in (
+            clang.cindex.CursorKind.STRUCT_DECL,
+            clang.cindex.CursorKind.UNION_DECL,
+        ) and c.is_definition():
+            key = (c.location.line, c.location.column)
+            if key not in struct_defs:
+                struct_defs[key] = c
 
-section_idx = 1
+        elif c.kind == clang.cindex.CursorKind.FUNCTION_DECL:
+            key = (c.location.line, c.location.column)
+            if key not in func_decls:
+                func_decls[key] = c
 
-if undercovered_src:
-    lines.append(f"### {section_idx}. Core Library Source Files (`src/`)")
-    lines.append("")
-    for k in undercovered_src:
-        v = cov_map[k]
-        lp = f"{v['line_percent']:.1f}% ({v['line_covered']}/{v['line_total']})"
-        fp = f"{v['function_percent']:.1f}% ({v['function_covered']}/{v['function_total']})"
-        bp = f"{v['branch_percent']:.1f}% ({v['branch_covered']}/{v['branch_total']})" if v['branch_percent'] is not None else "N/A"
-        lines.append(f"- [ ] `{k}` — **Lines:** {lp} | **Functions:** {fp} | **Branches:** {bp}")
-    lines.append("")
-    section_idx += 1
+    missing_items = []
+    total_items = 2  # 1 for file doc, 1 for module doc
+    covered_items = 0
 
-lines.append(f"### {section_idx}. Test Suite Source & Header Files (`tests/e2e/`)")
-lines.append("")
-lines.append("*Note: Test suite files exhibit reduced branch coverage primarily due to assertion macros (e.g. `greatest.h` checks like `ASSERT_EQ`, `ASSERT_STR_EQ`, `PASS`) where failure paths are unreached in passing test runs.*")
-lines.append("")
-
-completed_files = {
-    'tests/e2e/test_abstract_struct.c',
-    'tests/e2e/test_abstract_struct_oom.h',
-    'tests/e2e/test_api_collections.h',
-    'tests/e2e/test_api_coverage.c',
-    'tests/e2e/test_api_crud.h',
-    'tests/e2e/test_api_exhaust.h',
-    'tests/e2e/test_api_helpers.h',
-    'tests/e2e/test_api_hydration.h',
-    'tests/e2e/test_api_relations.h',
-    'tests/e2e/test_api_transactions.h',
-    'tests/e2e/test_arena_uuid.c',
-    'tests/e2e/test_ast.c',
-    'tests/e2e/test_c_orm_c_to_sql.c',
-    'tests/e2e/test_c_orm_sql.c',
-    'tests/e2e/test_c_orm_sql_extra.c',
-    'tests/e2e/test_c_orm_sql_to_c.c',
-    'tests/e2e/test_cache_coverage.c',
-    'tests/e2e/test_cdd_c_ir.c',
-    'tests/e2e/test_cdd_c_ir_oom.h',
-    'tests/e2e/test_cli.c',
-    'tests/e2e/test_cli_exec.c',
-    'tests/e2e/test_codegen_coverage.c',
-    'tests/e2e/test_db_stubs.c',
-    'tests/e2e/test_e2e.c',
-    'tests/e2e/test_generic.c',
-    'tests/e2e/test_hydrate_router.c',
-    'tests/e2e/test_inline_macros.c',
-    'tests/e2e/test_memory_driver.c',
-    'tests/e2e/test_migration.c',
-    'tests/e2e/test_migrations.c',
-    'tests/e2e/test_models_coverage.c',
-    'tests/e2e/test_oauth2.c',
-    'tests/e2e/test_oom_coverage.c',
-    'tests/e2e/test_orm_gen.c',
-    'tests/e2e/test_query_builder_coverage.c',
-    'tests/e2e/test_query_coverage.c',
-    'tests/e2e/test_query_projection.c',
-    'tests/e2e/test_relations.c',
-    'tests/e2e/test_sql_parser.c',
-    'tests/e2e/test_sqlite_driver.c',
-    'tests/e2e/test_string_builder.c',
-    'tests/benchmarks/test_benchmarks.c',
-    'tests/test_c_to_sql.h',
-    'tests/test_legacy_cdd_db.c',
-    'tests/test_sql.h',
-    'tests/test_sql_to_c.h',
-    'tests/test_standalone_fixtures.c',
-    'src/legacy_cdd_db/test_abstract_struct.h',
-    'src/legacy_cdd_db/test_c_to_sql.h',
-    'src/legacy_cdd_db/test_cdd_c_ir.h',
-    'src/legacy_cdd_db/test_hydrate_router.h',
-    'src/legacy_cdd_db/test_migration.h',
-    'src/legacy_cdd_db/test_sql.h',
-    'src/legacy_cdd_db/test_sql_to_c.h',
-}
-
-for k in e2e_items:
-    v = cov_map[k]
-    lp = f"{v['line_percent']:.1f}% ({v['line_covered']}/{v['line_total']})"
-    fp = f"{v['function_percent']:.1f}% ({v['function_covered']}/{v['function_total']})"
-    bp = f"{v['branch_percent']:.1f}% ({v['branch_covered']}/{v['branch_total']})" if v['branch_percent'] is not None else "N/A"
-    box = "[x]" if (k in completed_files or is_fully_covered(v)) else "[ ]"
-    lines.append(f"- {box} `{k}` — **Lines:** {lp} | **Functions:** {fp} | **Branches:** {bp}")
-
-lines.append("")
-section_idx += 1
-lines.append(f"### {section_idx}. Benchmark Suite Files (`tests/benchmarks/`)")
-lines.append("")
-
-for k in bm_items:
-    v = cov_map[k]
-    lp = f"{v['line_percent']:.1f}% ({v['line_covered']}/{v['line_total']})"
-    fp = f"{v['function_percent']:.1f}% ({v['function_covered']}/{v['function_total']})"
-    bp = f"{v['branch_percent']:.1f}% ({v['branch_covered']}/{v['branch_total']})" if v['branch_percent'] is not None else "N/A"
-    box = "[x]" if (k in completed_files or is_fully_covered(v)) else "[ ]"
-    lines.append(f"- {box} `{k}` — **Lines:** {lp} | **Functions:** {fp} | **Branches:** {bp}")
-
-lines.append("")
-section_idx += 1
-lines.append(f"### {section_idx}. Standalone & Legacy Test Runners and Fixtures (`tests/` & `src/legacy_cdd_db/`)")
-lines.append("")
-
-for k in (legacy_test_items + legacy_src_items):
-    v = cov_map.get(k)
-    if v:
-        lp = f"{v['line_percent']:.1f}% ({v['line_covered']}/{v['line_total']})"
-        fp = f"{v['function_percent']:.1f}% ({v['function_covered']}/{v['function_total']})"
-        bp = f"{v['branch_percent']:.1f}% ({v['branch_covered']}/{v['branch_total']})" if v['branch_percent'] is not None else "N/A"
-        box = "[x]" if (k in completed_files or is_fully_covered(v)) else "[ ]"
-        lines.append(f"- {box} `{k}` — **Lines:** {lp} | **Functions:** {fp} | **Branches:** {bp}")
+    if has_file_doc:
+        covered_items += 1
     else:
-        lines.append(f"- [ ] `{k}` — **Lines:** 0.0% (uncompiled test fixture)")
+        missing_items.append("file doc header (`@file`)")
 
-lines.append("")
-lines.append("---")
-lines.append("")
-lines.append("## Fully Covered Files (100% Functions, Lines, and Branches)")
-lines.append("")
-lines.append("### Core Library Files (`src/`)")
-lines.append("")
+    if has_module_doc:
+        covered_items += 1
+    else:
+        missing_items.append("module doc (`@defgroup` / `@module`)")
 
-for k in fully_covered_src:
-    v = cov_map[k]
-    lp = f"{v['line_percent']:.1f}% ({v['line_covered']}/{v['line_total']})"
-    fp = f"{v['function_percent']:.1f}% ({v['function_covered']}/{v['function_total']})"
-    bp = f"{v['branch_percent']:.1f}% ({v['branch_covered']}/{v['branch_total']})" if v['branch_percent'] is not None else "N/A (0 branches)"
-    lines.append(f"- [x] `{k}` — **Lines:** {lp} | **Functions:** {fp} | **Branches:** {bp}")
+    # 3. struct & 4. struct field documentation
+    for c in struct_defs.values():
+        total_items += 1
+        s_doc = bool(c.raw_comment and c.raw_comment.strip())
+        sname = c.spelling or f"anonymous_struct_l{c.location.line}"
+        if s_doc:
+            covered_items += 1
+        else:
+            missing_items.append(f"struct `{sname}`")
 
-lines.append("")
-lines.append("### Example Applications (`examples/`)")
-lines.append("")
+        for child in c.get_children():
+            if child.kind == clang.cindex.CursorKind.FIELD_DECL:
+                total_items += 1
+                fname = child.spelling or f"field_l{child.location.line}"
+                f_doc = bool(child.raw_comment and child.raw_comment.strip())
+                if (
+                    not f_doc
+                    and s_doc
+                    and c.raw_comment
+                    and re.search(
+                        r"(@var|@param|@brief|field)\s+" + re.escape(fname) + r"\b",
+                        c.raw_comment,
+                    )
+                ):
+                    f_doc = True
+                if f_doc:
+                    covered_items += 1
+                else:
+                    missing_items.append(f"field `{sname}.{fname}`")
 
-for k in fully_covered_ex:
-    v = cov_map[k]
-    lp = f"{v['line_percent']:.1f}% ({v['line_covered']}/{v['line_total']})"
-    fp = f"{v['function_percent']:.1f}% ({v['function_covered']}/{v['function_total']})"
-    bp = f"{v['branch_percent']:.1f}% ({v['branch_covered']}/{v['branch_total']})" if v['branch_percent'] is not None else "N/A (0 branches)"
-    lines.append(f"- [x] `{k}` — **Lines:** {lp} | **Functions:** {fp} | **Branches:** {bp}")
+    # 5. function & 6. arg documentation
+    for c in func_decls.values():
+        total_items += 1
+        fn_doc = bool(c.raw_comment and c.raw_comment.strip())
+        fname = c.spelling
+        if fn_doc:
+            covered_items += 1
+        else:
+            missing_items.append(f"func `{fname}`")
 
-lines.append("")
-lines.append("### Generated Model Definitions (`tests/e2e/pregen/`)")
-lines.append("")
+        fn_comment = c.raw_comment or ""
+        for arg in c.get_arguments():
+            aname = arg.spelling
+            if not aname:
+                continue
+            total_items += 1
+            if fn_doc and re.search(
+                r"(@param(\[[^\]]*\])?|@arg|:param)\s+" + re.escape(aname) + r"\b",
+                fn_comment,
+            ):
+                covered_items += 1
+            else:
+                missing_items.append(f"param `{fname}({aname})`")
 
-if m and m_fully_covered:
-    lines.append(f"- [x] `tests/e2e/pregen/Models.c` — **Lines:** {m['line_percent']:.1f}% ({m['line_covered']}/{m['line_total']}) | **Functions:** {m['function_percent']:.1f}% ({m['function_covered']}/{m['function_total']}) | **Branches:** {m['branch_percent']:.1f}% ({m['branch_covered']}/{m['branch_total']})")
+    pct = (covered_items / total_items * 100.0) if total_items > 0 else 100.0
+    is_fully_covered = len(missing_items) == 0
 
-lines.append("")
-lines.append("---")
-lines.append("")
-lines.append("## Declaration-Only Headers (No Executable Code)")
-lines.append("")
-lines.append("The following header files declare public data structures, enums, macros, and API prototypes without containing executable inline function definitions:")
-lines.append("")
+    return {
+        "file": filepath,
+        "is_fully_covered": is_fully_covered,
+        "covered_items": covered_items,
+        "total_items": total_items,
+        "pct": pct,
+        "missing_items": missing_items,
+        "struct_total": len(struct_defs),
+        "func_total": len(func_decls),
+    }
 
-git_files = subprocess.check_output(['git', 'ls-files'], text=True).splitlines()
-inc_headers = sorted([f for f in git_files if f.startswith('include/') and f.endswith('.h')])
-for h in inc_headers:
-    lines.append(f"- `{h}`")
-lines.append("- `tests/e2e/pregen/Models.h`")
-lines.append("")
 
-content = "\n".join(lines)
-with open('UNDERCOVERED.md', 'w') as f:
-    f.write(content)
-print("Wrote UNDERCOVERED.md, length:", len(content))
+def categorize_file(filepath):
+    """Categorize file for report organization."""
+    if filepath.startswith("include/"):
+        return "headers"
+    elif filepath.startswith("src/legacy_cdd_db/"):
+        return "legacy"
+    elif filepath.startswith("src/"):
+        return "src"
+    elif filepath.startswith("examples/"):
+        return "examples"
+    elif filepath.startswith("tests/benchmarks/"):
+        return "benchmarks"
+    elif filepath.startswith("tests/e2e/"):
+        return "e2e"
+    else:
+        return "tests_standalone"
+
+
+def generate_report():
+    """Analyze repository files and generate UNDERCOVERED.md."""
+    find_and_init_libclang()
+    compile_args = get_compile_args()
+    idx = clang.cindex.Index.create()
+
+    git_files = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+    c_files = sorted([f for f in git_files if f.endswith((".c", ".h"))])
+
+    print(f"Analyzing {len(c_files)} files for doc coverage...")
+    reports = []
+    for f in c_files:
+        rep = analyze_file(f, idx, compile_args)
+        reports.append(rep)
+
+    total_files = len(reports)
+    fully_covered = [r for r in reports if r["is_fully_covered"]]
+    undercovered = [r for r in reports if not r["is_fully_covered"]]
+
+    total_items = sum(r["total_items"] for r in reports)
+    covered_items = sum(r["covered_items"] for r in reports)
+    overall_pct = (
+        (covered_items / total_items * 100.0) if total_items > 0 else 100.0
+    )
+
+    categories = {
+        "headers": ("Public API Header Files (`include/`)", []),
+        "src": ("Core Library Source Files (`src/`)", []),
+        "examples": ("Example Applications (`examples/`)", []),
+        "e2e": ("End-to-End Test Suite (`tests/e2e/`)", []),
+        "benchmarks": ("Benchmark Suite (`tests/benchmarks/`)", []),
+        "tests_standalone": ("Standalone Test Fixtures (`tests/`)", []),
+        "legacy": ("Legacy Test Fixtures (`src/legacy_cdd_db/`)", []),
+    }
+
+    for r in reports:
+        cat_key = categorize_file(r["file"])
+        categories[cat_key][1].append(r)
+
+    doc_lines = []
+    doc_lines.append("# Undercovered Files (< 100% Doc Coverage)")
+    doc_lines.append("")
+    doc_lines.append(
+        "This document tracks all files with less than 100% documentation coverage "
+        "across function arguments (`arg`), functions (`function`), structures (`struct`), "
+        "structure fields (`struct field`), file headers (`file`), and modules (`module`)."
+    )
+    doc_lines.append("")
+    doc_lines.append("## Documentation Coverage Summary")
+    doc_lines.append("")
+    doc_lines.append(f"- **Total Files Analyzed:** {total_files}")
+    doc_lines.append(
+        f"- **Fully Documented Files (100% doc coverage):** {len(fully_covered)} "
+        f"({len(fully_covered)*100.0/total_files:.1f}%)"
+    )
+    doc_lines.append(
+        f"- **Undercovered Files (< 100% doc coverage):** {len(undercovered)} "
+        f"({len(undercovered)*100.0/total_files:.1f}%)"
+    )
+    doc_lines.append(
+        f"- **Overall Item Coverage:** {covered_items:,} / {total_items:,} ({overall_pct:.2f}%)"
+    )
+    doc_lines.append("")
+    doc_lines.append("### Summary by Category")
+    doc_lines.append("")
+    doc_lines.append(
+        "| Category | Total Files | Fully Covered (100%) | Undercovered (< 100%) | Item Coverage |"
+    )
+    doc_lines.append(
+        "| :--- | :---: | :---: | :---: | :---: |"
+    )
+
+    for cat_key, (cat_title, cat_reports) in categories.items():
+        c_tot = len(cat_reports)
+        c_full = sum(1 for r in cat_reports if r["is_fully_covered"])
+        c_under = sum(1 for r in cat_reports if not r["is_fully_covered"])
+        c_items = sum(r["total_items"] for r in cat_reports)
+        c_cov = sum(r["covered_items"] for r in cat_reports)
+        c_pct = (c_cov / c_items * 100.0) if c_items > 0 else 100.0
+        # Clean title for table
+        clean_title = cat_title.split(" (")[0]
+        doc_lines.append(
+            f"| {clean_title} | {c_tot} | {c_full} | {c_under} | {c_cov}/{c_items} ({c_pct:.1f}%) |"
+        )
+
+    doc_lines.append("")
+    doc_lines.append("---")
+    doc_lines.append("")
+    doc_lines.append("## Undercovered Files (< 100% Doc Coverage)")
+    doc_lines.append("")
+    doc_lines.append(
+        "The following files currently have less than 100% documentation coverage across "
+        "args, functions, structs, struct fields, file, and module definitions:"
+    )
+    doc_lines.append("")
+
+    if not undercovered:
+        doc_lines.append(
+            "*(None. All files currently achieve 100% documentation coverage.)*"
+        )
+        doc_lines.append("")
+
+    section_num = 1
+    for cat_key, (cat_title, cat_reports) in categories.items():
+        cat_under = [r for r in cat_reports if not r["is_fully_covered"]]
+        if not cat_under:
+            continue
+
+        doc_lines.append(f"### {section_num}. {cat_title}")
+        doc_lines.append("")
+        for r in cat_under:
+            missing_str = ", ".join(r["missing_items"][:6])
+            if len(r["missing_items"]) > 6:
+                missing_str += f", and {len(r['missing_items']) - 6} more"
+            doc_lines.append(
+                f"- [ ] `{r['file']}` — **Coverage:** {r['pct']:.1f}% "
+                f"({r['covered_items']}/{r['total_items']} items) | **Missing:** {missing_str}"
+            )
+        doc_lines.append("")
+        section_num += 1
+
+    doc_lines.append("---")
+    doc_lines.append("")
+    doc_lines.append("## Fully Documented Files (100% Doc Coverage)")
+    doc_lines.append("")
+    doc_lines.append(
+        "The following files currently meet 100% documentation coverage across all "
+        "functions, function arguments, structs, struct fields, and file/module headers:"
+    )
+    doc_lines.append("")
+
+    section_num = 1
+    for cat_key, (cat_title, cat_reports) in categories.items():
+        cat_full = [r for r in cat_reports if r["is_fully_covered"]]
+        if not cat_full:
+            continue
+
+        doc_lines.append(f"### {section_num}. {cat_title}")
+        doc_lines.append("")
+        for r in cat_full:
+            doc_lines.append(
+                f"- [x] `{r['file']}` — **Coverage:** 100.0% "
+                f"({r['covered_items']}/{r['total_items']} items)"
+            )
+        doc_lines.append("")
+        section_num += 1
+
+    output_path = "UNDERCOVERED.md"
+    content = "\n".join(doc_lines) + "\n"
+    with open(output_path, "w", encoding="utf-8") as fp:
+        fp.write(content)
+
+    print(f"Successfully generated {output_path} ({len(content)} bytes)")
+
+
+if __name__ == "__main__":
+    generate_report()

@@ -19,6 +19,9 @@ extern "C" {
 #include <string.h>
 /* clang-format on */
 
+#if defined(__clang__) || defined(__GNUC__)
+__attribute__((__format__(__printf__, 3, 4)))
+#endif
 /**
  * @brief Safe sprintf wrapper.
  *
@@ -28,9 +31,6 @@ extern "C" {
  * @param ... Format arguments.
  * @return Number of characters written or negative on error.
  */
-#if defined(__clang__) || defined(__GNUC__)
-__attribute__((__format__(__printf__, 3, 4)))
-#endif
 C_ORM_EXPORT int
 c_orm_sprintf(char *buf, size_t size, const char *format, ...);
 #define C_ORM_SPRINTF c_orm_sprintf
@@ -56,7 +56,20 @@ c_orm_sprintf(char *buf, size_t size, const char *format, ...);
 #define C_ORM_UNSETENV(var_name) _putenv_s(var_name, "")
 #define C_ORM_SETENV(name, val) _putenv_s(name, val)
 #else
+/**
+ * @brief POSIX unsetenv declaration for C89 compliance.
+ * @param name Environment variable name to unset.
+ * @return 0 on success, or -1 on error.
+ */
 int unsetenv(const char *name);
+
+/**
+ * @brief POSIX setenv declaration for C89 compliance.
+ * @param name Environment variable name.
+ * @param value Environment variable value.
+ * @param overwrite Flag whether to overwrite existing variable.
+ * @return 0 on success, or -1 on error.
+ */
 int setenv(const char *name, const char *value, int overwrite);
 #define C_ORM_UNSETENV(var_name) unsetenv(var_name)
 #define C_ORM_SETENV(name, val) setenv(name, val, 1)

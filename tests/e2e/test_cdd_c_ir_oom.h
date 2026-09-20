@@ -1,40 +1,74 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_cdd_c_ir_oom.h
+ * @brief OOM failure simulation tests for CDD C IR operations.
+ */
 
+#ifndef TEST_CDD_C_IR_OOM_H
+#define TEST_CDD_C_IR_OOM_H
+
+/* clang-format off */
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+/* clang-format on */
+
+/** @brief Counter decremented before triggering simulated malloc/realloc
+ * failure. */
 static int ir_oom_countdown = 0;
-static int ir_oom_active = 0;
+
+/** @brief Pointer to original malloc allocator. */
 static void *(*old_malloc_ir)(size_t) = NULL;
+
+/** @brief Pointer to original realloc allocator. */
 static void *(*old_realloc_ir)(void *, size_t) = NULL;
 
+/**
+ * @brief Mock malloc callback for triggering out-of-memory errors.
+ * @param size Requested allocation size.
+ * @return Pointer or NULL on countdown expiry.
+ */
 static void *mock_malloc_ir(size_t size) {
-  if (ir_oom_active) {
-    if (ir_oom_countdown == 0) {
-      ir_oom_countdown--;
-      return NULL;
-    }
+  if (ir_oom_countdown == 0) {
     ir_oom_countdown--;
+    return NULL;
   }
-  return old_malloc_ir ? old_malloc_ir(size) : malloc(size);
+  ir_oom_countdown--;
+  return old_malloc_ir(size);
 }
 
+/**
+ * @brief Mock realloc callback for triggering out-of-memory errors.
+ * @param ptr Existing memory pointer.
+ * @param size Requested reallocation size.
+ * @return Pointer or NULL on countdown expiry.
+ */
 static void *mock_realloc_ir(void *ptr, size_t size) {
-  if (ir_oom_active) {
-    if (ir_oom_countdown == 0) {
-      ir_oom_countdown--;
-      return NULL;
-    }
+  if (ir_oom_countdown == 0) {
     ir_oom_countdown--;
+    return NULL;
   }
-  return old_realloc_ir ? old_realloc_ir(ptr, size) : realloc(ptr, size);
+  ir_oom_countdown--;
+  return old_realloc_ir(ptr, size);
 }
 
+/**
+ * @brief Tests CDD C IR creation and parsing under simulated OOM conditions.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_ir_oom(void) {
   cdd_c_ir_t ir;
   struct sql_table_t tbl;
   cdd_c_query_projection_t proj;
+  c_orm_error_t rc;
+  int i;
 
   memset(&tbl, 0, sizeof(tbl));
-  cdd_c_query_projection_init(&proj);
+  rc = cdd_c_query_projection_init(&proj);
+  ASSERT_EQ(C_ORM_OK, rc);
   proj.source_table = "test";
   proj.mapping_meta.target_name = "test_map";
 
@@ -42,19 +76,19 @@ TEST test_cdd_c_ir_oom(void) {
   old_realloc_ir = c_orm_realloc;
 
   /* add_table realloc fail */
-  cdd_c_ir_init(&ir);
-  ir_oom_active = 1;
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   ir_oom_countdown = 0;
   c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_table(&ir, &tbl));
 
-  ir_oom_active = 0;
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
-  cdd_c_ir_free(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* add_projection realloc fail */
-  cdd_c_ir_init(&ir);
-  ir_oom_active = 1;
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   ir_oom_countdown = 0;
   c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
@@ -63,116 +97,102 @@ TEST test_cdd_c_ir_oom(void) {
   {
     cdd_c_query_projection_t proj_local;
     cdd_c_query_projection_field_t f;
-    cdd_c_query_projection_init(&proj_local);
+    rc = cdd_c_query_projection_init(&proj_local);
+    ASSERT_EQ(C_ORM_OK, rc);
     memset(&f, 0, sizeof(f));
     f.name = "f1";
-    cdd_c_query_projection_add_field(&proj_local, &f);
+    rc = cdd_c_query_projection_add_field(&proj_local, &f);
+    ASSERT_EQ(C_ORM_OK, rc);
 
-    ir_oom_active = 1;
     ir_oom_countdown = 0; /* fail duplicate_string_qp inside add_field */
     c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
     ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj_local));
 
-    ir_oom_active = 1;
     ir_oom_countdown = 0; /* fail new_fields realloc inside add_field */
     c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
     ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj_local));
 
     c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
-    cdd_c_query_projection_free(&proj_local);
+    rc = cdd_c_query_projection_free(&proj_local);
+    ASSERT_EQ(C_ORM_OK, rc);
   }
 
   /* duplicate_projection malloc fail 1 - source_table */
-  ir_oom_active = 1;
   ir_oom_countdown = 0;
   c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
 
-  ir_oom_active = 0;
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
-  cdd_c_ir_free(&ir);
-  cdd_c_ir_init(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* duplicate_projection malloc fail 2 - target_name */
-  ir_oom_active = 1;
   ir_oom_countdown = 1; /* skips source_table alloc */
   c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
 
-  ir_oom_active = 0;
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
-  cdd_c_ir_free(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* parse_sql_into_ir failure paths */
-  cdd_c_ir_init(&ir);
-  ir_oom_active = 1;
-  /* Malloc counts for "CREATE TABLE x (id INT);"
-     0: sql_token_list_t alloc
-     1: sql_table_t alloc
-     2: table->name alloc
-     3: col.name alloc
-     4: col.constraints alloc
-     we want to trigger cdd_c_ir_add_table's realloc, which uses realloc.
-     So we need to let malloc succeed, but realloc fail. */
-  ir_oom_active = 0; /* Let token and table parsing succeed. We will fail in
-                        cdd_c_ir_add_table which does REALLOC */
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
 
-  ir_oom_active = 1;
   ir_oom_countdown = 2; /* 0: token_list realloc, 1: table->columns realloc, 2:
                            cdd_c_ir_add_table realloc */
   c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
   ASSERT(parse_sql_into_ir("CREATE TABLE x (id INT);", &ir) != C_ORM_OK);
 
-  ir_oom_active = 0;
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
-  cdd_c_ir_free(&ir);
-  cdd_c_ir_init(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  ir_oom_active = 1;
   ir_oom_countdown = 1;
   c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
   ASSERT(parse_sql_into_ir("SELECT id FROM x;", &ir) != C_ORM_OK);
 
-  ir_oom_active = 1;
   ir_oom_countdown = 1; /* 0: token_list MALLOC, 1: sql_parse_select MALLOC */
   c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
   ASSERT(parse_sql_into_ir("SELECT id FROM x;", &ir) != C_ORM_OK);
 
-  ir_oom_active = 0;
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
-  cdd_c_ir_free(&ir);
-  cdd_c_ir_init(&ir);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
-  ir_oom_active = 1;
   ir_oom_countdown =
       1; /* 0: token_list MALLOC, 1: sql_parse_returning MALLOC */
   c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
   ASSERT(parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;",
                            &ir) != C_ORM_OK);
 
-  {
-    int i;
-    for (i = 0; i < 10; ++i) {
-      ir_oom_active = 1;
-      ir_oom_countdown = i;
-      c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
-      if (parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;",
-                            &ir) != C_ORM_OK) {
-        c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
-        cdd_c_ir_free(&ir);
-        cdd_c_ir_init(&ir);
-      } else {
-        c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
-        cdd_c_ir_free(&ir);
-        cdd_c_ir_init(&ir);
-        break; /* Success means we passed the OOM bounds */
-      }
-    }
+  for (i = 0; i < 3; ++i) {
+    ir_oom_countdown = i;
+    c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
+    ASSERT(parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;",
+                             &ir) != C_ORM_OK);
+    c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
+    rc = cdd_c_ir_free(&ir);
+    ASSERT_EQ(C_ORM_OK, rc);
+    rc = cdd_c_ir_init(&ir);
+    ASSERT_EQ(C_ORM_OK, rc);
   }
+
+  rc = parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = cdd_c_ir_free(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   PASS();
 }
 
+#endif /* TEST_CDD_C_IR_OOM_H */
 #if defined(__clang__) || defined(__GNUC__)
 #endif

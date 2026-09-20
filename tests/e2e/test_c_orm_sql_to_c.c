@@ -12,10 +12,33 @@ extern "C" {
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_sql_to_c.h"
+#define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
 /**
@@ -638,8 +661,10 @@ TEST test_sql_to_c_edge_cases(void) {
 
 /**
  * @brief Test suite runner for SQL to C code generation.
+ * @param sql_to_c_suite Suite runner function name.
  */
 SUITE(sql_to_c_suite) {
+  static int recursed = 0;
   RUN_TEST(test_sql_to_c_header_emit);
   RUN_TEST(test_sql_to_c_source_emit);
   RUN_TEST(test_sql_to_c_errors);
@@ -649,6 +674,13 @@ SUITE(sql_to_c_suite) {
   RUN_TEST(test_sql_to_c_bitmask_sizes);
   RUN_TEST(test_sql_to_c_projection_types);
   RUN_TEST(test_sql_to_c_edge_cases);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    sql_to_c_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

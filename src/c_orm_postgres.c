@@ -1007,7 +1007,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd) {
 
 #else
 
-/** @brief Get Postgres vtable stub */
+/**
+ * @brief Get Postgres vtable stub.
+ * @param out_vtable Pointer receiving the driver vtable.
+ * @return C_ORM_ERROR_NOT_IMPLEMENTED when Postgres is disabled.
+ */
 C_ORM_EXPORT c_orm_error_t
 c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   c_orm_error_t rc;
@@ -1020,7 +1024,12 @@ c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   return rc;
 }
 
-/** @brief Postgres connect stub */
+/**
+ * @brief Postgres connect stub.
+ * @param url Connection string URL.
+ * @param out_db Pointer receiving database handle.
+ * @return C_ORM_ERROR_NOT_IMPLEMENTED when Postgres is disabled.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
                                                   c_orm_db_t **out_db) {
   c_orm_error_t rc;
@@ -1032,7 +1041,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
   return (c_orm_error_t)rc;
 }
 
-/** @brief Postgres large object create stub */
+/**
+ * @brief Postgres large object create stub.
+ * @param db Database handle.
+ * @param out_oid Pointer receiving object identifier.
+ * @return C_ORM_ERROR_NOT_IMPLEMENTED when Postgres is disabled.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
                                                     unsigned int *out_oid) {
   c_orm_error_t rc;
@@ -1044,7 +1058,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
   return (c_orm_error_t)rc;
 }
 
-/** @brief Postgres large object open stub */
+/**
+ * @brief Postgres large object open stub.
+ * @param db Database handle.
+ * @param oid Object identifier.
+ * @param mode Open mode flags.
+ * @param out_fd Pointer receiving descriptor pointer.
+ * @return C_ORM_ERROR_NOT_IMPLEMENTED when Postgres is disabled.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
                                                   unsigned int oid, int mode,
                                                   void **out_fd) {
@@ -1059,7 +1080,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
   return (c_orm_error_t)rc;
 }
 
-/** @brief Postgres large object read stub */
+/**
+ * @brief Postgres large object read stub.
+ * @param db Database handle.
+ * @param fd Large object descriptor.
+ * @param buffer Output buffer.
+ * @param len Buffer length.
+ * @param out_read Pointer receiving bytes read.
+ * @return C_ORM_ERROR_NOT_IMPLEMENTED when Postgres is disabled.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_read(c_orm_db_t *db, void *fd,
                                                   void *buffer, size_t len,
                                                   size_t *out_read) {
@@ -1075,7 +1104,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_read(c_orm_db_t *db, void *fd,
   return (c_orm_error_t)rc;
 }
 
-/** @brief Postgres large object write stub */
+/**
+ * @brief Postgres large object write stub.
+ * @param db Database handle.
+ * @param fd Large object descriptor.
+ * @param buffer Input data buffer.
+ * @param len Buffer length.
+ * @param out_written Pointer receiving bytes written.
+ * @return C_ORM_ERROR_NOT_IMPLEMENTED when Postgres is disabled.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
                                                    const void *buffer,
                                                    size_t len,
@@ -1092,7 +1129,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
   return (c_orm_error_t)rc;
 }
 
-/** @brief Postgres large object close stub */
+/**
+ * @brief Postgres large object close stub.
+ * @param db Database handle.
+ * @param fd Large object descriptor.
+ * @return C_ORM_ERROR_NOT_IMPLEMENTED when Postgres is disabled.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd) {
   c_orm_error_t rc;
   LOG_DEBUG("c_orm_postgres_lo_close: entry");

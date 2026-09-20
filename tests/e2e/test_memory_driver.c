@@ -8,37 +8,86 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_memory.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
+/** @brief Counter decremented before triggering test malloc failure. */
 static int oom_countdown = -1;
-static int oom_active = 0;
 
+/**
+ * @brief Mock malloc callback returning NULL on countdown expiry.
+ * @param size Requested allocation size.
+ * @return Allocated memory or NULL on failure.
+ */
 static void *mock_malloc(size_t size) {
-  if (oom_active) {
-    if (oom_countdown == 0) {
-      oom_countdown--;
-      return NULL;
-    }
+  if (oom_countdown == 0) {
     oom_countdown--;
+    return NULL;
   }
+  oom_countdown--;
   return malloc(size);
 }
 
+/**
+ * @brief Mock free callback forwarding to free.
+ * @param ptr Pointer to memory to free.
+ */
 static void mock_free(void *ptr) { free(ptr); }
 
+/**
+ * @brief Tests in-memory database edge cases, vtable operations, and error
+ * paths.
+ * @return GREATEST test result.
+ */
 TEST test_memory_edge_cases(void) {
-
-  c_orm_db_t *db = NULL;
-  const c_orm_driver_vtable_t *vt = NULL;
-  c_orm_query_t *q = NULL;
+  c_orm_db_t *db;
+  const c_orm_driver_vtable_t *vt;
+  c_orm_query_t *q;
   c_orm_error_t err;
   int64_t id;
   int count;
+  int has_row;
+  const char *msg;
+  int out_null;
+  const char *out_name;
+
+  db = NULL;
+  vt = NULL;
+  q = NULL;
+  has_row = 0;
+  msg = NULL;
+  out_null = 0;
+  out_name = NULL;
 
   /* get_vtable NULL */
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_memory_get_vtable(NULL));
@@ -54,7 +103,6 @@ TEST test_memory_edge_cases(void) {
   ASSERT(db != NULL);
 
   /* Coverage via vtable */
-
   err = vt->prepare(db, "SELECT * FROM t", &q);
   ASSERT_EQ(C_ORM_OK, err);
   err = vt->finalize(q);
@@ -101,13 +149,9 @@ TEST test_memory_edge_cases(void) {
   err = vt->bind_null(q, 1);
   ASSERT_EQ(C_ORM_OK, err);
 
-  {
-    int has_row = 0;
-
-    err = vt->step(q, &has_row);
-    ASSERT_EQ(C_ORM_OK, err);
-    ASSERT_EQ(0, has_row);
-  }
+  err = vt->step(q, &has_row);
+  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT_EQ(0, has_row);
 
   err = vt->get_int32(q, 0, NULL);
   ASSERT_EQ(C_ORM_ERROR_NOT_FOUND, err);
@@ -139,11 +183,8 @@ TEST test_memory_edge_cases(void) {
   err = vt->reset(q);
   ASSERT_EQ(C_ORM_OK, err);
 
-  {
-    const char *msg = NULL;
-    vt->get_last_error(db, &msg);
-    ASSERT_STR_EQ("", msg);
-  }
+  vt->get_last_error(db, &msg);
+  ASSERT_STR_EQ("", msg);
 
   err = vt->finalize(q);
   ASSERT_EQ(C_ORM_OK, err);
@@ -151,70 +192,67 @@ TEST test_memory_edge_cases(void) {
   vt->disconnect(db);
 
   /* Test OOM in mem_connect */
-  oom_active = 1;
   oom_countdown = 0;
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_memory_connect("mem://", &db));
   oom_countdown = 1;
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_memory_connect("mem://", &db));
-  oom_active = 0;
+  oom_countdown = -1;
 
   /* Test parsing whitespace before table name */
   err = c_orm_memory_connect("mem://", &db);
+  ASSERT_EQ(C_ORM_OK, err);
   err = vt->prepare(db, "SELECT * FROM    my_table", &q);
   ASSERT_EQ(C_ORM_OK, err);
   err = vt->finalize(q);
 
   /* OOM in prepare */
-  oom_active = 1;
   oom_countdown = 0;
   ASSERT_EQ(C_ORM_ERROR_MEMORY, vt->prepare(db, "SELECT * FROM t", &q));
   oom_countdown = 1;
   ASSERT_EQ(C_ORM_ERROR_MEMORY, vt->prepare(db, "SELECT * FROM t", &q));
-  oom_active = 0;
+  oom_countdown = -1;
 
   /* Coverage for pointers passed in */
+  vt->is_null(NULL, 0, &out_null);
+  vt->get_column_name(NULL, 0, &out_name);
+
+  /* Test disconnect with allocated tables */
   {
-    int out_null;
-    int64_t out_id;
-    int out_count;
-    const char *out_name;
-    const char *msg;
-    (void)msg;
-    (void)out_count;
-    (void)out_id;
-
-    vt->is_null(NULL, 0, &out_null);
-    vt->get_column_name(NULL, 0, &out_name);
-
-    /* Test get_last_error with null db */
-  }
-
-  /* Test disconnect with allocated tables (mocking internal structs is hard so
-   * we just rely on standard path) */
-  /* Actually, c_orm_memory_db_t has a tables pointer. To cover mem_disconnect
-   * we need a table. But mem_prepare doesn't create tables. Let's force a table
-   * by casting db->driver_data */
-  {
+    /** @brief Mock memory row structure for testing memory cleanup. */
     typedef struct mem_row {
+      /** @brief Pointer array of column values. */
       void **columns;
+      /** @brief Number of columns stored in row. */
       size_t num_cols;
+      /** @brief Pointer to next row in list. */
       struct mem_row *next;
     } mem_row_t;
 
+    /** @brief Mock memory table structure for testing table teardown. */
     typedef struct mem_table {
+      /** @brief Table name string. */
       char *name;
+      /** @brief Pointer to head row of table. */
       mem_row_t *head;
+      /** @brief Pointer to next table in list. */
       struct mem_table *next;
     } mem_table_t;
 
+    /** @brief Mock memory database driver context. */
     typedef struct {
+      /** @brief Linked list head of memory tables. */
       mem_table_t *tables;
+      /** @brief Last recorded error message buffer. */
       char last_error[256];
     } c_orm_memory_db_t;
 
-    c_orm_memory_db_t *ctx = (c_orm_memory_db_t *)db->driver_data;
-    mem_table_t *t = (mem_table_t *)C_ORM_MALLOC(sizeof(mem_table_t));
-    mem_row_t *r = (mem_row_t *)C_ORM_MALLOC(sizeof(mem_row_t));
+    c_orm_memory_db_t *ctx;
+    mem_table_t *t;
+    mem_row_t *r;
+
+    ctx = (c_orm_memory_db_t *)db->driver_data;
+    t = (mem_table_t *)C_ORM_MALLOC(sizeof(mem_table_t));
+    r = (mem_row_t *)C_ORM_MALLOC(sizeof(mem_row_t));
 
     C_ORM_STRDUP("mock_table", &t->name);
     t->next = NULL;
@@ -233,17 +271,31 @@ TEST test_memory_edge_cases(void) {
   PASS();
 }
 
+/**
+ * @brief Memory driver test suite runner.
+ * @param memory_driver_suite Suite runner function name.
+ */
 SUITE(memory_driver_suite) {
-  void *(*old_malloc)(size_t) = c_orm_malloc;
-  void (*old_free)(void *) = c_orm_free;
+  static int recursed = 0;
+  void *(*old_malloc)(size_t);
+  void (*old_free)(void *);
 
-  c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free);
-  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, mock_free);
+  old_malloc = c_orm_malloc;
+  old_free = c_orm_free;
+
+  c_orm_set_allocators(mock_malloc, c_orm_realloc, mock_free);
 
   RUN_TEST(test_memory_edge_cases);
 
-  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
-  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
+  c_orm_set_allocators(old_malloc, c_orm_realloc, old_free);
+
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    memory_driver_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

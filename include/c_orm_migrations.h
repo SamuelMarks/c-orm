@@ -38,10 +38,15 @@ extern "C" {
  * @brief Representation of a single migration.
  */
 typedef struct {
+  /** @brief Version string of migration. */
   char version[256];
+  /** @brief Human-readable name of migration. */
   char name[256];
+  /** @brief Checksum hash string of migration content. */
   char hash[65];
+  /** @brief SQL commands to apply migration. */
   char *up_sql;
+  /** @brief SQL commands to revert migration. */
   char *down_sql;
 } c_orm_migration_t;
 
@@ -49,12 +54,16 @@ typedef struct {
  * @brief Context/options for migration execution.
  */
 typedef struct {
-  int dry_run; /**< If 1, do not execute, only print SQL */
-  c_orm_error_t (*log_cb)(
-      const char *msg); /**< Optional logger for migration steps */
-  void *user_data;      /**< Passed to hooks */
+  /** @brief If 1, do not execute, only print SQL. */
+  int dry_run;
+  /** @brief Optional logger callback for migration steps. */
+  c_orm_error_t (*log_cb)(const char *msg);
+  /** @brief Arbitrary user data passed to hooks. */
+  void *user_data;
+  /** @brief Hook executed prior to running migration. */
   c_orm_error_t (*pre_migrate)(c_orm_db_t *db, const c_orm_migration_t *mig,
                                void *user_data);
+  /** @brief Hook executed after successfully running migration. */
   c_orm_error_t (*post_migrate)(c_orm_db_t *db, const c_orm_migration_t *mig,
                                 void *user_data);
 } c_orm_migration_options_t;
@@ -69,6 +78,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_init_table(c_orm_db_t *db);
 
 /**
  * @brief Fetch applied migrations.
+ *
+ * @param db The database connection.
+ * @param out_migrations Pointer receiving array of applied migrations.
+ * @param out_count Pointer receiving count of applied migrations.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
     c_orm_db_t *db, c_orm_migration_t **out_migrations, size_t *out_count);
@@ -177,6 +191,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
 
 /**
  * @brief Free a fetched table schema.
+ *
+ * @param schema Pointer to schema structure to release.
  */
 C_ORM_EXPORT void c_orm_migration_free_table_schema(cdd_c_meta_t *schema);
 

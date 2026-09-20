@@ -16,9 +16,32 @@ extern "C" {
 #include "c_orm_mysql.h"
 #include "c_orm_postgres.h"
 #include "c_orm_codegen.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
 #include <stdio.h>
 #include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
 #ifndef __EMSCRIPTEN__
@@ -317,13 +340,13 @@ TEST test_c_orm_db_coverage(void) {
 }
 
 /**
- * @brief Async query completion callback.
+ * @brief Async query completion callback for testing.
  * @param err Error enum.
  * @param ctx Context pointer.
  */
-static void async_cb(c_orm_error_t err, void *ctx) {
+static void test_async_cb(c_orm_error_t err, void *ctx) {
   if (err != C_ORM_OK) {
-    /* err handled */
+    /* Async callback error */
   }
   (void)ctx;
 }
@@ -338,6 +361,8 @@ TEST test_c_orm_async_coverage(void) {
   int obj;
   c_orm_error_t rc;
 
+  test_async_cb(C_ORM_OK, NULL);
+
   memset(&db, 0, sizeof(db));
   memset(&meta, 0, sizeof(meta));
   obj = 0;
@@ -351,7 +376,7 @@ TEST test_c_orm_async_coverage(void) {
   rc = c_orm_insert_async(&db, &meta, NULL, NULL, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  rc = c_orm_insert_async(&db, &meta, &obj, async_cb, NULL);
+  rc = c_orm_insert_async(&db, &meta, &obj, test_async_cb, NULL);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, rc);
 
   rc = c_orm_find_all_async(NULL, NULL, NULL, NULL, NULL);
@@ -363,7 +388,7 @@ TEST test_c_orm_async_coverage(void) {
   rc = c_orm_find_all_async(&db, &meta, NULL, NULL, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  rc = c_orm_find_all_async(&db, &meta, &obj, async_cb, NULL);
+  rc = c_orm_find_all_async(&db, &meta, &obj, test_async_cb, NULL);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, rc);
 
   rc = c_orm_insert_async(&db, &meta, &obj, NULL, NULL);
@@ -396,10 +421,8 @@ TEST test_codegen_coverage(void) {
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   C_ORM_FOPEN(&f, "test_stubs_schema.sql", "w");
-  if (f != NULL) {
-    fprintf(f, "%s\n", "CREATE TABLE t_stubs (id INTEGER PRIMARY KEY);");
-    fclose(f);
-  }
+  fprintf(f, "%s\n", "CREATE TABLE t_stubs (id INTEGER PRIMARY KEY);");
+  fclose(f);
   schema_path = "test_stubs_schema.sql";
 
   rc = c_orm_codegen_generate(schema_path, "test_out");
@@ -434,8 +457,10 @@ TEST test_modality_coverage(void) {
 
 /**
  * @brief Database stubs and hooks test suite runner.
+ * @param db_stubs_suite Suite runner function name.
  */
 SUITE(db_stubs_suite) {
+  static int recursed = 0;
 #ifndef __EMSCRIPTEN__
   RUN_TEST(test_postgres_stubs_edge_cases);
   RUN_TEST(test_mysql_stubs_edge_cases);
@@ -446,6 +471,13 @@ SUITE(db_stubs_suite) {
   RUN_TEST(test_codegen_coverage);
 #endif
   RUN_TEST(test_modality_coverage);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    db_stubs_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

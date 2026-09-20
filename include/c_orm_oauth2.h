@@ -20,12 +20,19 @@ extern "C" {
  * @brief Represents an OAuth 2.0 token response/storage.
  */
 typedef struct {
+  /** @brief Bearer access token string. */
   char *access_token;
+  /** @brief Refresh token string. */
   char *refresh_token;
+  /** @brief Token type string (e.g., Bearer). */
   char *token_type;
+  /** @brief Token expiration lifetime in seconds. */
   int32_t expires_in; /* seconds */
+  /** @brief Token creation timestamp (UNIX epoch). */
   int64_t created_at; /* UNIX timestamp */
+  /** @brief User ID identifier string associated with token. */
   char *user_id;
+  /** @brief Space-delimited granted scopes string. */
   char *scopes;
 } c_orm_oauth2_token_t;
 
@@ -33,10 +40,15 @@ typedef struct {
  * @brief Represents an OAuth 2.0 Client.
  */
 typedef struct {
+  /** @brief Client identifier string. */
   char *id;
+  /** @brief Client secret string. */
   char *client_secret;
+  /** @brief Allowed redirect URIs string. */
   char *redirect_uris;
+  /** @brief Allowed grant types string. */
   char *grant_types;
+  /** @brief Allowed scopes string. */
   char *scopes;
 } c_orm_oauth2_client_t;
 
@@ -44,11 +56,17 @@ typedef struct {
  * @brief Represents an Authorization Code in the Authorization Code Flow.
  */
 typedef struct {
+  /** @brief Authorization code string. */
   char *code;
+  /** @brief Associated client ID string. */
   char *client_id;
+  /** @brief Authorized redirect URI. */
   char *redirect_uri;
+  /** @brief Associated user ID string. */
   char *user_id;
+  /** @brief UNIX timestamp expiration of code. */
   int64_t expires_at;
+  /** @brief Space-delimited authorized scopes. */
   char *scopes;
 } c_orm_oauth2_auth_code_t;
 
@@ -56,9 +74,13 @@ typedef struct {
  * @brief Represents a server-side User.
  */
 typedef struct {
+  /** @brief UUID or opaque user identifier. */
   char *id; /* UUID or opaque string */
+  /** @brief Username string. */
   char *username;
+  /** @brief Hashed password string. */
   char *password_hash;
+  /** @brief Password hashing salt string. */
   char *salt;
 } c_orm_user_t;
 
@@ -66,7 +88,9 @@ typedef struct {
  * @brief Represents a client-side User (logged-in entity).
  */
 typedef struct {
+  /** @brief Client user ID string. */
   char *id;
+  /** @brief Client username string. */
   char *username;
 } c_orm_client_user_t;
 
@@ -74,8 +98,11 @@ typedef struct {
  * @brief Represents an active user session linking a user and a token.
  */
 typedef struct {
+  /** @brief Unique session identifier string. */
   char *session_id;
+  /** @brief Associated user pointer. */
   c_orm_user_t *user;
+  /** @brief Associated OAuth2 token pointer. */
   c_orm_oauth2_token_t *token;
 } c_orm_session_t;
 

@@ -24,38 +24,77 @@ typedef enum {
   MEM_QUERY_RAW
 } mem_query_type_t;
 
-/** @brief Row structure */
+/**
+ * @brief Row structure
+ * @var columns Array of column value pointers.
+ * @var num_cols Number of columns in this row.
+ * @var next Pointer to next row in table.
+ */
 typedef struct mem_row {
+  /** @brief Array of column value pointers. */
   void **columns;
+  /** @brief Number of columns in this row. */
   size_t num_cols;
+  /** @brief Pointer to next row in table. */
   struct mem_row *next;
 } mem_row_t;
 
-/** @brief Table structure */
+/**
+ * @brief Table structure
+ * @var name Table name string.
+ * @var head Pointer to first row in table.
+ * @var next Pointer to next table in database.
+ */
 typedef struct mem_table {
+  /** @brief Table name string. */
   char *name;
+  /** @brief Pointer to first row in table. */
   mem_row_t *head;
+  /** @brief Pointer to next table in database. */
   struct mem_table *next;
 } mem_table_t;
 
-/** @brief DB structure */
+/**
+ * @brief DB structure
+ * @var tables Linked list head of database tables.
+ * @var last_error Buffer storing last error message string.
+ */
 typedef struct {
+  /** @brief Linked list head of database tables. */
   mem_table_t *tables;
+  /** @brief Buffer storing last error message string. */
   char last_error[256];
 } c_orm_memory_db_t;
 
-/** @brief Query context */
+/**
+ * @brief Query context
+ * @var type Type of query being executed.
+ * @var table_name Name of target table.
+ * @var bound_params Array of bound parameter pointers.
+ * @var num_bound Number of bound parameters.
+ * @var current_row Current row pointer for iteration.
+ * @var db Pointer to parent memory database instance.
+ */
 typedef struct {
+  /** @brief Type of query being executed. */
   mem_query_type_t type;
+  /** @brief Name of target table. */
   char table_name[64];
+  /** @brief Array of bound parameter pointers. */
   void **bound_params;
+  /** @brief Number of bound parameters. */
   size_t num_bound;
+  /** @brief Current row pointer for iteration. */
   mem_row_t *current_row; /* For iteration */
+  /** @brief Pointer to parent memory database instance. */
   c_orm_memory_db_t *db;
 } c_orm_memory_query_t;
 
 /**
- * @brief Connect
+ * @brief Connects to in-memory database instance.
+ * @param url Connection string URL (ignored for memory driver).
+ * @param out_db Pointer to receive allocated database handle.
+ * @return 0 on success, non-zero on error.
  */
 static c_orm_error_t mem_connect(const char *url, c_orm_db_t **out_db) {
   c_orm_error_t rc;
@@ -109,7 +148,9 @@ static c_orm_error_t mem_connect(const char *url, c_orm_db_t **out_db) {
 }
 
 /**
- * @brief Disconnect
+ * @brief Disconnects and frees an in-memory database instance.
+ * @param db Database handle to close.
+ * @return 0 on success.
  */
 static c_orm_error_t mem_disconnect(c_orm_db_t *db) {
   c_orm_error_t rc;
@@ -141,7 +182,10 @@ static c_orm_error_t mem_disconnect(c_orm_db_t *db) {
 }
 
 /**
- * @brief Parse table name
+ * @brief Parses table name from SQL string following a prefix.
+ * @param sql Input SQL statement string.
+ * @param prefix Keyword prefix preceding table name.
+ * @param out Buffer to receive parsed table name string.
  */
 static void parse_table_name(const char *sql, const char *prefix, char *out) {
   const char *p;
@@ -159,7 +203,11 @@ static void parse_table_name(const char *sql, const char *prefix, char *out) {
 }
 
 /**
- * @brief Prepare
+ * @brief Prepares an in-memory query statement.
+ * @param db Database handle.
+ * @param sql SQL statement string.
+ * @param out_query Pointer to receive allocated query handle.
+ * @return 0 on success, non-zero on error.
  */
 static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
                                  c_orm_query_t **out_query) {
@@ -220,7 +268,11 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
 }
 
 /**
- * @brief Bind int32
+ * @brief Binds a 32-bit integer parameter.
+ * @param query Query handle.
+ * @param index 1-based parameter index.
+ * @param val Value to bind.
+ * @return 0 on success.
  */
 static c_orm_error_t mem_bind_int32(c_orm_query_t *query, int index,
                                     int32_t val) {
@@ -235,7 +287,11 @@ static c_orm_error_t mem_bind_int32(c_orm_query_t *query, int index,
 }
 
 /**
- * @brief Bind int64
+ * @brief Binds a 64-bit integer parameter.
+ * @param query Query handle.
+ * @param index 1-based parameter index.
+ * @param val Value to bind.
+ * @return 0 on success.
  */
 static c_orm_error_t mem_bind_int64(c_orm_query_t *query, int index,
                                     int64_t val) {
@@ -250,7 +306,11 @@ static c_orm_error_t mem_bind_int64(c_orm_query_t *query, int index,
 }
 
 /**
- * @brief Bind double
+ * @brief Binds a double floating-point parameter.
+ * @param query Query handle.
+ * @param index 1-based parameter index.
+ * @param val Value to bind.
+ * @return 0 on success.
  */
 static c_orm_error_t mem_bind_double(c_orm_query_t *query, int index,
                                      double val) {
@@ -265,7 +325,11 @@ static c_orm_error_t mem_bind_double(c_orm_query_t *query, int index,
 }
 
 /**
- * @brief Bind string
+ * @brief Binds a string parameter.
+ * @param query Query handle.
+ * @param index 1-based parameter index.
+ * @param val Value string to bind.
+ * @return 0 on success.
  */
 static c_orm_error_t mem_bind_string(c_orm_query_t *query, int index,
                                      const char *val) {
@@ -280,7 +344,12 @@ static c_orm_error_t mem_bind_string(c_orm_query_t *query, int index,
 }
 
 /**
- * @brief Bind blob
+ * @brief Binds a binary blob parameter.
+ * @param query Query handle.
+ * @param index 1-based parameter index.
+ * @param val Pointer to blob buffer.
+ * @param size Size in bytes.
+ * @return 0 on success.
  */
 static c_orm_error_t mem_bind_blob(c_orm_query_t *query, int index,
                                    const void *val, size_t size) {
@@ -296,7 +365,10 @@ static c_orm_error_t mem_bind_blob(c_orm_query_t *query, int index,
 }
 
 /**
- * @brief Bind null
+ * @brief Binds a NULL parameter.
+ * @param query Query handle.
+ * @param index 1-based parameter index.
+ * @return 0 on success.
  */
 static c_orm_error_t mem_bind_null(c_orm_query_t *query, int index) {
   c_orm_error_t rc;
@@ -309,7 +381,10 @@ static c_orm_error_t mem_bind_null(c_orm_query_t *query, int index) {
 }
 
 /**
- * @brief Step
+ * @brief Steps execution of an in-memory statement.
+ * @param query Query handle.
+ * @param out_has_row Pointer to receive 1 if row available, 0 if done.
+ * @return 0 on success.
  */
 static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
   c_orm_error_t rc;
@@ -323,7 +398,11 @@ static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
 }
 
 /**
- * @brief Get int32
+ * @brief Retrieves a 32-bit integer column value.
+ * @param query Query handle.
+ * @param index 0-based column index.
+ * @param out_val Pointer to receive integer value.
+ * @return Error code.
  */
 static c_orm_error_t mem_get_int32(c_orm_query_t *query, int index,
                                    int32_t *out_val) {
@@ -338,7 +417,11 @@ static c_orm_error_t mem_get_int32(c_orm_query_t *query, int index,
 }
 
 /**
- * @brief Get int64
+ * @brief Retrieves a 64-bit integer column value.
+ * @param query Query handle.
+ * @param index 0-based column index.
+ * @param out_val Pointer to receive 64-bit integer value.
+ * @return Error code.
  */
 static c_orm_error_t mem_get_int64(c_orm_query_t *query, int index,
                                    int64_t *out_val) {
@@ -353,7 +436,11 @@ static c_orm_error_t mem_get_int64(c_orm_query_t *query, int index,
 }
 
 /**
- * @brief Get double
+ * @brief Retrieves a double floating-point column value.
+ * @param query Query handle.
+ * @param index 0-based column index.
+ * @param out_val Pointer to receive double value.
+ * @return Error code.
  */
 static c_orm_error_t mem_get_double(c_orm_query_t *query, int index,
                                     double *out_val) {
@@ -368,7 +455,11 @@ static c_orm_error_t mem_get_double(c_orm_query_t *query, int index,
 }
 
 /**
- * @brief Get string
+ * @brief Retrieves a string column value.
+ * @param query Query handle.
+ * @param index 0-based column index.
+ * @param out_val Pointer to receive string pointer.
+ * @return Error code.
  */
 static c_orm_error_t mem_get_string(c_orm_query_t *query, int index,
                                     const char **out_val) {
@@ -383,7 +474,12 @@ static c_orm_error_t mem_get_string(c_orm_query_t *query, int index,
 }
 
 /**
- * @brief Get blob
+ * @brief Retrieves a binary blob column value.
+ * @param query Query handle.
+ * @param index 0-based column index.
+ * @param out_val Pointer to receive blob buffer pointer.
+ * @param out_size Pointer to receive blob size in bytes.
+ * @return Error code.
  */
 static c_orm_error_t mem_get_blob(c_orm_query_t *query, int index,
                                   const void **out_val, size_t *out_size) {
@@ -399,7 +495,11 @@ static c_orm_error_t mem_get_blob(c_orm_query_t *query, int index,
 }
 
 /**
- * @brief Is null
+ * @brief Checks if a column value is NULL.
+ * @param query Query handle.
+ * @param index 0-based column index.
+ * @param out_is_null Pointer to receive 1 if NULL, 0 otherwise.
+ * @return 0 on success.
  */
 static c_orm_error_t mem_is_null(c_orm_query_t *query, int index,
                                  int *out_is_null) {
@@ -416,7 +516,9 @@ static c_orm_error_t mem_is_null(c_orm_query_t *query, int index,
 }
 
 /**
- * @brief Finalize
+ * @brief Finalizes and frees a query handle.
+ * @param query Query handle to destroy.
+ * @return 0 on success.
  */
 static c_orm_error_t mem_finalize(c_orm_query_t *query) {
   c_orm_error_t rc;
@@ -432,7 +534,9 @@ static c_orm_error_t mem_finalize(c_orm_query_t *query) {
 }
 
 /**
- * @brief Reset
+ * @brief Resets a prepared statement.
+ * @param query Query handle to reset.
+ * @return 0 on success.
  */
 static c_orm_error_t mem_reset(c_orm_query_t *query) {
   c_orm_error_t rc;
@@ -444,7 +548,10 @@ static c_orm_error_t mem_reset(c_orm_query_t *query) {
 }
 
 /**
- * @brief Get last error
+ * @brief Retrieves the last error message string.
+ * @param db Database handle.
+ * @param out_message Pointer to receive error message pointer.
+ * @return Error code.
  */
 static c_orm_error_t mem_get_last_error(c_orm_db_t *db,
                                         const char **out_message) {
@@ -459,7 +566,10 @@ static c_orm_error_t mem_get_last_error(c_orm_db_t *db,
 }
 
 /**
- * @brief Get last insert rowid
+ * @brief Retrieves the last inserted rowid.
+ * @param db Database handle.
+ * @param out_id Pointer to receive row ID.
+ * @return Error code.
  */
 static c_orm_error_t mem_get_last_insert_rowid(c_orm_db_t *db,
                                                int64_t *out_id) {
@@ -475,7 +585,10 @@ static c_orm_error_t mem_get_last_insert_rowid(c_orm_db_t *db,
 }
 
 /**
- * @brief Get column count
+ * @brief Retrieves the number of columns in the result set.
+ * @param query Query handle.
+ * @param out_count Pointer to receive column count.
+ * @return Error code.
  */
 static c_orm_error_t mem_get_column_count(c_orm_query_t *query,
                                           int *out_count) {
@@ -491,7 +604,11 @@ static c_orm_error_t mem_get_column_count(c_orm_query_t *query,
 }
 
 /**
- * @brief Get column name
+ * @brief Retrieves the name of a result column.
+ * @param query Query handle.
+ * @param index 0-based column index.
+ * @param out_name Pointer to receive column name string.
+ * @return Error code.
  */
 static c_orm_error_t mem_get_column_name(c_orm_query_t *query, int index,
                                          const char **out_name) {
@@ -533,7 +650,9 @@ static const c_orm_driver_vtable_t memory_vtable = {mem_connect,
                                                     mem_get_column_name};
 
 /**
- * @brief Get vtable
+ * @brief Retrieves the driver virtual table for the memory driver.
+ * @param out_vtable Pointer to receive driver vtable pointer.
+ * @return 0 on success, non-zero on error.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_memory_get_vtable(const c_orm_driver_vtable_t **out_vtable) {

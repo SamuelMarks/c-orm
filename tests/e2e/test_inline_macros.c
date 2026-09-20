@@ -13,22 +13,51 @@ extern "C" {
 #include "c_orm_api.h"
 #include "c_orm_inline_macros.h"
 #include "c_orm_sqlite.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ_FMT
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
+/** @brief Spatial test model structure. */
 struct SpatialModel {
+  /** @brief Primary key identifier. */
   int32_t id;
+  /** @brief Point coordinate structure. */
   c_orm_point_t point;
+  /** @brief Polygon spatial structure. */
   c_orm_polygon_t polygon;
+  /** @brief Double precision float value. */
   double dval;
+  /** @brief Single precision float value. */
   float fval;
+  /** @brief Nullable double precision pointer value. */
   double *ndval;
+  /** @brief Binary large object payload. */
   c_orm_blob_t data;
 };
 
+/** @brief Column metadata array for SpatialModel. */
 static const c_orm_column_meta_t SpatialModel_cols[] = {
     C_ORM_DEFINE_COLUMN("id", C_ORM_TYPE_INT32,
                         offsetof(struct SpatialModel, id), true, false, NULL,
@@ -52,6 +81,7 @@ static const c_orm_column_meta_t SpatialModel_cols[] = {
                         offsetof(struct SpatialModel, data), false, false, NULL,
                         false, false)};
 
+/** @brief Table metadata for SpatialModel. */
 static const c_orm_table_meta_t SpatialModel_meta = C_ORM_DEFINE_MODEL(
     "spatial_models", SpatialModel_cols, 7, sizeof(struct SpatialModel),
     "SELECT * FROM spatial_models", "SELECT * FROM spatial_models WHERE id = ?",
@@ -61,12 +91,16 @@ static const c_orm_table_meta_t SpatialModel_meta = C_ORM_DEFINE_MODEL(
     "= ?, ndval = ?, data = ? WHERE id = ?",
     "DELETE FROM spatial_models WHERE id = ?", NULL, false, 0, 0, NULL, 0);
 
+/**
+ * @brief Tests CRUD operations with spatial data types.
+ * @return GREATEST test result.
+ */
 TEST test_spatial_crud(void) {
-  /* Tests Steps 173, 174, 175: Spatial type CRUD mapping */
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
   struct SpatialModel sm;
   struct SpatialModel fetched;
+  c_orm_table_meta_t bad_meta;
 
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -82,7 +116,7 @@ TEST test_spatial_crud(void) {
   sm.point.y = -71.2;
   sm.dval = 3.14159;
   sm.fval = 1.234f;
-  sm.ndval = malloc(sizeof(double));
+  sm.ndval = (double *)malloc(sizeof(double));
   *sm.ndval = 5.5;
   sm.data.data = malloc(5);
   memcpy(sm.data.data, "abcd", 5);
@@ -104,41 +138,32 @@ TEST test_spatial_crud(void) {
   err = c_orm_find_by_id_int32(db, &SpatialModel_meta, 1, &fetched);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  /* Assert Point */
-  /* due to precision, strict EQ on doubles initialized statically is safe in C
-   */
   ASSERT_EQ_FMT(42.5, fetched.point.x, "%f");
   ASSERT_EQ_FMT(-71.2, fetched.point.y, "%f");
   ASSERT_EQ_FMT(3.14159, fetched.dval, "%f");
   ASSERT(fetched.data.data != NULL);
   ASSERT_EQ_FMT((unsigned long)5, (unsigned long)fetched.data.size, "%lu");
-  ASSERT_STR_EQ("abcd", fetched.data.data);
+  ASSERT_STR_EQ("abcd", (char *)fetched.data.data);
 
-  /* Assert Polygon */
   ASSERT_EQ_FMT((unsigned long)3, (unsigned long)fetched.polygon.num_points,
                 "%lu");
   ASSERT(fetched.polygon.points != NULL);
   ASSERT_EQ_FMT(1.0, fetched.polygon.points[1].x, "%f");
 
-  /* Assert floats */
-  /* Cast or assert correctly for float */
-  ASSERT(fetched.fval > 1.233f && fetched.fval < 1.235f);
+  ASSERT(fetched.fval > 1.233f);
+  ASSERT(fetched.fval < 1.235f);
   ASSERT(fetched.ndval != NULL);
   ASSERT_EQ_FMT(5.5, *fetched.ndval, "%f");
 
-  /* Test Update */
   sm.point.x = 99.9;
   err = c_orm_update(db, &SpatialModel_meta, &sm);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  /* Trigger error on update */
-  {
-    c_orm_table_meta_t bad_meta = SpatialModel_meta;
-    bad_meta.query_update = "UPDATE non_existent_table SET id = ?";
-    err = c_orm_update(db, &bad_meta, &sm);
-    printf("DEBUG: bad_meta update err=%d\n", err);
-    ASSERT_EQ_FMT(C_ORM_ERROR_SQL, err, "%d");
-  }
+  bad_meta = SpatialModel_meta;
+  bad_meta.query_update = "UPDATE non_existent_table SET id = ?";
+  err = c_orm_update(db, &bad_meta, &sm);
+  printf("DEBUG: bad_meta update err=%d\n", err);
+  ASSERT_EQ_FMT(C_ORM_ERROR_SQL, err, "%d");
 
   C_ORM_FREE(fetched.polygon.points);
   C_ORM_FREE(fetched.data.data);
@@ -148,7 +173,6 @@ TEST test_spatial_crud(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ_FMT(99.9, fetched.point.x, "%f");
 
-  /* Free */
   C_ORM_FREE(sm.polygon.points);
   C_ORM_FREE(fetched.polygon.points);
   C_ORM_FREE(sm.data.data);
@@ -160,11 +184,15 @@ TEST test_spatial_crud(void) {
   PASS();
 }
 
+/** @brief Inline user test structure. */
 struct InlineUser {
+  /** @brief Primary key identifier. */
   int32_t id;
+  /** @brief User name string. */
   char *username;
 };
 
+/** @brief Column metadata array for InlineUser. */
 static const c_orm_column_meta_t InlineUser_cols[] = {
     C_ORM_DEFINE_COLUMN("id", C_ORM_TYPE_INT32, offsetof(struct InlineUser, id),
                         true, false, NULL, false, false),
@@ -172,6 +200,7 @@ static const c_orm_column_meta_t InlineUser_cols[] = {
                         offsetof(struct InlineUser, username), false, false,
                         NULL, false, false)};
 
+/** @brief Table metadata for InlineUser model. */
 static const c_orm_table_meta_t InlineUser_meta = C_ORM_DEFINE_MODEL(
     "inline_users", InlineUser_cols, 2, sizeof(struct InlineUser),
     "SELECT * FROM inline_users", "SELECT * FROM inline_users WHERE id = ?",
@@ -179,10 +208,15 @@ static const c_orm_table_meta_t InlineUser_meta = C_ORM_DEFINE_MODEL(
     "UPDATE inline_users SET id = ?, username = ? WHERE id = ?",
     "DELETE FROM inline_users WHERE id = ?", NULL, false, 0, 0, NULL, 0);
 
+/** @brief View metadata for InlineUserView. */
 static const c_orm_table_meta_t InlineUserView_meta = C_ORM_DEFINE_VIEW(
     "inline_users_view", InlineUser_cols, 2, sizeof(struct InlineUser),
     "SELECT * FROM inline_users_view");
 
+/**
+ * @brief Tests CRUD and view read-only semantics with inline macro definitions.
+ * @return GREATEST test result.
+ */
 TEST test_inline_macros_crud(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -196,7 +230,6 @@ TEST test_inline_macros_crud(void) {
                               "KEY, username VARCHAR(255) NOT NULL);");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  /* Tests Steps 160, 161 */
   err = c_orm_execute_raw(
       db, "CREATE VIEW inline_users_view AS SELECT * FROM inline_users;");
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -224,16 +257,27 @@ TEST test_inline_macros_crud(void) {
   err = c_orm_find_by_id_int32(db, &InlineUser_meta, 1, &fetched);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_STR_EQ("inline_test", fetched.username);
-  if (fetched.username)
-    C_ORM_FREE(fetched.username);
+  C_ORM_FREE(fetched.username);
 
   db->vtable->disconnect(db);
   PASS();
 }
 
+/**
+ * @brief Inline macros test suite runner.
+ * @param inline_macros_suite Suite runner function name.
+ */
 SUITE(inline_macros_suite) {
+  static int recursed = 0;
   RUN_TEST(test_inline_macros_crud);
   RUN_TEST(test_spatial_crud);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    inline_macros_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

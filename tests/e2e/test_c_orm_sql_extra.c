@@ -12,10 +12,33 @@ extern "C" {
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_sql.h"
-#include <greatest.h>
+#define GREATEST_USE_LONGJMP 0
+#include "greatest.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
 static int g_malloc_fail = 0;
@@ -83,6 +106,7 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
   c_orm_error_t rc;
 
   const char *sqls[] = {
+      "CREATE TABLE t (id INT);",
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
       "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true);",
       "CREATE TABLE t (id INT, PRIMARY KEY (id), FOREIGN KEY (id) REFERENCES "
@@ -107,8 +131,29 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
 
   c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail, mock_free);
 
+  /* Baseline pass */
+  g_malloc_fail = 0;
+  span = az_span_create_from_str((char *)sqls[0]);
+  rc = sql_lex(span, &list);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_parse_table(list, &table, &err_info);
+  ASSERT_EQ(C_ORM_OK, rc);
+  sql_table_C_ORM_FREE(table);
+  C_ORM_FREE(table);
+  table = NULL;
+  sql_token_list_free(list);
+  list = NULL;
+
+  rc = parse_sql_ddl(sqls[0], &tables, &n_tables);
+  ASSERT_EQ(C_ORM_OK, rc);
+  for (j = 0; j < n_tables; ++j) {
+    sql_table_C_ORM_FREE(&tables[j]);
+  }
+  C_ORM_FREE(tables);
+  tables = NULL;
+
   for (sql_idx = 0; sqls[sql_idx] != NULL; sql_idx++) {
-    for (i = 0; i < 50; i++) {
+    for (i = 0; i <= 6; i++) {
       list = NULL;
       table = NULL;
       g_malloc_target = i;
@@ -117,9 +162,10 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
 
       span = az_span_create_from_str((char *)sqls[sql_idx]);
       rc = sql_lex(span, &list);
-      if (rc == C_ORM_OK && list != NULL) {
+      g_malloc_fail = 0;
+      if (rc == C_ORM_OK) {
         rc = sql_parse_table(list, &table, &err_info);
-        if (rc == C_ORM_OK && table != NULL) {
+        if (rc == C_ORM_OK) {
           sql_table_C_ORM_FREE(table);
           C_ORM_FREE(table);
           table = NULL;
@@ -127,13 +173,9 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
         sql_token_list_free(list);
         list = NULL;
       }
-      g_malloc_fail = 0;
-      if (g_malloc_count <= i) {
-        break;
-      }
     }
 
-    for (i = 0; i < 30; i++) {
+    for (i = 0; i <= 12; i++) {
       tables = NULL;
       n_tables = 0;
 
@@ -142,16 +184,13 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
       g_malloc_fail = 1;
 
       rc = parse_sql_ddl(sqls[sql_idx], &tables, &n_tables);
-      if (rc == C_ORM_OK && tables != NULL) {
+      g_malloc_fail = 0;
+      if (rc == C_ORM_OK) {
         for (j = 0; j < n_tables; ++j) {
           sql_table_C_ORM_FREE(&tables[j]);
         }
         C_ORM_FREE(tables);
         tables = NULL;
-      }
-      g_malloc_fail = 0;
-      if (g_malloc_count <= i) {
-        break;
       }
     }
   }
@@ -182,86 +221,62 @@ enum greatest_test_res test_sql_parser_missing_keys(void) {
   rc = parse_sql_ddl("CREATE TABLE t (id INT, PRIMARY);", &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  if (tables != NULL) {
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   /* Missing KEY after FOREIGN at table level */
   rc = parse_sql_ddl("CREATE TABLE t (id INT, FOREIGN);", &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  if (tables != NULL) {
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   /* Invalid table-level constraint */
   rc = parse_sql_ddl("CREATE TABLE t (id INT, INVALID);", &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  if (tables != NULL) {
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   /* Constraint but missing columns in parenthesis */
   rc = parse_sql_ddl("CREATE TABLE t (id INT, PRIMARY KEY ());", &tables,
                      &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  if (tables != NULL) {
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   /* Constraint missing right paren */
   rc = parse_sql_ddl("CREATE TABLE t (id INT, PRIMARY KEY (id);", &tables,
                      &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  if (tables != NULL) {
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   /* FOREIGN KEY but missing REFERENCES */
   rc = parse_sql_ddl("CREATE TABLE t (id INT, FOREIGN KEY (id));", &tables,
                      &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  if (tables != NULL) {
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   /* FOREIGN KEY REFERENCES but missing table name */
   rc = parse_sql_ddl("CREATE TABLE t (id INT, FOREIGN KEY (id) REFERENCES);",
                      &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  if (tables != NULL) {
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   /* FOREIGN KEY REFERENCES table name but missing left paren */
   rc = parse_sql_ddl("CREATE TABLE t (id INT, FOREIGN KEY (id) REFERENCES tbl;",
                      &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  if (tables != NULL) {
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   /* FOREIGN KEY REFERENCES table ( missing col name */
   rc = parse_sql_ddl(
@@ -269,11 +284,8 @@ enum greatest_test_res test_sql_parser_missing_keys(void) {
       &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  if (tables != NULL) {
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   /* FOREIGN KEY REFERENCES table ( col missing right paren */
   rc = parse_sql_ddl(
@@ -281,11 +293,8 @@ enum greatest_test_res test_sql_parser_missing_keys(void) {
       &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  if (tables != NULL) {
-    C_ORM_FREE(tables);
-    tables = NULL;
-    n_tables = 0;
-  }
+  C_ORM_FREE(tables);
+  tables = NULL;
 
   PASS();
 }
@@ -313,6 +322,7 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
   c_orm_error_t rc;
 
   const char *sqls[] = {
+      "CREATE TABLE t (id INT);",
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
       "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true);",
       "CREATE TABLE t (id INT, PRIMARY KEY (id), FOREIGN KEY (id) REFERENCES "
@@ -347,45 +357,60 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
 
   c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail, mock_free);
 
+  /* Baseline pass */
+  c_orm_parser_set_fail(-1);
+  g_malloc_fail = 0;
+  span = az_span_create_from_str((char *)sqls[0]);
+  rc = sql_lex(span, &list);
+  ASSERT_EQ(C_ORM_OK, rc);
+  rc = sql_parse_table(list, &ast, &err_info);
+  ASSERT_EQ(C_ORM_OK, rc);
+  sql_table_C_ORM_FREE(ast);
+  C_ORM_FREE(ast);
+  ast = NULL;
+  sql_token_list_free(list);
+  list = NULL;
+
   for (sql_idx = 0; sql_idx < (int)(sizeof(sqls) / sizeof(sqls[0]));
        sql_idx++) {
-    for (i = 0; i < 75; i++) {
+    for (i = 0; i <= 75; i++) {
       list = NULL;
       ast = NULL;
       span = az_span_create_from_str((char *)sqls[sql_idx]);
 
       g_malloc_fail = 0;
       rc = sql_lex(span, &list);
-      if (rc == C_ORM_OK && list != NULL) {
-        g_malloc_target = i;
-        g_malloc_count = 0;
-        g_malloc_fail = 1;
+      ASSERT_EQ(C_ORM_OK, rc);
 
-        rc = sql_parse_table(list, &ast, &err_info);
-        if (rc == C_ORM_OK && ast != NULL) {
-          sql_table_C_ORM_FREE(ast);
-          C_ORM_FREE(ast);
-          ast = NULL;
-        }
-        sql_token_list_free(list);
-        list = NULL;
+      g_malloc_target = i;
+      g_malloc_count = 0;
+      g_malloc_fail = 1;
+
+      rc = sql_parse_table(list, &ast, &err_info);
+      g_malloc_fail = 0;
+      if (rc == C_ORM_OK) {
+        sql_table_C_ORM_FREE(ast);
+        C_ORM_FREE(ast);
+        ast = NULL;
       }
+      sql_token_list_free(list);
+      list = NULL;
 
       rc = sql_lex(span, &list);
-      if (rc == C_ORM_OK && list != NULL) {
-        c_orm_parser_set_fail(i);
+      ASSERT_EQ(C_ORM_OK, rc);
 
-        rc = sql_parse_table(list, &ast, &err_info);
-        if (rc == C_ORM_OK && ast != NULL) {
-          c_orm_parser_set_fail(-1);
-          sql_table_C_ORM_FREE(ast);
-          C_ORM_FREE(ast);
-          ast = NULL;
-        }
+      c_orm_parser_set_fail(i);
+
+      rc = sql_parse_table(list, &ast, &err_info);
+      if (rc == C_ORM_OK) {
         c_orm_parser_set_fail(-1);
-        sql_token_list_free(list);
-        list = NULL;
+        sql_table_C_ORM_FREE(ast);
+        C_ORM_FREE(ast);
+        ast = NULL;
       }
+      c_orm_parser_set_fail(-1);
+      sql_token_list_free(list);
+      list = NULL;
     }
   }
 

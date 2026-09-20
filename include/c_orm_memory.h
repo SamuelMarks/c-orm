@@ -27,6 +27,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_memory_connect(const char *url,
 
 /**
  * @brief Get the Memory vtable.
+ * @param out_vtable Pointer to store the Memory driver vtable.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_memory_get_vtable(const c_orm_driver_vtable_t **out_vtable);

@@ -8,33 +8,66 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
 /* clang-format off */
 #include "c_orm_safe_crt.h"
-#include <errno.h>
-#include <string.h>
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
-#include "orm_gen.h"
 #include "openapi/parse/openapi.h"
+#include "orm_gen.h"
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_EQ_FMT
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 /* clang-format on */
 
-static int oom_active = 0;
-static int oom_countdown = 0;
+/** @brief Counter decremented before triggering test malloc failure. */
+static int oom_countdown = -1;
+
+/**
+ * @brief Mock malloc returning NULL when countdown expires.
+ * @param size Requested allocation size.
+ * @return Allocated memory or NULL on failure.
+ */
 static void *mock_malloc_oom(size_t size) {
-  void *res = NULL;
-  if (!oom_active || oom_countdown-- > 0)
-    res = malloc(size);
-  return res;
+  if (oom_countdown == 0) {
+    oom_countdown--;
+    return NULL;
+  }
+  oom_countdown--;
+  return malloc(size);
 }
 
+/**
+ * @brief Tests OpenAPI schema to ORM code generation and edge cases.
+ * @return GREATEST test result.
+ */
 TEST test_orm_gen_basic(void) {
   struct OpenAPI_Spec spec;
   struct OpenApiClientConfig config;
   struct StructFields sf;
   struct StructField *fields;
   struct StructField *no_pk_fields;
-  void *(*old_malloc)(size_t);
-
   struct StructField *big_pk_fields;
+  void *(*old_malloc)(size_t);
+  c_orm_error_t rc_err;
+  char huge_desc[300];
 
   memset(&spec, 0, sizeof(spec));
   memset(&config, 0, sizeof(config));
@@ -148,14 +181,15 @@ TEST test_orm_gen_basic(void) {
 
   C_ORM_STRNCPY(fields[15].name, sizeof(fields[15].name), "huge_fk", 63);
   C_ORM_STRNCPY(fields[15].type, sizeof(fields[15].type), "integer", 31);
-  {
-    char huge_desc[300] = "[FK=";
-    memset(huge_desc + 4, 'A', 150);
-    huge_desc[154] = ']';
-    huge_desc[155] = '\0';
-    C_ORM_STRNCPY(fields[15].description, sizeof(fields[15].description),
-                  huge_desc, 255);
-  }
+  huge_desc[0] = '[';
+  huge_desc[1] = 'F';
+  huge_desc[2] = 'K';
+  huge_desc[3] = '=';
+  memset(huge_desc + 4, 'A', 150);
+  huge_desc[154] = ']';
+  huge_desc[155] = '\0';
+  C_ORM_STRNCPY(fields[15].description, sizeof(fields[15].description),
+                huge_desc, 255);
 
   C_ORM_STRNCPY(fields[16].name, sizeof(fields[16].name), "bad_json", 63);
   C_ORM_STRNCPY(fields[16].type, sizeof(fields[16].type), "string", 31);
@@ -190,29 +224,21 @@ TEST test_orm_gen_basic(void) {
 
   config.filename_base = "test_gen";
   config.model_header = "invalid_dir/dev_null";
-  {
-    c_orm_error_t rc_err = openapi_orm_generate(&spec, &config);
-    ASSERT_EQ_FMT(EIO, rc_err, "%d");
-  }
+  rc_err = openapi_orm_generate(&spec, &config);
+  ASSERT_EQ_FMT(EIO, rc_err, "%d");
 
   config.model_header = "invalid_dir/test2.h";
-  {
-    c_orm_error_t rc_err = openapi_orm_generate(&spec, &config);
-    ASSERT_EQ_FMT(EIO, rc_err, "%d");
-  }
+  rc_err = openapi_orm_generate(&spec, &config);
+  ASSERT_EQ_FMT(EIO, rc_err, "%d");
 
   config.model_header = "invalid_dir/path/test.h";
-  {
-    c_orm_error_t rc_err = openapi_orm_generate(&spec, &config);
-    ASSERT_EQ_FMT(EIO, rc_err, "%d");
-  }
+  rc_err = openapi_orm_generate(&spec, &config);
+  ASSERT_EQ_FMT(EIO, rc_err, "%d");
 
   config.model_header = NULL;
   config.filename_base = "invalid_dir/path/test";
-  {
-    c_orm_error_t rc_err = openapi_orm_generate(&spec, &config);
-    ASSERT_EQ_FMT(EIO, rc_err, "%d");
-  }
+  rc_err = openapi_orm_generate(&spec, &config);
+  ASSERT_EQ_FMT(EIO, rc_err, "%d");
 
   config.model_header = NULL;
   config.filename_base = "test_gen";
@@ -220,7 +246,6 @@ TEST test_orm_gen_basic(void) {
 
   old_malloc = c_orm_malloc;
   c_orm_set_allocators(mock_malloc_oom, c_orm_realloc, c_orm_free);
-  oom_active = 1;
   oom_countdown = 0;
   ASSERT_EQ(ENOMEM, openapi_orm_generate(&spec, &config));
 
@@ -228,13 +253,11 @@ TEST test_orm_gen_basic(void) {
   oom_countdown = 0;
   ASSERT_EQ(ENOMEM, openapi_orm_generate(&spec, &config));
 
-  oom_active = 0;
-  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  oom_countdown = 1;
+  openapi_orm_generate(&spec, &config);
 
-  {
-    void *tmp = mock_malloc_oom(16);
-    free(tmp);
-  }
+  oom_countdown = -1;
+  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
 
   config.model_header = "valid.h";
   config.filename_base = "invalid/dir/base";
@@ -284,7 +307,21 @@ TEST test_orm_gen_basic(void) {
   PASS();
 }
 
-SUITE(orm_gen_suite) { RUN_TEST(test_orm_gen_basic); }
+/**
+ * @brief ORM generator test suite runner.
+ * @param orm_gen_suite Suite runner function name.
+ */
+SUITE(orm_gen_suite) {
+  static int recursed = 0;
+  RUN_TEST(test_orm_gen_basic);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    orm_gen_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
+}
 
 #ifdef __cplusplus
 }

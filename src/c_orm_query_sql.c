@@ -127,6 +127,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_params_add(c_orm_query_params_t *params,
  * @param dialect The SQL dialect.
  * @param sb The string builder.
  * @param params The query parameters.
+ * @param depth The current recursion depth.
  * @return C_ORM_OK on success, or an error code.
  */
 static c_orm_error_t render_node(c_orm_ast_node_t *node,

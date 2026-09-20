@@ -18,12 +18,23 @@
 #define ROLE_FIELDS(X, S)                                                      \
   X(S, C_ORM_TYPE_INT32, int32_t, id)                                          \
   X(S, C_ORM_TYPE_STRING, char *, name)
+/**
+ * @brief Role entity structure.
+ * @var id Role identifier.
+ * @var name Role name string.
+ */
 C_ORM_STRUCT(Role, ROLE_FIELDS)
 
 #define POST_FIELDS(X, S)                                                      \
   X(S, C_ORM_TYPE_INT32, int32_t, id)                                          \
   X(S, C_ORM_TYPE_STRING, char *, title)                                       \
   X(S, C_ORM_TYPE_INT32, int32_t, user_id)
+/**
+ * @brief Post entity structure.
+ * @var id Post identifier.
+ * @var title Post title string.
+ * @var user_id Associated user identifier.
+ */
 C_ORM_STRUCT(Post, POST_FIELDS)
 
 #define USER_FIELDS(X, S)                                                      \
@@ -36,8 +47,22 @@ C_ORM_STRUCT(Post, POST_FIELDS)
   C_ORM_MANY_TO_MANY_CASCADE(X, S, Role, roles, "id", "id", "user_roles",      \
                              "user_id", "role_id", C_ORM_CASCADE_DELETE,       \
                              C_ORM_CASCADE_UPDATE)
+/**
+ * @brief User entity structure with relationships.
+ * @var id User identifier.
+ * @var username User name string.
+ * @var posts Has-many collection of posts.
+ * @var roles Many-to-many collection of roles.
+ */
 C_ORM_STRUCT_WITH_RELATIONS(User, USER_FIELDS, USER_RELS)
 
+/**
+ * @brief Forward declaration of relationship operations runner.
+ * @param db Database handle.
+ * @param rel_name Relationship field name.
+ * @param op_mode Operational mode for testing error branches.
+ * @return C_ORM_OK on success or error code.
+ */
 c_orm_error_t run_relationships_ops(c_orm_db_t *db, const char *rel_name,
                                     int op_mode);
 c_orm_error_t run_relationships_example(const char *db_path);

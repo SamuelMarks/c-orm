@@ -1,17 +1,52 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_string_builder.c
+ * @brief Unit tests for string builder data structure and error handling.
+ */
+
 /* clang-format off */
 #include "c_orm_log.h"
 #include "c_orm_string_builder.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
 #ifdef C_ORM_TEST_ALLOCATOR
 
+/** @brief Counter decremented before triggering test malloc failure. */
 static int malloc_fail_countdown = -1;
+
+/**
+ * @brief Mock malloc callback for testing allocator failures.
+ * @param size Requested allocation size.
+ * @return Allocated memory or NULL on failure.
+ */
 static void *my_test_malloc(size_t size) {
   if (malloc_fail_countdown == 0) {
     malloc_fail_countdown--;
@@ -21,7 +56,15 @@ static void *my_test_malloc(size_t size) {
   return malloc(size);
 }
 
+/** @brief Counter decremented before triggering test realloc failure. */
 static int realloc_fail_countdown = -1;
+
+/**
+ * @brief Mock realloc callback for testing allocator failures.
+ * @param ptr Existing pointer.
+ * @param size Requested reallocation size.
+ * @return Reallocated memory or NULL on failure.
+ */
 static void *my_test_realloc(void *ptr, size_t size) {
   if (realloc_fail_countdown == 0) {
     realloc_fail_countdown--;
@@ -31,6 +74,13 @@ static void *my_test_realloc(void *ptr, size_t size) {
 }
 #endif
 
+/**
+ * @brief Internal struct definition for testing invalid buffer state.
+ * @var buffer Underlying character buffer.
+ * @var length Current string length.
+ * @var capacity Allocated capacity of buffer.
+ * @var valid State validity flag.
+ */
 struct c_orm_string_builder {
   char *buffer;
   size_t length;
@@ -38,28 +88,42 @@ struct c_orm_string_builder {
   int valid;
 };
 
+/**
+ * @brief Comprehensive tests for c_orm_string_builder APIs and error states.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_string_builder(void) {
-  c_orm_string_builder_t *sb = NULL;
-  const char *str = NULL;
-  size_t len = 0;
+  c_orm_string_builder_t *sb;
+  const char *str;
+  size_t len;
   c_orm_error_t rc;
+#ifdef C_ORM_TEST_ALLOCATOR
+  void *(*old_malloc)(size_t);
+  void *(*old_realloc)(void *, size_t);
+#endif
+
+  sb = NULL;
+  str = NULL;
+  len = 0;
 
 #ifdef C_ORM_TEST_ALLOCATOR
-  void *(*old_malloc)(size_t) = c_orm_malloc;
-  void *(*old_realloc)(void *, size_t) = c_orm_realloc;
-  c_orm_set_allocators(my_test_malloc, c_orm_realloc, c_orm_free);
-  c_orm_set_allocators(c_orm_malloc, my_test_realloc, c_orm_free);
+  {
+    old_malloc = c_orm_malloc;
+    old_realloc = c_orm_realloc;
+    c_orm_set_allocators(my_test_malloc, c_orm_realloc, c_orm_free);
+    c_orm_set_allocators(c_orm_malloc, my_test_realloc, c_orm_free);
 
-  malloc_fail_countdown = 0;
-  rc = c_orm_string_builder_init(&sb);
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+    malloc_fail_countdown = 0;
+    rc = c_orm_string_builder_init(&sb);
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  malloc_fail_countdown = 1;
-  rc = c_orm_string_builder_init(&sb);
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+    malloc_fail_countdown = 1;
+    rc = c_orm_string_builder_init(&sb);
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
-  malloc_fail_countdown = -1;
-  realloc_fail_countdown = -1;
+    malloc_fail_countdown = -1;
+    realloc_fail_countdown = -1;
+  }
 #endif
 
   rc = c_orm_string_builder_init(NULL);
@@ -143,8 +207,12 @@ TEST test_c_orm_string_builder(void) {
   c_orm_string_builder_free(NULL);
 
   {
-    const char *empty_str = NULL;
-    c_orm_string_builder_t *manual_sb = malloc(sizeof(c_orm_string_builder_t));
+    const char *empty_str;
+    c_orm_string_builder_t *manual_sb;
+
+    empty_str = NULL;
+    manual_sb =
+        (c_orm_string_builder_t *)malloc(sizeof(c_orm_string_builder_t));
     manual_sb->buffer = NULL;
     manual_sb->valid = 1;
     c_orm_string_builder_get(manual_sb, &empty_str);
@@ -153,8 +221,11 @@ TEST test_c_orm_string_builder(void) {
 
   /* Test mock append countdown and get fail */
   {
-    c_orm_string_builder_t *msb = NULL;
-    const char *mstr = NULL;
+    c_orm_string_builder_t *msb;
+    const char *mstr;
+
+    msb = NULL;
+    mstr = NULL;
     c_orm_mock_string_builder_append_countdown = 1;
     rc = c_orm_string_builder_init(&msb);
     ASSERT_EQ(C_ORM_OK, rc);
@@ -189,7 +260,21 @@ TEST test_c_orm_string_builder(void) {
   PASS();
 }
 
-SUITE(string_builder_suite) { RUN_TEST(test_c_orm_string_builder); }
+/**
+ * @brief String builder test suite runner.
+ * @param string_builder_suite Suite runner function name.
+ */
+SUITE(string_builder_suite) {
+  static int recursed = 0;
+  RUN_TEST(test_c_orm_string_builder);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    string_builder_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
+}
 
 #if defined(__clang__) || defined(__GNUC__)
 #endif

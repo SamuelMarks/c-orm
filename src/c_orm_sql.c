@@ -19,7 +19,8 @@
  * @brief Helper to check if a string is a SQL keyword.
  * @param str The string to check.
  * @param len The length of the string.
- * @return 1 if keyword, 0 otherwise.
+ * @param out_is_kw Pointer to receive 1 if keyword, 0 otherwise.
+ * @return 0 on success.
  */
 static c_orm_error_t is_sql_keyword(const char *str, size_t len,
                                     int *out_is_kw) {
@@ -44,6 +45,11 @@ static c_orm_error_t is_sql_keyword(const char *str, size_t len,
 
 /**
  * @brief Push a token into the list.
+ * @param list Token list container.
+ * @param kind Token classification.
+ * @param start Pointer to start of token in input.
+ * @param length Length of token string.
+ * @return 0 on success, non-zero on error.
  */
 static c_orm_error_t push_token(struct sql_token_list_t *list,
                                 enum SqlTokenKind kind, const char *start,
@@ -65,6 +71,12 @@ static c_orm_error_t push_token(struct sql_token_list_t *list,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Tokenizes SQL source code into a token list.
+ * @param source Azure SDK string span containing SQL text.
+ * @param out_list Pointer to receive allocated token list.
+ * @return 0 on success, non-zero on error.
+ */
 c_orm_error_t sql_lex(az_span source, struct sql_token_list_t **out_list) {
   struct sql_token_list_t *list;
   const char *curr;
@@ -197,6 +209,10 @@ c_orm_error_t sql_token_list_free(struct sql_token_list_t *list) {
   return 0;
 }
 
+/**
+ * @brief Frees allocated members within a sql_constraint_t structure.
+ * @param c Constraint structure to clean up.
+ */
 static void sql_constraint_free_internals(struct sql_constraint_t *c) {
   if (c->reference_table)
     C_ORM_FREE(c->reference_table);
@@ -250,12 +266,18 @@ C_ORM_EXPORT c_orm_error_t sql_table_C_ORM_FREE(struct sql_table_t *table) {
   return 0;
 }
 
-/** @brief SqlParserState struct */
+/**
+ * @brief SqlParserState struct
+ * @var list Pointer to token list being parsed.
+ * @var cursor Current token index.
+ * @var out_error Optional output error information.
+ */
 struct SqlParserState {
-  /** @brief cursor field */
+  /** @brief Pointer to token list being parsed. */
   const struct sql_token_list_t *list;
-  /** @brief cursor field */
+  /** @brief Current token index. */
   size_t cursor;
+  /** @brief Optional output error information. */
   struct sql_parse_error_t *out_error;
 };
 
@@ -265,6 +287,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_parser_set_fail(int count) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Peeks at the current non-whitespace token without advancing.
+ * @param state Parser state.
+ * @param _out_val Pointer to receive token pointer.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t sql_parser_peek(struct SqlParserState *state,
                                      struct sql_token_t **_out_val) {
   size_t c;
@@ -282,6 +310,11 @@ static c_orm_error_t sql_parser_peek(struct SqlParserState *state,
   return 0;
 }
 
+/**
+ * @brief Consumes the current non-whitespace token and advances cursor.
+ * @param state Parser state.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t sql_parser_consume(struct SqlParserState *state) {
   if (g_parser_fail_countdown == 0) {
     g_parser_fail_countdown--;
@@ -296,6 +329,13 @@ static c_orm_error_t sql_parser_consume(struct SqlParserState *state) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Checks if current token matches keyword and consumes it if true.
+ * @param state Parser state.
+ * @param kw Keyword string to match against.
+ * @param out_match Pointer to receive 1 if matched, 0 otherwise.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t sql_parser_match_keyword(struct SqlParserState *state,
                                               const char *kw, int *out_match) {
   c_orm_error_t rc;
@@ -319,6 +359,14 @@ static c_orm_error_t sql_parser_match_keyword(struct SqlParserState *state,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Checks if current token matches kind and consumes it if true.
+ * @param state Parser state.
+ * @param kind Token kind to match against.
+ * @param out_tok Optional pointer to receive matched token.
+ * @param out_match Pointer to receive 1 if matched, 0 otherwise.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t sql_parser_match_kind(struct SqlParserState *state,
                                            enum SqlTokenKind kind,
                                            const struct sql_token_t **out_tok,
@@ -344,6 +392,12 @@ static c_orm_error_t sql_parser_match_kind(struct SqlParserState *state,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Records a parser error message and captures current token.
+ * @param state Parser state.
+ * @param msg Error message string.
+ * @return Error code.
+ */
 static c_orm_error_t sql_parser_set_error(struct SqlParserState *state,
                                           const char *msg) {
   c_orm_error_t rc;
@@ -358,6 +412,13 @@ static c_orm_error_t sql_parser_set_error(struct SqlParserState *state,
   return C_ORM_ERROR_SQL;
 }
 
+/**
+ * @brief Parses a SQL column data type and optional length.
+ * @param state Parser state.
+ * @param out_type Pointer to receive parsed SQL data type.
+ * @param out_length Pointer to receive length (-1 if unspecified).
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t sql_parse_data_type(struct SqlParserState *state,
                                          enum SqlDataType *out_type,
                                          int *out_length) {
@@ -492,6 +553,12 @@ static c_orm_error_t sql_parse_data_type(struct SqlParserState *state,
   return sql_parser_set_error(state, "Unknown data type");
 }
 
+/**
+ * @brief Parses an inline SQL column constraint.
+ * @param state Parser state.
+ * @param out_constraint Pointer to receive parsed constraint.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t
 sql_parse_column_constraint(struct SqlParserState *state,
                             struct sql_constraint_t *out_constraint) {
@@ -646,6 +713,12 @@ sql_parse_column_constraint(struct SqlParserState *state,
   return C_ORM_ERROR_NOT_FOUND; /* Not a constraint */
 }
 
+/**
+ * @brief Parses a table-level SQL constraint.
+ * @param state Parser state.
+ * @param out_constraint Pointer to receive parsed constraint.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t
 sql_parse_table_constraint(struct SqlParserState *state,
                            struct sql_constraint_t *out_constraint) {

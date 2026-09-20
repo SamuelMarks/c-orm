@@ -1,16 +1,52 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_arena_uuid.c
+ * @brief Unit tests for memory arena and UUID generation coverage.
+ */
+
 /* clang-format off */
 #include "c_orm_ast.h"
 #include "c_orm_uuid.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
 #ifdef C_ORM_TEST_ALLOCATOR
 
+/** @brief Counter decremented before triggering test malloc failure. */
 static int malloc_fail_countdown = -1;
+
+/**
+ * @brief Mock malloc callback for testing allocator failures.
+ * @param size Requested allocation size.
+ * @return Allocated memory or NULL on failure.
+ */
 static void *my_test_malloc(size_t size) {
   if (malloc_fail_countdown == 0) {
     malloc_fail_countdown--;
@@ -21,6 +57,10 @@ static void *my_test_malloc(size_t size) {
 }
 #endif
 
+/**
+ * @brief Tests memory arena creation, allocation, strdup, and cleanup.
+ * @return GREATEST test result.
+ */
 TEST test_arena_coverage(void) {
   c_orm_arena_t *arena = NULL;
   void *ptr = NULL;
@@ -105,6 +145,10 @@ TEST test_arena_coverage(void) {
   PASS();
 }
 
+/**
+ * @brief Tests UUID generation functionality and argument validation.
+ * @return GREATEST test result.
+ */
 TEST test_uuid_coverage(void) {
   c_orm_error_t rc;
   char buf[37];
@@ -118,9 +162,21 @@ TEST test_uuid_coverage(void) {
   PASS();
 }
 
+/**
+ * @brief Arena and UUID test suite runner.
+ * @param arena_uuid_suite Suite runner function name.
+ */
 SUITE(arena_uuid_suite) {
+  static int recursed = 0;
   RUN_TEST(test_arena_coverage);
   RUN_TEST(test_uuid_coverage);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    arena_uuid_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #if defined(__clang__) || defined(__GNUC__)

@@ -209,7 +209,14 @@ static c_orm_ast_node_t *c_orm_query_op_impl(c_orm_query_t *q, const char *op,
   return (c_orm_ast_node_t *)node;
 }
 
-/** @brief Helper for EQUALS. */
+/**
+ * @brief Helper for EQUALS operator.
+ * @param q Query structure.
+ * @param col Column name.
+ * @param val Value string.
+ * @param is_string True if value is string.
+ * @return AST node or NULL on error.
+ */
 static c_orm_ast_node_t *c_orm_query_eq_impl(c_orm_query_t *q, const char *col,
                                              const char *val, int is_string) {
   c_orm_ast_node_t *ret;
@@ -220,7 +227,14 @@ static c_orm_ast_node_t *c_orm_query_eq_impl(c_orm_query_t *q, const char *col,
   return ret;
 }
 
-/** @brief Helper for NOT EQUALS. */
+/**
+ * @brief Helper for NOT EQUALS operator.
+ * @param q Query structure.
+ * @param col Column name.
+ * @param val Value string.
+ * @param is_string True if value is string.
+ * @return AST node or NULL on error.
+ */
 static c_orm_ast_node_t *c_orm_query_neq_impl(c_orm_query_t *q, const char *col,
                                               const char *val, int is_string) {
   c_orm_ast_node_t *ret;
@@ -231,7 +245,14 @@ static c_orm_ast_node_t *c_orm_query_neq_impl(c_orm_query_t *q, const char *col,
   return ret;
 }
 
-/** @brief Helper for GREATER THAN. */
+/**
+ * @brief Helper for GREATER THAN operator.
+ * @param q Query structure.
+ * @param col Column name.
+ * @param val Value string.
+ * @param is_string True if value is string.
+ * @return AST node or NULL on error.
+ */
 static c_orm_ast_node_t *c_orm_query_gt_impl(c_orm_query_t *q, const char *col,
                                              const char *val, int is_string) {
   c_orm_ast_node_t *ret;
@@ -242,7 +263,14 @@ static c_orm_ast_node_t *c_orm_query_gt_impl(c_orm_query_t *q, const char *col,
   return ret;
 }
 
-/** @brief Helper for LESS THAN. */
+/**
+ * @brief Helper for LESS THAN operator.
+ * @param q Query structure.
+ * @param col Column name.
+ * @param val Value string.
+ * @param is_string True if value is string.
+ * @return AST node or NULL on error.
+ */
 static c_orm_ast_node_t *c_orm_query_lt_impl(c_orm_query_t *q, const char *col,
                                              const char *val, int is_string) {
   c_orm_ast_node_t *ret;
@@ -253,7 +281,13 @@ static c_orm_ast_node_t *c_orm_query_lt_impl(c_orm_query_t *q, const char *col,
   return ret;
 }
 
-/** @brief Helper for LIKE. */
+/**
+ * @brief Helper for LIKE operator.
+ * @param q Query structure.
+ * @param col Column name.
+ * @param val Value pattern.
+ * @return AST node or NULL on error.
+ */
 static c_orm_ast_node_t *
 c_orm_query_like_impl(c_orm_query_t *q, const char *col, const char *val) {
   c_orm_ast_node_t *ret;
@@ -264,7 +298,13 @@ c_orm_query_like_impl(c_orm_query_t *q, const char *col, const char *val) {
   return ret;
 }
 
-/** @brief Helper for IN. */
+/**
+ * @brief Helper for IN operator.
+ * @param q Query structure.
+ * @param col Column name.
+ * @param val_list Value list string.
+ * @return AST node or NULL on error.
+ */
 static c_orm_ast_node_t *c_orm_query_in_impl(c_orm_query_t *q, const char *col,
                                              const char *val_list) {
   c_orm_ast_node_t *ret;
@@ -760,7 +800,13 @@ static c_orm_query_t *c_orm_query_join_impl(c_orm_query_t *q, const char *table,
   return q;
 }
 
-/** @brief Adds a LEFT JOIN. */
+/**
+ * @brief Adds a LEFT JOIN.
+ * @param q Query structure.
+ * @param table Target table name.
+ * @param on_condition ON join condition AST node.
+ * @return Query structure.
+ */
 static c_orm_query_t *
 c_orm_query_left_join_impl(c_orm_query_t *q, const char *table,
                            c_orm_ast_node_t *on_condition) {
@@ -771,7 +817,13 @@ c_orm_query_left_join_impl(c_orm_query_t *q, const char *table,
   return ret;
 }
 
-/** @brief Adds a RIGHT JOIN. */
+/**
+ * @brief Adds a RIGHT JOIN.
+ * @param q Query structure.
+ * @param table Target table name.
+ * @param on_condition ON join condition AST node.
+ * @return Query structure.
+ */
 static c_orm_query_t *
 c_orm_query_right_join_impl(c_orm_query_t *q, const char *table,
                             c_orm_ast_node_t *on_condition) {

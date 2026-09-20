@@ -14,9 +14,36 @@ extern "C" {
 
 /* clang-format off */
 #include "c_orm_sql.h"
+#define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
+/**
+ * @brief Test basic SQL DDL tokenizer behavior.
+ * @return GREATEST test result.
+ */
 TEST test_sql_lexer_basic(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255));";
@@ -45,6 +72,10 @@ TEST test_sql_lexer_basic(void) {
   PASS();
 }
 
+/**
+ * @brief Test SQL lexer data types and default value tokens.
+ * @return GREATEST test result.
+ */
 TEST test_sql_lexer_types(void) {
   const char *sql = "id BIGINT, is_active BOOLEAN DEFAULT true";
   az_span span = az_span_create_from_str((char *)sql);
@@ -59,6 +90,10 @@ TEST test_sql_lexer_types(void) {
   PASS();
 }
 
+/**
+ * @brief Test basic SQL table DDL parsing and column constraint validation.
+ * @return GREATEST test result.
+ */
 TEST test_sql_parser_basic(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
@@ -111,6 +146,10 @@ TEST test_sql_parser_basic(void) {
   PASS();
 }
 
+/**
+ * @brief Test SQL lexer with strings and unknown symbol handling.
+ * @return GREATEST test result.
+ */
 TEST test_sql_lexer_strings_unknown(void) {
   const char *sql = "DEFAULT 'some_string' ^ ~";
   az_span span = az_span_create_from_str((char *)sql);
@@ -154,6 +193,10 @@ TEST test_sql_lexer_strings_unknown(void) {
   PASS();
 }
 
+/**
+ * @brief Test SQL parser handling foreign key references and column defaults.
+ * @return GREATEST test result.
+ */
 TEST test_sql_parser_foreign_keys_defaults(void) {
   const char *sql = "CREATE TABLE t1 (id INT PRIMARY KEY, "
                     "ref_id INT REFERENCES other_table(id), "
@@ -181,12 +224,10 @@ TEST test_sql_parser_foreign_keys_defaults(void) {
   err = parse_sql_ddl(sql_err, &tables_err, &n_tables_err);
   ASSERT_EQ(0, n_tables_err);
 
-  if (tables) {
-    for (i = 0; i < n_tables; ++i) {
-      sql_table_C_ORM_FREE(&tables[i]);
-    }
-    free(tables);
+  for (i = 0; i < n_tables; ++i) {
+    sql_table_C_ORM_FREE(&tables[i]);
   }
+  free(tables);
 
   free(tables_err);
   sql_token_list_free(list);
@@ -195,12 +236,24 @@ TEST test_sql_parser_foreign_keys_defaults(void) {
   PASS();
 }
 
+/**
+ * @brief SQL test suite runner.
+ * @param sql_suite Suite runner function name.
+ */
 SUITE(sql_suite) {
+  static int recursed = 0;
   RUN_TEST(test_sql_lexer_basic);
   RUN_TEST(test_sql_lexer_types);
   RUN_TEST(test_sql_parser_basic);
   RUN_TEST(test_sql_lexer_strings_unknown);
   RUN_TEST(test_sql_parser_foreign_keys_defaults);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    sql_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

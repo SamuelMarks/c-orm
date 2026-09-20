@@ -15,6 +15,7 @@ extern "C" {
 #include "c_orm_db.h"
 #include "c_orm_mysql.h"
 #include "c_orm_postgres.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
 #include "sqlite3.h"
 #include <stdio.h>
@@ -22,6 +23,28 @@ extern "C" {
 #include <string.h>
 #include <setjmp.h>
 #include "c_orm_migrations.h"
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 
 /**
  * @brief Mock migration directory loader for CLI tests.
@@ -33,23 +56,23 @@ extern "C" {
 static c_orm_error_t mock_load_dir(const char *dir_path,
                                    c_orm_migration_t **out_migrations,
                                    size_t *out_count) {
-  if (strcmp(dir_path, ".") == 0 || strcmp(dir_path, "test_migrations_dir_cli") == 0) {
-    *out_count = 1;
-    *out_migrations = (c_orm_migration_t *)C_ORM_MALLOC(sizeof(c_orm_migration_t));
-    memset(*out_migrations, 0, sizeof(c_orm_migration_t));
-    C_ORM_STRCPY((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "1");
-    C_ORM_STRCPY((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
-    C_ORM_STRCPY((*out_migrations)[0].hash, sizeof((*out_migrations)[0].hash), "hash");
-    return C_ORM_OK;
-  }
   if (strcmp(dir_path, "bad_dir") == 0) {
     *out_count = 0;
     *out_migrations = NULL;
     return C_ORM_OK;
   }
-  *out_count = 0;
-  *out_migrations = NULL;
-  return C_ORM_ERROR_NOT_FOUND;
+  if (strcmp(dir_path, "missing_dir") == 0) {
+    *out_count = 0;
+    *out_migrations = NULL;
+    return C_ORM_ERROR_NOT_FOUND;
+  }
+  *out_count = 1;
+  *out_migrations = (c_orm_migration_t *)C_ORM_MALLOC(sizeof(c_orm_migration_t));
+  memset(*out_migrations, 0, sizeof(c_orm_migration_t));
+  C_ORM_STRCPY((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "1");
+  C_ORM_STRCPY((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
+  C_ORM_STRCPY((*out_migrations)[0].hash, sizeof((*out_migrations)[0].hash), "hash");
+  return C_ORM_OK;
 }
 
 /**
@@ -67,9 +90,7 @@ mock_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
   (void)migrations;
   (void)count;
   (void)options;
-  if (options && options->log_cb) {
-    options->log_cb("Mock migrate all log");
-  }
+  options->log_cb("Mock migrate all log");
   return C_ORM_OK;
 }
 
@@ -289,6 +310,13 @@ TEST test_cli_migrate(void) {
   rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv6);
   ASSERT_EQ(C_ORM_OK, rc);
 
+  {
+    const char *argv7[] = {"c-orm-cli",   "migrate", "--db",
+                           "test_cli.db", "--dir",   "missing_dir"};
+    rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv7);
+    ASSERT(rc != C_ORM_OK);
+  }
+
   PASS();
 }
 
@@ -405,10 +433,9 @@ TEST test_cli_sql2c(void) {
   (void)sys_rc;
 
   C_ORM_FOPEN(&f, "test_schema.sql", "w");
-  if (f != NULL) {
-    fprintf(f, "%s\n", "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);");
-    fclose(f);
-  }
+  ASSERT(f != NULL);
+  fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
+  fclose(f);
 
   rc = (c_orm_error_t)c_orm_cli_main(2, (char **)argv1);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
@@ -424,8 +451,10 @@ TEST test_cli_sql2c(void) {
 
 /**
  * @brief CLI test suite runner.
+ * @param cli_suite Suite runner function name.
  */
 SUITE(cli_suite) {
+  static int recursed = 0;
   RUN_TEST(test_cli_help);
   RUN_TEST(test_cli_no_args);
   RUN_TEST(test_cli_init);
@@ -439,6 +468,13 @@ SUITE(cli_suite) {
 #ifndef __EMSCRIPTEN__
   RUN_TEST(test_cli_sql2c);
 #endif
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    cli_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

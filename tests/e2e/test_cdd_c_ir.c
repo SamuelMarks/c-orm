@@ -1,13 +1,50 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file test_cdd_c_ir.c
+ * @brief Unit tests for CDD C IR construction, SQL parsing, and projections.
+ */
+
 /* clang-format off */
 #include "cdd_c_ir.h"
 #include "c_orm_safe_crt.h"
-#include <greatest.h>
+#define GREATEST_USE_LONGJMP 0
+#include "greatest.h"
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+
 #include "test_cdd_c_ir_oom.h"
 /* clang-format on */
 
+/**
+ * @brief Tests basic CDD C IR initialization, table addition, projection, and
+ * cleanup.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_ir_basic(void) {
   cdd_c_ir_t ir;
   struct sql_table_t tbl;
@@ -46,6 +83,10 @@ TEST test_cdd_c_ir_basic(void) {
   PASS();
 }
 
+/**
+ * @brief Tests parsing various SQL statements (DDL, SELECT, INSERT) into IR.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_ir_parse_sql(void) {
   cdd_c_ir_t ir;
   c_orm_error_t rc;
@@ -82,6 +123,10 @@ TEST test_cdd_c_ir_parse_sql(void) {
   PASS();
 }
 
+/**
+ * @brief Tests CDD C IR projection initialization and assignment.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_ir_projection(void) {
   cdd_c_ir_t ir;
   cdd_c_query_projection_t proj;
@@ -102,6 +147,10 @@ TEST test_cdd_c_ir_projection(void) {
   PASS();
 }
 
+/**
+ * @brief Tests multiple allocations of tables and projections in IR.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_ir_alloc(void) {
   cdd_c_ir_t ir;
   struct sql_table_t tbl;
@@ -131,6 +180,10 @@ TEST test_cdd_c_ir_alloc(void) {
   PASS();
 }
 
+/**
+ * @brief Tests SQL parse failure handling in IR generator.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_ir_parse_sql_failure(void) {
   cdd_c_ir_t ir;
   c_orm_error_t rc;
@@ -150,13 +203,25 @@ TEST test_cdd_c_ir_parse_sql_failure(void) {
   PASS();
 }
 
+/**
+ * @brief CDD C IR test suite runner.
+ * @param cdd_c_ir_suite Suite runner function name.
+ */
 SUITE(cdd_c_ir_suite) {
+  static int recursed = 0;
   RUN_TEST(test_cdd_c_ir_basic);
   RUN_TEST(test_cdd_c_ir_parse_sql);
   RUN_TEST(test_cdd_c_ir_projection);
   RUN_TEST(test_cdd_c_ir_alloc);
   RUN_TEST(test_cdd_c_ir_parse_sql_failure);
   RUN_TEST(test_cdd_c_ir_oom);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    cdd_c_ir_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #if defined(__clang__) || defined(__GNUC__)

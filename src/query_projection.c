@@ -14,6 +14,11 @@
 #include <string.h>
 /* clang-format on */
 
+/**
+ * @brief Initialize a query projection structure.
+ * @param proj Pointer to the query projection structure to initialize.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN if proj is NULL.
+ */
 c_orm_error_t cdd_c_query_projection_init(cdd_c_query_projection_t *proj) {
   if (!proj)
     return C_ORM_ERROR_UNKNOWN;
@@ -26,6 +31,12 @@ c_orm_error_t cdd_c_query_projection_init(cdd_c_query_projection_t *proj) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Duplicates a string using C_ORM_MALLOC.
+ * @param src Source null-terminated string to duplicate.
+ * @param dest Output pointer where duplicated string will be stored.
+ * @return C_ORM_OK on success, or error code on allocation failure.
+ */
 static c_orm_error_t duplicate_string_qp(const char *src, char **dest) {
   size_t len;
   if (!src) {

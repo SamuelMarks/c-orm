@@ -89,47 +89,103 @@ typedef void (*c_orm_expire_cb)(c_orm_db_t *db, const c_orm_table_meta_t *meta,
 
 /**
  * @brief Virtual table for database driver implementations.
+ * @var connect Connects to the database using a URL string.
+ * @var disconnect Disconnects the database connection.
+ * @var prepare Prepares a SQL statement.
+ * @var bind_int32 Binds a 32-bit integer to a parameter index.
+ * @var bind_int64 Binds a 64-bit integer to a parameter index.
+ * @var bind_double Binds a double float to a parameter index.
+ * @var bind_string Binds a null-terminated string to a parameter index.
+ * @var bind_blob Binds binary data to a parameter index.
+ * @var bind_null Binds NULL to a parameter index.
+ * @var step Steps the prepared statement execution.
+ * @var get_int32 Retrieves a 32-bit integer from a result column.
+ * @var get_int64 Retrieves a 64-bit integer from a result column.
+ * @var get_double Retrieves a double float from a result column.
+ * @var get_string Retrieves a string from a result column.
+ * @var get_blob Retrieves binary data from a result column.
+ * @var is_null Checks if a result column is NULL.
+ * @var finalize Destroys a prepared statement.
+ * @var reset Resets a prepared statement for re-execution.
+ * @var get_last_error Retrieves the driver's last error message.
+ * @var get_last_trace Retrieves the driver's last error trace.
+ * @var get_last_insert_rowid Retrieves the rowid of the last insert.
+ * @var get_column_count Retrieves the number of columns in the result set.
+ * @var get_column_name Retrieves the name of a result column by index.
  */
 typedef struct c_orm_driver_vtable {
+  /** @brief Connects to database. */
   c_orm_error_t (*connect)(const char *url, c_orm_db_t **out_db);
+  /** @brief Disconnects connection. */
   c_orm_error_t (*disconnect)(c_orm_db_t *db);
+  /** @brief Prepares SQL statement. */
   c_orm_error_t (*prepare)(c_orm_db_t *db, const char *sql,
                            c_orm_query_t **out_query);
+  /** @brief Binds int32 parameter. */
   c_orm_error_t (*bind_int32)(c_orm_query_t *query, int index, int32_t val);
+  /** @brief Binds int64 parameter. */
   c_orm_error_t (*bind_int64)(c_orm_query_t *query, int index, int64_t val);
+  /** @brief Binds double parameter. */
   c_orm_error_t (*bind_double)(c_orm_query_t *query, int index, double val);
+  /** @brief Binds string parameter. */
   c_orm_error_t (*bind_string)(c_orm_query_t *query, int index,
                                const char *val);
+  /** @brief Binds blob parameter. */
   c_orm_error_t (*bind_blob)(c_orm_query_t *query, int index, const void *val,
                              size_t size);
+  /** @brief Binds null parameter. */
   c_orm_error_t (*bind_null)(c_orm_query_t *query, int index);
+  /** @brief Steps prepared query execution. */
   c_orm_error_t (*step)(c_orm_query_t *query, int *out_has_row);
+  /** @brief Gets int32 column value. */
   c_orm_error_t (*get_int32)(c_orm_query_t *query, int index, int32_t *out_val);
+  /** @brief Gets int64 column value. */
   c_orm_error_t (*get_int64)(c_orm_query_t *query, int index, int64_t *out_val);
+  /** @brief Gets double column value. */
   c_orm_error_t (*get_double)(c_orm_query_t *query, int index, double *out_val);
+  /** @brief Gets string column value. */
   c_orm_error_t (*get_string)(c_orm_query_t *query, int index,
                               const char **out_val);
+  /** @brief Gets blob column value. */
   c_orm_error_t (*get_blob)(c_orm_query_t *query, int index,
                             const void **out_val, size_t *out_size);
+  /** @brief Checks if column is null. */
   c_orm_error_t (*is_null)(c_orm_query_t *query, int index, int *out_is_null);
+  /** @brief Finalizes prepared query. */
   c_orm_error_t (*finalize)(c_orm_query_t *query);
+  /** @brief Resets prepared query. */
   c_orm_error_t (*reset)(c_orm_query_t *query);
+  /** @brief Gets last driver error message. */
   c_orm_error_t (*get_last_error)(c_orm_db_t *db, const char **out_message);
+  /** @brief Gets last driver error trace. */
   c_orm_error_t (*get_last_trace)(c_orm_db_t *db, const char **out_trace);
+  /** @brief Gets last inserted row ID. */
   c_orm_error_t (*get_last_insert_rowid)(c_orm_db_t *db, int64_t *out_id);
+  /** @brief Gets result column count. */
   c_orm_error_t (*get_column_count)(c_orm_query_t *query, int *out_count);
+  /** @brief Gets result column name by index. */
   c_orm_error_t (*get_column_name)(c_orm_query_t *query, int index,
                                    const char **out_name);
 } c_orm_driver_vtable_t;
 
 /**
  * @brief Telemetry data for a connection pool.
+ * @var active_connections Count of currently active connections.
+ * @var idle_connections Count of currently idle connections.
+ * @var exhaustion_count Count of times the pool was exhausted.
+ * @var average_wait_time_ms Average wait time in milliseconds.
+ * @var slow_queries_logged Count of slow queries logged.
  */
 typedef struct c_orm_pool_telemetry {
+  /** @brief Count of active connections. */
   size_t active_connections;
+  /** @brief Count of idle connections. */
   size_t idle_connections;
+  /** @brief Count of times pool exhausted. */
   size_t exhaustion_count;
+  /** @brief Average wait time in milliseconds. */
   double average_wait_time_ms;
+  /** @brief Count of slow queries logged. */
   size_t slow_queries_logged;
 } c_orm_pool_telemetry_t;
 
@@ -176,14 +232,43 @@ typedef enum {
 
 /**
  * @brief Structure holding the generic DB context.
+ * @var vtable Driver virtual method table.
+ * @var driver_data Driver-specific private data pointer.
+ * @var driver_name Name identifier of the driver.
+ * @var log_cb Logging callback function.
+ * @var log_user_data User context pointer for log callback.
+ * @var expire_cb Record expiration callback.
+ * @var expire_user_data User context pointer for expire callback.
+ * @var identity_map Associated identity map for caching objects.
+ * @var hydrate_router Associated cdd-c hydrate router.
+ * @var query_interceptor Query execution hook.
+ * @var query_interceptor_ctx Context for query interceptor.
+ * @var hydration_interceptor Hydration execution hook.
+ * @var hydration_interceptor_ctx Context for hydration interceptor.
+ * @var encrypt_hook Cryptographic hook for encryption.
+ * @var decrypt_hook Cryptographic hook for decryption.
+ * @var crypto_context Cryptographic context.
+ * @var timezone Timezone configuration for session.
+ * @var modality Execution modality setting.
+ * @var modality_ctx Modality specific execution context.
+ * @var stmt_cache Statement LRU cache.
+ * @var slow_query_threshold_ms Threshold in ms for slow query logging.
+ * @var telemetry Telemetry metrics data.
  */
 struct c_orm_db {
+  /** @brief Driver virtual method table. */
   const c_orm_driver_vtable_t *vtable;
+  /** @brief Driver-specific private data pointer. */
   void *driver_data;
+  /** @brief Driver name identifier. */
   const char *driver_name; /* e.g. sqlite, postgres, mysql */
+  /** @brief Logging callback function. */
   c_orm_log_cb log_cb;
+  /** @brief Context pointer for log callback. */
   void *log_user_data;
+  /** @brief Record expiration callback function. */
   c_orm_expire_cb expire_cb;
+  /** @brief Context pointer for expire callback. */
   void *expire_user_data;
   c_orm_identity_map_t *
       identity_map; /**< Phase 1: Associated identity map for caching objects */
@@ -191,8 +276,10 @@ struct c_orm_db {
       *hydrate_router; /**< Phase 2: Associated cdd-c hydrate router */
 
   c_orm_interceptor_cb query_interceptor; /**< Query execution hook */
+  /** @brief Context for query interceptor. */
   void *query_interceptor_ctx;
   c_orm_interceptor_cb hydration_interceptor; /**< Hydration execution hook */
+  /** @brief Context for hydration interceptor. */
   void *hydration_interceptor_ctx;
 
   c_orm_crypto_hook_t encrypt_hook; /**< Cryptographic hook for encryption */
@@ -207,7 +294,9 @@ struct c_orm_db {
   void *stmt_cache; /**< Phase 4: Statement LRU cache */
 
   /* Telemetry config */
+  /** @brief Threshold in ms for slow query logging. */
   uint32_t slow_query_threshold_ms;
+  /** @brief Telemetry metrics data. */
   c_orm_pool_telemetry_t telemetry;
 };
 

@@ -36,12 +36,13 @@ typedef struct {
   cdd_c_prop_meta_t *added_props;
   /** @brief dropped_props field */
   size_t num_added;
-  /** @brief altered_props field */
+  /** @brief dropped_props field */
   cdd_c_prop_meta_t *dropped_props;
   /** @brief num_dropped field */
   size_t num_dropped;
-  /** @brief num_altered field */
+  /** @brief altered_props field */
   cdd_c_prop_meta_t *altered_props; /* simplistic: just track name */
+  /** @brief num_altered field */
   size_t num_altered;
 } cdd_c_meta_diff_t;
 

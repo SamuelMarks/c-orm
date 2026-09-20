@@ -30,22 +30,18 @@ struct MigrationStatements {
 /**
  * @brief Initialize a migration statements structure.
  * @param[out] out The structure to zero.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Executes the migration statements init operation.
-                     */
-    c_orm_error_t
-    migration_statements_init(struct MigrationStatements *out);
+extern C_ORM_EXPORT c_orm_error_t
+migration_statements_init(struct MigrationStatements *out);
 
 /**
  * @brief Free resources in a migration statements structure.
  * @param[in] out The structure to clean.
+ * @return C_ORM_OK on success.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Executes the migration statements free operation.
-                     */
-    c_orm_error_t
-    migration_statements_free(struct MigrationStatements *out);
+extern C_ORM_EXPORT c_orm_error_t
+migration_statements_free(struct MigrationStatements *out);
 
 /**
  * @brief Parse a SQL migration file into UP and DOWN statements.
@@ -59,11 +55,8 @@ extern C_ORM_EXPORT /**
  * @return 0 on success, ENOMEM on allocation failure, or a standard I/O error
  * code.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Parses migration file from the given input.
-                     */
-    c_orm_error_t
-    parse_migration_file(const char *filepath, struct MigrationStatements *out);
+extern C_ORM_EXPORT c_orm_error_t
+parse_migration_file(const char *filepath, struct MigrationStatements *out);
 
 #ifdef __cplusplus
 }

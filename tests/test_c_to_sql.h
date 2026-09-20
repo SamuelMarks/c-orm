@@ -15,11 +15,38 @@ extern "C" {
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_c_to_sql.h"
+#define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
 #include <string.h>
 #include <stdlib.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
+/**
+ * @brief Test write_struct_to_sql_create_table generator.
+ * @return GREATEST test result.
+ */
 TEST test_write_struct_to_sql_create_table(void) {
   struct StructField fields[3];
   struct StructFields sf;
@@ -64,6 +91,10 @@ TEST test_write_struct_to_sql_create_table(void) {
   PASS();
 }
 
+/**
+ * @brief Test cdd_c_meta_to_sql_create_table generator.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_meta_to_sql_create_table(void) {
   cdd_c_prop_meta_t props[2];
   cdd_c_meta_t meta;
@@ -94,6 +125,10 @@ TEST test_cdd_c_meta_to_sql_create_table(void) {
   PASS();
 }
 
+/**
+ * @brief Test schema difference computation and migration SQL generation.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_meta_diff_and_sql(void) {
   cdd_c_prop_meta_t props_old[1];
   cdd_c_prop_meta_t props_new[2];
@@ -143,6 +178,10 @@ TEST test_cdd_c_meta_diff_and_sql(void) {
   PASS();
 }
 
+/**
+ * @brief Test schema inspection query retrieval.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_get_schema_inspection_query(void) {
   char *query = NULL;
   c_orm_error_t rc;
@@ -157,6 +196,10 @@ TEST test_cdd_c_get_schema_inspection_query(void) {
   PASS();
 }
 
+/**
+ * @brief Test index creation and drop SQL generation.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_emit_index(void) {
   char *query = NULL;
   c_orm_error_t rc;
@@ -177,6 +220,10 @@ TEST test_cdd_c_emit_index(void) {
   PASS();
 }
 
+/**
+ * @brief Test topological sort of schemas by foreign key dependency.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_meta_topological_sort(void) {
   cdd_c_prop_meta_t p_user[1], p_post[2];
   cdd_c_meta_t m_user, m_post;
@@ -215,13 +262,25 @@ TEST test_cdd_c_meta_topological_sort(void) {
   PASS();
 }
 
+/**
+ * @brief Test suite runner for C to SQL generation.
+ * @param test_c_to_sql_suite Suite runner function name.
+ */
 SUITE(test_c_to_sql_suite) {
+  static int recursed = 0;
   RUN_TEST(test_write_struct_to_sql_create_table);
   RUN_TEST(test_cdd_c_meta_to_sql_create_table);
   RUN_TEST(test_cdd_c_meta_diff_and_sql);
   RUN_TEST(test_cdd_c_get_schema_inspection_query);
   RUN_TEST(test_cdd_c_emit_index);
   RUN_TEST(test_cdd_c_meta_topological_sort);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    test_c_to_sql_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

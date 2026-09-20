@@ -1,5 +1,12 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file orm_gen.h
+ * @brief Code generation interfaces for OpenAPI to c-orm models.
+ * @defgroup orm_gen ORM Generator
+ * @{
+ */
+
 #ifndef C_CDD_ROUTES_EMIT_ORM_GEN_H
 #define C_CDD_ROUTES_EMIT_ORM_GEN_H
 
@@ -20,12 +27,8 @@ extern "C" {
  * @param[in] config Configuration options.
  * @return 0 on success, error code on failure.
  */
-extern C_ORM_EXPORT /**
-                     * @brief Executes the openapi orm generate operation.
-                     */
-    c_orm_error_t
-    openapi_orm_generate(const struct OpenAPI_Spec *spec,
-                         const struct OpenApiClientConfig *config);
+extern C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
+    const struct OpenAPI_Spec *spec, const struct OpenApiClientConfig *config);
 
 #ifdef __cplusplus
 }

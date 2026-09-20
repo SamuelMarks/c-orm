@@ -6,8 +6,14 @@
 #ifndef TEST_API_RELATIONS_H
 #define TEST_API_RELATIONS_H
 
+/* clang-format off */
 #include "test_api_helpers.h"
+/* clang-format on */
 
+/**
+ * @brief Tests API relation operation: find all and find with relations deep.
+ * @return GREATEST test result.
+ */
 TEST test_api_find_all_and_find_with_relations_deep(void) {
   struct ExtendedParent parents[2];
   struct Generic_Array out_arr;
@@ -173,6 +179,10 @@ TEST test_api_find_all_and_find_with_relations_deep(void) {
   PASS();
 }
 
+/**
+ * @brief Tests API relation operation: load relation branches.
+ * @return GREATEST test result.
+ */
 TEST test_api_load_relation_branches(void) {
   struct NullableParent np;
   c_orm_column_meta_t cols[2];
@@ -242,6 +252,10 @@ TEST test_api_load_relation_branches(void) {
   PASS();
 }
 
+/**
+ * @brief Tests API relation operation: attach detach sync error branches.
+ * @return GREATEST test result.
+ */
 TEST test_api_attach_detach_sync_error_branches(void) {
   struct ExtendedParent parent;
   struct NestedChild child;
@@ -480,9 +494,14 @@ TEST test_api_crud_relations_deep_errors(void) {
 
   /* 4. BelongsTo nullable FK error and validation */
   {
+    /** @brief Struct representing a parent with nullable belongs_to foreign
+     * key. */
     struct NullableParent {
+      /** @brief Primary key ID. */
       int32_t id;
+      /** @brief Nullable belongs_to foreign key pointer. */
       int32_t *belongs_to_id;
+      /** @brief Associated child struct pointer. */
       struct NestedChild *belongs_to_child;
     } np;
     c_orm_column_meta_t np_cols[2];
@@ -710,10 +729,8 @@ TEST test_api_relation_loading_and_sync_deep(void) {
   ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
             c_orm_sync(&g_db, &p_meta, &p, "nonexistent", c_items, 2));
 
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
 
   PASS();
 }
@@ -723,6 +740,14 @@ TEST test_api_relation_loading_and_sync_deep(void) {
 /* ========================================================================= */
 
 static int g_mock_child_is_null = 0;
+
+/**
+ * @brief Mock driver is_null implementation for relation testing.
+ * @param q Query pointer.
+ * @param index Column index.
+ * @param is_null Output pointer receiving null indicator.
+ * @return C_ORM_OK on success.
+ */
 static c_orm_error_t mock_is_null_child_check(c_orm_query_t *q, int index,
                                               int *is_null) {
   (void)q;
@@ -736,6 +761,10 @@ static c_orm_error_t mock_is_null_child_check(c_orm_query_t *q, int index,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Tests API relation operation: find with relation int32 deep.
+ * @return GREATEST test result.
+ */
 TEST test_api_find_with_relation_int32_deep(void) {
   struct ExtendedParent p;
   c_orm_column_meta_t p_cols[3];
@@ -910,6 +939,10 @@ TEST test_api_find_with_relation_int32_deep(void) {
   PASS();
 }
 
+/**
+ * @brief Tests API relation operation: load relation deep errors.
+ * @return GREATEST test result.
+ */
 TEST test_api_load_relation_deep_errors(void) {
   struct ExtendedParent p;
   c_orm_table_meta_t meta;
@@ -970,6 +1003,13 @@ static int g_eager_fail_step_loop = 0;
 static int g_eager_fail_get_int32 = 0;
 static int g_eager_step_cnt = 0;
 
+/**
+ * @brief Mock driver bind_int32 implementation for eager relation tests.
+ * @param q Query pointer.
+ * @param i Parameter index.
+ * @param val Integer value to bind.
+ * @return C_ORM_OK on success or simulated error.
+ */
 static c_orm_error_t mock_eager_bind_int32(c_orm_query_t *q, int i,
                                            int32_t val) {
   (void)q;
@@ -980,6 +1020,12 @@ static c_orm_error_t mock_eager_bind_int32(c_orm_query_t *q, int i,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock driver step implementation for eager relation tests.
+ * @param q Query pointer.
+ * @param has_row Output pointer receiving row indicator.
+ * @return C_ORM_OK on success or simulated error.
+ */
 static c_orm_error_t mock_eager_step(c_orm_query_t *q, int *has_row) {
   (void)q;
   if (!has_row)
@@ -998,16 +1044,26 @@ static c_orm_error_t mock_eager_step(c_orm_query_t *q, int *has_row) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock driver get_int32 implementation for eager relation tests.
+ * @param q Query pointer.
+ * @param i Column index.
+ * @param o Output pointer receiving integer.
+ * @return C_ORM_OK on success or simulated error.
+ */
 static c_orm_error_t mock_eager_get_int32(c_orm_query_t *q, int i, int32_t *o) {
   (void)q;
   (void)i;
   if (g_eager_fail_get_int32)
     return C_ORM_ERROR_UNKNOWN;
-  if (o)
-    *o = 1;
+  *o = 1;
   return C_ORM_OK;
 }
 
+/**
+ * @brief Tests API relation operation: find all with relation eager errors.
+ * @return GREATEST test result.
+ */
 TEST test_api_find_all_with_relation_eager_errors(void) {
   struct ExtendedParent parents[1];
   struct Generic_Array out_arr;
@@ -1188,6 +1244,12 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
 static int g_sync_fail_step = 0;
 static int g_sync_step_cnt = 0;
 
+/**
+ * @brief Mock driver step implementation for relation synchronization tests.
+ * @param q Query pointer.
+ * @param has_row Output pointer receiving row indicator.
+ * @return C_ORM_OK on success or simulated error.
+ */
 static c_orm_error_t mock_sync_step(c_orm_query_t *q, int *has_row) {
   (void)q;
   if (!has_row)
@@ -1202,6 +1264,10 @@ static c_orm_error_t mock_sync_step(c_orm_query_t *q, int *has_row) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Tests API relation operation: sync and attach detach errors.
+ * @return GREATEST test result.
+ */
 TEST test_api_sync_and_attach_detach_errors(void) {
   struct ExtendedParent p;
   struct NestedChild c_items[2];
@@ -1347,6 +1413,10 @@ TEST test_api_sync_and_attach_detach_errors(void) {
   PASS();
 }
 
+/**
+ * @brief Tests API relation operation: find and eager missing branches.
+ * @return GREATEST test result.
+ */
 TEST test_api_find_and_eager_missing_branches(void) {
   struct ExtendedParent p;
   struct Generic_Array out_arr;
@@ -1565,6 +1635,10 @@ TEST test_api_find_and_eager_missing_branches(void) {
   PASS();
 }
 
+/**
+ * @brief Tests API relation operation: sync attach detach all errors.
+ * @return GREATEST test result.
+ */
 TEST test_api_sync_attach_detach_all_errors(void) {
   struct ExtendedParent p;
   struct NestedChild c_items[2];

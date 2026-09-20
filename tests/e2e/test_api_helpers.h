@@ -44,49 +44,73 @@ static c_orm_error_t mock_get_int32_fk(c_orm_query_t *q, int index,
                                        int32_t *val) {
   (void)q;
   (void)index;
-  if (val)
-    *val = g_mock_child_fk_id;
+  *val = g_mock_child_fk_id;
   return C_ORM_OK;
 }
 
 /** @brief Extended parent structure with various relational mappings. */
 struct ExtendedParent {
+  /** @brief Primary key ID. */
   int32_t id;
+  /** @brief Belongs-to foreign key ID. */
   int32_t belongs_to_id;
+  /** @brief Pointer to one-to-one child structure. */
   struct NestedChild *child_o2o;
+  /** @brief Array of one-to-many children structures. */
   struct Generic_Array children_o2m;
+  /** @brief Array of many-to-many tags structures. */
   struct Generic_Array tags_m2m;
+  /** @brief Parent name string buffer. */
   char name[32];
 };
 
 /** @brief Full parent structure with lazy load context fields. */
 struct FullParentObj {
+  /** @brief Primary key ID. */
   int32_t id;
+  /** @brief Belongs-to foreign key ID. */
   int32_t belongs_to_id;
+  /** @brief Pointer to one-to-one child structure. */
   struct NestedChild *child_o2o;
+  /** @brief Array of one-to-many children structures. */
   struct Generic_Array children_o2m;
+  /** @brief Array of many-to-many tags structures. */
   struct Generic_Array tags_m2m;
+  /** @brief Parent name string buffer. */
   char name[32];
+  /** @brief Lazy load context for one-to-one child. */
   c_orm_lazy_load_context_t o2o_ctx;
+  /** @brief Lazy load context for one-to-many children. */
   c_orm_lazy_load_context_t o2m_ctx;
+  /** @brief Lazy load context for many-to-many tags. */
   c_orm_lazy_load_context_t m2m_ctx;
 };
 
 /** @brief Object representation with a string primary key. */
 struct StrPkObj {
+  /** @brief Name string value. */
   char *name;
+  /** @brief String primary key identifier. */
   char *id;
 };
 
 /** @brief Model object for testing TTL expiration and type conversions. */
 struct TtlTestUser {
+  /** @brief Created at timestamp in seconds. */
   int64_t created_at;
+  /** @brief TTL expiration time in seconds. */
   int32_t expires_in;
+  /** @brief Username string. */
   char *username;
+  /** @brief Email address string. */
   char *email;
+  /** @brief Nullable age integer pointer. */
   int32_t *age;
+  /** @brief Nullable score float pointer. */
   float *score;
+  /** @brief Nullable active boolean pointer. */
   bool *is_active;
+  /** @brief Created at string representation. */
   char *created_at_str;
 };
 
@@ -179,10 +203,11 @@ static c_orm_error_t mock_stage_prepare(c_orm_db_t *db, const char *sql,
   (void)sql;
   if (g_mock_err_stage == 2)
     return C_ORM_ERROR_UNKNOWN;
-  if (g_mock_err_stage == 9 && sql && strstr(sql, "INSERT"))
-    return C_ORM_ERROR_UNKNOWN;
-  if (q)
-    *q = (c_orm_query_t *)1;
+  if (g_mock_err_stage == 9) {
+    if (strstr(sql, "INSERT"))
+      return C_ORM_ERROR_UNKNOWN;
+  }
+  *q = (c_orm_query_t *)1;
   return C_ORM_OK;
 }
 
@@ -233,8 +258,10 @@ static c_orm_error_t mock_stage_bind_int64(c_orm_query_t *q, int i,
                                            int64_t val) {
   (void)q;
   (void)val;
-  if (g_mock_fail_pk_bind == 1 && i >= 3)
-    return C_ORM_ERROR_UNKNOWN;
+  if (g_mock_fail_pk_bind == 1) {
+    if (i >= 3)
+      return C_ORM_ERROR_UNKNOWN;
+  }
   return C_ORM_OK;
 }
 
@@ -280,8 +307,7 @@ static c_orm_error_t mock_stage_is_null(c_orm_query_t *q, int i,
   (void)i;
   if (g_mock_err_stage == 6)
     return C_ORM_ERROR_UNKNOWN;
-  if (out_null)
-    *out_null = 0;
+  *out_null = 0;
   return C_ORM_OK;
 }
 
@@ -296,10 +322,11 @@ static c_orm_error_t mock_stage_get_int32(c_orm_query_t *q, int i, int32_t *o) {
   (void)q;
   if (g_mock_err_stage == 7 && i >= 2)
     return C_ORM_ERROR_UNKNOWN;
-  if (g_mock_err_stage == 8 && i == 0)
-    return C_ORM_ERROR_UNKNOWN;
-  if (o)
-    *o = 1;
+  if (g_mock_err_stage == 8) {
+    if (i == 0)
+      return C_ORM_ERROR_UNKNOWN;
+  }
+  *o = 1;
   return C_ORM_OK;
 }
 
@@ -311,8 +338,7 @@ static c_orm_error_t mock_stage_get_int32(c_orm_query_t *q, int i, int32_t *o) {
  */
 static c_orm_error_t mock_always_step_zero(c_orm_query_t *q, int *has_row) {
   (void)q;
-  if (has_row)
-    *has_row = 0;
+  *has_row = 0;
   return C_ORM_OK;
 }
 
@@ -324,8 +350,7 @@ static c_orm_error_t mock_always_step_zero(c_orm_query_t *q, int *has_row) {
  */
 static c_orm_error_t mock_always_step_one(c_orm_query_t *q, int *has_row) {
   (void)q;
-  if (has_row)
-    *has_row = 1;
+  *has_row = 1;
   return C_ORM_OK;
 }
 
@@ -420,8 +445,7 @@ static c_orm_error_t mock_always_zero_is_null(c_orm_query_t *q, int i,
                                               int *out) {
   (void)q;
   (void)i;
-  if (out)
-    *out = 0;
+  *out = 0;
   return C_ORM_OK;
 }
 
@@ -459,12 +483,11 @@ static c_orm_error_t mock_step_parent2_and_child2(c_orm_query_t *q,
 static c_orm_error_t mock_stage_get_int32_2(c_orm_query_t *q, int i,
                                             int32_t *o) {
   (void)q;
-  if (i == 1 && o) {
+  if (i == 1) {
     *o = 2;
     return C_ORM_OK;
   }
-  if (o)
-    *o = 1;
+  *o = 1;
   return C_ORM_OK;
 }
 
@@ -563,8 +586,7 @@ static c_orm_error_t mock_prepare_fail_on_second(c_orm_db_t *db,
   (void)sql;
   if (g_stage_prepare_cnt++ >= 1)
     return C_ORM_ERROR_UNKNOWN;
-  if (q)
-    *q = (c_orm_query_t *)1;
+  *q = (c_orm_query_t *)1;
   return C_ORM_OK;
 }
 
@@ -579,8 +601,10 @@ static c_orm_error_t mock_bind_fail_on_second(c_orm_query_t *q, int i,
                                               int32_t val) {
   (void)q;
   (void)val;
-  if (g_stage_bind_cnt++ >= 1 && i > 0)
-    return C_ORM_ERROR_UNKNOWN;
+  if (g_stage_bind_cnt++ >= 1) {
+    if (i > 0)
+      return C_ORM_ERROR_UNKNOWN;
+  }
   return C_ORM_OK;
 }
 
@@ -596,8 +620,7 @@ static c_orm_error_t mock_get_fail_child_fk(c_orm_query_t *q, int i,
   (void)q;
   if (i >= 1)
     return C_ORM_ERROR_UNKNOWN;
-  if (o)
-    *o = 1;
+  *o = 1;
   return C_ORM_OK;
 }
 
@@ -613,8 +636,7 @@ static c_orm_error_t mock_get_fail_child_hydrate(c_orm_query_t *q, int i,
   (void)q;
   if (g_stage_step_cnt >= 2 && i == 0)
     return C_ORM_ERROR_UNKNOWN;
-  if (o)
-    *o = 1;
+  *o = 1;
   return C_ORM_OK;
 }
 
@@ -630,8 +652,7 @@ static c_orm_error_t mock_is_null_child_fail(c_orm_query_t *q, int i,
   (void)q;
   if (i >= 2)
     return C_ORM_ERROR_UNKNOWN;
-  if (out)
-    *out = 0;
+  *out = 0;
   return C_ORM_OK;
 }
 
@@ -645,12 +666,11 @@ static c_orm_error_t mock_is_null_child_fail(c_orm_query_t *q, int i,
 static c_orm_error_t mock_is_null_nonnull_fail(c_orm_query_t *q, int i,
                                                int *out) {
   (void)q;
-  if (i == 1 && out) {
+  if (i == 1) {
     *out = 1;
     return C_ORM_OK;
   }
-  if (out)
-    *out = 0;
+  *out = 0;
   return C_ORM_OK;
 }
 
@@ -665,8 +685,7 @@ static c_orm_error_t mock_get_string_null_val(c_orm_query_t *q, int i,
                                               const char **out) {
   (void)q;
   (void)i;
-  if (out)
-    *out = NULL;
+  *out = NULL;
   return C_ORM_OK;
 }
 
@@ -699,12 +718,11 @@ static c_orm_error_t mock_stage_get_int32_999(c_orm_query_t *q, int i,
                                               int32_t *o) {
   (void)q;
   (void)i;
-  if (g_stage_step_cnt >= 2 && o) {
+  if (g_stage_step_cnt >= 2) {
     *o = 999;
     return C_ORM_OK;
   }
-  if (o)
-    *o = 1;
+  *o = 1;
   return C_ORM_OK;
 }
 
@@ -718,12 +736,11 @@ static c_orm_error_t mock_stage_get_int32_999(c_orm_query_t *q, int i,
 static c_orm_error_t mock_is_null_child_true(c_orm_query_t *q, int i,
                                              int *out) {
   (void)q;
-  if (i >= 2 && out) {
+  if (i >= 2) {
     *out = 1;
     return C_ORM_OK;
   }
-  if (out)
-    *out = 0;
+  *out = 0;
   return C_ORM_OK;
 }
 
@@ -741,20 +758,21 @@ static c_orm_error_t mock_test_encrypt_hook_ok(const void *in_data,
                                                void **out_data,
                                                size_t *out_size) {
   (void)ctx;
-  if (out_data && out_size) {
-    *out_data = malloc(in_size);
-    if (!*out_data)
-      return C_ORM_ERROR_MEMORY;
-    memcpy(*out_data, in_data, in_size);
-    *out_size = in_size;
-  }
+  *out_data = malloc(in_size);
+  if (!*out_data)
+    return C_ORM_ERROR_MEMORY;
+  memcpy(*out_data, in_data, in_size);
+  *out_size = in_size;
   return C_ORM_OK;
 }
 
 /** @brief Structure representing a parent with nullable belongs_to relation. */
 struct NullableParent {
+  /** @brief Primary key ID. */
   int32_t id;
+  /** @brief Nullable belongs-to foreign key ID pointer. */
   int32_t *belongs_to_id;
+  /** @brief Pointer to associated child struct. */
   struct NestedChild *belongs_to_child;
 };
 
@@ -864,8 +882,7 @@ static c_orm_error_t mock_deep_get_int32(c_orm_query_t *q, int i, int32_t *o) {
   (void)q;
   if (g_deep_fail_get == 0 && i > 0)
     return C_ORM_ERROR_UNKNOWN;
-  if (o)
-    *o = 1;
+  *o = 1;
   (void)i;
   return C_ORM_OK;
 }
@@ -882,8 +899,7 @@ static c_orm_error_t mock_deep_get_int64(c_orm_query_t *q, int i, int64_t *o) {
   (void)i;
   if (g_deep_fail_get == 1)
     return C_ORM_ERROR_UNKNOWN;
-  if (o)
-    *o = 1234567890;
+  *o = 1234567890;
   return C_ORM_OK;
 }
 
@@ -899,8 +915,7 @@ static c_orm_error_t mock_deep_get_double(c_orm_query_t *q, int i, double *o) {
   (void)i;
   if (g_deep_fail_get == 2)
     return C_ORM_ERROR_UNKNOWN;
-  if (o)
-    *o = 2.71828;
+  *o = 2.71828;
   return C_ORM_OK;
 }
 
@@ -916,25 +931,23 @@ static c_orm_error_t mock_deep_get_double(c_orm_query_t *q, int i, double *o) {
 static c_orm_error_t mock_deep_get_blob(c_orm_query_t *q, int i, const void **o,
                                         size_t *s) {
   (void)q;
-  if (g_deep_fail_get == 3 && i == 11)
-    return C_ORM_ERROR_UNKNOWN;
-  if (g_deep_fail_get == 4 && i == 12)
-    return C_ORM_ERROR_UNKNOWN;
+  if (g_deep_fail_get == 3) {
+    if (i == 11)
+      return C_ORM_ERROR_UNKNOWN;
+  }
+  if (g_deep_fail_get == 4) {
+    if (i == 12)
+      return C_ORM_ERROR_UNKNOWN;
+  }
   if (i == 11) {
-    if (o)
-      *o = g_deep_pt_wkb;
-    if (s)
-      *s = sizeof(g_deep_pt_wkb);
+    *o = g_deep_pt_wkb;
+    *s = sizeof(g_deep_pt_wkb);
   } else if (i == 12) {
-    if (o)
-      *o = g_deep_poly_wkb;
-    if (s)
-      *s = sizeof(g_deep_poly_wkb);
+    *o = g_deep_poly_wkb;
+    *s = sizeof(g_deep_poly_wkb);
   } else {
-    if (o)
-      *o = "blobdata";
-    if (s)
-      *s = 8;
+    *o = "blobdata";
+    *s = 8;
   }
   return C_ORM_OK;
 }
@@ -950,8 +963,7 @@ static c_orm_error_t mock_deep_get_string(c_orm_query_t *q, int i,
                                           const char **o) {
   (void)q;
   (void)i;
-  if (o)
-    *o = g_deep_ts_str;
+  *o = g_deep_ts_str;
   return C_ORM_OK;
 }
 
@@ -965,8 +977,7 @@ static c_orm_error_t mock_deep_get_string(c_orm_query_t *q, int i,
 static c_orm_error_t mock_deep_is_null_false(c_orm_query_t *q, int i, int *o) {
   (void)q;
   (void)i;
-  if (o)
-    *o = 0;
+  *o = 0;
   return C_ORM_OK;
 }
 

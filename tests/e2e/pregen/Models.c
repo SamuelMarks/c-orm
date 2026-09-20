@@ -1,3 +1,9 @@
+/**
+ * @file Models.c
+ * @defgroup e2e_pregen Pre-generated E2E Models
+ * @brief Pre-generated implementation for models and arrays used in E2E tests.
+ */
+
 /* clang-format off */
 #include "Models.h"
 #include <errno.h>
@@ -5,6 +11,12 @@
 #include <string.h>
 /* clang-format on */
 
+/**
+ * @brief Initialize a Users_Array.
+ * @param arr Pointer to Users_Array structure.
+ * @param initial_capacity Initial capacity.
+ * @return C_ORM_OK on success or C_ORM_ERROR_MEMORY.
+ */
 c_orm_error_t Users_Array_init(struct Users_Array *arr,
                                size_t initial_capacity) {
   if (!arr)

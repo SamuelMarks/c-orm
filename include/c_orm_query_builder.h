@@ -43,6 +43,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_builder_init(
 
 /**
  * @brief Free resources associated with a select builder.
+ *
+ * @param builder Select builder instance to free.
  */
 C_ORM_EXPORT void c_orm_select_builder_free(c_orm_select_builder_t *builder);
 
@@ -58,60 +60,101 @@ c_orm_select_builder_compile(c_orm_select_builder_t *builder, char **out_sql);
 
 /**
  * @brief Add WHERE column = ?
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_eq(c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add WHERE column != ?
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_neq(c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add WHERE column < ?
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_lt(c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add WHERE column > ?
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_gt(c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add WHERE column <= ?
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_lte(c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add WHERE column >= ?
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_gte(c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add WHERE column > CURRENT_TIMESTAMP
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_select_where_gt_current_timestamp(
     c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add WHERE column < CURRENT_TIMESTAMP
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_select_where_lt_current_timestamp(
     c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add WHERE column LIKE ?
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_like(c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add WHERE column IN (?, ?, ...)
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @param count Number of placeholder items in IN list.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_select_where_in(
     c_orm_select_builder_t *builder, const char *column, size_t count);
@@ -119,8 +162,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_in(
 /**
  * @brief Support for array arguments dynamically bridging IN clauses (Step
  * 123).
+ * @param builder Select builder instance.
+ * @param column Column name string.
  * @param array Native generic array.
  * @param meta Type of array elements.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_in_array(c_orm_select_builder_t *builder, const char *column,
@@ -128,12 +174,20 @@ c_orm_select_where_in_array(c_orm_select_builder_t *builder, const char *column,
 
 /**
  * @brief Add WHERE column BETWEEN ? AND ? (Step 124)
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_between(c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add WHERE column ILIKE ? (Case-insensitive LIKE) (Step 125)
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_ilike(c_orm_select_builder_t *builder, const char *column);
@@ -142,9 +196,11 @@ c_orm_select_where_ilike(c_orm_select_builder_t *builder, const char *column);
  * @brief Extend query builder for relationship filtering bridging JOIN
  * resolutions (Step 121, 122)
  *
+ * @param builder Select builder instance.
  * @param relation_name The dot-separated relationship path (e.g.
  * `profile.bio`).
  * @param operator_str Raw operator (e.g. `ILIKE`, `=`, `>`).
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_select_where_relation(
     c_orm_select_builder_t *builder, const char *relation_name,
@@ -152,37 +208,63 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_relation(
 
 /**
  * @brief Add GROUP BY aggregation query logic (Step 126).
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_group_by(c_orm_select_builder_t *builder, const char *column);
 
 /**
  * @brief Add HAVING API logic (Step 127).
+ *
+ * @param builder Select builder instance.
+ * @param clause HAVING condition clause string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_select_having(c_orm_select_builder_t *builder,
                                                const char *clause);
 
 /**
  * @brief Add Support for COUNT, SUM, AVG, MIN, MAX aggregations (Step 128).
+ * @param builder Select builder instance.
  * @param func String representing aggregation (e.g. `COUNT`, `MAX`).
+ * @param column Column name to aggregate.
+ * @param alias Output column alias name.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_aggregate(c_orm_select_builder_t *builder, const char *func,
                        const char *column, const char *alias);
 
 /**
- * @brief Add ORDER BY column ASC/DESC */
+ * @brief Add ORDER BY column ASC/DESC
+ *
+ * @param builder Select builder instance.
+ * @param column Column name string.
+ * @param is_desc Nonzero for DESC, zero for ASC.
+ * @return C_ORM_OK on success.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_select_order_by(
     c_orm_select_builder_t *builder, const char *column, int is_desc);
 
 /**
  * @brief Add LIMIT n
+ *
+ * @param builder Select builder instance.
+ * @param limit Maximum rows to return.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_select_limit(c_orm_select_builder_t *builder,
                                               size_t limit);
 
 /**
  * @brief Add OFFSET n
+ *
+ * @param builder Select builder instance.
+ * @param offset Number of rows to skip.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_select_offset(c_orm_select_builder_t *builder,
                                                size_t offset);

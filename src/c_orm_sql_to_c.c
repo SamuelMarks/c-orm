@@ -16,6 +16,9 @@
 
 /**
  * @brief Convert string to uppercase.
+ * @param dst Destination buffer.
+ * @param src Source string.
+ * @return C_ORM_OK on success.
  */
 static c_orm_error_t str_to_upper(char *dst, const char *src) {
   if (!src)
@@ -31,6 +34,9 @@ static c_orm_error_t str_to_upper(char *dst, const char *src) {
 
 /**
  * @brief Convert string to TitleCase (first letter upper).
+ * @param dst Destination buffer.
+ * @param src Source string.
+ * @return C_ORM_OK on success.
  */
 static c_orm_error_t str_to_title(char *dst, const char *src) {
   if (!src)
@@ -51,6 +57,12 @@ static c_orm_error_t str_to_title(char *dst, const char *src) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Determine whether an SQL column is nullable.
+ * @param col Column definition pointer.
+ * @param out_is_nullable Pointer receiving 1 if nullable, 0 if not nullable.
+ * @return C_ORM_OK on success.
+ */
 static c_orm_error_t is_nullable(const struct sql_column_t *col,
                                  int *out_is_nullable) {
   size_t i;
@@ -119,6 +131,14 @@ c_orm_error_t sql_type_is_string(enum SqlDataType type) {
 static c_orm_error_t emit_c_orm_metadata(FILE *fp,
                                          const struct sql_table_t *table,
                                          const char *struct_name);
+
+/**
+ * @brief Emit table string queries.
+ * @param fp Target file pointer.
+ * @param table SQL table metadata.
+ * @param struct_name Struct name string.
+ * @return C_ORM_OK on success.
+ */
 static c_orm_error_t emit_c_orm_queries(FILE *fp,
                                         const struct sql_table_t *table,
                                         const char *struct_name);
@@ -400,6 +420,9 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
 /**
  * @brief Converts a SQL data type enum to its corresponding C ORM string
  * representation.
+ * @param type SQL data type enum value.
+ * @param out_val Pointer receiving C ORM type string representation.
+ * @return C_ORM_OK on success or error code.
  */
 c_orm_error_t sql_type_to_c_orm_type(enum SqlDataType type,
                                      const char **out_val) {
@@ -578,6 +601,10 @@ static c_orm_error_t emit_c_orm_metadata(FILE *fp,
 }
 /**
  * @brief Emit table string queries.
+ * @param fp Target file pointer.
+ * @param table SQL table metadata.
+ * @param struct_name Struct name string.
+ * @return C_ORM_OK on success.
  */
 static c_orm_error_t emit_c_orm_queries(FILE *fp,
                                         const struct sql_table_t *table,

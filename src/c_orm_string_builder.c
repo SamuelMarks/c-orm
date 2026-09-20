@@ -18,9 +18,13 @@
  * @brief Internal string builder structure.
  */
 struct c_orm_string_builder {
+  /** @brief Pointer to allocated string buffer. */
   char *buffer;
+  /** @brief Current string length. */
   size_t length;
+  /** @brief Allocated capacity of string buffer. */
   size_t capacity;
+  /** @brief Validity flag (1 if valid, 0 on error). */
   int valid;
 };
 

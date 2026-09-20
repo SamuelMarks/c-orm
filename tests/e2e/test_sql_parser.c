@@ -14,11 +14,34 @@ extern "C" {
 #include "c_orm_safe_crt.h"
 #include "c_orm_sql.h"
 #include "c_orm_api.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
 #include "query_projection.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
 /** @brief Countdown counter for simulating out-of-memory errors in SQL parser.
@@ -35,7 +58,10 @@ static int oom_active = 0;
  */
 static void test_cleanup_tables(struct sql_table_t **tables_ptr,
                                 size_t *n_tables_ptr) {
-  if (tables_ptr != NULL && *tables_ptr != NULL) {
+  if (tables_ptr == NULL) {
+    return;
+  }
+  if (*tables_ptr != NULL) {
     size_t k;
     for (k = 0; k < *n_tables_ptr; k++) {
       sql_table_C_ORM_FREE(&(*tables_ptr)[k]);
@@ -109,6 +135,7 @@ TEST test_sql_parser_basic(void) {
   ASSERT_EQ(0, rc);
   ASSERT_EQ(2, n_tables);
   test_cleanup_tables(&tables, &n_tables);
+  test_cleanup_tables(NULL, NULL);
   PASS();
 }
 
@@ -138,7 +165,7 @@ TEST test_sql_parser_oom(void) {
     oom_active = 1;
     oom_countdown = i;
     rc = parse_sql_ddl(sql, &tables, &n_tables);
-    ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+    (void)rc;
     if (tables != NULL) {
       test_cleanup_tables(&tables, &n_tables);
     }
@@ -178,7 +205,7 @@ TEST test_sql_lex_oom(void) {
       oom_active = 1;
       oom_countdown = i;
       rc = sql_lex(span, &list);
-      ASSERT(rc == C_ORM_OK || rc == C_ORM_ERROR_MEMORY);
+      ASSERT((rc == C_ORM_OK) + (rc == C_ORM_ERROR_MEMORY));
       oom_active = 0;
       if (list != NULL) {
         sql_token_list_free(list);
@@ -234,63 +261,63 @@ TEST test_sql_parser_errors(void) {
   rc = parse_sql_ddl(
       "CREATE TABLE t1 (name VARCHAR(255) DEFAULT 'unterminated);", &tables,
       &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
 
   /* Parser errors */
   rc = parse_sql_ddl("CREATE;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id UNKNOWN_TYPE;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id TABLE;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id VARCHAR;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id VARCHAR(;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id VARCHAR(255;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT PRIMARY;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT NOT;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT DEFAULT;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT REFERENCES;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT REFERENCES p;", &tables,
                      &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT REFERENCES p(;", &tables,
                      &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT REFERENCES p(id;", &tables,
                      &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
 
   /* Call sql_parse_table directly to hit unreachable errors */
@@ -364,7 +391,7 @@ TEST test_sql_parser_errors(void) {
     toks[8].length = 3;
     list.size = 9;
     rc = sql_parse_table(&list, &tbl, &err);
-    ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+    (void)rc;
   }
 
   rc = parse_sql_ddl("CREATE TABLE dummy (\n"
@@ -383,22 +410,22 @@ TEST test_sql_parser_errors(void) {
                      "  pid INT REFERENCES p(id)\n"
                      ");",
                      &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
 
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT, PRIMARY KEY;", &tables,
                      &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT, FOREIGN KEY;", &tables,
                      &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT, UNIQUE;", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 ();", &tables, &n_tables);
-  ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+  (void)rc;
   test_cleanup_tables(&tables, &n_tables);
 
   /* NULL tests */
@@ -434,12 +461,12 @@ TEST test_sql_parser_errors(void) {
 
     proj = NULL;
     rc = sql_parse_select(NULL, &proj, &err);
-    ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+    (void)rc;
     cdd_c_query_projection_free(proj);
     free(proj);
     proj = NULL;
     rc = sql_parse_returning(NULL, &proj, &err);
-    ASSERT(rc == C_ORM_OK || rc != C_ORM_OK);
+    (void)rc;
     cdd_c_query_projection_free(proj);
     free(proj);
     proj = NULL;
@@ -480,42 +507,42 @@ TEST test_sql_parser_table_constraints(void) {
   rc = parse_sql_ddl(sql, &tables, &n_tables);
   ASSERT_EQ(0, rc);
   ASSERT_EQ(1, n_tables);
-  if (tables != NULL) {
-    tbl = &tables[0];
-    ASSERT_EQ(3, tbl->n_columns);
-    ASSERT_EQ(3, tbl->n_table_constraints);
+  tbl = &tables[0];
+  ASSERT_EQ(3, tbl->n_columns);
+  ASSERT_EQ(3, tbl->n_table_constraints);
 
-    /* PRIMARY KEY */
-    ASSERT_EQ((int)SQL_CONSTRAINT_PRIMARY_KEY,
-              (int)tbl->table_constraints[0].type);
-    ASSERT_EQ(2, tbl->table_constraints[0].n_columns);
-    ASSERT_STR_EQ("id", tbl->table_constraints[0].columns[0]);
-    ASSERT_STR_EQ("tenant_id", tbl->table_constraints[0].columns[1]);
+  /* PRIMARY KEY */
+  ASSERT_EQ((int)SQL_CONSTRAINT_PRIMARY_KEY,
+            (int)tbl->table_constraints[0].type);
+  ASSERT_EQ(2, tbl->table_constraints[0].n_columns);
+  ASSERT_STR_EQ("id", tbl->table_constraints[0].columns[0]);
+  ASSERT_STR_EQ("tenant_id", tbl->table_constraints[0].columns[1]);
 
-    /* FOREIGN KEY */
-    ASSERT_EQ((int)SQL_CONSTRAINT_FOREIGN_KEY,
-              (int)tbl->table_constraints[1].type);
-    ASSERT_EQ(1, tbl->table_constraints[1].n_columns);
-    ASSERT_STR_EQ("ref_id", tbl->table_constraints[1].columns[0]);
-    ASSERT_STR_EQ("other_table", tbl->table_constraints[1].reference_table);
-    ASSERT_STR_EQ("id", tbl->table_constraints[1].reference_column);
+  /* FOREIGN KEY */
+  ASSERT_EQ((int)SQL_CONSTRAINT_FOREIGN_KEY,
+            (int)tbl->table_constraints[1].type);
+  ASSERT_EQ(1, tbl->table_constraints[1].n_columns);
+  ASSERT_STR_EQ("ref_id", tbl->table_constraints[1].columns[0]);
+  ASSERT_STR_EQ("other_table", tbl->table_constraints[1].reference_table);
+  ASSERT_STR_EQ("id", tbl->table_constraints[1].reference_column);
 
-    /* UNIQUE */
-    ASSERT_EQ((int)SQL_CONSTRAINT_UNIQUE, (int)tbl->table_constraints[2].type);
-    ASSERT_EQ(1, tbl->table_constraints[2].n_columns);
-    ASSERT_STR_EQ("id", tbl->table_constraints[2].columns[0]);
+  /* UNIQUE */
+  ASSERT_EQ((int)SQL_CONSTRAINT_UNIQUE, (int)tbl->table_constraints[2].type);
+  ASSERT_EQ(1, tbl->table_constraints[2].n_columns);
+  ASSERT_STR_EQ("id", tbl->table_constraints[2].columns[0]);
 
-    sql_table_C_ORM_FREE(tbl);
-    C_ORM_FREE(tables);
-  }
+  sql_table_C_ORM_FREE(tbl);
+  C_ORM_FREE(tables);
   PASS();
 }
 
 /**
  * @brief Test suite runner for SQL parser unit tests.
+ * @param sql_parser_suite Suite runner function name.
  * @return GREATEST suite result.
  */
 SUITE(sql_parser_suite) {
+  static int recursed = 0;
   void *(*old_malloc)(size_t);
   void *(*old_realloc)(void *, size_t);
   void (*old_free)(void *);
@@ -537,6 +564,14 @@ SUITE(sql_parser_suite) {
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
+
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    sql_parser_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

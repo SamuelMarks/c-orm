@@ -1,7 +1,12 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
-#ifndef TEST_MIGRATION_H
-#define TEST_MIGRATION_H
+/**
+ * @file test_migration.h
+ * @brief Unit tests for database migration file parsing and runner stubs.
+ */
+
+#ifndef C_CDD_TEST_MIGRATION_H
+#define C_CDD_TEST_MIGRATION_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -9,16 +14,44 @@ extern "C" {
 
 /* clang-format off */
 #include "c_orm_safe_crt.h"
+#include "functions/parse/fs.h"
 #include "migration.h"
 #include "migration_runner.h"
-#include "functions/parse/fs.h"
-#include <greatest.h>
-#include <string.h>
-#include <stdlib.h>
+#define GREATEST_USE_LONGJMP 0
+#include "greatest.h"
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
+/**
+ * @brief Tests parsing a valid migration file containing both UP and DOWN
+ * sections.
+ * @return GREATEST test result.
+ */
 TEST test_parse_migration_file_valid(void) {
   const char *filename = "test_valid_migration.sql";
   const char *content = "-- UP\n"
@@ -43,6 +76,10 @@ TEST test_parse_migration_file_valid(void) {
   PASS();
 }
 
+/**
+ * @brief Tests parsing a migration file containing only an UP section.
+ * @return GREATEST test result.
+ */
 TEST test_parse_migration_file_no_down(void) {
   const char *filename = "test_up_only.sql";
   const char *content = "-- UP\n"
@@ -64,6 +101,10 @@ TEST test_parse_migration_file_no_down(void) {
   PASS();
 }
 
+/**
+ * @brief Tests parsing a migration file without explicit UP or DOWN markers.
+ * @return GREATEST test result.
+ */
 TEST test_parse_migration_file_no_markers(void) {
   const char *filename = "test_no_markers.sql";
   const char *content = "CREATE TABLE test3 (id INT);\n";
@@ -84,6 +125,10 @@ TEST test_parse_migration_file_no_markers(void) {
   PASS();
 }
 
+/**
+ * @brief Tests parsing a migration file containing only a DOWN section.
+ * @return GREATEST test result.
+ */
 TEST test_parse_migration_file_no_up(void) {
   const char *filename = "test_down_only.sql";
   const char *content = "-- DOWN\n"
@@ -105,6 +150,10 @@ TEST test_parse_migration_file_no_up(void) {
   PASS();
 }
 
+/**
+ * @brief Tests parsing a migration file with inverted DOWN then UP markers.
+ * @return GREATEST test result.
+ */
 TEST test_parse_migration_file_inverted_markers(void) {
   const char *filename = "test_inverted_markers.sql";
   const char *content = "-- DOWN\n"
@@ -129,6 +178,10 @@ TEST test_parse_migration_file_inverted_markers(void) {
   PASS();
 }
 
+/**
+ * @brief Tests migration file parser error handling and NULL validation.
+ * @return GREATEST test result.
+ */
 TEST test_parse_migration_file_errors(void) {
   struct MigrationStatements stmts;
 
@@ -154,6 +207,10 @@ TEST test_parse_migration_file_errors(void) {
   PASS();
 }
 
+/**
+ * @brief Tests fallback migration runner stub functions.
+ * @return GREATEST test result.
+ */
 TEST test_migration_runner_stubs(void) {
 #if defined(__EMSCRIPTEN__) ||                                                 \
     (!defined(USE_LIBPQ_LINKED) && !defined(USE_LIBPQ_DYNAMIC))
@@ -170,14 +227,26 @@ TEST test_migration_runner_stubs(void) {
   PASS();
 }
 
+/** @brief Counter for controlling allocation failures. */
 static int alloc_countdown = 0;
+
+/**
+ * @brief Mock malloc callback for simulated OOM testing.
+ * @param size Requested allocation size.
+ * @return Memory pointer or NULL.
+ */
 static void *mock_malloc_migration(size_t size) {
-  if (alloc_countdown == 0)
+  if (alloc_countdown == 0) {
     return NULL;
+  }
   alloc_countdown--;
   return malloc(size);
 }
 
+/**
+ * @brief Tests migration file parser handling of allocation failures.
+ * @return GREATEST test result.
+ */
 TEST test_parse_migration_file_oom(void) {
   const char *filename = "test_oom_migration.sql";
   const char *content = "-- UP\n"
@@ -185,7 +254,9 @@ TEST test_parse_migration_file_oom(void) {
                         "-- DOWN\n"
                         "DROP TABLE test;\n";
   struct MigrationStatements stmts;
-  void *(*orig_malloc)(size_t) = c_orm_malloc;
+  void *(*orig_malloc_migration)(size_t);
+
+  orig_malloc_migration = c_orm_malloc;
 
   fs_write_to_file(filename, content);
 
@@ -199,12 +270,18 @@ TEST test_parse_migration_file_oom(void) {
   c_orm_set_allocators(mock_malloc_migration, c_orm_realloc, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
 
-  c_orm_set_allocators(orig_malloc, c_orm_realloc, c_orm_free);
+  c_orm_set_allocators(orig_malloc_migration, c_orm_realloc, c_orm_free);
   remove(filename);
   PASS();
 }
+
+/** @brief Global flag to simulate migration statement init failure. */
 C_ORM_EXPORT extern int c_orm_mock_migration_statements_init_fail;
 
+/**
+ * @brief Tests migration file parsing with empty blocks and failure injections.
+ * @return GREATEST test result.
+ */
 TEST test_parse_migration_file_empty_blocks(void) {
   const char *filename = "test_empty_blocks.sql";
   const char *content = "-- UP\n-- DOWN\n";
@@ -245,7 +322,12 @@ TEST test_parse_migration_file_empty_blocks(void) {
   PASS();
 }
 
+/**
+ * @brief Migration test suite runner.
+ * @param migration_suite Suite runner function name.
+ */
 SUITE(migration_suite) {
+  static int recursed = 0;
   RUN_TEST(test_parse_migration_file_empty_blocks);
   RUN_TEST(test_parse_migration_file_valid);
   RUN_TEST(test_parse_migration_file_no_down);
@@ -255,13 +337,20 @@ SUITE(migration_suite) {
   RUN_TEST(test_parse_migration_file_errors);
   RUN_TEST(test_migration_runner_stubs);
   RUN_TEST(test_parse_migration_file_oom);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    migration_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
-#endif /* TEST_MIGRATION_H */
+#endif /* C_CDD_TEST_MIGRATION_H */
+
+#if defined(__clang__) || defined(__GNUC__)
+#endif

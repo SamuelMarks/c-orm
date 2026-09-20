@@ -8,21 +8,60 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
 /* clang-format off */
 #include "Models.h"
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
+/**
+ * @brief Tests generic CRUD operations, table metadata, and shard
+ * scatter-gather.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_generic_crud(void) {
   struct Users u;
   struct Users out_u;
-  void *arr = NULL;
-  size_t count = 0;
+  struct Users *users_arr;
+  void *arr;
+  size_t count;
+  size_t i;
   c_orm_error_t err;
-  c_orm_db_t *test_db = NULL;
-  bool active = true;
+  c_orm_db_t *test_db;
+  bool active;
+
+  arr = NULL;
+  count = 0;
+  test_db = NULL;
+  active = true;
 
   err = c_orm_sqlite_connect(":memory:", &test_db);
   ASSERT_EQ(C_ORM_OK, err);
@@ -50,50 +89,32 @@ TEST test_c_orm_generic_crud(void) {
   ASSERT_EQ(C_ORM_OK, err);
   err =
       c_orm_insert_generic(test_db, &Users_meta, &u); /* Duplicate constraint */
-  if (err != C_ORM_OK) {
-    const char *msg;
-    test_db->vtable->get_last_error(test_db, &msg);
-    fprintf(stderr, "INSERT ERR: %d - %s\n", err, msg);
-  }
   ASSERT_EQ(C_ORM_ERROR_STEP, err);
 
   memset(&out_u, 0, sizeof(out_u));
   err = c_orm_get_generic(test_db, &Users_meta, 1, &out_u);
   ASSERT_EQ(C_ORM_OK, err);
-  if (err == C_ORM_OK) {
-    if (out_u.username)
-      C_ORM_FREE(out_u.username);
-    if (out_u.email)
-      C_ORM_FREE(out_u.email);
-    C_ORM_FREE(out_u.age);
-    C_ORM_FREE(out_u.score);
-    if (out_u.is_active)
-      C_ORM_FREE(out_u.is_active);
-    if (out_u.created_at)
-      C_ORM_FREE(out_u.created_at);
-  }
+  C_ORM_FREE(out_u.username);
+  C_ORM_FREE(out_u.email);
+  C_ORM_FREE(out_u.age);
+  C_ORM_FREE(out_u.score);
+  C_ORM_FREE(out_u.is_active);
+  C_ORM_FREE(out_u.created_at);
 
   err = c_orm_find_all_generic(test_db, &Users_meta, &arr, &count);
   ASSERT_EQ(C_ORM_OK, err);
   ASSERT(count > 0);
 
-  if (arr) {
-    size_t i;
-    struct Users *users_arr = (struct Users *)arr;
-    for (i = 0; i < count; i++) {
-      if (users_arr[i].username)
-        C_ORM_FREE(users_arr[i].username);
-      if (users_arr[i].email)
-        C_ORM_FREE(users_arr[i].email);
-      C_ORM_FREE(users_arr[i].age);
-      C_ORM_FREE(users_arr[i].score);
-      if (users_arr[i].is_active)
-        C_ORM_FREE(users_arr[i].is_active);
-      if (users_arr[i].created_at)
-        C_ORM_FREE(users_arr[i].created_at);
-    }
-    C_ORM_FREE(arr);
+  users_arr = (struct Users *)arr;
+  for (i = 0; i < count; i++) {
+    C_ORM_FREE(users_arr[i].username);
+    C_ORM_FREE(users_arr[i].email);
+    C_ORM_FREE(users_arr[i].age);
+    C_ORM_FREE(users_arr[i].score);
+    C_ORM_FREE(users_arr[i].is_active);
+    C_ORM_FREE(users_arr[i].created_at);
   }
+  C_ORM_FREE(arr);
 
   /* Get generic string */
   err = c_orm_execute_raw(
@@ -104,16 +125,20 @@ TEST test_c_orm_generic_crud(void) {
       test_db, "INSERT INTO str_table (id, val) VALUES ('my_id', 42);");
   ASSERT_EQ(C_ORM_OK, err);
 
-  /* Can't easily use inline macros for str_table without declaring it, but we
-   * can test bad table meta */
   {
-    c_orm_table_meta_t bad_meta = Users_meta;
+    c_orm_table_meta_t bad_meta;
     c_orm_column_meta_t cols[1];
+    /**
+     * @brief Anonymous test row struct for custom string PK testing.
+     * @var id Primary key string.
+     * @var val Integer value payload.
+     */
     struct {
       char *id;
       int32_t val;
     } my_struct;
 
+    bad_meta = Users_meta;
     bad_meta.name = "str_table";
     memset(&cols[0], 0, sizeof(c_orm_column_meta_t));
     cols[0].name = "id";
@@ -123,11 +148,11 @@ TEST test_c_orm_generic_crud(void) {
     bad_meta.num_columns = 1;
     bad_meta.query_select_by_pk = "SELECT * FROM str_table WHERE id = ?";
 
+    my_struct.id = NULL;
+    my_struct.val = 0;
     err = c_orm_get_generic_string(test_db, &bad_meta, "my_id", &my_struct);
     ASSERT_EQ(C_ORM_OK, err);
-    if (err == C_ORM_OK && my_struct.id) {
-      C_ORM_FREE(my_struct.id);
-    }
+    C_ORM_FREE(my_struct.id);
 
     err =
         c_orm_get_generic_string(test_db, &bad_meta, "missing_id", &my_struct);
@@ -138,9 +163,15 @@ TEST test_c_orm_generic_crud(void) {
   {
     c_orm_table_meta_t gm_err;
     c_orm_column_meta_t no_pk_cols[1];
-    c_orm_shard_manager_t *sm = NULL;
-    void *sg_arr = NULL;
-    size_t sg_count = 0;
+    c_orm_shard_manager_t *sm;
+    void *sg_arr;
+    size_t sg_count;
+    size_t j;
+    struct Users *sg_users;
+
+    sm = NULL;
+    sg_arr = NULL;
+    sg_count = 0;
 
     err = c_orm_get_generic(test_db, &Users_meta, 999, &out_u);
     ASSERT_EQ(C_ORM_ERROR_NOT_FOUND, err);
@@ -171,12 +202,11 @@ TEST test_c_orm_generic_crud(void) {
     gm_err = Users_meta;
     gm_err.name = "empty_u";
     gm_err.query_select_all = "SELECT * FROM empty_u";
-    arr = (void *)1;
+    arr = NULL;
     count = 99;
     ASSERT_EQ(C_ORM_OK, c_orm_find_all_generic(test_db, &gm_err, &arr, &count));
     ASSERT_EQ(0, count);
-    if (arr)
-      C_ORM_FREE(arr);
+    C_ORM_FREE(arr);
 
     /* Scatter gather generic with populated and NULL shards */
     ASSERT_EQ(C_ORM_OK, c_orm_shard_manager_init(2, &sm));
@@ -185,23 +215,16 @@ TEST test_c_orm_generic_crud(void) {
     ASSERT_EQ(C_ORM_OK, c_orm_scatter_gather_generic(sm, &Users_meta, &sg_arr,
                                                      &sg_count));
     ASSERT(sg_count > 0);
-    if (sg_arr) {
-      size_t j;
-      struct Users *sg_users = (struct Users *)sg_arr;
-      for (j = 0; j < sg_count; j++) {
-        if (sg_users[j].username)
-          C_ORM_FREE(sg_users[j].username);
-        if (sg_users[j].email)
-          C_ORM_FREE(sg_users[j].email);
-        C_ORM_FREE(sg_users[j].age);
-        C_ORM_FREE(sg_users[j].score);
-        if (sg_users[j].is_active)
-          C_ORM_FREE(sg_users[j].is_active);
-        if (sg_users[j].created_at)
-          C_ORM_FREE(sg_users[j].created_at);
-      }
-      C_ORM_FREE(sg_arr);
+    sg_users = (struct Users *)sg_arr;
+    for (j = 0; j < sg_count; j++) {
+      C_ORM_FREE(sg_users[j].username);
+      C_ORM_FREE(sg_users[j].email);
+      C_ORM_FREE(sg_users[j].age);
+      C_ORM_FREE(sg_users[j].score);
+      C_ORM_FREE(sg_users[j].is_active);
+      C_ORM_FREE(sg_users[j].created_at);
     }
+    C_ORM_FREE(sg_arr);
     c_orm_shard_manager_free(sm);
   }
 
@@ -209,11 +232,16 @@ TEST test_c_orm_generic_crud(void) {
   PASS();
 }
 
+/**
+ * @brief Tests pool telemetry collection and slow query threshold settings.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_telemetry(void) {
   c_orm_error_t err;
-  c_orm_db_t *test_db = NULL;
+  c_orm_db_t *test_db;
   c_orm_pool_telemetry_t telemetry;
 
+  test_db = NULL;
   err = c_orm_sqlite_connect(":memory:", &test_db);
   ASSERT_EQ(C_ORM_OK, err);
 
@@ -225,8 +253,6 @@ TEST test_c_orm_telemetry(void) {
   ASSERT_EQ(C_ORM_OK, err);
 
   /* Simulate a bit of execution to test tracking */
-  /* Wait for a few ms using an inefficient SQLite recursive CTE just to trigger
-   * the slow log! */
   err = c_orm_execute_raw(test_db,
                           "WITH RECURSIVE cnt(x) AS (SELECT 1 UNION ALL SELECT "
                           "x+1 FROM cnt WHERE x<1000) SELECT sum(x) FROM cnt;");
@@ -234,21 +260,31 @@ TEST test_c_orm_telemetry(void) {
 
   err = c_orm_get_telemetry(test_db, &telemetry);
   ASSERT_EQ(C_ORM_OK, err);
-  /* In tests it might execute too fast on modern hardware, but we ensure the
-   * struct populates without segfaulting */
 
   test_db->vtable->disconnect(test_db);
   PASS();
 }
 
+/**
+ * @brief Mock malloc returning NULL for allocation failure testing.
+ * @param sz Requested size.
+ * @return NULL on failure.
+ */
 static void *mock_fail_malloc(size_t sz) {
   (void)sz;
   return NULL;
 }
 
+/**
+ * @brief Tests string duplication error paths under memory allocation failure.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_alloc(void) {
-  char *dup = (char *)1;
-  void *(*old_malloc)(size_t) = c_orm_malloc;
+  char *dup;
+  void *(*old_malloc)(size_t);
+
+  dup = (char *)1;
+  old_malloc = c_orm_malloc;
 
   ASSERT_EQ(0, c_orm_strdup(NULL, &dup));
   ASSERT_EQ(NULL, dup);
@@ -262,17 +298,39 @@ TEST test_c_orm_alloc(void) {
   PASS();
 }
 
+/**
+ * @brief Declaration of CDD compatibility debug logging function.
+ * @param fmt Format string.
+ * @return Status code.
+ */
 C_ORM_EXPORT c_orm_error_t C_CDD_LOG_DEBUG(const char *fmt, ...);
+
+/**
+ * @brief Tests CDD compatibility debug logging.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_compat_log(void) {
   ASSERT_EQ(C_ORM_OK, C_CDD_LOG_DEBUG("Test log\n"));
   PASS();
 }
 
+/**
+ * @brief Generic test suite runner.
+ * @param generic_suite Suite runner function name.
+ */
 SUITE(generic_suite) {
+  static int recursed = 0;
   RUN_TEST(test_c_orm_generic_crud);
   RUN_TEST(test_c_orm_telemetry);
   RUN_TEST(test_c_orm_alloc);
   RUN_TEST(test_cdd_c_compat_log);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    generic_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

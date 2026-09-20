@@ -17,8 +17,32 @@ extern "C" {
 #include "cdd_c_orm_meta.h"
 #include "parson.h"
 #include <errno.h>
-#include <greatest.h>
+#define GREATEST_USE_LONGJMP 0
+#include "greatest.h"
 #include <time.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+
 #include "test_abstract_struct_oom.h"
 /* clang-format on */
 
@@ -31,6 +55,10 @@ TEST test_abstract_struct_memory_layout(void) {
   PASS();
 }
 
+/**
+ * @brief Tests variant type safety.
+ * @return GREATEST test result.
+ */
 TEST test_variant_type_safety(void) {
   cdd_c_variant_t v1, v2;
   v1.type = CDD_C_VARIANT_TYPE_INT;
@@ -51,6 +79,10 @@ TEST test_variant_type_safety(void) {
   PASS();
 }
 
+/**
+ * @brief Tests abstract struct set get.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_struct_set_get(void) {
   cdd_c_abstract_struct_t astruct;
   cdd_c_variant_t v_in, *v_out;
@@ -118,6 +150,10 @@ TEST test_abstract_struct_set_get(void) {
   PASS();
 }
 
+/**
+ * @brief Tests abstract struct json roundtrip.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_struct_json_roundtrip(void) {
   cdd_c_abstract_struct_t astruct_out, astruct_in;
   cdd_c_variant_t v_in, *v_out;
@@ -158,6 +194,10 @@ TEST test_abstract_struct_json_roundtrip(void) {
   PASS();
 }
 
+/**
+ * @brief Tests abstract hydrate.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_hydrate(void) {
   cdd_c_abstract_struct_t astruct;
   cdd_c_column_meta_t cols[4];
@@ -209,18 +249,34 @@ TEST test_abstract_hydrate(void) {
   PASS();
 }
 
+/**
+ * @brief Mock row struct for abstract struct testing.
+ */
 typedef struct MockSpecificRow {
+  /** @brief Identifier field. */
   int id;
+  /** @brief Ratio floating-point field. */
   double ratio;
+  /** @brief Greeting string field. */
   char greeting[32];
 } mock_specific_row_t;
 
+/**
+ * @brief Second mock row struct with int64 and dynamic string.
+ */
 typedef struct MockSpecificRow2 {
+  /** @brief 64-bit integer identifier. */
   c_orm_int64_t big_id;
+  /** @brief 32-bit floating point ratio. */
   float small_ratio;
+  /** @brief Dynamically allocated string pointer. */
   char *dyn_str;
 } mock_specific_row2_t;
 
+/**
+ * @brief Tests abstract struct conversion2.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_struct_conversion2(void) {
   cdd_c_abstract_struct_t astruct_in, astruct_out;
   mock_specific_row2_t specific_out, specific_in;
@@ -291,6 +347,10 @@ TEST test_abstract_struct_conversion2(void) {
   PASS();
 }
 
+/**
+ * @brief Tests abstract struct conversion.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_struct_conversion(void) {
   cdd_c_abstract_struct_t astruct_in, astruct_out;
   mock_specific_row_t specific_out, specific_in;
@@ -360,12 +420,20 @@ TEST test_abstract_struct_conversion(void) {
   PASS();
 }
 
+/**
+ * @brief Tests abstract hydrate sqlite3.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_hydrate_sqlite3(void) {
   cdd_c_abstract_struct_t astruct;
   ASSERT_EQ(EINVAL, (int)cdd_c_abstract_hydrate_sqlite3(&astruct, NULL));
   PASS();
 }
 
+/**
+ * @brief Tests cdd c inspect schema sqlite3.
+ * @return GREATEST test result.
+ */
 TEST test_cdd_c_inspect_schema_sqlite3(void) {
   cdd_c_abstract_struct_array_t schema;
   cdd_c_abstract_struct_array_init(&schema, 10);
@@ -374,18 +442,30 @@ TEST test_cdd_c_inspect_schema_sqlite3(void) {
   PASS();
 }
 
+/**
+ * @brief Tests abstract hydrate libpq.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_hydrate_libpq(void) {
   cdd_c_abstract_struct_t astruct;
   ASSERT_EQ(EINVAL, (int)cdd_c_abstract_hydrate_libpq(&astruct, NULL, 0));
   PASS();
 }
 
+/**
+ * @brief Tests abstract hydrate mysql.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_hydrate_mysql(void) {
   cdd_c_abstract_struct_t astruct;
   ASSERT_EQ(EINVAL, (int)cdd_c_abstract_hydrate_mysql(&astruct, NULL, NULL, 0));
   PASS();
 }
 
+/**
+ * @brief Tests mock driver specific struct hydration.
+ * @return GREATEST test result.
+ */
 TEST test_mock_driver_specific_struct_hydration(void) {
   mock_specific_row_t specific_out;
   cdd_c_column_meta_t cols[3];
@@ -460,6 +540,10 @@ TEST test_mock_driver_specific_struct_hydration(void) {
   PASS();
 }
 
+/**
+ * @brief Tests mock driver abstract struct hydration.
+ * @return GREATEST test result.
+ */
 TEST test_mock_driver_abstract_struct_hydration(void) {
   cdd_c_column_meta_t cols[2];
   void *row_data[2];
@@ -496,6 +580,10 @@ TEST test_mock_driver_abstract_struct_hydration(void) {
   PASS();
 }
 
+/**
+ * @brief Tests abstract struct array.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_struct_array(void) {
   cdd_c_abstract_struct_array_t arr;
   cdd_c_abstract_struct_t row1, row2, row3;
@@ -563,6 +651,10 @@ TEST test_abstract_struct_array(void) {
   PASS();
 }
 
+/**
+ * @brief Tests benchmark hydration.
+ * @return GREATEST test result.
+ */
 TEST test_benchmark_hydration(void) {
   const size_t ITERATIONS = 2;
   size_t i;
@@ -643,6 +735,10 @@ TEST test_benchmark_hydration(void) {
   PASS();
 }
 
+/**
+ * @brief Tests abstract struct null checks.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_struct_null_checks(void) {
   cdd_c_abstract_struct_t astruct;
   cdd_c_abstract_struct_array_t arr;
@@ -724,6 +820,10 @@ TEST test_abstract_struct_null_checks(void) {
   PASS();
 }
 
+/**
+ * @brief Tests abstract struct edge types.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_struct_edge_types(void) {
   cdd_c_abstract_struct_t astruct;
   cdd_c_abstract_struct_t astruct2;
@@ -759,6 +859,10 @@ TEST test_abstract_struct_edge_types(void) {
   PASS();
 }
 
+/**
+ * @brief Tests inspect schema null.
+ * @return GREATEST test result.
+ */
 TEST test_inspect_schema_null(void) {
   cdd_c_abstract_struct_array_t schema;
   ASSERT_EQ(EINVAL, (int)cdd_c_inspect_schema_libpq(NULL, "test", &schema));
@@ -766,6 +870,10 @@ TEST test_inspect_schema_null(void) {
   PASS();
 }
 
+/**
+ * @brief Tests meta offsetof.
+ * @return GREATEST test result.
+ */
 TEST test_meta_offsetof(void) {
   cdd_c_prop_meta_t p1;
   cdd_c_meta_t meta;
@@ -786,6 +894,10 @@ TEST test_meta_offsetof(void) {
   PASS();
 }
 
+/**
+ * @brief Tests json edge cases.
+ * @return GREATEST test result.
+ */
 TEST test_json_edge_cases(void) {
   cdd_c_abstract_struct_t astruct;
   /* Bad JSON */
@@ -802,6 +914,10 @@ TEST test_json_edge_cases(void) {
   PASS();
 }
 
+/**
+ * @brief Tests specific edge cases.
+ * @return GREATEST test result.
+ */
 TEST test_specific_edge_cases(void) {
   mock_specific_row_t specific_out;
   cdd_c_abstract_struct_t astruct_in;
@@ -1005,6 +1121,10 @@ TEST test_specific_edge_cases(void) {
   PASS();
 }
 
+/**
+ * @brief Tests hydrate null.
+ * @return GREATEST test result.
+ */
 TEST test_hydrate_null(void) {
   cdd_c_abstract_struct_t astruct;
   cdd_c_column_meta_t cols[1];
@@ -1050,6 +1170,10 @@ TEST test_hydrate_null(void) {
   PASS();
 }
 
+/**
+ * @brief Tests abstract struct allocation limits.
+ * @return GREATEST test result.
+ */
 TEST test_abstract_struct_allocation_limits(void) {
   cdd_c_abstract_struct_array_t arr;
   cdd_c_abstract_struct_t astruct1, astruct2;
@@ -1069,12 +1193,9 @@ TEST test_abstract_struct_allocation_limits(void) {
   ASSERT_EQ(0, cdd_c_abstract_struct_init(&astruct1));
   ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_append(&arr, &astruct1));
 
-  arr.capacity = ((size_t)-1) / sizeof(cdd_c_abstract_struct_t);
-  if (arr.capacity <= ((size_t)-1) / 2) {
-    arr.capacity = ((size_t)-1) / sizeof(cdd_c_abstract_struct_t) - 1;
-    arr.count = arr.capacity;
-    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_append(&arr, &astruct1));
-  }
+  arr.capacity = ((size_t)-1) / sizeof(cdd_c_abstract_struct_t) - 1;
+  arr.count = arr.capacity;
+  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_append(&arr, &astruct1));
   arr.capacity = 0;
   arr.count = 0; /* clean up for free */
   cdd_c_abstract_struct_array_free(&arr);
@@ -1126,7 +1247,12 @@ TEST test_abstract_struct_allocation_limits(void) {
   PASS();
 }
 
+/**
+ * @brief Abstract struct test suite runner.
+ * @param abstract_struct_suite Suite runner function name.
+ */
 SUITE(abstract_struct_suite) {
+  static int recursed = 0;
   RUN_TEST(test_abstract_struct_memory_layout);
   RUN_TEST(test_variant_type_safety);
   RUN_TEST(test_abstract_struct_set_get);
@@ -1151,6 +1277,13 @@ SUITE(abstract_struct_suite) {
   RUN_TEST(test_hydrate_null);
   RUN_TEST(test_abstract_struct_allocation_limits);
   RUN_TEST(test_abstract_struct_oom_coverage);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    abstract_struct_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

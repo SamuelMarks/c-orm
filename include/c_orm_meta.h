@@ -123,8 +123,11 @@ C_ORM_EXPORT extern void *(*c_orm_realloc)(void *ptr, size_t size);
 /**
  * @brief Sets the allocator functions. Useful for testing across DLL
  * boundaries.
+ * @param m Custom malloc function pointer.
+ * @param r Custom realloc function pointer.
+ * @param f Custom free function pointer.
+ * @return 0 on success.
  */
-
 C_ORM_EXPORT c_orm_error_t c_orm_set_allocators(void *(*m)(size_t),
                                                 void *(*r)(void *, size_t),
                                                 void (*f)(void *));
@@ -137,7 +140,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_set_allocators(void *(*m)(size_t),
 /**
  * @brief Duplicates a string using c_orm_malloc.
  * @param s String to duplicate.
- * @return Duplicated string, or NULL on failure.
+ * @param out Pointer to receive duplicated string.
+ * @return 0 on success, non-zero on failure.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_strdup(const char *s, char **out);
 #define C_ORM_STRDUP c_orm_strdup
@@ -163,17 +167,25 @@ typedef enum {
 
 /**
  * @brief Represents a 2D spatial point (Step 172).
+ * @var x X coordinate.
+ * @var y Y coordinate.
  */
 typedef struct {
+  /** @brief X coordinate. */
   double x;
+  /** @brief Y coordinate. */
   double y;
 } c_orm_point_t;
 
 /**
  * @brief Represents a 2D spatial polygon (Step 172).
+ * @var points Pointer to array of point structures.
+ * @var num_points Number of points in polygon.
  */
 typedef struct {
+  /** @brief Pointer to array of point structures. */
   c_orm_point_t *points;
+  /** @brief Number of points in polygon. */
   size_t num_points;
 } c_orm_polygon_t;
 
@@ -193,9 +205,13 @@ typedef enum {
 
 /**
  * @brief Represents binary large object (BLOB) data.
+ * @var data Pointer to raw binary bytes.
+ * @var size Number of bytes in the blob.
  */
 typedef struct {
+  /** @brief Pointer to raw binary bytes. */
   void *data;
+  /** @brief Number of bytes in the blob. */
   size_t size;
 } c_orm_blob_t;
 
@@ -235,6 +251,34 @@ typedef enum {
   C_ORM_CASCADE_UPDATE = 4
 } c_orm_cascade_rule_t;
 
+/**
+ * @brief Relationship metadata definition.
+ * @var field_name Name of the field in the C struct.
+ * @var type Relationship type (ONE_TO_ONE, etc).
+ * @var target_table Target table name. NULL if POLYMORPHIC.
+ * @var foreign_key Foreign key column name.
+ * @var local_key Local key column name (usually PK).
+ * @var struct_offset Offset of the relation pointer or array within the struct.
+ * @var data_offset Offset of the relation data.
+ * @var lazy_ctx_offset Offset of lazy load context in struct.
+ * @var target_array_len_offset Offset for the length field of array.
+ * @var target_ir Pointer to the cdd-c IR metadata for the target struct.
+ * @var target_meta Pointer to the c-orm table metadata for the target struct.
+ * @var discriminator_column Column name containing the string discriminator
+ * mapping to targets.
+ * @var polymorphic_targets Array of polymorphic targets.
+ * @var num_polymorphic_targets Number of targets in the array.
+ * @var on_delete Cascading delete rule.
+ * @var on_update Cascading update rule.
+ * @var join_table Join table name for many to many.
+ * @var join_local_key Local join key column name.
+ * @var join_foreign_key Foreign join key column name.
+ * @var on_attach Callback when relation is attached.
+ * @var on_detach Callback when relation is detached.
+ * @var custom_filter Custom SQL filter condition.
+ * @var order_by Custom order by condition.
+ * @var soft_delete_aware Flag indicating if soft-deleted rows are filtered.
+ */
 typedef struct c_orm_relation_meta {
   const char *field_name;     /**< Name of the field in the C struct. */
   c_orm_relation_type_t type; /**< Relationship type (ONE_TO_ONE, etc). */
@@ -243,8 +287,8 @@ typedef struct c_orm_relation_meta {
   const char *local_key;      /**< Local key column name (usually PK). */
   size_t struct_offset; /**< Offset of the relation pointer or array within the
                            struct. */
-  size_t data_offset;
-  size_t lazy_ctx_offset;
+  size_t data_offset;   /**< Offset of the relation data. */
+  size_t lazy_ctx_offset;         /**< Offset of lazy load context in struct. */
   size_t target_array_len_offset; /**< Offset for the length field of a
                                      C_ORM_RELATION_ONE_TO_MANY array. */
   const struct cdd_c_meta
@@ -262,20 +306,22 @@ typedef struct c_orm_relation_meta {
   size_t num_polymorphic_targets; /**< Number of targets in the array. */
 
   /* Cascading rules */
-  c_orm_cascade_rule_t on_delete;
-  c_orm_cascade_rule_t on_update;
+  c_orm_cascade_rule_t on_delete; /**< Cascading delete rule. */
+  c_orm_cascade_rule_t on_update; /**< Cascading update rule. */
 
   /* Join table for many to many */
-  const char *join_table;
-  const char *join_local_key;
-  const char *join_foreign_key;
+  const char *join_table;       /**< Join table for many to many. */
+  const char *join_local_key;   /**< Local join key column name. */
+  const char *join_foreign_key; /**< Foreign join key column name. */
 
   /* Phase 4 features */
-  c_orm_error_t (*on_attach)(void *parent_obj, void *child_obj, void *db_ctx);
-  c_orm_error_t (*on_detach)(void *parent_obj, void *child_obj, void *db_ctx);
-  const char *custom_filter;
-  const char *order_by;
-  int soft_delete_aware;
+  c_orm_error_t (*on_attach)(void *parent_obj, void *child_obj,
+                             void *db_ctx); /**< Callback on attach. */
+  c_orm_error_t (*on_detach)(void *parent_obj, void *child_obj,
+                             void *db_ctx); /**< Callback on detach. */
+  const char *custom_filter;                /**< Custom SQL filter condition. */
+  const char *order_by;                     /**< Custom order by condition. */
+  int soft_delete_aware; /**< Flag for soft-delete awareness. */
 
 } c_orm_relation_meta_t;
 
@@ -321,6 +367,24 @@ typedef enum {
 
 /**
  * @brief Table metadata definition.
+ * @var name Table name.
+ * @var columns Array of column metadata.
+ * @var num_columns Number of columns.
+ * @var struct_size Size of the generated struct in bytes.
+ * @var query_select_all Template to select all rows.
+ * @var query_select_by_pk Template to select by primary key.
+ * @var query_insert Template to insert a row.
+ * @var query_update Template to update a row.
+ * @var query_delete_by_pk Template to delete by primary key.
+ * @var query_select_by_pk_for_update Template to select by primary key with
+ * lock.
+ * @var is_view True if this is a view.
+ * @var has_ttl True if rows can expire automatically.
+ * @var created_at_offset Offset for created_at timestamp.
+ * @var expires_in_offset Offset for expires_in duration.
+ * @var hooks Array of active lifecycle hooks.
+ * @var relations Array of relationship metadata.
+ * @var num_relations Number of relationships.
  */
 typedef struct c_orm_table_meta {
   const char *name;                   /**< Table name. */
@@ -329,12 +393,15 @@ typedef struct c_orm_table_meta {
   size_t struct_size; /**< Size of the generated struct in bytes. */
 
   /* Pre-compiled basic query templates */
-  const char *query_select_all;
-  const char *query_select_by_pk;
-  const char *query_insert;
-  const char *query_update;
-  const char *query_delete_by_pk;
-  const char *query_select_by_pk_for_update;
+  const char *query_select_all; /**< Query template to select all records. */
+  const char
+      *query_select_by_pk;  /**< Query template to select by primary key. */
+  const char *query_insert; /**< Query template to insert a record. */
+  const char *query_update; /**< Query template to update a record. */
+  const char
+      *query_delete_by_pk; /**< Query template to delete by primary key. */
+  const char *query_select_by_pk_for_update; /**< Query template to select by
+                                                primary key with lock. */
 
   /* Step 160: Support for SQL views (read-only models) generated via cdd-c */
   bool is_view; /**< True if this is a view and mutations are restricted. */

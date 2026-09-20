@@ -11,6 +11,11 @@
 #include <stdarg.h>
 /* clang-format on */
 
+/**
+ * @brief Logs a debug message to standard error.
+ * @param fmt The format string.
+ * @param ... Format arguments.
+ */
 C_ORM_EXPORT void c_orm_log_debug(const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);

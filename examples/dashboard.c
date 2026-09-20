@@ -14,7 +14,21 @@
 #include "c_orm_sqlite.h"
 /* clang-format on */
 
+/**
+ * @brief Execute dashboard aggregation queries and print metric results.
+ *
+ * @param db Database handle.
+ * @param sql SQL statement to prepare and execute.
+ * @return C_ORM_OK on success or error code.
+ */
 c_orm_error_t run_dashboard_ops(c_orm_db_t *db, const char *sql);
+
+/**
+ * @brief Run the complete dashboard example connecting to a database path.
+ *
+ * @param db_path Database path or :memory:.
+ * @return C_ORM_OK on success or error code.
+ */
 c_orm_error_t run_dashboard_example(const char *db_path);
 
 /**

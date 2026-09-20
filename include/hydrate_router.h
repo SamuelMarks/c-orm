@@ -74,7 +74,8 @@ cdd_c_hydrate_router_init(cdd_c_hydrate_router_t *router);
 
 /**
  * @brief Get the last routing error message for the current thread.
- * @return Null-terminated error message string, or NULL if no error.
+ * @param out_msg Pointer to store the last error message string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 cdd_c_hydrate_router_get_last_error(const char **out_msg);

@@ -15,10 +15,17 @@
 #include "c_orm_sqlite.h"
 /* clang-format on */
 
+/**
+ * @brief BlogPost domain model.
+ */
 typedef struct BlogPost {
+  /** @brief Unique blog post identifier. */
   int32_t id;
+  /** @brief Post title string. */
   char *title;
+  /** @brief Post body content string. */
   char *content;
+  /** @brief Author user ID. */
   int32_t author_id;
 } BlogPost;
 

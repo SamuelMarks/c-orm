@@ -26,6 +26,11 @@
 
 static CDD_C_THREAD_LOCAL char cdd_c_hydrate_error_msg[512] = {0};
 
+/**
+ * @brief Get the last routing error message for the current thread.
+ * @param out_msg Pointer to store the last error message string.
+ * @return C_ORM_OK on success.
+ */
 c_orm_error_t cdd_c_hydrate_router_get_last_error(const char **out_msg) {
   if (!out_msg)
     return C_ORM_ERROR_UNKNOWN;

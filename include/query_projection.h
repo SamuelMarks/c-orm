@@ -56,12 +56,12 @@ typedef struct CddCQueryProjectionField {
 /**
  * @brief Represents a complete SQL SELECT projection output.
  */
-/** @brief fields field */
 typedef struct CddCQueryProjection {
-  /** @brief capacity field */
+  /** @brief fields field */
   cdd_c_query_projection_field_t *fields;
-  /** @brief capacity field */
+  /** @brief n_fields field */
   size_t n_fields;
+  /** @brief capacity field */
   size_t capacity;
   char *source_table;                    /**< Primary FROM table */
   cdd_c_mapping_metadata_t mapping_meta; /**< Mapping metadata for codegen */

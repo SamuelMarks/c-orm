@@ -12,8 +12,25 @@
 /* clang-format on */
 
 #ifdef C_ORM_TEST_ALLOCATOR
+/**
+ * @brief Default malloc callback wrapper.
+ * @param size Number of bytes to allocate.
+ * @return Pointer to allocated memory, or NULL on failure.
+ */
 static void *default_malloc(size_t size) { return malloc(size); }
+
+/**
+ * @brief Default free callback wrapper.
+ * @param ptr Pointer to memory to free.
+ */
 static void default_free(void *ptr) { free(ptr); }
+
+/**
+ * @brief Default realloc callback wrapper.
+ * @param ptr Pointer to previously allocated memory.
+ * @param size New size in bytes.
+ * @return Pointer to reallocated memory, or NULL on failure.
+ */
 static void *default_realloc(void *ptr, size_t size) {
   return realloc(ptr, size);
 }
@@ -33,6 +50,13 @@ C_ORM_EXPORT void (*c_orm_free)(void *ptr) = default_free;
  */
 C_ORM_EXPORT void *(*c_orm_realloc)(void *ptr, size_t size) = default_realloc;
 
+/**
+ * @brief Configures custom dynamic memory allocators for testing.
+ * @param m Malloc callback function.
+ * @param r Realloc callback function.
+ * @param f Free callback function.
+ * @return C_ORM_OK on success.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_set_allocators(void *(*m)(size_t),
                                                 void *(*r)(void *, size_t),
                                                 void (*f)(void *)) {
@@ -43,6 +67,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_set_allocators(void *(*m)(size_t),
 }
 #endif
 
+/**
+ * @brief Duplicates a null-terminated string using c-orm memory allocator.
+ * @param s Source null-terminated string to duplicate.
+ * @param out_dup Output pointer to receive duplicated string.
+ * @return C_ORM_OK on success, or error code on failure.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_strdup(const char *s, char **out_dup) {
   size_t len;
   char *dup;

@@ -13,10 +13,34 @@ extern "C" {
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
 #include "sqlite3.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
 #ifndef C_ORM_CLI_EXECUTABLE
@@ -175,15 +199,14 @@ TEST test_cli_migrate(void) {
   (void)sys_rc;
 
   C_ORM_FOPEN(&f1, "test_migrations_dir/1_test.up.sql", "w");
-  if (f1 != NULL) {
-    fprintf(f1, "%s\n", "CREATE TABLE x (id INT);");
-    fclose(f1);
-  }
+  ASSERT(f1 != NULL);
+  fprintf(f1, "CREATE TABLE x (id INT);\n");
+  fclose(f1);
+
   C_ORM_FOPEN(&f2, "test_migrations_dir/1_test.down.sql", "w");
-  if (f2 != NULL) {
-    fprintf(f2, "%s\n", "DROP TABLE x;");
-    fclose(f2);
-  }
+  ASSERT(f2 != NULL);
+  fprintf(f2, "DROP TABLE x;\n");
+  fclose(f2);
 
   sys_rc = system(
       CLI_CMD
@@ -280,10 +303,10 @@ TEST test_cli_exec_sql2c(void) {
 
   f = NULL;
   C_ORM_FOPEN(&f, "test_schema.sql", "w");
-  if (f != NULL) {
-    fprintf(f, "%s\n", "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);");
-    fclose(f);
-  }
+  ASSERT(f != NULL);
+  fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
+  fclose(f);
+
   rc = system(CLI_CMD " sql2c" DEV_NULL);
   ASSERT_NEQ(0, rc);
 
@@ -328,8 +351,10 @@ TEST test_cli_exec_sql2c(void) {
 
 /**
  * @brief CLI exec integration test suite runner.
+ * @param cli_exec_suite Suite runner function name.
  */
 SUITE(cli_exec_suite) {
+  static int recursed = 0;
   RUN_TEST(test_cli_help);
   RUN_TEST(test_cli_no_args);
   RUN_TEST(test_cli_init);
@@ -342,6 +367,13 @@ SUITE(cli_exec_suite) {
 #ifndef __EMSCRIPTEN__
   RUN_TEST(test_cli_exec_sql2c);
 #endif
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    cli_exec_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

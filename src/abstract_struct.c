@@ -31,6 +31,12 @@
 static size_t cdd_c_memory_allocated = 0;
 static size_t cdd_c_memory_freed = 0;
 
+/**
+ * @brief Allocates memory with internal accounting.
+ * @param size Number of bytes to allocate.
+ * @param out_ptr Pointer to receive the allocated memory.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t cdd_c_malloc(size_t size, void **out_ptr) {
   void *ptr;
   if (size > 2147483647) {
@@ -48,6 +54,13 @@ static c_orm_error_t cdd_c_malloc(size_t size, void **out_ptr) {
   return 0;
 }
 
+/**
+ * @brief Reallocates memory with internal accounting.
+ * @param ptr Pointer to previously allocated buffer.
+ * @param size New size in bytes.
+ * @param out_ptr Pointer to receive the reallocated memory.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t cdd_c_realloc(void *ptr, size_t size, void **out_ptr) {
   void *new_ptr;
   new_ptr = C_ORM_REALLOC(ptr, size);
@@ -61,6 +74,10 @@ static c_orm_error_t cdd_c_realloc(void *ptr, size_t size, void **out_ptr) {
   return 0;
 }
 
+/**
+ * @brief Frees memory with internal accounting.
+ * @param ptr Pointer to buffer to free.
+ */
 static void cdd_c_free(void *ptr) {
   if (ptr) {
     cdd_c_memory_freed++; /* Just tracking calls for simple detection */
@@ -257,6 +274,12 @@ cdd_c_abstract_struct_init_with_capacity(cdd_c_abstract_struct_t *astruct,
   return 0;
 }
 
+/**
+ * @brief Duplicates a C string.
+ * @param src Source string to duplicate.
+ * @param dest Pointer to receive the duplicated string.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t duplicate_string(const char *src, char **dest) {
   size_t len;
   if (!src) {
@@ -270,6 +293,13 @@ static c_orm_error_t duplicate_string(const char *src, char **dest) {
   return 0;
 }
 
+/**
+ * @brief Duplicates a binary buffer.
+ * @param src Source buffer to duplicate.
+ * @param size Number of bytes to copy.
+ * @param dest Pointer to receive the duplicated buffer.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t duplicate_blob(const unsigned char *src, size_t size,
                                     unsigned char **dest) {
   if (!src || size == 0) {
@@ -305,6 +335,12 @@ c_orm_error_t cdd_c_variant_free(cdd_c_variant_t *variant) {
   return 0;
 }
 
+/**
+ * @brief Deep copies a variant value.
+ * @param dest Destination variant.
+ * @param src Source variant.
+ * @return 0 on success, non-zero on error.
+ */
 static c_orm_error_t copy_variant(cdd_c_variant_t *dest,
                                   const cdd_c_variant_t *src) {
   dest->type = src->type;
@@ -334,6 +370,12 @@ static c_orm_error_t copy_variant(cdd_c_variant_t *dest,
   return 0;
 }
 
+/**
+ * @brief Computes djb2 hash of a string.
+ * @param str Input string.
+ * @param out_hash Pointer to receive the computed hash.
+ * @return 0 on success.
+ */
 static c_orm_error_t hash_string(const char *str, unsigned long *out_hash) {
   unsigned long hash = 5381;
   int c;
@@ -530,18 +572,18 @@ cdd_c_abstract_struct_to_json(const cdd_c_abstract_struct_t *astruct,
 }
 
 c_orm_error_t
-cdd_c_abstract_struct_from_json(const char *json_str,
+cdd_c_abstract_struct_from_json(const char *json,
                                 cdd_c_abstract_struct_t *out_astruct) {
   JSON_Value *root_val;
   JSON_Object *root_obj;
   size_t count, i;
 
-  if (!json_str || !out_astruct)
+  if (!json || !out_astruct)
     return EINVAL;
 
   cdd_c_abstract_struct_init(out_astruct);
 
-  root_val = json_parse_string(json_str);
+  root_val = json_parse_string(json);
   if (!root_val)
     return EINVAL;
 
@@ -847,16 +889,16 @@ c_orm_error_t cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
   return EINVAL;
 #endif
 }
-c_orm_error_t cdd_c_meta_offsetof(const struct cdd_c_meta *struct_meta,
+c_orm_error_t cdd_c_meta_offsetof(const struct cdd_c_meta *meta,
                                   const char *field, size_t *out_offset) {
   size_t i;
-  const cdd_c_meta_t *meta = (const cdd_c_meta_t *)struct_meta;
+  const cdd_c_meta_t *cmeta = (const cdd_c_meta_t *)meta;
   if (!meta || !field || !out_offset)
     return EINVAL;
 
-  for (i = 0; i < meta->num_props; ++i) {
-    if (strcmp(meta->props[i].name, field) == 0) {
-      *out_offset = meta->props[i].offset;
+  for (i = 0; i < cmeta->num_props; ++i) {
+    if (strcmp(cmeta->props[i].name, field) == 0) {
+      *out_offset = cmeta->props[i].offset;
       return 0;
     }
   }

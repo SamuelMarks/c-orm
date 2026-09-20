@@ -27,6 +27,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_connect(const char *url,
 
 /**
  * @brief Initialize SQLite backend implicitly. Gets vtable.
+ * @param out_vtable Pointer to store the SQLite driver vtable.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_sqlite_get_vtable(const c_orm_driver_vtable_t **out_vtable);
@@ -73,6 +75,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_write(void *blob_handle,
 
 /**
  * @brief Close an opened SQLite BLOB handle.
+ * @param blob_handle The SQLite BLOB handle to close.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle);
 

@@ -23,6 +23,8 @@
 
 /**
  * @brief Executes the migration statements init operation.
+ * @param out The structure to zero.
+ * @return C_ORM_OK on success, or error code on failure.
  */
 C_ORM_EXPORT int c_orm_mock_migration_statements_init_fail = 0;
 
@@ -39,6 +41,8 @@ c_orm_error_t migration_statements_init(struct MigrationStatements *out) {
 
 /**
  * @brief Executes the migration statements free operation.
+ * @param out The structure to clean.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t migration_statements_free(struct MigrationStatements *out) {
   if (out) {
@@ -56,6 +60,9 @@ c_orm_error_t migration_statements_free(struct MigrationStatements *out) {
 
 /**
  * @brief Parses migration file from the given input.
+ * @param filepath The path to the .sql migration file.
+ * @param out The populated migration statements structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
 c_orm_error_t parse_migration_file(const char *filepath,
                                    struct MigrationStatements *out) {

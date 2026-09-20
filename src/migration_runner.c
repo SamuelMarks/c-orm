@@ -987,42 +987,100 @@ C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath) {
 }
 #else  /* !(!defined(__EMSCRIPTEN__) && (defined(USE_LIBPQ_LINKED) ||          \
           defined(USE_LIBPQ_DYNAMIC))) */
+/**
+ * @brief Apply a migration file (fallback when libpq is disabled).
+ * @param filepath Path to the migration file.
+ * @return ENOSYS error code.
+ */
 C_ORM_EXPORT c_orm_error_t apply_migration(const char *filepath) {
   (void)filepath;
   return ENOSYS;
 }
+
+/**
+ * @brief Rollback a migration file (fallback when libpq is disabled).
+ * @param filepath Path to the migration file.
+ * @return ENOSYS error code.
+ */
 C_ORM_EXPORT c_orm_error_t rollback_migration(const char *filepath) {
   (void)filepath;
   return ENOSYS;
 }
+
+/**
+ * @brief Run all pending UP migrations in a directory (fallback when libpq is
+ * disabled).
+ * @param migrations_dir Path to the directory containing .sql files.
+ * @return ENOSYS error code.
+ */
 C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
   (void)migrations_dir;
   return ENOSYS;
 }
+
+/**
+ * @brief Rollback the last applied DOWN migration (fallback when libpq is
+ * disabled).
+ * @param migrations_dir Path to the directory containing .sql files.
+ * @return ENOSYS error code.
+ */
 C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
   (void)migrations_dir;
   return ENOSYS;
 }
+
+/**
+ * @brief Create a new boilerplate migration file (fallback when libpq is
+ * disabled).
+ * @param migrations_dir Directory to place the file.
+ * @param name The name suffix for the migration file.
+ * @return ENOSYS error code.
+ */
 C_ORM_EXPORT c_orm_error_t create_migration_file(const char *migrations_dir,
                                                  const char *name) {
   (void)migrations_dir;
   (void)name;
   return ENOSYS;
 }
+
+/**
+ * @brief Drop and recreate database schema (fallback when libpq is disabled).
+ * @param migrations_dir Directory containing .sql files.
+ * @return ENOSYS error code.
+ */
 C_ORM_EXPORT c_orm_error_t reset_database(const char *migrations_dir) {
   (void)migrations_dir;
   return ENOSYS;
 }
+
+/**
+ * @brief Dump current database schema (fallback when libpq is disabled).
+ * @param out_filepath Path to the output file.
+ * @return ENOSYS error code.
+ */
 C_ORM_EXPORT c_orm_error_t dump_schema(const char *out_filepath) {
   (void)out_filepath;
   return ENOSYS;
 }
+
+/**
+ * @brief Setup test database dynamically (fallback when libpq is disabled).
+ * @param db_name The name of the test database to create.
+ * @param migrations_dir Directory containing .sql migrations.
+ * @return ENOSYS error code.
+ */
 C_ORM_EXPORT c_orm_error_t setup_test_database(const char *db_name,
                                                const char *migrations_dir) {
   (void)db_name;
   (void)migrations_dir;
   return ENOSYS;
 }
+
+/**
+ * @brief Seed database with SQL test data (fallback when libpq is disabled).
+ * @param seed_filepath Path to the .sql seed file.
+ * @return ENOSYS error code.
+ */
 C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath) {
   (void)seed_filepath;
   return ENOSYS;

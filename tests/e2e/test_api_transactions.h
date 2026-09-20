@@ -7,8 +7,114 @@
 #ifndef TEST_API_TRANSACTIONS_H
 #define TEST_API_TRANSACTIONS_H
 
-#include "test_api_helpers.h"
+/**
+ * @brief Test structure for row binding error branch testing.
+ */
+struct TestBindRowObj {
+  int32_t id;            /**< Primary key identifier. */
+  char *str;             /**< String value pointer. */
+  c_orm_blob_t blob;     /**< Binary large object. */
+  c_orm_blob_t sec_blob; /**< Encrypted secure blob. */
+};
 
+/**
+ * @brief Test parent entity for BelongsTo relationship validation branches.
+ */
+struct TestParentBelongsTo {
+  int32_t id;      /**< Entity primary key. */
+  int32_t req_fk;  /**< Required foreign key identifier. */
+  int32_t *opt_fk; /**< Optional nullable foreign key pointer. */
+  void *req_rel;   /**< Required related entity pointer. */
+  void *opt_rel;   /**< Optional related entity pointer. */
+};
+
+/**
+ * @brief Test entity with auxiliary other string field.
+ */
+struct TestOtherObj {
+  char *other; /**< String auxiliary field. */
+  int32_t id;  /**< Entity primary key. */
+};
+
+/**
+ * @brief Extended test parent with complex relations and extra field.
+ */
+struct TestExtendedWithOther {
+  char *other;           /**< Auxiliary string property. */
+  int32_t id;            /**< Entity primary key. */
+  int32_t belongs_to_id; /**< Foreign key for belongs-to relation. */
+  void *child_o2o;       /**< One-to-one child entity pointer. */
+  struct Generic_Array children_o2m; /**< One-to-many children array. */
+  struct Generic_Array tags_m2m;     /**< Many-to-many tags array. */
+};
+
+/**
+ * @brief Test structure containing spatial polygon object.
+ */
+struct TestPolyObj {
+  int32_t id;           /**< Entity primary key. */
+  c_orm_polygon_t poly; /**< Spatial polygon value. */
+};
+
+/**
+ * @brief Test structure with float primary key.
+ */
+struct TestFltItem {
+  float id;    /**< Float primary key value. */
+  int32_t val; /**< Integer record value. */
+};
+
+/**
+ * @brief Test structure for secure encrypted string and blob mapping.
+ */
+struct TestSecureStringBlobObj {
+  int32_t id;        /**< Entity primary key. */
+  char *str;         /**< Encrypted string pointer. */
+  c_orm_blob_t blob; /**< Encrypted blob data. */
+};
+
+/**
+ * @brief Test structure with age field for cache testing.
+ */
+struct TestIdAgeObj {
+  int32_t id;  /**< Entity primary key. */
+  int32_t age; /**< Age value. */
+};
+
+/**
+ * @brief Multi-column entity containing all major column types.
+ */
+struct MultiTypeColObj {
+  char *str_col;            /**< String column. */
+  char *date_col;           /**< Date formatted string column. */
+  char *ts_col;             /**< Timestamp formatted string column. */
+  char *enum_col;           /**< Enumeration value string. */
+  char *set_col;            /**< Set elements string. */
+  char *json_col;           /**< JSON serialized string. */
+  c_orm_blob_t blob_col;    /**< Binary blob column. */
+  c_orm_polygon_t poly_col; /**< Spatial polygon column. */
+  int32_t *nullable_col;    /**< Nullable integer column pointer. */
+};
+
+/**
+ * @brief Structure containing point, polygon, and blob fields.
+ */
+struct GeoBlobObj {
+  c_orm_point_t pt;      /**< Spatial point coordinate. */
+  c_orm_polygon_t poly;  /**< Spatial polygon value. */
+  c_orm_blob_t blob;     /**< Standard binary blob. */
+  c_orm_blob_t sec_blob; /**< Secure encrypted blob. */
+};
+
+/* clang-format off */
+#include "test_api_helpers.h"
+/* clang-format on */
+
+/**
+ * @brief Tests miscellaneous relation validation and schema inspection edge
+ * cases.
+ * @return GREATEST test result.
+ */
 TEST test_api_validation_and_relations_misc(void) {
   const c_orm_table_meta_t *tables[2];
   c_orm_table_meta_t t1, t2;
@@ -55,6 +161,11 @@ TEST test_api_validation_and_relations_misc(void) {
   PASS();
 }
 
+/**
+ * @brief Tests validation branches for BelongsTo relationships and foreign key
+ * integrity.
+ * @return GREATEST test result.
+ */
 TEST test_api_belongs_to_validation_branches(void) {
   struct NestedParent p;
   struct NullableParent np;
@@ -173,6 +284,11 @@ TEST test_api_belongs_to_validation_branches(void) {
 
   PASS();
 }
+/**
+ * @brief Tests nested transactions, savepoints, rollback, and soft delete
+ * mechanisms.
+ * @return GREATEST test result.
+ */
 TEST test_api_transactions_savepoints_and_softdelete(void) {
   struct Users u;
   struct Generic_Array arr;
@@ -258,19 +374,15 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     ASSERT_EQ(C_ORM_OK,
               c_orm_find_all_generic(&custom_db, &exp_meta, &arr.data, &cnt));
     ASSERT_EQ(0, cnt);
-    if (arr.data) {
-      C_ORM_FREE(arr.data);
-      arr.data = NULL;
-    }
+    C_ORM_FREE(arr.data);
+    arr.data = NULL;
 
     g_stage_step_cnt = 0;
     g_stage_step_max = 2;
     ASSERT_EQ(C_ORM_OK, c_orm_find_all(&custom_db, &exp_meta, &garr));
     ASSERT_EQ(0, garr.length);
-    if (garr.data) {
-      C_ORM_FREE(garr.data);
-      garr.data = NULL;
-    }
+    C_ORM_FREE(garr.data);
+    garr.data = NULL;
     c_orm_set_expire_callback(&custom_db, NULL, NULL);
     custom_vt.step = g_vt.step;
   }
@@ -346,12 +458,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
 
   /* 7. c_orm_bind_row error branches */
   {
-    struct TestBindRowObj {
-      int32_t id;
-      char *str;
-      c_orm_blob_t blob;
-      c_orm_blob_t sec_blob;
-    };
+
     struct TestBindRowObj b_obj;
     c_orm_table_meta_t b_meta;
     c_orm_column_meta_t b_cols[4];
@@ -414,13 +521,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
 
   /* 8. BelongsTo validation exists = 1 */
   {
-    struct TestParentBelongsTo {
-      int32_t id;
-      int32_t req_fk;
-      int32_t *opt_fk;
-      void *req_rel;
-      void *opt_rel;
-    };
+
     struct TestParentBelongsTo parent_obj;
     int32_t opt_val = 20;
     c_orm_table_meta_t p_meta;
@@ -503,10 +604,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     c_orm_column_meta_t p_cols[2];
     c_orm_column_meta_t c_cols[1];
     c_orm_relation_meta_t rels[1];
-    struct {
-      char *other;
-      int32_t id;
-    } p_obj;
+    struct TestOtherObj p_obj;
 
     p_obj.other = "other";
     p_obj.id = 1;
@@ -562,14 +660,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
 
   /* 10. c_orm_find_with_relation_int32 error branches */
   {
-    struct TestExtendedWithOther {
-      char *other;
-      int32_t id;
-      int32_t belongs_to_id;
-      void *child_o2o;
-      struct Generic_Array children_o2m;
-      struct Generic_Array tags_m2m;
-    };
+
     struct TestExtendedWithOther p;
     c_orm_table_meta_t p_meta;
     c_orm_column_meta_t p_cols[2];
@@ -792,10 +883,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                        &out_arr);
     g_mock_return_801 = 0;
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
     /* ONE_TO_ONE with rows returned */
@@ -804,20 +893,16 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_step_cnt = 0;
     ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relation(&custom_db, &p_meta,
                                                      "child_o2o", &out_arr));
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
     /* ONE_TO_MANY with rows returned */
     g_stage_step_cnt = 0;
     ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relation(&custom_db, &p_meta,
                                                      "children_o2m", &out_arr));
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
     /* Child query prepare error (lines 1383, 1386) */
@@ -827,10 +912,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_prepare_cnt = 0;
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                        &out_arr);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
     custom_vt.prepare = g_vt.prepare;
 
@@ -841,10 +924,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_bind_cnt = 0;
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                        &out_arr);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
     custom_vt.bind_int32 = g_vt.bind_int32;
 
@@ -853,10 +934,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_step_cnt = 0;
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                        &out_arr);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
     /* Child query get_int32 error reading parent_id (lines 1437, 1439) */
@@ -865,10 +944,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_step_cnt = 0;
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                        &out_arr);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
     /* Child query is_null true on first col (line 1451) */
@@ -877,10 +954,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_step_cnt = 0;
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                        &out_arr);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
     custom_vt.is_null = g_vt.is_null;
 
@@ -890,10 +965,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_step_cnt = 0;
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                        &out_arr);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
     /* Child query hydrate error on O2M (lines 1507-1509) */
@@ -902,10 +975,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_step_cnt = 0;
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
                                        &out_arr);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
     /* Child query O2M loop step error (lines 1520-1522) */
@@ -914,10 +985,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_step_cnt = 0;
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
                                        &out_arr);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
     custom_vt.step = g_vt.step;
@@ -1045,7 +1114,6 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     c_orm_column_meta_t c_cols[1];
     c_orm_relation_meta_t sub_rels[1];
     const char *paths[2];
-    c_orm_error_t rc;
 
     memset(&p, 0, sizeof(p));
     memset(&c_obj, 0, sizeof(c_obj));
@@ -1118,10 +1186,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_step_max = 3;
     ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relations(&custom_db, &p_meta,
                                                       paths, 2, &out_arr));
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
 
     /* Long relation path (lines 1675, 1776) */
     paths[0] =
@@ -1134,10 +1200,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
 
     g_stage_step_cnt = 0;
     g_stage_step_max = 1;
-    rc = c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1, &out_arr);
-    if (rc != C_ORM_OK) {
-      /* Expected error */
-    }
+    (void)c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1,
+                                        &out_arr);
     C_ORM_FREE(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
@@ -1157,40 +1221,35 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
       memset(o2m_rels, 0, sizeof(o2m_rels));
       c_arr_item =
           (struct NestedChild *)c_orm_malloc(sizeof(struct NestedChild));
-      if (c_arr_item) {
-        memset(c_arr_item, 0, sizeof(struct NestedChild));
-        p_o2m.id = 1;
-        p_o2m.children_o2m.data = c_arr_item;
-        p_o2m.children_o2m.length = 1;
+      memset(c_arr_item, 0, sizeof(struct NestedChild));
+      p_o2m.id = 1;
+      p_o2m.children_o2m.data = c_arr_item;
+      p_o2m.children_o2m.length = 1;
 
-        o2m_rels[0].field_name = "children_o2m";
-        o2m_rels[0].type = C_ORM_RELATION_ONE_TO_MANY;
-        o2m_rels[0].local_key = "id";
-        o2m_rels[0].foreign_key = "id";
-        o2m_rels[0].target_meta = &c_meta;
-        o2m_rels[0].struct_offset =
-            offsetof(struct FullParentObj, children_o2m);
-        o2m_rels[0].data_offset = offsetof(struct FullParentObj, children_o2m);
-        o2m_rels[0].lazy_ctx_offset = offsetof(struct FullParentObj, o2m_ctx);
-        p_meta.relations = o2m_rels;
+      o2m_rels[0].field_name = "children_o2m";
+      o2m_rels[0].type = C_ORM_RELATION_ONE_TO_MANY;
+      o2m_rels[0].local_key = "id";
+      o2m_rels[0].foreign_key = "id";
+      o2m_rels[0].target_meta = &c_meta;
+      o2m_rels[0].struct_offset = offsetof(struct FullParentObj, children_o2m);
+      o2m_rels[0].data_offset = offsetof(struct FullParentObj, children_o2m);
+      o2m_rels[0].lazy_ctx_offset = offsetof(struct FullParentObj, o2m_ctx);
+      p_meta.relations = o2m_rels;
 
-        paths[0] = "children_o2m.nonexistent_sub";
-        custom_vt.step = mock_stage_step;
-        g_stage_step_cnt = 0;
-        g_stage_step_max = 2;
-        (void)c_orm_find_with_relations_int32(&custom_db, &p_meta, 1, paths, 1,
-                                              &p_o2m);
-        g_stage_step_cnt = 0;
-        g_stage_step_max = 2;
-        (void)c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1,
-                                            &out_arr);
-        if (out_arr.data) {
-          C_ORM_FREE(out_arr.data);
-          out_arr.data = NULL;
-        }
-        custom_vt.step = g_vt.step;
-        p_meta.relations = rels;
-      }
+      paths[0] = "children_o2m.nonexistent_sub";
+      custom_vt.step = mock_stage_step;
+      g_stage_step_cnt = 0;
+      g_stage_step_max = 2;
+      (void)c_orm_find_with_relations_int32(&custom_db, &p_meta, 1, paths, 1,
+                                            &p_o2m);
+      g_stage_step_cnt = 0;
+      g_stage_step_max = 2;
+      (void)c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1,
+                                          &out_arr);
+      C_ORM_FREE(out_arr.data);
+      out_arr.data = NULL;
+      custom_vt.step = g_vt.step;
+      p_meta.relations = rels;
     }
     custom_vt.step = g_vt.step;
   }
@@ -1199,10 +1258,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
   {
     c_orm_table_meta_t poly_meta;
     c_orm_column_meta_t poly_cols[2];
-    struct {
-      int32_t id;
-      c_orm_polygon_t poly;
-    } poly_obj;
+    struct TestPolyObj poly_obj;
     c_orm_point_t pts[3];
     c_orm_shard_manager_t *sm = NULL;
     c_orm_identity_map_t map;
@@ -1344,10 +1400,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
 
     /* FLOAT PK in update_batch (line 3392) */
     {
-      struct {
-        float id;
-        int32_t val;
-      } flt_item;
+      struct TestFltItem flt_item;
       c_orm_table_meta_t flt_meta;
       c_orm_column_meta_t flt_cols[2];
       memset(&flt_item, 0, sizeof(flt_item));
@@ -1399,11 +1452,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     /* Secure string bind_blob failure (line 2087) & non-secure blob (line 2136)
      */
     {
-      struct TestSecureStringBlobObj {
-        int32_t id;
-        char *str;
-        c_orm_blob_t blob;
-      };
+
       struct TestSecureStringBlobObj sb_obj;
       c_orm_table_meta_t sb_meta;
       c_orm_column_meta_t sb_cols[3];
@@ -1447,6 +1496,10 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
   PASS();
 }
 
+/**
+ * @brief Tests database driver edge cases and custom driver callback hooks.
+ * @return GREATEST test result.
+ */
 TEST test_api_driver_edge_cases(void) {
   struct Users u;
   struct Generic_Array out_arr;
@@ -1479,10 +1532,7 @@ TEST test_api_driver_edge_cases(void) {
 
   /* 1. Line 628: c_orm_hydrate_row cache error */
   {
-    struct {
-      int32_t id;
-      int32_t age;
-    } i_obj;
+    struct TestIdAgeObj i_obj;
     c_orm_table_meta_t i_meta;
     c_orm_column_meta_t i_cols[2];
     c_orm_identity_map_t map;
@@ -1591,10 +1641,8 @@ TEST test_api_driver_edge_cases(void) {
   g_stage_step_cnt = 0;
   (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                      &out_arr);
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   memset(&out_arr, 0, sizeof(out_arr));
   rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
   custom_vt.get_int32 = g_vt.get_int32;
@@ -1606,10 +1654,8 @@ TEST test_api_driver_edge_cases(void) {
   g_stage_step_cnt = 0;
   (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                      &out_arr);
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   memset(&out_arr, 0, sizeof(out_arr));
   rels[0].foreign_key = "parent_id";
   custom_vt.step = g_vt.step;
@@ -1620,10 +1666,8 @@ TEST test_api_driver_edge_cases(void) {
   g_stage_step_cnt = 0;
   (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                      &out_arr);
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   memset(&out_arr, 0, sizeof(out_arr));
   custom_vt.get_int32 = g_vt.get_int32;
   custom_vt.step = g_vt.step;
@@ -1639,10 +1683,8 @@ TEST test_api_driver_edge_cases(void) {
     g_stage_step_cnt = 0;
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                        &out_arr);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
     custom_vt.get_int32 = g_vt.get_int32;
     custom_vt.step = g_vt.step;
@@ -1654,19 +1696,15 @@ TEST test_api_driver_edge_cases(void) {
   g_stage_step_cnt = 0;
   (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                      &out_arr);
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   memset(&out_arr, 0, sizeof(out_arr));
 
   g_stage_step_cnt = 0;
   (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
                                      &out_arr);
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   memset(&out_arr, 0, sizeof(out_arr));
   custom_vt.get_int32 = g_vt.get_int32;
   custom_vt.step = g_vt.step;
@@ -1683,10 +1721,8 @@ TEST test_api_driver_edge_cases(void) {
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
                                        &out_arr);
     c_orm_set_allocators(orig_m, orig_r, orig_f);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
   }
   for (k = 0; k < 6; k++) {
@@ -1697,10 +1733,8 @@ TEST test_api_driver_edge_cases(void) {
     (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
                                        &out_arr);
     c_orm_set_allocators(orig_m, orig_r, orig_f);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
   }
   g_deep_fail_oom = -1;
@@ -1717,10 +1751,8 @@ TEST test_api_driver_edge_cases(void) {
     g_stage_step_max = 1;
     (void)c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1,
                                         &out_arr);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
     paths[0] = "children_o2m.nonexistent";
@@ -1728,10 +1760,8 @@ TEST test_api_driver_edge_cases(void) {
     g_stage_step_max = 1;
     (void)c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1,
                                         &out_arr);
-    if (out_arr.data) {
-      free(out_arr.data);
-      out_arr.data = NULL;
-    }
+    free(out_arr.data);
+    out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
     custom_vt.step = g_vt.step;
   }
@@ -1930,13 +1960,23 @@ TEST test_api_driver_edge_cases(void) {
 }
 /* Tests bringing src/c_orm_api.c to 100% function, line, and branch coverage */
 
+/**
+ * @brief Self-referencing recursive structure for deep relation testing.
+ */
 struct GrandChildObj {
-  int32_t id;
-  struct GrandChildObj *child_o2o;
-  c_orm_lazy_load_context_t o2o_ctx;
+  int32_t id; /**< Entity primary key. */
+  struct GrandChildObj
+      *child_o2o; /**< One-to-one child recursive entity pointer. */
+  c_orm_lazy_load_context_t o2o_ctx; /**< Lazy load context. */
 };
 
 static int g_step_countdown_100 = 0;
+/**
+ * @brief Mock step function stepping while countdown is positive.
+ * @param q Query pointer.
+ * @param has_row Pointer to output boolean.
+ * @return Error code.
+ */
 static c_orm_error_t mock_step_countdown_100(c_orm_query_t *q, int *has_row) {
   (void)q;
   if (!has_row)
@@ -1952,6 +1992,12 @@ static c_orm_error_t mock_step_countdown_100(c_orm_query_t *q, int *has_row) {
 
 static int g_step_pattern_idx_100 = 0;
 static const int g_step_pattern_vals_100[6] = {1, 0, 1, 0, 0, 0};
+/**
+ * @brief Mock step function yielding a fixed pattern of row availability.
+ * @param q Query pointer.
+ * @param has_row Pointer to output boolean.
+ * @return Error code.
+ */
 static c_orm_error_t mock_step_pattern_100(c_orm_query_t *q, int *has_row) {
   (void)q;
   if (!has_row)
@@ -1964,15 +2010,25 @@ static c_orm_error_t mock_step_pattern_100(c_orm_query_t *q, int *has_row) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock integer reader returning 1 for any column index.
+ * @param q Query pointer.
+ * @param i Column index.
+ * @param o Pointer to output integer.
+ * @return Error code.
+ */
 static c_orm_error_t mock_get_int32_one_100(c_orm_query_t *q, int i,
                                             int32_t *o) {
   (void)q;
   (void)i;
-  if (o)
-    *o = 1;
+  *o = 1;
   return C_ORM_OK;
 }
 
+/**
+ * @brief Tests transactions, rollback behavior, and simulated error injections.
+ * @return GREATEST test result.
+ */
 TEST test_api_transactions_and_error_injection(void) {
   c_orm_driver_vtable_t custom_vt;
   c_orm_db_t custom_db;
@@ -2037,12 +2093,10 @@ TEST test_api_transactions_and_error_injection(void) {
     (void)c_orm_find_all_with_relations(&custom_db, &Users_meta, paths, 1,
                                         &out_arr);
     items = (struct Users *)out_arr.data;
-    if (items) {
-      for (idx = 0; idx < out_arr.length; idx++) {
-        c_orm_free_columns(&Users_meta, &items[idx]);
-      }
-      C_ORM_FREE(out_arr.data);
+    for (idx = 0; idx < out_arr.length; idx++) {
+      c_orm_free_columns(&Users_meta, &items[idx]);
     }
+    C_ORM_FREE(out_arr.data);
   }
 
   /* 3. Line 1704: find_with_relations_int32 with nested path failing lazy_load
@@ -2197,10 +2251,8 @@ TEST test_api_transactions_and_error_injection(void) {
     paths[0] = "children_o2m.invalid_nested";
     (void)c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1,
                                         &out_arr);
-    if (out_arr.data) {
-      C_ORM_FREE(out_arr.data);
-      out_arr.data = NULL;
-    }
+    C_ORM_FREE(out_arr.data);
+    out_arr.data = NULL;
 
     /* Also test lines 1789, 1795: num_relations == 0 and rel == NULL */
     out_arr.data = c_orm_malloc(sizeof(struct FullParentObj));
@@ -2211,10 +2263,8 @@ TEST test_api_transactions_and_error_injection(void) {
     paths[0] = "children_o2m.nested";
     (void)c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1,
                                         &out_arr);
-    if (out_arr.data) {
-      C_ORM_FREE(out_arr.data);
-      out_arr.data = NULL;
-    }
+    C_ORM_FREE(out_arr.data);
+    out_arr.data = NULL;
 
     out_arr.data = c_orm_malloc(sizeof(struct FullParentObj));
     memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
@@ -2224,10 +2274,8 @@ TEST test_api_transactions_and_error_injection(void) {
     paths[0] = "unknown_rel.nested";
     (void)c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1,
                                         &out_arr);
-    if (out_arr.data) {
-      C_ORM_FREE(out_arr.data);
-      out_arr.data = NULL;
-    }
+    C_ORM_FREE(out_arr.data);
+    out_arr.data = NULL;
 
     /* Also test line 1803: nested_obj == NULL for ONE_TO_ONE in find_all */
     rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
@@ -2243,10 +2291,8 @@ TEST test_api_transactions_and_error_injection(void) {
     paths[0] = "child_o2o.nested";
     (void)c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1,
                                         &out_arr);
-    if (out_arr.data) {
-      C_ORM_FREE(out_arr.data);
-      out_arr.data = NULL;
-    }
+    C_ORM_FREE(out_arr.data);
+    out_arr.data = NULL;
 
     /* Lines 1799-1801: nested_obj != NULL for ONE_TO_ONE with failing nested
      * path */
@@ -2259,7 +2305,7 @@ TEST test_api_transactions_and_error_injection(void) {
     (void)c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1,
                                         &out_arr);
     custom_vt.get_int32 = g_vt.get_int32;
-    if (out_arr.data) {
+    {
       struct FullParentObj *res = (struct FullParentObj *)out_arr.data;
       size_t ri;
       for (ri = 0; ri < out_arr.length; ri++) {
@@ -2295,7 +2341,7 @@ TEST test_api_transactions_and_error_injection(void) {
       (void)c_orm_find_all_with_relations(&custom_db, &p_meta, paths, 1,
                                           &out_arr);
       custom_vt.get_int32 = g_vt.get_int32;
-      if (out_arr.data) {
+      {
         struct FullParentObj *res = (struct FullParentObj *)out_arr.data;
         size_t ri;
         for (ri = 0; ri < out_arr.length; ri++) {
@@ -2314,17 +2360,7 @@ TEST test_api_transactions_and_error_injection(void) {
 
   /* 5. Lines 34, 35, 36: c_orm_free_columns with all types */
   {
-    struct MultiColObj {
-      char *str_col;
-      char *date_col;
-      char *ts_col;
-      char *enum_col;
-      char *set_col;
-      char *json_col;
-      c_orm_blob_t blob_col;
-      c_orm_polygon_t poly_col;
-      int32_t *nullable_col;
-    } m_obj;
+    struct MultiTypeColObj m_obj;
     c_orm_table_meta_t m_meta;
     c_orm_column_meta_t m_cols[9];
     memset(&m_obj, 0, sizeof(m_obj));
@@ -2333,32 +2369,32 @@ TEST test_api_transactions_and_error_injection(void) {
 
     m_cols[0].name = "str_col";
     m_cols[0].type = C_ORM_TYPE_STRING;
-    m_cols[0].offset = offsetof(struct MultiColObj, str_col);
+    m_cols[0].offset = offsetof(struct MultiTypeColObj, str_col);
     m_cols[1].name = "date_col";
     m_cols[1].type = C_ORM_TYPE_DATE;
-    m_cols[1].offset = offsetof(struct MultiColObj, date_col);
+    m_cols[1].offset = offsetof(struct MultiTypeColObj, date_col);
     m_cols[2].name = "ts_col";
     m_cols[2].type = C_ORM_TYPE_TIMESTAMP;
-    m_cols[2].offset = offsetof(struct MultiColObj, ts_col);
+    m_cols[2].offset = offsetof(struct MultiTypeColObj, ts_col);
     m_cols[3].name = "enum_col";
     m_cols[3].type = C_ORM_TYPE_ENUM;
-    m_cols[3].offset = offsetof(struct MultiColObj, enum_col);
+    m_cols[3].offset = offsetof(struct MultiTypeColObj, enum_col);
     m_cols[4].name = "set_col";
     m_cols[4].type = C_ORM_TYPE_SET;
-    m_cols[4].offset = offsetof(struct MultiColObj, set_col);
+    m_cols[4].offset = offsetof(struct MultiTypeColObj, set_col);
     m_cols[5].name = "json_col";
     m_cols[5].type = C_ORM_TYPE_JSON;
-    m_cols[5].offset = offsetof(struct MultiColObj, json_col);
+    m_cols[5].offset = offsetof(struct MultiTypeColObj, json_col);
     m_cols[6].name = "blob_col";
     m_cols[6].type = C_ORM_TYPE_BLOB;
-    m_cols[6].offset = offsetof(struct MultiColObj, blob_col);
+    m_cols[6].offset = offsetof(struct MultiTypeColObj, blob_col);
     m_cols[7].name = "poly_col";
     m_cols[7].type = C_ORM_TYPE_POLYGON;
-    m_cols[7].offset = offsetof(struct MultiColObj, poly_col);
+    m_cols[7].offset = offsetof(struct MultiTypeColObj, poly_col);
     m_cols[8].name = "nullable_col";
     m_cols[8].type = C_ORM_TYPE_INT32;
     m_cols[8].is_nullable = 1;
-    m_cols[8].offset = offsetof(struct MultiColObj, nullable_col);
+    m_cols[8].offset = offsetof(struct MultiTypeColObj, nullable_col);
     m_meta.name = "multicol";
     m_meta.columns = m_cols;
     m_meta.num_columns = 9;
@@ -2419,12 +2455,7 @@ TEST test_api_transactions_and_error_injection(void) {
 
   /* 6. Lines 338, 354, 360, 393, 396: get_blob special branches */
   {
-    struct GeoBlobObj {
-      c_orm_point_t pt;
-      c_orm_polygon_t poly;
-      c_orm_blob_t blob;
-      c_orm_blob_t sec_blob;
-    } gb_obj;
+    struct GeoBlobObj gb_obj;
     c_orm_table_meta_t gb_meta;
     c_orm_column_meta_t gb_cols[4];
     memset(&gb_obj, 0, sizeof(gb_obj));
@@ -2473,11 +2504,7 @@ TEST test_api_transactions_and_error_injection(void) {
 
   /* 7. Line 458: TTL callback */
   {
-    struct TtlObj {
-      int32_t id;
-      int64_t created_at;
-      int32_t expires_in;
-    } t_obj;
+    struct TtlObj t_obj;
     c_orm_table_meta_t t_meta;
     c_orm_column_meta_t t_cols[3];
     memset(&t_obj, 0, sizeof(t_obj));
@@ -2673,10 +2700,8 @@ TEST test_api_transactions_and_error_injection(void) {
     g_stage_step_max = 20;
     (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
                                          &p);
-    if (p.children_o2m.data) {
-      C_ORM_FREE(p.children_o2m.data);
-      p.children_o2m.data = NULL;
-    }
+    C_ORM_FREE(p.children_o2m.data);
+    p.children_o2m.data = NULL;
 
     /* Lines 1363, 1367: empty custom_filter and order_by */
     rels[0].custom_filter = "";
@@ -2742,11 +2767,9 @@ TEST test_api_transactions_and_error_injection(void) {
 
     /* c_orm_find_batch_init and iterator NULL checks (line 2529, 2591) */
     (void)c_orm_find_batch_init(&custom_db, &Users_meta, NULL, 10, &iter);
-    if (iter) {
-      (void)c_orm_iterator_next(iter, NULL, &count);
-      (void)c_orm_iterator_next(iter, &out_arr, NULL);
-      c_orm_iterator_close(iter);
-    }
+    (void)c_orm_iterator_next(iter, NULL, &count);
+    (void)c_orm_iterator_next(iter, &out_arr, NULL);
+    c_orm_iterator_close(iter);
   }
 
   /* 12. BelongsTo / OneToOne insert/update branches */
@@ -2829,12 +2852,10 @@ TEST test_api_transactions_and_error_injection(void) {
     {
       char *empty_str = (char *)c_orm_malloc(1);
       void *field_addr;
-      if (empty_str) {
-        empty_str[0] = 0;
-        field_addr = (char *)&p + p_cols[0].offset;
-        memcpy(field_addr, &empty_str, sizeof(char *));
-        (void)c_orm_save(&custom_db, &p_meta, &p);
-      }
+      empty_str[0] = 0;
+      field_addr = (char *)&p + p_cols[0].offset;
+      memcpy(field_addr, &empty_str, sizeof(char *));
+      (void)c_orm_save(&custom_db, &p_meta, &p);
     }
 
     custom_vt.get_last_insert_rowid = g_vt.get_last_insert_rowid;
@@ -3041,26 +3062,22 @@ TEST test_api_transactions_and_error_injection(void) {
     /* bucket with entries == NULL (line 4872) */
     bucket = (c_orm_identity_bucket_t *)c_orm_malloc(
         sizeof(c_orm_identity_bucket_t));
-    if (bucket) {
-      memset(bucket, 0, sizeof(c_orm_identity_bucket_t));
-      bucket->entries = NULL;
-      map.buckets = bucket;
-      c_orm_identity_map_free(&map);
-    }
+    memset(bucket, 0, sizeof(c_orm_identity_bucket_t));
+    bucket->entries = NULL;
+    map.buckets = bucket;
+    c_orm_identity_map_free(&map);
 
     /* entry with pk_str == NULL (line 5055) */
     memset(&map, 0, sizeof(map));
     (void)c_orm_identity_map_get_or_set_str(&map, &Users_meta, "key1",
                                             (void *)1, &out_obj);
-    if (map.buckets && map.buckets->entries) {
+    {
       size_t i;
       for (i = 0; i < map.buckets->num_buckets; i++) {
         c_orm_identity_entry_t *e = map.buckets->entries[i];
         while (e) {
-          if (e->pk_str) {
-            C_ORM_FREE(e->pk_str);
-            e->pk_str = NULL; /* line 5055: entry->pk_str == NULL */
-          }
+          C_ORM_FREE(e->pk_str);
+          e->pk_str = NULL; /* line 5055: entry->pk_str == NULL */
           e = e->next;
         }
       }
@@ -3213,10 +3230,8 @@ TEST test_api_transactions_and_error_injection(void) {
     ctx->is_loaded = 1;
     p.child_o2o =
         (struct NestedChild *)c_orm_malloc(sizeof(struct NestedChild));
-    if (p.child_o2o) {
-      memset(p.child_o2o, 0, sizeof(struct NestedChild));
-      c_orm_free_relations(&p_meta, &p);
-    }
+    memset(p.child_o2o, 0, sizeof(struct NestedChild));
+    c_orm_free_relations(&p_meta, &p);
 
     /* ONE_TO_MANY with arr->data == NULL (line 5535) */
     rels[0].type = C_ORM_RELATION_ONE_TO_MANY;
@@ -3267,8 +3282,7 @@ TEST test_api_transactions_and_error_injection(void) {
     c_orm_shard_manager_add_node(sm, 0, &custom_db);
     custom_vt.step = mock_always_step_zero;
     (void)c_orm_scatter_gather_generic(sm, &Users_meta, &out_arr, &out_cnt);
-    if (out_arr)
-      C_ORM_FREE(out_arr);
+    C_ORM_FREE(out_arr);
     out_arr = NULL;
 
     /* Shard returning C_ORM_ERROR_NOT_FOUND (line 5848) */

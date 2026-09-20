@@ -16,10 +16,36 @@ extern "C" {
 #include "c_orm_struct.h"
 #include "c_orm_sqlite.h"
 #include "c_orm_query_builder.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+
+#undef ASSERT_EQ_FMT
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 /* clang-format on */
 
 /**
@@ -88,11 +114,26 @@ static enum greatest_test_res test_c_orm_self_referencing_tree(void);
  */
 static enum greatest_test_res test_c_orm_relation_advanced_features(void);
 
+/**
+ * @brief Generic array container for test relations.
+ */
+struct Generic_Array {
+  void *data;      /**< Pointer to array elements buffer. */
+  size_t length;   /**< Current number of elements. */
+  size_t capacity; /**< Total allocated capacity. */
+};
+
 #define TEAM_FIELDS(X, S)                                                      \
   X(S, C_ORM_TYPE_INT32, int32_t, id)                                          \
   X(S, C_ORM_TYPE_STRING, char *, name)                                        \
   X(S, C_ORM_TYPE_BOOL, bool, is_active)
 
+/**
+ * @brief Team model struct.
+ * @var id Team identifier
+ * @var name Team name
+ * @var is_active Team active flag
+ */
 C_ORM_STRUCT(Team, TEAM_FIELDS)
 
 #define USER_FIELDS(X, S)                                                      \
@@ -101,12 +142,24 @@ C_ORM_STRUCT(Team, TEAM_FIELDS)
 
 #define USER_RELS(X, S) C_ORM_BELONGS_TO(X, S, Team, team, "id", "team_id")
 
+/**
+ * @brief User model struct.
+ * @var id User identifier
+ * @var team_id Team identifier foreign key
+ * @var team Team relation object
+ */
 C_ORM_STRUCT_WITH_RELATIONS(User, USER_FIELDS, USER_RELS)
 
 #define USER_CASCADE_RELS(X, S)                                                \
   C_ORM_BELONGS_TO_CASCADE(X, S, Team, team, "id", "team_id",                  \
                            C_ORM_CASCADE_DELETE, C_ORM_CASCADE_UPDATE)
 
+/**
+ * @brief UserCascade model struct.
+ * @var id User identifier
+ * @var team_id Team identifier foreign key
+ * @var team Team cascade relation object
+ */
 C_ORM_STRUCT_WITH_RELATIONS(UserCascade, USER_FIELDS, USER_CASCADE_RELS)
 
 /**
@@ -197,8 +250,7 @@ TEST test_c_orm_cascade_delete_and_update(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ_FMT(0, exists, "%d");
 
-  if (db)
-    db->vtable->disconnect(db);
+  db->vtable->disconnect(db);
   PASS();
 }
 
@@ -262,12 +314,10 @@ TEST test_c_orm_lazy_load_relations(void) {
   ASSERT_EQ_FMT(10, user.team.data->id, "%d");
   ASSERT_STR_EQ("Engineering", user.team.data->name);
 
-  if (user.team.data->name)
-    C_ORM_FREE(user.team.data->name);
+  C_ORM_FREE(user.team.data->name);
   C_ORM_FREE(user.team.data);
 
-  if (db)
-    db->vtable->disconnect(db);
+  db->vtable->disconnect(db);
   PASS();
 }
 
@@ -348,58 +398,40 @@ TEST test_c_orm_eager_load_relations(void) {
   printf("ASSERT 5\n");
   fflush(stdout);
 
-  if (user.team.data->name)
-    C_ORM_FREE(user.team.data->name);
+  C_ORM_FREE(user.team.data->name);
   C_ORM_FREE(user.team.data);
   printf("FREED\n");
   fflush(stdout);
 
   {
-    struct {
-      void *data;
-      size_t length;
-      size_t capacity;
-    } user_arr;
+    struct User *u0;
+    struct Generic_Array user_arr;
     memset(&user_arr, 0, sizeof(user_arr));
     err = c_orm_find_all_with_relation(db, &user_m, "team", &user_arr);
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-    if (user_arr.length > 0) {
-      struct User *u0 = (struct User *)user_arr.data;
-      if (u0->team.data) {
-        if (u0->team.data->name)
-          C_ORM_FREE(u0->team.data->name);
-        C_ORM_FREE(u0->team.data);
-      }
-    }
-    if (user_arr.data)
-      C_ORM_FREE(user_arr.data);
+    ASSERT_EQ_FMT(1, (int)user_arr.length, "%d");
+    u0 = (struct User *)user_arr.data;
+    C_ORM_FREE(u0->team.data->name);
+    C_ORM_FREE(u0->team.data);
+    C_ORM_FREE(user_arr.data);
   }
 
   {
+    struct User *u0;
     const char *paths[1];
-    struct {
-      void *data;
-      size_t length;
-      size_t capacity;
-    } user_arr;
+    struct Generic_Array user_arr;
     paths[0] = "team";
     memset(&user_arr, 0, sizeof(user_arr));
     err = c_orm_find_all_with_relations(db, &user_m, paths, 1, &user_arr);
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-    if (user_arr.length > 0) {
-      struct User *u0 = (struct User *)user_arr.data;
-      if (u0->team.data) {
-        if (u0->team.data->name)
-          C_ORM_FREE(u0->team.data->name);
-        C_ORM_FREE(u0->team.data);
-      }
-    }
-    if (user_arr.data)
-      C_ORM_FREE(user_arr.data);
+    ASSERT_EQ_FMT(1, (int)user_arr.length, "%d");
+    u0 = (struct User *)user_arr.data;
+    C_ORM_FREE(u0->team.data->name);
+    C_ORM_FREE(u0->team.data);
+    C_ORM_FREE(user_arr.data);
   }
 
-  if (db)
-    db->vtable->disconnect(db);
+  db->vtable->disconnect(db);
   PASS();
 }
 
@@ -488,8 +520,7 @@ TEST test_c_orm_nested_insert_relations(void) {
   err = c_orm_insert(db, &user_m, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  if (db)
-    db->vtable->disconnect(db);
+  db->vtable->disconnect(db);
   PASS();
 }
 
@@ -498,11 +529,23 @@ TEST test_c_orm_nested_insert_relations(void) {
   X(S, C_ORM_TYPE_STRING, char *, title)                                       \
   X(S, C_ORM_TYPE_INT32, int32_t, author_id)
 
+/**
+ * @brief Post model struct.
+ * @var id Post identifier
+ * @var title Post title
+ * @var author_id Author identifier
+ */
 C_ORM_STRUCT(Post, POST_FIELDS)
 
 #define USER_WITH_POSTS_RELS(X, S)                                             \
   C_ORM_HAS_MANY(X, S, Post, posts, "author_id", "id")
 
+/**
+ * @brief UserWithPosts model struct.
+ * @var id User identifier
+ * @var team_id Team identifier foreign key
+ * @var posts User posts relation collection
+ */
 C_ORM_STRUCT_WITH_RELATIONS(UserWithPosts, USER_FIELDS, USER_WITH_POSTS_RELS)
 
 /**
@@ -580,30 +623,24 @@ TEST test_c_orm_one_to_many_lazy_load(void) {
   ASSERT_EQ_FMT(2, user.posts.data.data[1].id, "%d");
   ASSERT_STR_EQ("Second Post", user.posts.data.data[1].title);
 
-  if (user.posts.data.data[0].title)
-    C_ORM_FREE(user.posts.data.data[0].title);
-  if (user.posts.data.data[1].title)
-    C_ORM_FREE(user.posts.data.data[1].title);
-  if (user.posts.data.data)
-    C_ORM_FREE(user.posts.data.data);
+  C_ORM_FREE(user.posts.data.data[0].title);
+  C_ORM_FREE(user.posts.data.data[1].title);
+  C_ORM_FREE(user.posts.data.data);
 
   {
+    size_t pi;
     struct UserWithPosts eager_user;
     memset(&eager_user, 0, sizeof(eager_user));
     err = c_orm_find_with_relation_int32(db, &user_m, 5, "posts", &eager_user);
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-    if (eager_user.posts.data.data) {
-      size_t pi;
-      for (pi = 0; pi < eager_user.posts.data.length; pi++) {
-        if (eager_user.posts.data.data[pi].title)
-          C_ORM_FREE(eager_user.posts.data.data[pi].title);
-      }
-      C_ORM_FREE(eager_user.posts.data.data);
+    ASSERT_EQ_FMT(2, (int)eager_user.posts.data.length, "%d");
+    for (pi = 0; pi < eager_user.posts.data.length; pi++) {
+      C_ORM_FREE(eager_user.posts.data.data[pi].title);
     }
+    C_ORM_FREE(eager_user.posts.data.data);
   }
 
-  if (db)
-    db->vtable->disconnect(db);
+  db->vtable->disconnect(db);
   PASS();
 }
 
@@ -682,10 +719,8 @@ TEST test_c_orm_lazy_load_paginated(void) {
   ASSERT_EQ_FMT(2, user.posts.data.data[0].id, "%d");
   ASSERT_STR_EQ("Second Post", user.posts.data.data[0].title);
 
-  if (user.posts.data.data[0].title)
-    C_ORM_FREE(user.posts.data.data[0].title);
-  if (user.posts.data.data)
-    C_ORM_FREE(user.posts.data.data);
+  C_ORM_FREE(user.posts.data.data[0].title);
+  C_ORM_FREE(user.posts.data.data);
 
   /* Test with order_by DESC, soft_delete_aware, and custom_filter */
   user_rels[0].order_by = "id DESC";
@@ -698,12 +733,10 @@ TEST test_c_orm_lazy_load_paginated(void) {
 
   err = c_orm_lazy_load_paginated(db, &user_m, &user, "posts", 1, 0);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-  if (user.posts.data.length > 0) {
-    ASSERT_EQ_FMT(3, user.posts.data.data[0].id, "%d");
-    if (user.posts.data.data[0].title)
-      C_ORM_FREE(user.posts.data.data[0].title);
-    C_ORM_FREE(user.posts.data.data);
-  }
+  ASSERT_EQ_FMT(1, (int)user.posts.data.length, "%d");
+  ASSERT_EQ_FMT(3, user.posts.data.data[0].id, "%d");
+  C_ORM_FREE(user.posts.data.data[0].title);
+  C_ORM_FREE(user.posts.data.data);
 
   /* Test with order_by ASC */
   user_rels[0].order_by = "id ASC";
@@ -715,12 +748,10 @@ TEST test_c_orm_lazy_load_paginated(void) {
 
   err = c_orm_lazy_load_paginated(db, &user_m, &user, "posts", 1, 0);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-  if (user.posts.data.length > 0) {
-    ASSERT_EQ_FMT(1, user.posts.data.data[0].id, "%d");
-    if (user.posts.data.data[0].title)
-      C_ORM_FREE(user.posts.data.data[0].title);
-    C_ORM_FREE(user.posts.data.data);
-  }
+  ASSERT_EQ_FMT(1, (int)user.posts.data.length, "%d");
+  ASSERT_EQ_FMT(1, user.posts.data.data[0].id, "%d");
+  C_ORM_FREE(user.posts.data.data[0].title);
+  C_ORM_FREE(user.posts.data.data);
 
   /* Test with plain order_by */
   user_rels[0].order_by = "id";
@@ -731,11 +762,9 @@ TEST test_c_orm_lazy_load_paginated(void) {
 
   err = c_orm_lazy_load_paginated(db, &user_m, &user, "posts", 1, 0);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-  if (user.posts.data.length > 0) {
-    if (user.posts.data.data[0].title)
-      C_ORM_FREE(user.posts.data.data[0].title);
-    C_ORM_FREE(user.posts.data.data);
-  }
+  ASSERT_EQ_FMT(1, (int)user.posts.data.length, "%d");
+  C_ORM_FREE(user.posts.data.data[0].title);
+  C_ORM_FREE(user.posts.data.data);
 
   /* Test c_orm_delete with C_ORM_CASCADE_SET_NULL */
   user_rels[0].on_delete = C_ORM_CASCADE_SET_NULL;
@@ -743,8 +772,7 @@ TEST test_c_orm_lazy_load_paginated(void) {
   err = c_orm_delete(db, &user_m, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  if (db)
-    db->vtable->disconnect(db);
+  db->vtable->disconnect(db);
   PASS();
 }
 
@@ -753,12 +781,23 @@ TEST test_c_orm_lazy_load_paginated(void) {
                              "user_id", "role_id", C_ORM_CASCADE_DELETE,       \
                              C_ORM_CASCADE_UPDATE)
 
+/**
+ * @brief UserWithRoles model struct.
+ * @var id User identifier
+ * @var team_id Team identifier foreign key
+ * @var roles Roles relation collection
+ */
 C_ORM_STRUCT_WITH_RELATIONS(UserWithRoles, USER_FIELDS, USER_WITH_ROLES_RELS)
 
 #define ROLE_FIELDS(X, S)                                                      \
   X(S, C_ORM_TYPE_INT32, int32_t, id)                                          \
   X(S, C_ORM_TYPE_STRING, char *, name)
 
+/**
+ * @brief Role model struct.
+ * @var id Role identifier
+ * @var name Role name
+ */
 C_ORM_STRUCT(Role, ROLE_FIELDS)
 
 /**
@@ -839,6 +878,7 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
   ASSERT_EQ_FMT(1, exists, "%d");
 
   {
+    size_t ri;
     struct UserWithRoles eager_user;
     memset(&eager_user, 0, sizeof(eager_user));
     eager_user.id = 5;
@@ -846,42 +886,30 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     err = c_orm_lazy_load(db, &user_m, &eager_user, "roles");
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-    if (eager_user.roles.data.data) {
-      size_t ri;
-      for (ri = 0; ri < eager_user.roles.data.length; ri++) {
-        if (eager_user.roles.data.data[ri].name)
-          C_ORM_FREE(eager_user.roles.data.data[ri].name);
-      }
-      C_ORM_FREE(eager_user.roles.data.data);
+    ASSERT_EQ_FMT(2, (int)eager_user.roles.data.length, "%d");
+    for (ri = 0; ri < eager_user.roles.data.length; ri++) {
+      C_ORM_FREE(eager_user.roles.data.data[ri].name);
     }
+    C_ORM_FREE(eager_user.roles.data.data);
   }
 
   {
-    struct {
-      void *data;
-      size_t length;
-      size_t capacity;
-    } user_arr;
+    size_t ui, ri;
+    struct UserWithRoles *u_roles;
+    struct Generic_Array user_arr;
     user_m.query_select_all = "SELECT id, team_id FROM User";
     memset(&user_arr, 0, sizeof(user_arr));
     err = c_orm_find_all_with_relation(db, &user_m, "roles", &user_arr);
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-    if (user_arr.length > 0) {
-      struct UserWithRoles *u_roles = (struct UserWithRoles *)user_arr.data;
-      size_t ui;
-      for (ui = 0; ui < user_arr.length; ui++) {
-        if (u_roles[ui].roles.data.data) {
-          size_t ri;
-          for (ri = 0; ri < u_roles[ui].roles.data.length; ri++) {
-            if (u_roles[ui].roles.data.data[ri].name)
-              C_ORM_FREE(u_roles[ui].roles.data.data[ri].name);
-          }
-          C_ORM_FREE(u_roles[ui].roles.data.data);
-        }
+    ASSERT_EQ_FMT(1, (int)user_arr.length, "%d");
+    u_roles = (struct UserWithRoles *)user_arr.data;
+    for (ui = 0; ui < user_arr.length; ui++) {
+      for (ri = 0; ri < u_roles[ui].roles.data.length; ri++) {
+        C_ORM_FREE(u_roles[ui].roles.data.data[ri].name);
       }
+      C_ORM_FREE(u_roles[ui].roles.data.data);
     }
-    if (user_arr.data)
-      C_ORM_FREE(user_arr.data);
+    C_ORM_FREE(user_arr.data);
   }
 
   /* Delete parent */
@@ -904,16 +932,14 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
     err = c_orm_prepare_cached(db, "SELECT COUNT(*) FROM user_roles", &query);
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     db->vtable->step(query, &exists);
-    if (exists) {
-      db->vtable->get_int32(query, 0, &count);
-    }
+    ASSERT_EQ_FMT(1, exists, "%d");
+    db->vtable->get_int32(query, 0, &count);
     err = c_orm_finalize_cached(db, query);
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     ASSERT_EQ_FMT(0, count, "%d");
   }
 
-  if (db)
-    db->vtable->disconnect(db);
+  db->vtable->disconnect(db);
   PASS();
 }
 
@@ -922,17 +948,36 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
   X(S, C_ORM_TYPE_STRING, char *, text)                                        \
   X(S, C_ORM_TYPE_INT32, int32_t, post_id)
 
+/**
+ * @brief Comment model struct.
+ * @var id Comment identifier
+ * @var text Comment text content
+ * @var post_id Associated post identifier
+ */
 C_ORM_STRUCT(Comment, COMMENT_FIELDS)
 
 #define POST_WITH_COMMENTS_RELS(X, S)                                          \
   C_ORM_HAS_MANY(X, S, Comment, comments, "post_id", "id")
 
+/**
+ * @brief PostWithComments model struct.
+ * @var id Post identifier
+ * @var title Post title
+ * @var author_id Author identifier
+ * @var comments Comments relation collection
+ */
 C_ORM_STRUCT_WITH_RELATIONS(PostWithComments, POST_FIELDS,
                             POST_WITH_COMMENTS_RELS)
 
 #define USER_WITH_DEEP_POSTS_RELS(X, S)                                        \
   C_ORM_HAS_MANY(X, S, PostWithComments, posts, "author_id", "id")
 
+/**
+ * @brief UserWithDeepPosts model struct.
+ * @var id User identifier
+ * @var team_id Team identifier foreign key
+ * @var posts Deep posts relation collection
+ */
 C_ORM_STRUCT_WITH_RELATIONS(UserWithDeepPosts, USER_FIELDS,
                             USER_WITH_DEEP_POSTS_RELS)
 
@@ -1035,92 +1080,63 @@ TEST test_c_orm_deeply_nested_eager_loads(void) {
   ASSERT_EQ_FMT(1, user.posts.lazy_ctx.is_loaded, "%d");
   ASSERT_EQ_FMT(2, (int)user.posts.data.length, "%d");
 
-  if (user.posts.data.length >= 2) {
-    ASSERT_EQ_FMT(1, user.posts.data.data[0].id, "%d");
-    ASSERT_EQ_FMT(1, user.posts.data.data[0].comments.lazy_ctx.is_loaded, "%d");
-    ASSERT_EQ_FMT(2, (int)user.posts.data.data[0].comments.data.length, "%d");
+  ASSERT_EQ_FMT(1, user.posts.data.data[0].id, "%d");
+  ASSERT_EQ_FMT(1, user.posts.data.data[0].comments.lazy_ctx.is_loaded, "%d");
+  ASSERT_EQ_FMT(2, (int)user.posts.data.data[0].comments.data.length, "%d");
 
-    if (user.posts.data.data[0].comments.data.length >= 2) {
-      ASSERT_EQ_FMT(101, user.posts.data.data[0].comments.data.data[0].id,
-                    "%d");
-      ASSERT_STR_EQ("Nice post",
-                    user.posts.data.data[0].comments.data.data[0].text);
-      ASSERT_EQ_FMT(102, user.posts.data.data[0].comments.data.data[1].id,
-                    "%d");
-      ASSERT_STR_EQ("Awesome",
-                    user.posts.data.data[0].comments.data.data[1].text);
-    }
+  ASSERT_EQ_FMT(101, user.posts.data.data[0].comments.data.data[0].id, "%d");
+  ASSERT_STR_EQ("Nice post",
+                user.posts.data.data[0].comments.data.data[0].text);
+  ASSERT_EQ_FMT(102, user.posts.data.data[0].comments.data.data[1].id, "%d");
+  ASSERT_STR_EQ("Awesome", user.posts.data.data[0].comments.data.data[1].text);
 
-    ASSERT_EQ_FMT(2, user.posts.data.data[1].id, "%d");
-    ASSERT_EQ_FMT(1, user.posts.data.data[1].comments.lazy_ctx.is_loaded, "%d");
-    ASSERT_EQ_FMT(1, (int)user.posts.data.data[1].comments.data.length, "%d");
+  ASSERT_EQ_FMT(2, user.posts.data.data[1].id, "%d");
+  ASSERT_EQ_FMT(1, user.posts.data.data[1].comments.lazy_ctx.is_loaded, "%d");
+  ASSERT_EQ_FMT(1, (int)user.posts.data.data[1].comments.data.length, "%d");
 
-    if (user.posts.data.data[1].comments.data.length >= 1) {
-      ASSERT_EQ_FMT(103, user.posts.data.data[1].comments.data.data[0].id,
-                    "%d");
-      ASSERT_STR_EQ("Meh", user.posts.data.data[1].comments.data.data[0].text);
-    }
-  }
+  ASSERT_EQ_FMT(103, user.posts.data.data[1].comments.data.data[0].id, "%d");
+  ASSERT_STR_EQ("Meh", user.posts.data.data[1].comments.data.data[0].text);
 
   /* Cleanup */
-  if (user.posts.data.length > 0) {
+  {
     size_t i, j;
     for (i = 0; i < user.posts.data.length; i++) {
-      if (user.posts.data.data[i].title)
-        C_ORM_FREE(user.posts.data.data[i].title);
-      if (user.posts.data.data[i].comments.data.length > 0) {
-        for (j = 0; j < user.posts.data.data[i].comments.data.length; j++) {
-          if (user.posts.data.data[i].comments.data.data[j].text)
-            C_ORM_FREE(user.posts.data.data[i].comments.data.data[j].text);
-        }
-        C_ORM_FREE(user.posts.data.data[i].comments.data.data);
+      C_ORM_FREE(user.posts.data.data[i].title);
+      for (j = 0; j < user.posts.data.data[i].comments.data.length; j++) {
+        C_ORM_FREE(user.posts.data.data[i].comments.data.data[j].text);
       }
+      C_ORM_FREE(user.posts.data.data[i].comments.data.data);
     }
     C_ORM_FREE(user.posts.data.data);
   }
 
   {
-    struct {
-      void *data;
-      size_t length;
-      size_t capacity;
-    } deep_arr;
+    size_t ui, pi, ci;
+    struct UserWithDeepPosts *u_deep;
+    struct Generic_Array deep_arr;
     user_m.query_select_all = "SELECT id, team_id FROM User";
     memset(&deep_arr, 0, sizeof(deep_arr));
     err = c_orm_find_all_with_relations(db, &user_m, paths, 1, &deep_arr);
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-    if (deep_arr.length > 0) {
-      struct UserWithDeepPosts *u_deep =
-          (struct UserWithDeepPosts *)deep_arr.data;
-      size_t ui, pi, ci;
-      for (ui = 0; ui < deep_arr.length; ui++) {
-        if (u_deep[ui].posts.data.data) {
-          for (pi = 0; pi < u_deep[ui].posts.data.length; pi++) {
-            if (u_deep[ui].posts.data.data[pi].title)
-              C_ORM_FREE(u_deep[ui].posts.data.data[pi].title);
-            if (u_deep[ui].posts.data.data[pi].comments.data.data) {
-              for (ci = 0;
-                   ci < u_deep[ui].posts.data.data[pi].comments.data.length;
-                   ci++) {
-                if (u_deep[ui].posts.data.data[pi].comments.data.data[ci].text)
-                  C_ORM_FREE(u_deep[ui]
-                                 .posts.data.data[pi]
-                                 .comments.data.data[ci]
-                                 .text);
-              }
-              C_ORM_FREE(u_deep[ui].posts.data.data[pi].comments.data.data);
-            }
-          }
-          C_ORM_FREE(u_deep[ui].posts.data.data);
+    ASSERT_EQ_FMT(1, (int)deep_arr.length, "%d");
+    u_deep = (struct UserWithDeepPosts *)deep_arr.data;
+    for (ui = 0; ui < deep_arr.length; ui++) {
+      for (pi = 0; pi < u_deep[ui].posts.data.length; pi++) {
+        C_ORM_FREE(u_deep[ui].posts.data.data[pi].title);
+        for (ci = 0; ci < u_deep[ui].posts.data.length &&
+                     ci < u_deep[ui].posts.data.data[pi].comments.data.length;
+             ci++) {
+          C_ORM_FREE(
+              u_deep[ui].posts.data.data[pi].comments.data.data[ci].text);
         }
+        C_ORM_FREE(u_deep[ui].posts.data.data[pi].comments.data.data);
       }
+      C_ORM_FREE(u_deep[ui].posts.data.data);
     }
-    if (deep_arr.data)
-      C_ORM_FREE(deep_arr.data);
+    C_ORM_FREE(deep_arr.data);
   }
 
-  if (db)
-    db->vtable->disconnect(db);
+  db->vtable->disconnect(db);
   PASS();
 }
 
@@ -1215,8 +1231,7 @@ TEST test_c_orm_query_builder_relation_filtering(void) {
   C_ORM_FREE(sql);
   c_orm_select_builder_free(builder);
 
-  if (db)
-    db->vtable->disconnect(db);
+  db->vtable->disconnect(db);
   PASS();
 }
 
@@ -1225,14 +1240,33 @@ TEST test_c_orm_query_builder_relation_filtering(void) {
   X(S, C_ORM_TYPE_STRING, char *, name)                                        \
   X(S, C_ORM_TYPE_INT32, int32_t *, parent_id)
 
+/**
+ * @brief Node model struct.
+ * @var id Node identifier
+ * @var name Node name
+ * @var parent_id Parent node identifier pointer
+ */
 C_ORM_STRUCT(Node, NODE_FIELDS)
 
-/* Struct Forward Declaration explicitly needed for self-referencing macro */
+/**
+ * @brief Self-referencing NodeTree structure forward declaration.
+ * @var id Node identifier
+ * @var name Node name
+ * @var parent_id Parent identifier pointer
+ * @var children Children nodes collection
+ */
 struct NodeTree;
 
 #define NODE_RELS(X, S)                                                        \
   C_ORM_HAS_MANY(X, S, NodeTree, children, "parent_id", "id")
 
+/**
+ * @brief Self-referencing NodeTree model struct.
+ * @var id Node identifier
+ * @var name Node name
+ * @var parent_id Parent node identifier pointer
+ * @var children Children collection
+ */
 C_ORM_STRUCT_WITH_RELATIONS(NodeTree, NODE_FIELDS, NODE_RELS)
 
 /**
@@ -1296,57 +1330,35 @@ TEST test_c_orm_self_referencing_tree(void) {
   ASSERT_EQ_FMT(1, root.children.lazy_ctx.is_loaded, "%d");
   ASSERT_EQ_FMT(2, (int)root.children.data.length, "%d");
 
-  if (root.children.data.length >= 2) {
-    ASSERT_STR_EQ("Child A", root.children.data.data[0].name);
-    ASSERT_STR_EQ("Child B", root.children.data.data[1].name);
+  ASSERT_STR_EQ("Child A", root.children.data.data[0].name);
+  ASSERT_STR_EQ("Child B", root.children.data.data[1].name);
 
-    /* Lazy Load Grandchildren */
-    err = c_orm_lazy_load(db, &node_m, &root.children.data.data[0], "children");
-    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-    ASSERT_EQ_FMT(1, (int)root.children.data.data[0].children.data.length,
-                  "%d");
-    ASSERT_STR_EQ("Grandchild",
-                  root.children.data.data[0].children.data.data[0].name);
-  }
+  /* Lazy Load Grandchildren */
+  err = c_orm_lazy_load(db, &node_m, &root.children.data.data[0], "children");
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_EQ_FMT(1, (int)root.children.data.data[0].children.data.length, "%d");
+  ASSERT_STR_EQ("Grandchild",
+                root.children.data.data[0].children.data.data[0].name);
 
   /* Cleanup */
-  if (root.name)
-    C_ORM_FREE(root.name);
-  if (root.children.data.length > 0) {
-    size_t i;
+  C_ORM_FREE(root.name);
+  {
+    size_t i, j;
     for (i = 0; i < root.children.data.length; i++) {
-      if (root.children.data.data[i].name)
-        C_ORM_FREE(root.children.data.data[i].name);
-      if (root.children.data.data[i].parent_id)
-        C_ORM_FREE(root.children.data.data[i].parent_id);
-      if (root.children.data.data[i].children.data.length > 0) {
-        size_t j;
-        for (j = 0; j < root.children.data.data[i].children.data.length; j++) {
-          if (root.children.data.data[i].children.data.data[j].name)
-            C_ORM_FREE(root.children.data.data[i].children.data.data[j].name);
-          if (root.children.data.data[i].children.data.data[j].parent_id)
-            C_ORM_FREE(
-                root.children.data.data[i].children.data.data[j].parent_id);
-        }
-        C_ORM_FREE(root.children.data.data[i].children.data.data);
+      C_ORM_FREE(root.children.data.data[i].name);
+      C_ORM_FREE(root.children.data.data[i].parent_id);
+      for (j = 0; j < root.children.data.data[i].children.data.length; j++) {
+        C_ORM_FREE(root.children.data.data[i].children.data.data[j].name);
+        C_ORM_FREE(root.children.data.data[i].children.data.data[j].parent_id);
       }
+      C_ORM_FREE(root.children.data.data[i].children.data.data);
     }
     C_ORM_FREE(root.children.data.data);
   }
 
-  if (db)
-    db->vtable->disconnect(db);
+  db->vtable->disconnect(db);
   PASS();
 }
-
-/**
- * @brief Generic array container for test relations.
- */
-struct Generic_Array {
-  void *data;      /**< Pointer to array elements buffer. */
-  size_t length;   /**< Current number of elements. */
-  size_t capacity; /**< Total allocated capacity. */
-};
 
 /**
  * @brief Test structure containing foreign keys and lazy relation contexts.
@@ -1471,13 +1483,13 @@ TEST test_c_orm_relation_advanced_features(void) {
       db, "INSERT INTO bridge (src_str, item_id) VALUES ('code_123', 1);");
   err = c_orm_load_relation_ext(db, &obj, &p_meta, 1, 10, 0);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-  if (obj.items_arr.data) {
-    C_ORM_FREE(obj.items_arr.data);
-    obj.items_arr.data = NULL;
-  }
+  C_ORM_FREE(obj.items_arr.data);
+  obj.items_arr.data = NULL;
   obj.ctx.is_loaded = 0;
   err = c_orm_load_relation_ext(db, &obj, &p_meta, 1, 10, 5);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  C_ORM_FREE(obj.items_arr.data);
+  obj.items_arr.data = NULL;
 
   /* 4. Missing join_table in HAS_MANY_THROUGH */
   obj.ctx.is_loaded = 0;
@@ -1505,7 +1517,12 @@ TEST test_c_orm_relation_advanced_features(void) {
 /**
  * @brief Test suite registering relational mapping and cascade operation tests.
  */
+/**
+ * @brief Test suite registering relational mapping and cascade operation tests.
+ * @param relations_suite Suite runner function name.
+ */
 SUITE(relations_suite) {
+  static int recursed = 0;
   RUN_TEST(test_c_orm_lazy_load_relations);
   RUN_TEST(test_c_orm_eager_load_relations);
   RUN_TEST(test_c_orm_nested_insert_relations);
@@ -1517,6 +1534,13 @@ SUITE(relations_suite) {
   RUN_TEST(test_c_orm_deeply_nested_eager_loads);
   RUN_TEST(test_c_orm_self_referencing_tree);
   RUN_TEST(test_c_orm_relation_advanced_features);
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    relations_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #if defined(__clang__) || defined(__GNUC__)

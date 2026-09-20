@@ -1,5 +1,11 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file c_orm_c_to_sql.c
+ * @defgroup c_orm_c_to_sql C to SQL Generation
+ * @brief Translates C structures and IR schemas into SQL DDL statements.
+ */
+
 /* clang-format off */
 #include "c_orm_c_to_sql.h"
 #include "c_orm_safe_crt.h"
@@ -7,6 +13,13 @@
 #include <stdlib.h>
 /* clang-format on */
 
+/**
+ * @brief Map a C type name to an SQL dialect type string.
+ * @param c_type String representing the C type.
+ * @param dialect Target SQL dialect.
+ * @param out_sql Pointer receiving output SQL type string literal.
+ * @return C_ORM_OK on success.
+ */
 static c_orm_error_t map_c_type_to_sql(const char *c_type,
                                        c_to_sql_dialect_t dialect,
                                        const char **out_sql) {
@@ -51,6 +64,14 @@ static c_orm_error_t map_c_type_to_sql(const char *c_type,
   return 0;
 }
 
+/**
+ * @brief Emits a CREATE TABLE statement to a file pointer from struct fields.
+ * @param fp Target file pointer.
+ * @param table_name Name of the SQL table to create.
+ * @param sf Struct fields metadata.
+ * @param dialect Target SQL dialect.
+ * @return C_ORM_OK on success or error code.
+ */
 C_ORM_EXPORT c_orm_error_t write_struct_to_sql_create_table(
     FILE *fp, const char *table_name, const struct StructFields *sf,
     c_to_sql_dialect_t dialect) {

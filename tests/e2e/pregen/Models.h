@@ -1,3 +1,9 @@
+/**
+ * @file Models.h
+ * @defgroup e2e_pregen Pre-generated E2E Models
+ * @brief Pre-generated C models and arrays for end-to-end testing.
+ */
+
 #ifndef MODELS_H
 #define MODELS_H
 
@@ -66,12 +72,19 @@ extern "C" {
  * @brief Represents a single row of the users table.
  */
 struct Users {
+  /** @brief User ID primary key. */
   int32_t id;
+  /** @brief User's unique username. */
   char *username;
+  /** @brief User's email address. */
   char *email;
-  int32_t *age;    /**< Nullable */
-  float *score;    /**< Nullable */
+  /** @brief User's age (nullable). */
+  int32_t *age; /**< Nullable */
+  /** @brief User's numeric score (nullable). */
+  float *score; /**< Nullable */
+  /** @brief Flag indicating if the user is active (nullable). */
   bool *is_active; /**< Nullable */
+  /** @brief Timestamp string when the user was created. */
   char *created_at;
 };
 
@@ -79,8 +92,11 @@ struct Users {
  * @brief A collection of Users rows.
  */
 struct Users_Array {
+  /** @brief Pointer to array of Users structs. */
   struct Users *data;
+  /** @brief Current count of elements in array. */
   size_t length;
+  /** @brief Allocated element capacity of array. */
   size_t capacity;
 };
 
@@ -145,11 +161,17 @@ extern "C" {
  * @brief Represents a single row of the posts table.
  */
 struct Posts {
+  /** @brief Post ID primary key. */
   int32_t id;
+  /** @brief Foreign key ID to user row. */
   int32_t user_id;
+  /** @brief Post title string. */
   char *title;
+  /** @brief Post content string. */
   char *content;
+  /** @brief Post view count (nullable). */
   int64_t *views; /**< Nullable */
+  /** @brief Published date string. */
   char *published_date;
 };
 
@@ -157,8 +179,11 @@ struct Posts {
  * @brief A collection of Posts rows.
  */
 struct Posts_Array {
+  /** @brief Pointer to array of Posts structs. */
   struct Posts *data;
+  /** @brief Current count of elements in array. */
   size_t length;
+  /** @brief Allocated element capacity of array. */
   size_t capacity;
 };
 
@@ -223,10 +248,15 @@ extern "C" {
  * @brief Represents a single row of the oauth2_tokens table.
  */
 struct Oauth2_tokens {
+  /** @brief OAuth2 access token string. */
   char *access_token;
+  /** @brief OAuth2 refresh token string. */
   char *refresh_token;
+  /** @brief OAuth2 token type string. */
   char *token_type;
+  /** @brief Token expiration in seconds (nullable). */
   int32_t *expires_in; /**< Nullable */
+  /** @brief Timestamp when token was created (nullable). */
   int64_t *created_at; /**< Nullable */
 };
 
@@ -234,8 +264,11 @@ struct Oauth2_tokens {
  * @brief A collection of Oauth2_tokens rows.
  */
 struct Oauth2_tokens_Array {
+  /** @brief Pointer to array of Oauth2_tokens structs. */
   struct Oauth2_tokens *data;
+  /** @brief Current count of elements in array. */
   size_t length;
+  /** @brief Allocated element capacity of array. */
   size_t capacity;
 };
 

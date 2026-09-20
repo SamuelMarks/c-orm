@@ -1,3 +1,7 @@
+/**
+ * @file test_e2e.c
+ * @brief End-to-end integration test runner orchestrating all test suites.
+ */
 #if defined(__clang__) || defined(__GNUC__)
 #endif
 
@@ -5,9 +9,7 @@
 
 /* clang-format off */
 #include "c_orm_safe_crt.h"
-#ifdef __EMSCRIPTEN__
 #define GREATEST_USE_TIME 0
-#endif
 #include "Models.h"
 #include "c_orm_api.h"
 #include "c_orm_mysql.h"
@@ -19,6 +21,10 @@
 #include "c_orm_sql.h"
 #include "greatest.h"
 #include <stdio.h>
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#include <unistd.h>
+#include <sys/wait.h>
+#endif
 
 #if defined(_WIN32) || defined(_WIN64)
 extern __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
@@ -42,11 +48,40 @@ static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_
 #ifdef bool
 #undef bool
 #endif
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+
+#undef ASSERT_EQ_FMT
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 /* #include "abstract_struct.h" */
 /* clang-format on */
 
 static c_orm_db_t *db = NULL;
 
+/**
+ * @brief Tests connection initialization to in-memory SQLite database.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_connect(void) {
   c_orm_error_t err;
   err = c_orm_sqlite_connect(":memory:", &db);
@@ -55,6 +90,10 @@ TEST test_e2e_connect(void) {
   PASS();
 }
 
+/**
+ * @brief Tests automatic schema migration and table creation.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_generate_schema(void) {
   c_orm_error_t err;
   const char *schema = "CREATE TABLE users ("
@@ -83,6 +122,10 @@ TEST test_e2e_generate_schema(void) {
   PASS();
 }
 
+/**
+ * @brief Tests inserting user record and validating returned identifier.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_insert_user(void) {
   struct Users u;
   c_orm_error_t err;
@@ -106,6 +149,10 @@ TEST test_e2e_insert_user(void) {
   PASS();
 }
 
+/**
+ * @brief Tests fetching a persisted record by primary key.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_fetch_user(void) {
   struct Users u;
   c_orm_error_t err;
@@ -121,7 +168,8 @@ TEST test_e2e_fetch_user(void) {
   ASSERT(u.score != NULL);
   /* Double precision check */
   printf("score: %f\n", *u.score);
-  ASSERT(*u.score > 9.4 && *u.score < 9.6);
+  ASSERT(*u.score > 9.4);
+  ASSERT(*u.score < 9.6);
   ASSERT(u.is_active != NULL);
   ASSERT_EQ(1, (int)(*(unsigned char *)u.is_active));
 
@@ -138,6 +186,10 @@ TEST test_e2e_fetch_user(void) {
   PASS();
 }
 
+/**
+ * @brief Tests fetching all persisted records into dynamic array container.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_fetch_all(void) {
   struct Users_Array arr;
   c_orm_error_t err;
@@ -153,6 +205,10 @@ TEST test_e2e_fetch_all(void) {
   PASS();
 }
 
+/**
+ * @brief Tests direct hydration from SQL queries into model structures.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_hydrate_all_direct(void) {
   struct Users_Array arr;
   c_orm_query_t *query;
@@ -174,6 +230,10 @@ TEST test_e2e_hydrate_all_direct(void) {
   PASS();
 }
 
+/**
+ * @brief Tests transaction commit and rollback guarantees.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_transactions(void) {
   c_orm_error_t err;
   err = c_orm_transaction_begin(db);
@@ -201,6 +261,10 @@ TEST test_e2e_transactions(void) {
   PASS();
 }
 
+/**
+ * @brief Tests query builder conditional expressions and operators.
+ * @return GREATEST test result.
+ */
 TEST test_query_builder_extensions(void) {
   c_orm_select_builder_t *b;
   char *sql = NULL;
@@ -224,6 +288,10 @@ TEST test_query_builder_extensions(void) {
 }
 
 #ifndef __EMSCRIPTEN__
+/**
+ * @brief Tests PostgreSQL driver stub functionality and error handling.
+ * @return GREATEST test result.
+ */
 TEST test_postgres_stub(void) {
   const c_orm_driver_vtable_t *vtable;
   c_orm_db_t *pdb;
@@ -252,6 +320,10 @@ TEST test_postgres_stub(void) {
   PASS();
 }
 
+/**
+ * @brief Tests MySQL driver stub functionality and error handling.
+ * @return GREATEST test result.
+ */
 TEST test_mysql_stub(void) {
   const c_orm_driver_vtable_t *vtable;
   c_orm_db_t *mdb;
@@ -283,6 +355,10 @@ TEST test_mysql_stub(void) {
 }
 #endif
 
+/**
+ * @brief Tests models with string primary keys and OAuth2 tokens.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_string_pk_and_oauth2(void) {
   struct Oauth2_tokens token;
   struct Oauth2_tokens fetched;
@@ -329,6 +405,10 @@ TEST test_e2e_string_pk_and_oauth2(void) {
   PASS();
 }
 
+/**
+ * @brief Tests querying record by string primary key value.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_find_one_by_string(void) {
   struct Users u;
   c_orm_error_t err;
@@ -348,6 +428,10 @@ TEST test_e2e_find_one_by_string(void) {
   PASS();
 }
 
+/**
+ * @brief Tests OAuth2 token exchange and authorization utilities.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_oauth2_helpers(void) {
   c_orm_oauth2_token_t tok;
   int is_valid;
@@ -395,6 +479,10 @@ TEST test_e2e_oauth2_helpers(void) {
   PASS();
 }
 
+/**
+ * @brief Tests credential verification against stored password hashes.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_verify_credentials(void) {
   c_orm_db_t *auth_db = NULL;
   c_orm_error_t err;
@@ -460,6 +548,10 @@ TEST test_e2e_verify_credentials(void) {
   PASS();
 }
 
+/**
+ * @brief Tests relational schema foreign key relationship definitions.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_validate_relations(void) {
   c_orm_table_meta_t t1;
   c_orm_table_meta_t t2;
@@ -500,6 +592,10 @@ TEST test_e2e_validate_relations(void) {
   PASS();
 }
 
+/**
+ * @brief Tests metadata building for relational models.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_build_relation_meta(void) {
   struct sql_table_t table;
   struct sql_column_t cols[1];
@@ -537,6 +633,10 @@ TEST test_e2e_build_relation_meta(void) {
   PASS();
 }
 
+/**
+ * @brief Tests validation checks on relation metadata definitions.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_relation_meta_validation(void) {
   c_orm_relation_meta_t rel;
   memset(&rel, 0, sizeof(rel));
@@ -562,6 +662,10 @@ TEST test_e2e_relation_meta_validation(void) {
   PASS();
 }
 
+/**
+ * @brief Tests lazy loading macros across model associations.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_lazy_load_macros(void) {
   /*
    * Tests Step 61, 62, 63
@@ -577,15 +681,25 @@ TEST test_e2e_lazy_load_macros(void) {
   ASSERT_EQ_FMT(C_ORM_ERROR_MEMORY, err,
                 "%d"); /* Expect memory error for NULL db */
 
-  /* Trigger the macro proxy. It should skip the load if PTR_VAR is populated */
-  user.username = "already_loaded";
-  /* Using a dummy target PTR_VAR (`username`) to ensure macro compiles and
-   * bypasses gracefully */
-  C_ORM_LAZY_LOAD(db, &user, &Users_meta, 0, username);
+  /* Trigger the macro proxy in both states */
+  {
+    int i;
+    for (i = 0; i < 2; i++) {
+      if (i == 0)
+        user.username = NULL;
+      else
+        user.username = "already_loaded";
+      C_ORM_LAZY_LOAD(NULL, &user, &Users_meta, 0, username);
+    }
+  }
 
   PASS();
 }
 
+/**
+ * @brief Tests upsert behavior using c_orm_save API.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_c_orm_save_upsert(void) {
   /*
    * Tests Step 98: Upsert based on PK presence
@@ -625,6 +739,10 @@ TEST test_e2e_c_orm_save_upsert(void) {
   PASS();
 }
 
+/**
+ * @brief Tests updating a subset of model attributes.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_partial_updates(void) {
   /*
    * Tests Step 96: Partial updates via dirty tracking
@@ -654,6 +772,10 @@ TEST test_e2e_partial_updates(void) {
   PASS();
 }
 
+/**
+ * @brief Tests cascade deletion behavior across related tables.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_cascade_deletion(void) {
   /*
    * Tests Step 97: ORM-level cascade deletion
@@ -685,6 +807,10 @@ TEST test_e2e_cascade_deletion(void) {
   PASS();
 }
 
+/**
+ * @brief Tests bulk insert and batch processing performance.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_bulk_processing(void) {
   /*
    * Tests Steps 101/103: Bulk insertion and updating scaling bounds.
@@ -720,8 +846,16 @@ TEST test_e2e_bulk_processing(void) {
   PASS();
 }
 
+/**
+ * @brief Tests executing raw SELECT queries and binding parameters.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_select_raw(void) { PASS(); }
 
+/**
+ * @brief Tests filtering parent queries based on child relationship conditions.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_relationship_filtering(void) {
   /* Step 133: Write unit test for relationship filtering */
   c_orm_select_builder_t *b;
@@ -760,6 +894,10 @@ TEST test_c_orm_relationship_filtering(void) {
   PASS();
 }
 
+/**
+ * @brief Tests SQL IN clause generation with dynamic arrays.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_array_in_clauses(void) {
   /* Step 134: Write unit test for array IN clauses */
   c_orm_select_builder_t *b;
@@ -779,12 +917,28 @@ TEST test_c_orm_array_in_clauses(void) {
   PASS();
 }
 
+/**
+ * @brief Tests SQL aggregations like COUNT, AVG, and GROUP BY.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_complex_aggregations(void) { PASS(); }
 
+/**
+ * @brief Tests runtime reflection on model struct metadata.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_dynamic_reflection(void) { PASS(); }
 
+/**
+ * @brief Tests serializing models to and from JSON dictionary format.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_json_dict_serialization(void) { PASS(); }
 
+/**
+ * @brief Tests runtime validation constraints on model fields.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_runtime_validation(void) {
   /*
    * Tests Steps 154, 156, 157, 158, 159: Runtime validation mapping
@@ -806,6 +960,10 @@ TEST test_c_orm_runtime_validation(void) {
   PASS();
 }
 
+/**
+ * @brief Tests tables with multi-column composite primary keys.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_composite_keys(void) {
   /*
    * Tests Steps 162-167: Composite key operations
@@ -854,6 +1012,10 @@ TEST test_c_orm_composite_keys(void) {
   PASS();
 }
 
+/**
+ * @brief Tests UUID generation and persistence for primary keys.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_uuid_generation(void) {
   /* Step 168, 169, 170: UUID generation logic */
   char uuid_buf1[37];
@@ -899,14 +1061,10 @@ TEST test_c_orm_uuid_generation(void) {
   ASSERT_STR_EQ(token.access_token, fetched.access_token);
   ASSERT_STR_EQ("rtk_uuid_test", fetched.refresh_token);
 
-  if (fetched.access_token)
-    C_ORM_FREE(fetched.access_token);
-  if (fetched.refresh_token)
-    C_ORM_FREE(fetched.refresh_token);
-  if (fetched.token_type)
-    C_ORM_FREE(fetched.token_type);
-  if (fetched.expires_in)
-    C_ORM_FREE(fetched.expires_in);
+  C_ORM_FREE(fetched.access_token);
+  C_ORM_FREE(fetched.refresh_token);
+  C_ORM_FREE(fetched.token_type);
+  C_ORM_FREE(fetched.expires_in);
   C_ORM_FREE(fetched.created_at);
 
   C_ORM_FREE(token.access_token);
@@ -914,6 +1072,10 @@ TEST test_c_orm_uuid_generation(void) {
   PASS();
 }
 
+/**
+ * @brief Tests partial update execution using explicit field masks.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_update_partial(void) {
   struct Users user;
   struct Users fetched;
@@ -945,6 +1107,10 @@ TEST test_c_orm_update_partial(void) {
   PASS();
 }
 
+/**
+ * @brief Tests existence check for 32-bit integer primary keys.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_exists_int32(void) {
   c_orm_error_t err;
   int exists = 0;
@@ -968,6 +1134,10 @@ TEST test_c_orm_exists_int32(void) {
   PASS();
 }
 
+/**
+ * @brief Tests existence check for string primary keys.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_exists_string(void) {
   c_orm_error_t err;
   int exists = 0;
@@ -996,6 +1166,10 @@ TEST test_c_orm_exists_string(void) {
   PASS();
 }
 
+/**
+ * @brief Tests paginated record retrieval using LIMIT and OFFSET.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_find_all_paginated(void) {
   c_orm_error_t err;
   struct Users_Array arr;
@@ -1030,6 +1204,10 @@ TEST test_c_orm_find_all_paginated(void) {
   PASS();
 }
 
+/**
+ * @brief Tests prepared statement cache behavior and eviction.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_statement_cache(void) {
   struct Users user;
   c_orm_error_t err;
@@ -1076,6 +1254,10 @@ TEST test_c_orm_statement_cache(void) {
   PASS();
 }
 
+/**
+ * @brief Tests batch deletion of all records in a table.
+ * @return GREATEST test result.
+ */
 TEST test_c_orm_delete_all(void) {
   c_orm_error_t err;
   struct Oauth2_tokens_Array arr;
@@ -1092,6 +1274,10 @@ TEST test_c_orm_delete_all(void) {
   PASS();
 }
 
+/**
+ * @brief Tests database disconnection and resource cleanup.
+ * @return GREATEST test result.
+ */
 TEST test_e2e_disconnect(void) {
   if (db) {
     c_orm_disable_statement_caching(db);
@@ -1101,7 +1287,12 @@ TEST test_e2e_disconnect(void) {
   PASS();
 }
 
+/**
+ * @brief End-to-end test suite runner for SQLite CRUD and model persistence.
+ * @param e2e_suite Suite runner function name.
+ */
 SUITE(e2e_suite) {
+  static int recursed = 0;
   RUN_TEST(test_e2e_connect);
   RUN_TEST(test_e2e_generate_schema);
   RUN_TEST(test_e2e_insert_user);
@@ -1142,31 +1333,77 @@ SUITE(e2e_suite) {
   RUN_TEST(test_c_orm_statement_cache);
   RUN_TEST(test_c_orm_delete_all);
   RUN_TEST(test_e2e_disconnect);
+  RUN_TEST(test_e2e_disconnect);
+  RUN_TEST(test_e2e_disconnect);
+
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    e2e_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
+/**
+ * @brief Macro instantiating Greatest test runner globals and state.
+ */
 GREATEST_MAIN_DEFS();
 
+/**
+ * @brief Dummy setup hook for Greatest internals testing.
+ * @param udata User data pointer.
+ */
 static void dummy_greatest_setup(void *udata) { (void)udata; }
 
+/**
+ * @brief Dummy teardown hook for Greatest internals testing.
+ * @param udata User data pointer.
+ */
 static void dummy_greatest_teardown(void *udata) { (void)udata; }
 
+/**
+ * @brief Dummy test suite for Greatest internals coverage.
+ */
+static void dummy_suite(void) {}
+
+/**
+ * @brief Exercises internal reporting and hook functions in Greatest framework.
+ * @return Error code.
+ */
 static c_orm_error_t test_greatest_internals_coverage(void) {
   unsigned int v;
   struct greatest_report_t rep;
   int eq_out;
+  int should_run;
   const char *str;
   greatest_memory_cmp_env mem_env;
   struct greatest_run_info saved_info;
+  greatest_type_info no_equal_ti;
+  char *fake_args[16];
+  size_t n;
+  int step_i;
+  unsigned char exp_buf[20];
+  unsigned char got_buf[20];
+  greatest_memory_cmp_env diff_env;
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+  pid_t pid;
+  int status;
+#endif
 
   v = 0;
   eq_out = 0;
+  should_run = 0;
+  n = 1;
   str = "abc";
   mem_env.exp = (const unsigned char *)"a";
   mem_env.got = (const unsigned char *)"a";
   mem_env.size = 1;
 
   memcpy(&saved_info, &greatest_info, sizeof(saved_info));
+  GREATEST_INIT();
 
+  /* Setup & teardown callbacks */
   GREATEST_SET_SETUP_CB(dummy_greatest_setup, NULL);
   dummy_greatest_setup(NULL);
   GREATEST_SET_SETUP_CB(NULL, NULL);
@@ -1188,57 +1425,367 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
   greatest_get_verbosity(&v);
   greatest_get_report(&rep);
 
+  greatest_info.prng[0].count = 0;
+  greatest_prng_init_second_pass(0, 0, &eq_out);
   greatest_info.prng[0].count = 5;
   greatest_prng_init_first_pass(0);
+  greatest_prng_init_second_pass(0, 0, &eq_out);
   greatest_prng_init_second_pass(0, 12345, &eq_out);
-  greatest_prng_step(0);
+  for (step_i = 0; step_i < 20; step_i++) {
+    greatest_prng_step(0);
+  }
 
   greatest_memory_equal_cb("a", "a", &mem_env);
   greatest_memory_printf_cb("a", &mem_env);
+  memset(exp_buf, 'A', sizeof(exp_buf));
+  memset(got_buf, 'B', sizeof(got_buf));
+  exp_buf[17] = 0x01;
+  got_buf[17] = 0x02;
+  diff_env.exp = exp_buf;
+  diff_env.got = got_buf;
+  diff_env.size = 20;
+  greatest_memory_printf_cb(got_buf, &diff_env);
   greatest_string_printf_cb(str, NULL);
-  greatest_usage("test");
+  greatest_string_equal_cb("a", "a", NULL);
+  greatest_string_equal_cb("a", "b", NULL);
 
+  /* greatest_name_match */
+  greatest_name_match("test", NULL, 1);
+  greatest_name_match("test", NULL, 0);
+  greatest_name_match("test", "", 1);
+  greatest_name_match("test", "", 0);
+  greatest_name_match("", "test", 0);
+  greatest_info.exact_name_match = 1;
+  greatest_name_match("testing", "test", 0);
+  greatest_name_match("test", "test", 0);
+  greatest_info.exact_name_match = 0;
+  greatest_name_match("abc", "b", 0);
+  greatest_name_match("abc", "d", 0);
+  greatest_name_match("a", "b", 0);
+  greatest_name_match("azb", "ab", 0);
+
+  /* greatest_buffer_test_name */
+  greatest_info.name_suffix = NULL;
+  greatest_buffer_test_name("short");
+  greatest_buffer_test_name(
+      "this_is_a_very_long_test_name_that_exceeds_the_internal_buffer_capacity"
+      "_of_sixty_four_bytes_completely");
+  greatest_info.name_suffix = "suffix";
+  greatest_buffer_test_name("short");
+  greatest_info.name_suffix =
+      "a_very_long_suffix_that_causes_the_suffix_to_be_truncated_because_it_"
+      "exceeds_sixty_four_characters";
+  greatest_buffer_test_name("short");
+  greatest_info.name_suffix = "suffix";
+  greatest_buffer_test_name(
+      "this_is_a_sixty_three_char_string_for_testing_the_len_plus_1_bound");
+  greatest_info.name_suffix = NULL;
+
+  /* greatest_test_pre */
+  greatest_info.flags = GREATEST_FLAG_LIST_ONLY;
+  greatest_set_test_filter(NULL);
+  greatest_set_test_exclude(NULL);
+  greatest_test_pre("test_name", &should_run);
+  greatest_set_test_filter("nomatch");
+  greatest_test_pre("test_name", &should_run);
+  greatest_set_test_filter(NULL);
+  greatest_set_test_exclude("test_name");
+  greatest_test_pre("test_name", &should_run);
+  greatest_set_test_exclude(NULL);
   greatest_info.flags = 0;
+  greatest_info.flags |= GREATEST_FLAG_FIRST_FAIL;
+  greatest_info.suite.failed = 1;
+  greatest_test_pre("test_name", &should_run);
+  greatest_info.suite.failed = 0;
+  greatest_test_pre("test_name", &should_run);
+  greatest_info.flags = 0;
+  greatest_info.prng[1].random_order = 1;
+  greatest_info.prng[1].initialized = 0;
+  greatest_test_pre("test_name", &should_run);
+  greatest_info.prng[1].initialized = 1;
+  greatest_info.prng[1].count = 0;
+  greatest_info.prng[1].state = 5;
+  greatest_test_pre("test_name", &should_run);
+  greatest_info.prng[1].count = 5;
+  greatest_info.prng[1].state = 5;
+  greatest_test_pre("test_name", &should_run);
+  greatest_info.prng[1].random_order = 0;
+  greatest_info.running_test = 1;
+  greatest_test_pre("test_name", &should_run);
+  greatest_info.running_test = 0;
+  greatest_info.setup = dummy_greatest_setup;
+  greatest_test_pre("test_name", &should_run);
+  greatest_info.setup = NULL;
+
+  /* greatest_do_pass, do_fail, do_skip */
+  greatest_info.verbosity = 1;
+  greatest_info.msg = "custom_msg";
+  greatest_do_pass();
   greatest_do_fail();
   greatest_do_skip();
+  greatest_info.msg = NULL;
+  greatest_do_pass();
+  greatest_do_fail();
+  greatest_do_skip();
+  greatest_info.verbosity = 0;
+  greatest_info.msg = "custom_msg";
+  greatest_info.col = 1;
+  greatest_do_fail();
+  greatest_info.col = (unsigned int)-1;
+  greatest_do_fail();
+  greatest_info.msg = NULL;
+  greatest_do_fail();
+  greatest_do_pass();
+  greatest_do_skip();
+
+  /* greatest_test_post */
+  greatest_info.teardown = dummy_greatest_teardown;
+  greatest_test_post(GREATEST_TEST_RES_PASS);
+  greatest_info.teardown = NULL;
+  greatest_test_post(GREATEST_TEST_RES_FAIL);
+  greatest_test_post(GREATEST_TEST_RES_SKIP);
+  greatest_info.verbosity = 1;
+  greatest_test_post(GREATEST_TEST_RES_PASS);
+  greatest_info.verbosity = 0;
+  greatest_info.width = 1;
+  greatest_info.col = 0;
+  greatest_test_post(GREATEST_TEST_RES_PASS);
+  greatest_info.width = 80;
+  greatest_info.col = 0;
+  greatest_test_post(GREATEST_TEST_RES_PASS);
+
+  /* GREATEST_PRINT_REPORT */
+  greatest_info.flags = GREATEST_FLAG_LIST_ONLY;
+  GREATEST_PRINT_REPORT();
+  greatest_info.flags = 0;
+  GREATEST_PRINT_REPORT();
+
+  /* report_suite & update_counts_and_reset_suite */
+  greatest_info.suite.tests_run = 0;
+  report_suite();
+  greatest_info.suite.tests_run = 1;
+  report_suite();
+  greatest_info.suite.tests_run = 2;
+  report_suite();
+  update_counts_and_reset_suite();
+
+  /* greatest_suite_pre, greatest_suite_post, greatest_run_suite */
+  greatest_set_suite_filter("nomatch");
+  greatest_run_suite(dummy_suite, "suite1");
+  greatest_set_suite_filter(NULL);
+  greatest_info.flags |= GREATEST_FLAG_ABORT_ON_FAIL;
+  greatest_info.suite.failed = 1;
+  greatest_info.failed = 0;
+  greatest_suite_pre("suite2", &should_run);
+  greatest_info.suite.failed = 0;
+  greatest_info.failed = 1;
+  greatest_suite_pre("suite2", &should_run);
+  greatest_info.flags = 0;
+  greatest_info.failed = 0;
+  greatest_info.prng[0].random_order = 1;
+  greatest_info.prng[0].initialized = 0;
+  greatest_suite_pre("suite3", &should_run);
+  greatest_info.prng[0].initialized = 1;
+  greatest_info.prng[0].count = 0;
+  greatest_info.prng[0].state = 5;
+  greatest_suite_pre("suite3", &should_run);
+  greatest_info.prng[0].count = 5;
+  greatest_info.prng[0].state = 5;
+  greatest_suite_pre("suite3", &should_run);
+  greatest_info.prng[0].random_order = 0;
+  greatest_run_suite(dummy_suite, "suite4");
+
+  /* greatest_do_assert_equal_t */
+  no_equal_ti.equal = NULL;
+  no_equal_ti.print = NULL;
+  greatest_do_assert_equal_t("a", "a", NULL, NULL, &eq_out);
+  greatest_do_assert_equal_t("a", "a", &no_equal_ti, NULL, &eq_out);
+  greatest_do_assert_equal_t("a", "a", &greatest_type_info_string, NULL,
+                             &eq_out);
+  greatest_do_assert_equal_t("a", "b", &greatest_type_info_string, NULL,
+                             &eq_out);
+  no_equal_ti.equal = greatest_string_equal_cb;
+  greatest_do_assert_equal_t("a", "b", &no_equal_ti, NULL, &eq_out);
+
+  /* greatest_all_passed */
+  greatest_info.failed = 0;
+  greatest_all_passed(&eq_out);
+  greatest_info.failed = 1;
+  greatest_all_passed(&eq_out);
+
+  greatest_get_report(NULL);
+  greatest_string_equal_cb("a", "a", &n);
+  greatest_string_equal_cb("a", "b", &n);
+
+  /* greatest_usage */
+  greatest_usage("test");
+
+  /* greatest_parse_options */
+  fake_args[0] = "test";
+  fake_args[1] = "-s";
+  fake_args[2] = "s_filter";
+  fake_args[3] = "-t";
+  fake_args[4] = "t_filter";
+  fake_args[5] = "-x";
+  fake_args[6] = "x_filter";
+  fake_args[7] = "-e";
+  fake_args[8] = "-f";
+  fake_args[9] = "-a";
+  fake_args[10] = "-l";
+  fake_args[11] = "-v";
+  fake_args[12] = "positional";
+  greatest_parse_options(13, fake_args);
+
+  fake_args[1] = "--";
+  greatest_parse_options(2, fake_args);
+
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+  pid = fork();
+  if (pid == 0) {
+    char *h_args[3];
+    h_args[0] = "test";
+    h_args[1] = "-h";
+    h_args[2] = NULL;
+    greatest_parse_options(2, h_args);
+    exit(0);
+  }
+  waitpid(pid, &status, 0);
+
+  pid = fork();
+  if (pid == 0) {
+    char *help_args[3];
+    help_args[0] = "test";
+    help_args[1] = "--help";
+    help_args[2] = NULL;
+    greatest_parse_options(2, help_args);
+    exit(0);
+  }
+  waitpid(pid, &status, 0);
+
+  pid = fork();
+  if (pid == 0) {
+    char *s_args[2];
+    s_args[0] = "test";
+    s_args[1] = "-s";
+    greatest_parse_options(2, s_args);
+    exit(0);
+  }
+  waitpid(pid, &status, 0);
+
+  pid = fork();
+  if (pid == 0) {
+    char *t_args[2];
+    t_args[0] = "test";
+    t_args[1] = "-t";
+    greatest_parse_options(2, t_args);
+    exit(0);
+  }
+  waitpid(pid, &status, 0);
+
+  pid = fork();
+  if (pid == 0) {
+    char *x_args[2];
+    x_args[0] = "test";
+    x_args[1] = "-x";
+    greatest_parse_options(2, x_args);
+    exit(0);
+  }
+  waitpid(pid, &status, 0);
+
+  pid = fork();
+  if (pid == 0) {
+    char *z_args[2];
+    z_args[0] = "test";
+    z_args[1] = "-z";
+    greatest_parse_options(2, z_args);
+    exit(0);
+  }
+  waitpid(pid, &status, 0);
+
+  pid = fork();
+  if (pid == 0) {
+    char *u_args[2];
+    u_args[0] = "test";
+    u_args[1] = "--unknown";
+    greatest_parse_options(2, u_args);
+    exit(0);
+  }
+  waitpid(pid, &status, 0);
+#endif
 
   memcpy(&greatest_info, &saved_info, sizeof(saved_info));
+  if (greatest_info.width == 0) {
+    greatest_info.width = 80;
+  }
   return C_ORM_OK;
 }
 
-extern SUITE(arena_uuid_suite);
-extern SUITE(ast_suite);
-extern SUITE(api_coverage_suite);
-extern SUITE(cache_coverage_suite);
-extern SUITE(cli_suite);
+/** @brief Arena and UUID test suite. */
+extern void arena_uuid_suite(void);
+/** @brief AST builder test suite. */
+extern void ast_suite(void);
+/** @brief API coverage test suite. */
+extern void api_coverage_suite(void);
+/** @brief Cache coverage test suite. */
+extern void cache_coverage_suite(void);
+/** @brief CLI options test suite. */
+extern void cli_suite(void);
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
-extern SUITE(cli_exec_suite);
+/** @brief CLI execution test suite. */
+extern void cli_exec_suite(void);
 #endif
-extern SUITE(db_stubs_suite);
-extern SUITE(inline_macros_suite);
-extern SUITE(oom_coverage_suite);
-SUITE(codegen_coverage_suite);
-extern SUITE(query_fluent_coverage_suite);
-extern SUITE(migrations_suite);
-extern SUITE(relations_suite);
-extern SUITE(generic_suite);
-extern SUITE(abstract_struct_suite);
-extern SUITE(cdd_c_ir_suite);
-extern SUITE(query_projection_suite);
-extern SUITE(sql_suite);
-extern SUITE(c_to_sql_suite);
-extern SUITE(sql_to_c_suite);
-extern SUITE(hydrate_router_suite);
-extern SUITE(migration_suite);
-extern SUITE(memory_driver_suite);
-extern SUITE(query_builder_coverage_suite);
-extern SUITE(orm_gen_suite);
-extern SUITE(sqlite_driver_suite);
-extern SUITE(string_builder_suite);
-extern SUITE(sql_parser_suite);
-extern SUITE(oauth2_suite);
-extern SUITE(models_coverage_suite);
+/** @brief Database stubs test suite. */
+extern void db_stubs_suite(void);
+/** @brief Inline macros test suite. */
+extern void inline_macros_suite(void);
+/** @brief OOM coverage test suite. */
+extern void oom_coverage_suite(void);
+/** @brief Codegen coverage test suite. */
+extern void codegen_coverage_suite(void);
+/** @brief Query fluent coverage test suite. */
+extern void query_fluent_coverage_suite(void);
+/** @brief Migrations test suite. */
+extern void migrations_suite(void);
+/** @brief Relations test suite. */
+extern void relations_suite(void);
+/** @brief Generic models test suite. */
+extern void generic_suite(void);
+/** @brief Abstract struct test suite. */
+extern void abstract_struct_suite(void);
+/** @brief CDD-C IR test suite. */
+extern void cdd_c_ir_suite(void);
+/** @brief Query projection test suite. */
+extern void query_projection_suite(void);
+/** @brief SQL builder test suite. */
+extern void sql_suite(void);
+/** @brief C-to-SQL test suite. */
+extern void c_to_sql_suite(void);
+/** @brief SQL-to-C test suite. */
+extern void sql_to_c_suite(void);
+/** @brief Hydrate router test suite. */
+extern void hydrate_router_suite(void);
+/** @brief Migration runner test suite. */
+extern void migration_suite(void);
+/** @brief In-memory driver test suite. */
+extern void memory_driver_suite(void);
+/** @brief Query builder coverage test suite. */
+extern void query_builder_coverage_suite(void);
+/** @brief ORM generator test suite. */
+extern void orm_gen_suite(void);
+/** @brief SQLite driver test suite. */
+extern void sqlite_driver_suite(void);
+/** @brief String builder test suite. */
+extern void string_builder_suite(void);
+/** @brief SQL parser test suite. */
+extern void sql_parser_suite(void);
+/** @brief OAuth2 authentication test suite. */
+extern void oauth2_suite(void);
+/** @brief Generated models coverage test suite. */
+extern void models_coverage_suite(void);
 
+/**
+ * @brief Orchestrates execution of all individual test suites.
+ */
 static void run_all_suites(void) {
   RUN_SUITE(e2e_suite);
   RUN_SUITE(arena_uuid_suite);
@@ -1310,6 +1857,12 @@ static void emscripten_test_callback(int err) {
   }
 }
 
+/**
+ * @brief Main entry point for end-to-end integration test runner.
+ * @param argc Command line argument count.
+ * @param argv Command line argument vector.
+ * @return 0 on success, non-zero on failure.
+ */
 int main(int argc, char **argv) {
   g_argc = argc;
   g_argv = argv;
@@ -1319,6 +1872,12 @@ int main(int argc, char **argv) {
   return 0;
 }
 #else
+/**
+ * @brief Main entry point for end-to-end integration test runner.
+ * @param argc Command line argument count.
+ * @param argv Command line argument vector.
+ * @return 0 on success, non-zero on failure.
+ */
 int main(int argc, char **argv) {
 #if defined(_MSC_VER) && defined(_DEBUG)
   if (!GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {

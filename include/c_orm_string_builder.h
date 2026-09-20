@@ -52,7 +52,9 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str);
  * @brief Get the generated string.
  *
  * @param builder The builder.
- * @return Null-terminated string buffer. Do not free directly.
+ * @param out_str Pointer to store null-terminated string buffer. Do not free
+ * directly.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
     const c_orm_string_builder_t *builder, const char **out_str);
@@ -61,7 +63,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
  * @brief Get the current length of the generated string.
  *
  * @param builder The builder.
- * @return Length of the string.
+ * @param out_len Pointer to store length of the string.
+ * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
     const c_orm_string_builder_t *builder, size_t *out_len);

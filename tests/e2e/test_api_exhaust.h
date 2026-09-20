@@ -21,6 +21,11 @@ static int g_exhaust_fail_realloc_size = 0;
 static int g_exhaust_malloc_countdown = -1;
 static int g_exhaust_realloc_countdown = -1;
 
+/**
+ * @brief Mock malloc callback simulating memory exhaustion conditions.
+ * @param sz Allocation size in bytes.
+ * @return Pointer to allocated memory or NULL on simulated exhaustion.
+ */
 static void *exhaust_mock_malloc(size_t sz) {
   if (g_exhaust_fail_malloc)
     return NULL;
@@ -36,10 +41,17 @@ static void *exhaust_mock_malloc(size_t sz) {
   return malloc(sz);
 }
 
+/**
+ * @brief Mock realloc callback simulating memory exhaustion conditions.
+ * @param ptr Existing memory pointer.
+ * @param sz New allocation size in bytes.
+ * @return Pointer to reallocated memory or NULL on simulated exhaustion.
+ */
 static void *exhaust_mock_realloc(void *ptr, size_t sz) {
-  if (g_exhaust_fail_realloc_size && (sz == 4 * sizeof(struct NestedChild) ||
-                                      sz == 16 * sizeof(struct NestedChild)))
-    return NULL;
+  if (g_exhaust_fail_realloc_size) {
+    if (sz == 4 * sizeof(struct NestedChild))
+      return NULL;
+  }
   if (g_exhaust_fail_realloc == 1 && !ptr)
     return NULL;
   if (g_exhaust_realloc_countdown >= 0) {
@@ -72,16 +84,22 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_error_t rc;
 
   /* String PK schema */
+  /** @brief Test item with string primary key. */
   struct {
+    /** @brief String primary key identifier. */
     char *id;
+    /** @brief Name string value. */
     char *name;
   } s_item;
   c_orm_column_meta_t s_cols[2];
   c_orm_table_meta_t s_meta;
 
   /* Int64 PK schema */
+  /** @brief Test item with 64-bit integer primary key. */
   struct {
+    /** @brief 64-bit integer primary key identifier. */
     int64_t id;
+    /** @brief Name string value. */
     char *name;
   } i64_item;
   c_orm_column_meta_t i64_cols[2];
@@ -193,11 +211,9 @@ TEST test_api_finalize_cached_errors(void) {
   memset(s_cols, 0, sizeof(s_cols));
   memset(&s_meta, 0, sizeof(s_meta));
   s_item.id = (char *)malloc(8);
-  if (s_item.id)
-    C_ORM_STRCPY(s_item.id, 8, "s1");
+  C_ORM_STRCPY(s_item.id, 8, "s1");
   s_item.name = (char *)malloc(8);
-  if (s_item.name)
-    C_ORM_STRCPY(s_item.name, 8, "sname");
+  C_ORM_STRCPY(s_item.name, 8, "sname");
   s_cols[0].name = "id";
   s_cols[0].type = C_ORM_TYPE_STRING;
   s_cols[0].is_pk = 1;
@@ -548,10 +564,8 @@ TEST test_api_finalize_cached_errors(void) {
 
   /* 6. Child hydrate fail with finalize cached failure (lines 1301, 1331, 1734,
    * 1774) */
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
   c_orm_mock_finalize_cached_fail = 1;
@@ -616,8 +630,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1652: bind_int32 fail & finalize fail */
-  if (out_arr.data)
-    free(out_arr.data);
+  free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -631,8 +644,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1663: first child step fail & finalize fail */
-  if (out_arr.data)
-    free(out_arr.data);
+  free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -650,8 +662,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1721: O2O struct malloc fail & finalize fail */
-  if (out_arr.data)
-    free(out_arr.data);
+  free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -673,8 +684,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1734: O2O child hydrate fail & finalize fail */
-  if (out_arr.data)
-    free(out_arr.data);
+  free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -694,8 +704,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1756: O2M child realloc fail & finalize fail */
-  if (out_arr.data)
-    free(out_arr.data);
+  free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -717,8 +726,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1774: O2M child hydrate fail & finalize fail */
-  if (out_arr.data)
-    free(out_arr.data);
+  free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -738,8 +746,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1791: child 2nd step fail & finalize fail */
-  if (out_arr.data)
-    free(out_arr.data);
+  free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -758,8 +765,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1798-1799: child query normal finish & finalize fail */
-  if (out_arr.data)
-    free(out_arr.data);
+  free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -783,12 +789,9 @@ TEST test_api_finalize_cached_errors(void) {
   g_step_max = 1;
 
   c_orm_mock_finalize_cached_fail = 0;
-  if (s_item.id)
-    free(s_item.id);
-  if (s_item.name)
-    free(s_item.name);
-  if (out_arr.data)
-    free(out_arr.data);
+  free(s_item.id);
+  free(s_item.name);
+  free(out_arr.data);
 
   PASS();
 }
@@ -920,8 +923,7 @@ TEST test_api_string_builder_error_branches(void) {
 
   /* 2. Sweep c_orm_find_all_with_relation for M2M and O2M (length=2 for comma)
    */
-  if (out_arr.data)
-    free(out_arr.data);
+  free(out_arr.data);
   out_arr.data = malloc(sizeof(struct ExtendedParent) * 2);
   for (cd = 0; cd < 40; cd++) {
     out_arr.length = 2;
@@ -933,8 +935,7 @@ TEST test_api_string_builder_error_branches(void) {
 
   g_step_max = 2;
   for (cd = 0; cd < 30; cd++) {
-    if (out_arr.data)
-      free(out_arr.data);
+    free(out_arr.data);
     out_arr.data = NULL;
     out_arr.length = 0;
     out_arr.capacity = 0;
@@ -947,8 +948,7 @@ TEST test_api_string_builder_error_branches(void) {
   g_step_max = 1;
 
   /* Targeted comma append failure (lines 1586-1587) */
-  if (out_arr.data)
-    free(out_arr.data);
+  free(out_arr.data);
   out_arr.data = malloc(sizeof(struct ExtendedParent) * 2);
   out_arr.length = 2;
   g_step_count = 0;
@@ -956,8 +956,7 @@ TEST test_api_string_builder_error_branches(void) {
   (void)c_orm_find_all_with_relation(&g_db, &p_meta, "children_o2m", &out_arr);
   c_orm_mock_string_builder_append_countdown = -1;
 
-  if (out_arr.data)
-    free(out_arr.data);
+  free(out_arr.data);
   out_arr.data = malloc(sizeof(struct ExtendedParent) * 2);
   out_arr.length = 2;
   g_step_count = 0;
@@ -1084,8 +1083,7 @@ TEST test_api_string_builder_error_branches(void) {
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
   c_orm_mock_string_builder_get_fail = 0;
 
-  if (out_arr.data)
-    free(out_arr.data);
+  free(out_arr.data);
 
   PASS();
 }
@@ -1430,10 +1428,8 @@ TEST test_api_relation_dot_missing_branches(void) {
     p.children_o2m.capacity = 0;
   }
 
-  if (out_arr.data) {
-    free(out_arr.data);
-    out_arr.data = NULL;
-  }
+  free(out_arr.data);
+  out_arr.data = NULL;
 
   PASS();
 }

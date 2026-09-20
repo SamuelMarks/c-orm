@@ -13,6 +13,10 @@
 
 /**
  * @brief Sets the modality of the DB.
+ * @param db Database handle.
+ * @param modality Modality mode to set.
+ * @param ctx Context pointer for modality operations.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY if db is NULL.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_set_modality(c_orm_db_t *db,
                                               c_orm_modality_t modality,

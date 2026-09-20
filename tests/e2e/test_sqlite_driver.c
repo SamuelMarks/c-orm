@@ -12,10 +12,36 @@ extern "C" {
 
 /* clang-format off */
 #include "c_orm_sqlite.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+
+#undef ASSERT_EQ_FMT
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 /* clang-format on */
 
 /** @brief Countdown counter for simulated memory allocation failures. */
@@ -25,19 +51,37 @@ static int oom_countdown = -1;
 static int oom_active = 0;
 
 /**
+ * @brief Fake query structure for sqlite driver testing.
+ * @var data Pointer to internal driver data.
+ */
+struct fake_query_s {
+  /** @brief Pointer to internal driver data. */
+  void *data;
+};
+
+/**
+ * @brief Fake sqlite driver data for testing error branches.
+ * @var stmt Statement pointer.
+ * @var db Database handle.
+ */
+struct fake_data_s {
+  /** @brief Statement pointer. */
+  void *stmt;
+  /** @brief Database handle. */
+  c_orm_db_t *db;
+};
+
+/**
  * @brief Mock malloc allocator with countdown fault injection.
  * @param size Allocation size in bytes.
  * @return Allocated memory block or NULL on simulated failure.
  */
 static void *mock_malloc(size_t size) {
   if (oom_active) {
-    if (oom_countdown == 0) {
-      oom_countdown--;
+    if (oom_countdown <= 0) {
       return NULL;
     }
-    if (oom_countdown > 0) {
-      oom_countdown--;
-    }
+    oom_countdown--;
   }
   return malloc(size);
 }
@@ -258,13 +302,8 @@ TEST test_sqlite_edge_cases(void) {
 
   /* Test binds on uninitialized/invalid query using pointer punning */
   {
-    struct {
-      void *data;
-    } fake_q;
-    struct fake_data_s {
-      void *stmt;
-      c_orm_db_t *db;
-    } fake_data;
+    struct fake_query_s fake_q;
+    struct fake_data_s fake_data;
 
     fake_q.data = NULL;
     ASSERT_EQ(C_ORM_ERROR_BIND, vt->bind_int32((c_orm_query_t *)&fake_q, 1, 1));
@@ -310,15 +349,15 @@ TEST test_sqlite_edge_cases(void) {
     const char *tr;
     const char *err_msg;
     err = vt->get_last_trace(NULL, &tr);
-    ASSERT(err == C_ORM_OK || err != C_ORM_OK);
+    ASSERT_EQ(C_ORM_OK, err);
     err = vt->get_last_trace(db, &tr);
-    ASSERT(err == C_ORM_OK || err != C_ORM_OK);
+    ASSERT_EQ(C_ORM_OK, err);
     err = vt->get_last_error(db, &err_msg);
-    ASSERT(err == C_ORM_OK || err != C_ORM_OK);
+    ASSERT_EQ(C_ORM_OK, err);
     err = vt->get_last_error(NULL, &err_msg);
-    ASSERT(err == C_ORM_OK || err != C_ORM_OK);
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, err);
     err = vt->get_last_error(db, NULL);
-    ASSERT(err == C_ORM_OK || err != C_ORM_OK);
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, err);
   }
 
   /* Blob open success and error */
@@ -329,12 +368,11 @@ TEST test_sqlite_edge_cases(void) {
 
     blob = NULL;
     open_err = c_orm_sqlite_blob_open(db, "main", "t", "b", 1, 0, &blob);
-    if (open_err == C_ORM_OK) {
-      ASSERT_EQ(C_ORM_OK, c_orm_sqlite_blob_read(blob, buf, 4, 0));
-      /* Write to read-only blob should fail */
-      ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_sqlite_blob_write(blob, buf, 4, 0));
-      ASSERT_EQ(C_ORM_OK, c_orm_sqlite_blob_close(blob));
-    }
+    ASSERT_EQ(C_ORM_OK, open_err);
+    ASSERT_EQ(C_ORM_OK, c_orm_sqlite_blob_read(blob, buf, 4, 0));
+    /* Write to read-only blob should fail */
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_sqlite_blob_write(blob, buf, 4, 0));
+    ASSERT_EQ(C_ORM_OK, c_orm_sqlite_blob_close(blob));
 
     /* Open missing blob */
     ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
@@ -354,14 +392,14 @@ TEST test_sqlite_edge_cases(void) {
     err = vt->prepare(db, "CREATE TABLE err_test (id INTEGER PRIMARY KEY)", &q);
     ASSERT_EQ(C_ORM_OK, err);
     err = vt->step(q, &has_row);
-    ASSERT(err == C_ORM_OK || err != C_ORM_OK);
+    ASSERT_EQ(C_ORM_OK, err);
     err = vt->finalize(q);
     ASSERT_EQ(C_ORM_OK, err);
 
     err = vt->prepare(db, "INSERT INTO err_test VALUES (1)", &q);
     ASSERT_EQ(C_ORM_OK, err);
     err = vt->step(q, &has_row);
-    ASSERT(err == C_ORM_OK || err != C_ORM_OK);
+    ASSERT_EQ(C_ORM_OK, err);
     err = vt->finalize(q);
     ASSERT_EQ(C_ORM_OK, err);
 
@@ -384,7 +422,7 @@ TEST test_sqlite_edge_cases(void) {
         &q);
     ASSERT_EQ(C_ORM_OK, err);
     err = vt->step(q, &has_row);
-    ASSERT(err == C_ORM_OK || err != C_ORM_OK);
+    ASSERT_EQ(C_ORM_OK, err);
     err = vt->finalize(q);
     ASSERT_EQ(C_ORM_OK, err);
   }
@@ -400,7 +438,7 @@ TEST test_sqlite_edge_cases(void) {
     err = vt->prepare(db, "CREATE TABLE btest (id INTEGER, b BLOB)", &q);
     ASSERT_EQ(C_ORM_OK, err);
     err = vt->step(q, &has_row);
-    ASSERT(err == C_ORM_OK || err != C_ORM_OK);
+    ASSERT_EQ(C_ORM_OK, err);
     err = vt->finalize(q);
     ASSERT_EQ(C_ORM_OK, err);
 
@@ -408,21 +446,20 @@ TEST test_sqlite_edge_cases(void) {
         db, "INSERT INTO btest VALUES (1, x'01020304050607080910')", &q);
     ASSERT_EQ(C_ORM_OK, err);
     err = vt->step(q, &has_row);
-    ASSERT(err == C_ORM_OK || err != C_ORM_OK);
+    ASSERT_EQ(C_ORM_OK, err);
     err = vt->finalize(q);
     ASSERT_EQ(C_ORM_OK, err);
 
     open_err = c_orm_sqlite_blob_open(db, "main", "btest", "b", 1, 1, &blob);
-    if (open_err == C_ORM_OK) {
-      /* Read out of bounds */
-      ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_sqlite_blob_read(blob, buf, 100, 0));
+    ASSERT_EQ(C_ORM_OK, open_err);
+    /* Read out of bounds */
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_sqlite_blob_read(blob, buf, 100, 0));
 
-      /* Write success */
-      ASSERT_EQ(C_ORM_OK, c_orm_sqlite_blob_write(blob, "abcd", 4, 0));
+    /* Write success */
+    ASSERT_EQ(C_ORM_OK, c_orm_sqlite_blob_write(blob, "abcd", 4, 0));
 
-      err = c_orm_sqlite_blob_close(blob);
-      ASSERT_EQ(C_ORM_OK, err);
-    }
+    err = c_orm_sqlite_blob_close(blob);
+    ASSERT_EQ(C_ORM_OK, err);
   }
 
   err = vt->disconnect(db);
@@ -432,40 +469,29 @@ TEST test_sqlite_edge_cases(void) {
   {
     c_orm_db_t *bad_db;
     c_orm_query_t *bad_q;
-    struct fake_data_s {
-      void *stmt;
-      c_orm_db_t *db;
-    } *fd;
+    struct fake_data_s *fd;
 
     bad_db = NULL;
     bad_q = NULL;
     err = c_orm_sqlite_connect(":memory:", &bad_db);
-    ASSERT(err == C_ORM_OK || err != C_ORM_OK);
-    if (bad_db != NULL) {
-      err = vt->prepare(bad_db, "SELECT 1", &bad_q);
-      ASSERT(err == C_ORM_OK || err != C_ORM_OK);
-      err = vt->disconnect(bad_db);
-      ASSERT(err == C_ORM_OK || err != C_ORM_OK);
-      if (bad_q != NULL) {
-        fd = *(struct fake_data_s **)bad_q;
-        if (fd != NULL) {
-          fd->stmt = NULL;
-        }
-        err = vt->finalize(bad_q);
-        ASSERT(err == C_ORM_OK || err != C_ORM_OK);
-      }
-    }
+    ASSERT_EQ(C_ORM_OK, err);
+    err = vt->prepare(bad_db, "SELECT 1", &bad_q);
+    ASSERT_EQ(C_ORM_OK, err);
+    err = vt->disconnect(bad_db);
+    ASSERT_EQ(C_ORM_OK, err);
+    fd = *(struct fake_data_s **)bad_q;
+    fd->stmt = NULL;
+    err = vt->finalize(bad_q);
+    ASSERT_EQ(C_ORM_OK, err);
   }
 
   /* Trigger msg copying in set_error */
   {
     c_orm_db_t *fake_db;
     fake_db = (c_orm_db_t *)c_orm_malloc(sizeof(c_orm_db_t));
-    if (fake_db != NULL) {
-      memset(fake_db, 0, sizeof(*fake_db));
-      err = vt->disconnect(fake_db);
-      ASSERT(err == C_ORM_OK || err != C_ORM_OK);
-    }
+    memset(fake_db, 0, sizeof(*fake_db));
+    err = vt->disconnect(fake_db);
+    ASSERT_EQ(C_ORM_OK, err);
   }
 
   PASS();
@@ -504,13 +530,8 @@ TEST test_sqlite_all_branches(void) {
   void *blob_handle;
   char buf[32];
   char huge_sql[1024];
-  struct fake_data_s {
-    void *stmt;
-    c_orm_db_t *db;
-  } fake_data;
-  struct {
-    void *data;
-  } fake_q;
+  struct fake_data_s fake_data;
+  struct fake_query_s fake_q;
 
   db = NULL;
   vt = NULL;
@@ -612,10 +633,8 @@ TEST test_sqlite_all_branches(void) {
   {
     c_orm_query_t *q_heap;
     q_heap = (c_orm_query_t *)malloc(sizeof(void *));
-    if (q_heap != NULL) {
-      *(void **)q_heap = NULL;
-      ASSERT_EQ(C_ORM_OK, vt->finalize(q_heap));
-    }
+    *(void **)q_heap = NULL;
+    ASSERT_EQ(C_ORM_OK, vt->finalize(q_heap));
   }
 
   /* 5. Get Column Count & Name NULL variations */
@@ -808,7 +827,7 @@ TEST test_sqlite_all_branches(void) {
   huge_sql[6] = ' ';
   huge_sql[sizeof(huge_sql) - 1] = '\0';
   err = vt->prepare(db, huge_sql, &q);
-  ASSERT(err == C_ORM_OK || err != C_ORM_OK);
+  ASSERT_EQ(C_ORM_ERROR_SQL, err);
 
   err = vt->disconnect(db);
   ASSERT_EQ(C_ORM_OK, err);
@@ -817,9 +836,11 @@ TEST test_sqlite_all_branches(void) {
 
 /**
  * @brief Test suite runner for SQLite driver tests.
+ * @param sqlite_driver_suite Suite runner function name.
  * @return GREATEST suite result.
  */
 SUITE(sqlite_driver_suite) {
+  static int recursed = 0;
   void *(*old_malloc)(size_t);
   void (*old_free)(void *);
 
@@ -832,6 +853,14 @@ SUITE(sqlite_driver_suite) {
   RUN_TEST(test_sqlite_all_branches);
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
+
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    sqlite_driver_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus

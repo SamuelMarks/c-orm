@@ -36,15 +36,35 @@ typedef enum CddCVariantType {
 
 /**
  * @brief Generic variant type.
+ * @var type Active type discriminator.
+ * @var value Union holding the typed value.
  */
 typedef struct CddCVariant {
+  /** @brief Active type discriminator. */
   CddCVariantType type;
+  /**
+   * @brief Value union.
+   * @var i_val Integer variant value.
+   * @var f_val Float variant value.
+   * @var s_val String variant value.
+   * @var b_val Blob variant value.
+   */
   union {
+    /** @brief Integer value. */
     c_orm_int64_t i_val;
+    /** @brief Floating-point value. */
     double f_val;
+    /** @brief String value. */
     char *s_val;
+    /**
+     * @brief Blob data buffer and length.
+     * @var data Raw blob bytes.
+     * @var size Size in bytes.
+     */
     struct {
+      /** @brief Pointer to blob bytes. */
       unsigned char *data;
+      /** @brief Size of the blob in bytes. */
       size_t size;
     } b_val;
   } value;
@@ -52,28 +72,55 @@ typedef struct CddCVariant {
 
 /**
  * @brief Key-value pair for abstract struct.
+ * @var CddCAbstractStructKV::key
+ * Property name string.
+ * @var CddCAbstractStructKV::key_hash
+ * Precomputed hash of the key.
+ * @var CddCAbstractStructKV::value
+ * Property variant value.
  */
 typedef struct CddCAbstractStructKV {
+  /** @brief Property name string. */
   char *key;
+  /** @brief Precomputed hash of the key. */
   unsigned long key_hash;
+  /** @brief Property variant value. */
   cdd_c_variant_t value;
 } cdd_c_abstract_struct_kv_t;
 
 /**
  * @brief Abstract struct containing generic key-value pairs.
+ * @var CddCAbstractStruct::kvs
+ * Array of key-value properties.
+ * @var CddCAbstractStruct::count
+ * Current number of properties.
+ * @var CddCAbstractStruct::capacity
+ * Total allocated capacity for properties.
  */
 typedef struct CddCAbstractStruct {
+  /** @brief Array of key-value properties. */
   cdd_c_abstract_struct_kv_t *kvs;
+  /** @brief Current number of properties. */
   size_t count;
+  /** @brief Total allocated capacity for properties. */
   size_t capacity;
 } cdd_c_abstract_struct_t;
 
 /**
  * @brief Dynamic array of abstract structs for representing multiple rows.
+ * @var CddCAbstractStructArray::items
+ * Array of abstract struct items.
+ * @var CddCAbstractStructArray::count
+ * Current number of items.
+ * @var CddCAbstractStructArray::capacity
+ * Total allocated capacity for items.
  */
 typedef struct CddCAbstractStructArray {
+  /** @brief Array of abstract struct items. */
   cdd_c_abstract_struct_t *items;
+  /** @brief Current number of items. */
   size_t count;
+  /** @brief Total allocated capacity for items. */
   size_t capacity;
 } cdd_c_abstract_struct_array_t;
 
@@ -107,8 +154,17 @@ extern C_ORM_EXPORT /**
     c_orm_error_t
     cdd_c_abstract_struct_array_free(cdd_c_abstract_struct_array_t *arr);
 
-extern C_ORM_EXPORT c_orm_error_t cdd_c_abstract_struct_array_to_json(
-    const cdd_c_abstract_struct_array_t *arr, char **out_json);
+extern C_ORM_EXPORT /**
+                     * @brief Serialize an abstract struct array to a JSON
+                     * string.
+                     * @param arr The abstract struct array.
+                     * @param out_json Pointer to receive the allocated JSON
+                     * string.
+                     * @return 0 on success, non-zero on error.
+                     */
+    c_orm_error_t
+    cdd_c_abstract_struct_array_to_json(
+        const cdd_c_abstract_struct_array_t *arr, char **out_json);
 
 extern C_ORM_EXPORT /**
                      * @brief Initialize an abstract struct.
@@ -209,22 +265,30 @@ extern C_ORM_EXPORT /**
 /**
  * @brief Retrieves the total number of bytes allocated for abstract structs
  * globally.
- * @return Byte count.
+ * @param out_bytes Pointer to receive byte count.
+ * @return 0 on success.
  */
 C_ORM_EXPORT c_orm_error_t cdd_c_get_allocated_bytes(size_t *out_bytes);
 
 /**
  * @brief Retrieves the total number of free calls for abstract structs
  * globally.
- * @return Free count.
+ * @param out_calls Pointer to receive free count.
+ * @return 0 on success.
  */
 C_ORM_EXPORT c_orm_error_t cdd_c_get_freed_calls(size_t *out_calls);
 
 /**
  * @brief Represents a driver-agnostic column definition.
+ * @var CddCColumnMeta::name
+ * Name of the column.
+ * @var CddCColumnMeta::inferred_type
+ * SQL data type of the column.
  */
 typedef struct CddCColumnMeta {
+  /** @brief Name of the column. */
   const char *name;
+  /** @brief SQL data type of the column. */
   int inferred_type; /* Treated as enum SqlDataType, int to avoid deep includes
                         if missing */
 } cdd_c_column_meta_t;
@@ -329,7 +393,8 @@ struct cdd_c_meta;
  * struct.
  * @param meta The reflection metadata.
  * @param field The field name to look up.
- * @return The offset in bytes, or (size_t)-1 if not found.
+ * @param out_offset Pointer to receive the offset in bytes.
+ * @return 0 on success, non-zero on error.
  */
 C_ORM_EXPORT c_orm_error_t cdd_c_meta_offsetof(const struct cdd_c_meta *meta,
                                                const char *field,

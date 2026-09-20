@@ -44,8 +44,11 @@ __declspec(dllimport) void * __stdcall LocalFree(void *hMem);
  * @brief Internal JSON field structure for token parsing.
  */
 typedef struct {
+  /** @brief Key name to look for in JSON. */
   const char *key;
+  /** @brief Output pointer to receive allocated string value. */
   char **str_out;
+  /** @brief Output pointer to receive integer value. */
   int32_t *int_out;
 } json_field_t;
 
@@ -328,7 +331,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
 /**
  * @brief Converts a hex character to a byte.
  * @param c The hex character.
- * @return The byte value.
+ * @param out Output pointer to receive the byte value.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_VALIDATION on invalid hex.
  */
 static c_orm_error_t hex_to_byte(char c, unsigned char *out) {
   if (c >= '0' && c <= '9') {

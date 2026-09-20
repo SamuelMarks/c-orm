@@ -7,8 +7,88 @@
 #ifndef TEST_API_HYDRATION_H
 #define TEST_API_HYDRATION_H
 
-#include "test_api_helpers.h"
+/**
+ * @brief Structure with TTL expiration and timestamp attributes.
+ */
+struct TtlObj {
+  int32_t id;         /**< Entity primary key. */
+  int64_t created_at; /**< Creation UNIX timestamp. */
+  int32_t expires_in; /**< Expiration duration in seconds. */
+};
 
+/**
+ * @brief Test entity containing binary blob payload.
+ */
+struct BlobTestObj {
+  int32_t id;            /**< Primary key identifier. */
+  c_orm_blob_t blob_val; /**< Binary large object data. */
+};
+
+/**
+ * @brief Entity with string primary key for timestamp testing.
+ */
+struct TsPkObj {
+  char *ts; /**< Timestamp string primary key. */
+};
+
+/**
+ * @brief Test entity with 64-bit primary key identifier.
+ */
+struct T64Obj {
+  char *name; /**< Entity name string. */
+  int64_t id; /**< 64-bit integer primary key. */
+};
+
+/**
+ * @brief Test entity containing multiple spatial and binary blob columns.
+ */
+struct MultiColBlobObj {
+  c_orm_blob_t b_col;       /**< Binary large object column. */
+  c_orm_point_t pt_col;     /**< Spatial point coordinate column. */
+  c_orm_polygon_t poly_col; /**< Spatial polygon boundary column. */
+};
+
+/**
+ * @brief Test entity with UUID and timestamp representation.
+ */
+struct UuidTsObj {
+  char *id; /**< UUID string identifier. */
+  char *ts; /**< Timestamp string value. */
+};
+
+/**
+ * @brief Secondary UUID and timestamp model entity for boundary checks.
+ */
+struct UuidTsObj2 {
+  char *id; /**< UUID string identifier. */
+  char *ts; /**< Timestamp string value. */
+};
+
+/**
+ * @brief Test entity with nullable foreign key association.
+ */
+struct NullableFkObj {
+  int32_t *id;     /**< Nullable foreign key pointer. */
+  void *child_ptr; /**< Pointer to related entity. */
+};
+
+/**
+ * @brief Related child entity with string property.
+ */
+struct StringChildObj {
+  int32_t id;     /**< Child primary key. */
+  char *str_name; /**< Child entity name string. */
+};
+
+/* clang-format off */
+#include "test_api_helpers.h"
+/* clang-format on */
+
+/**
+ * @brief Tests field introspection helper utilities and miscellaneous API
+ * functions.
+ * @return GREATEST test result.
+ */
 TEST test_api_field_helpers_and_misc(void) {
   struct NestedParent p;
   c_orm_column_meta_t cols[1];
@@ -57,10 +137,7 @@ TEST test_api_field_helpers_and_misc(void) {
 
   /* 3. Hydrate BLOB column with NULL / 0 size (exercises lines 433-435) */
   {
-    struct BlobTestObj {
-      int32_t id;
-      c_orm_blob_t blob_val;
-    } bobj;
+    struct BlobTestObj bobj;
     c_orm_column_meta_t bcols[2];
     c_orm_table_meta_t bmeta;
 
@@ -98,23 +175,31 @@ TEST test_api_field_helpers_and_misc(void) {
 /* --- Deep Hydrate and Bind Coverage --- */
 /* ========================================================================= */
 
+/**
+ * @brief Complex model entity containing comprehensive data types for deep
+ * hydration testing.
+ */
 struct DeepHydrateObj {
-  int32_t id;
-  bool *b_nullable;
-  unsigned char b_val;
-  int64_t *i64_nullable;
-  int64_t i64_val;
-  float *f_nullable;
-  float f_val;
-  double *d_nullable;
-  double d_val;
-  char *ts_val;
-  char *sec_val;
-  c_orm_point_t pt;
-  c_orm_polygon_t poly;
-  c_orm_blob_t blob;
+  int32_t id;            /**< Primary key integer. */
+  bool *b_nullable;      /**< Optional boolean flag pointer. */
+  unsigned char b_val;   /**< Byte value. */
+  int64_t *i64_nullable; /**< Optional 64-bit integer pointer. */
+  int64_t i64_val;       /**< 64-bit integer value. */
+  float *f_nullable;     /**< Optional float pointer. */
+  float f_val;           /**< Single precision float value. */
+  double *d_nullable;    /**< Optional double pointer. */
+  double d_val;          /**< Double precision float value. */
+  char *ts_val;          /**< Timestamp string value. */
+  char *sec_val;         /**< Encrypted secure text value. */
+  c_orm_point_t pt;      /**< Spatial 2D point coordinate. */
+  c_orm_polygon_t poly;  /**< Spatial polygon value. */
+  c_orm_blob_t blob;     /**< Binary large object. */
 };
 
+/**
+ * @brief Releases dynamically allocated fields in DeepHydrateObj test instance.
+ * @param obj DeepHydrateObj instance pointer.
+ */
 static void free_deep_obj(struct DeepHydrateObj *obj) {
   if (obj->b_nullable) {
     free(obj->b_nullable);
@@ -146,24 +231,43 @@ static void free_deep_obj(struct DeepHydrateObj *obj) {
   }
 }
 
+/**
+ * @brief Child entity for prefix-based column aliasing and hydration testing.
+ */
 struct PrefixChildObj {
-  int32_t id;
-  char *name;
-  c_orm_blob_t blob;
-  unsigned char is_flag;
+  int32_t id;            /**< Child entity primary key. */
+  char *name;            /**< Child entity name. */
+  c_orm_blob_t blob;     /**< Child entity binary blob. */
+  unsigned char is_flag; /**< Child boolean flag byte. */
 };
 
+/**
+ * @brief Parent entity containing relation to PrefixChildObj.
+ */
 struct PrefixParentObj {
-  int32_t id;
-  struct PrefixChildObj *child;
-  c_orm_lazy_load_context_t child_ctx;
+  int32_t id;                          /**< Parent entity primary key. */
+  struct PrefixChildObj *child;        /**< Child entity pointer. */
+  c_orm_lazy_load_context_t child_ctx; /**< Lazy loading context. */
 };
 
+/**
+ * @brief Mock query column count returning error for prefix testing.
+ * @param q Query pointer.
+ * @param cnt Column count output pointer.
+ * @return Error code.
+ */
 static c_orm_error_t mock_prefix_col_count_err(c_orm_query_t *q, int *cnt) {
   (void)q;
   (void)cnt;
   return C_ORM_ERROR_UNKNOWN;
 }
+/**
+ * @brief Mock query column name returning failure for error testing.
+ * @param q Query pointer.
+ * @param i Column index.
+ * @param n Column name output pointer.
+ * @return Error code.
+ */
 static c_orm_error_t mock_prefix_col_name_err(c_orm_query_t *q, int i,
                                               const char **n) {
   (void)q;
@@ -171,20 +275,38 @@ static c_orm_error_t mock_prefix_col_name_err(c_orm_query_t *q, int i,
   (void)n;
   return C_ORM_ERROR_UNKNOWN;
 }
+/**
+ * @brief Mock query column name returning NULL string for robustness testing.
+ * @param q Query pointer.
+ * @param i Column index.
+ * @param n Column name output pointer.
+ * @return Error code.
+ */
 static c_orm_error_t mock_prefix_col_name_null(c_orm_query_t *q, int i,
                                                const char **n) {
   (void)q;
   (void)i;
-  if (n)
-    *n = NULL;
+  *n = NULL;
   return C_ORM_OK;
 }
+/**
+ * @brief Mock query column count returning 4 columns for prefix testing.
+ * @param q Query pointer.
+ * @param cnt Column count output pointer.
+ * @return Error code.
+ */
 static c_orm_error_t mock_prefix_col_count_ok(c_orm_query_t *q, int *cnt) {
   (void)q;
-  if (cnt)
-    *cnt = 5;
+  *cnt = 5;
   return C_ORM_OK;
 }
+/**
+ * @brief Mock query column name returning prefixed column names.
+ * @param q Query pointer.
+ * @param i Column index.
+ * @param n Column name output pointer.
+ * @return Error code.
+ */
 static c_orm_error_t mock_prefix_col_name_ok(c_orm_query_t *q, int i,
                                              const char **n) {
   (void)q;
@@ -203,14 +325,22 @@ static c_orm_error_t mock_prefix_col_name_ok(c_orm_query_t *q, int i,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Model entity tracking modification bit flags on fields.
+ */
 struct DirtyTrackedObj {
-  uint64_t flags;
-  int32_t id;
-  char *name;
-  c_orm_blob_t sec_blob;
-  c_orm_polygon_t poly;
+  uint64_t flags;        /**< Field modification dirty bitmask. */
+  int32_t id;            /**< Entity primary key. */
+  char *name;            /**< Entity name string. */
+  c_orm_blob_t sec_blob; /**< Encrypted binary blob. */
+  c_orm_polygon_t poly;  /**< Spatial polygon value. */
 };
 
+/**
+ * @brief Tests comprehensive deep hydration and binding across complex nested
+ * entities.
+ * @return GREATEST test result.
+ */
 TEST test_api_hydrate_and_bind_deep(void) {
   struct DeepHydrateObj dobj;
   c_orm_column_meta_t cols[14];
@@ -434,12 +564,9 @@ TEST test_api_hydrate_and_bind_deep(void) {
     dvt.get_column_name = mock_prefix_col_name_ok;
     rc = c_orm_hydrate_row(&ddb, (c_orm_query_t *)1, &p_meta, &pobj);
     ASSERT_EQ(C_ORM_OK, rc);
-    if (pobj.child) {
-      if (pobj.child->name)
-        free(pobj.child->name);
-      free(pobj.child);
-      pobj.child = NULL;
-    }
+    free(pobj.child->name);
+    free(pobj.child);
+    pobj.child = NULL;
   }
 
   /* 6. bind_row branches: dirty tracking, encryption errors, and polygon wkb */
@@ -523,23 +650,34 @@ TEST test_api_hydrate_and_bind_deep(void) {
 /* --- Field Helpers, Introspection, and Validation Coverage --- */
 /* ========================================================================= */
 
+/**
+ * @brief Model entity containing integer and string helper test attributes.
+ */
 struct FieldHelperParent {
-  int32_t id;
-  int32_t *i32_null;
-  int64_t *i64_null;
-  int64_t i64_val;
-  char *str_val;
+  int32_t id;        /**< Primary key identifier. */
+  int32_t *i32_null; /**< Nullable 32-bit integer pointer. */
+  int64_t *i64_null; /**< Nullable 64-bit integer pointer. */
+  int64_t i64_val;   /**< 64-bit integer value. */
+  char *str_val;     /**< String value pointer. */
 };
 
+/**
+ * @brief Child model entity containing numeric fields for introspection
+ * testing.
+ */
 struct FieldHelperChild {
-  int32_t id;
-  int32_t *i32_null;
-  int64_t *i64_null;
-  int64_t i64_val;
-  float f_val;
-  double d_val;
+  int32_t id;        /**< Primary key identifier. */
+  int32_t *i32_null; /**< Nullable 32-bit integer pointer. */
+  int64_t *i64_null; /**< Nullable 64-bit integer pointer. */
+  int64_t i64_val;   /**< 64-bit integer value. */
+  float f_val;       /**< Single precision float value. */
+  double d_val;      /**< Double precision float value. */
 };
 
+/**
+ * @brief Tests model field getter, setter, and introspection helpers.
+ * @return GREATEST test result.
+ */
 TEST test_api_field_helpers_and_introspection(void) {
   struct FieldHelperParent parent;
   struct FieldHelperChild child;
@@ -847,10 +985,7 @@ TEST test_api_field_helpers_and_introspection(void) {
 
   /* 6. c_orm_update_partial with INT64 PK */
   {
-    struct T64Obj {
-      char *name;
-      int64_t id;
-    } t64;
+    struct T64Obj t64;
     c_orm_column_meta_t pk64_cols[2];
     c_orm_table_meta_t pk64_meta;
     const char *fields[1] = {"name"};
@@ -921,6 +1056,14 @@ TEST test_api_field_helpers_and_introspection(void) {
   PASS();
 }
 
+/**
+ * @brief Mock blob getter returning NULL blob buffer pointer.
+ * @param q Query pointer.
+ * @param i Column index.
+ * @param val Pointer to output blob data.
+ * @param size Pointer to output blob size.
+ * @return Error code.
+ */
 static c_orm_error_t mock_cov_blob_null_100(c_orm_query_t *q, int i,
                                             const void **val, size_t *size) {
   (void)q;
@@ -930,6 +1073,14 @@ static c_orm_error_t mock_cov_blob_null_100(c_orm_query_t *q, int i,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock blob getter returning non-NULL buffer with zero size.
+ * @param q Query pointer.
+ * @param i Column index.
+ * @param val Pointer to output blob data.
+ * @param size Pointer to output blob size.
+ * @return Error code.
+ */
 static c_orm_error_t mock_cov_blob_zero_100(c_orm_query_t *q, int i,
                                             const void **val, size_t *size) {
   (void)q;
@@ -939,24 +1090,42 @@ static c_orm_error_t mock_cov_blob_zero_100(c_orm_query_t *q, int i,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock prefix column name without underscore delimiter.
+ * @param q Query pointer.
+ * @param i Column index.
+ * @param n Output pointer receiving column name.
+ * @return Error code.
+ */
 static c_orm_error_t mock_prefix_col_name_no_underscore(c_orm_query_t *q, int i,
                                                         const char **n) {
   (void)q;
   (void)i;
-  if (n)
-    *n = "childxyz";
+  *n = "childxyz";
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock step function always indicating no rows found.
+ * @param q Query pointer.
+ * @param has_row Pointer to output boolean.
+ * @return Error code.
+ */
 static c_orm_error_t mock_always_step_not_found(c_orm_query_t *q,
                                                 int *has_row) {
   (void)q;
-  if (has_row)
-    *has_row = 0;
+  *has_row = 0;
   return C_ORM_ERROR_NOT_FOUND;
 }
 
 static int g_scatter_step_call = 0;
+/**
+ * @brief Mock step function returning 1 then 0 for mixed scatter-gather
+ * testing.
+ * @param q Query pointer.
+ * @param has_row Pointer to output boolean.
+ * @return Error code.
+ */
 static c_orm_error_t mock_scatter_mixed_step(c_orm_query_t *q, int *has_row) {
   (void)q;
   if (!has_row)
@@ -978,28 +1147,51 @@ static c_orm_error_t mock_scatter_mixed_step(c_orm_query_t *q, int *has_row) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock get_last_rowid returning zero identifier.
+ * @param db Database handle.
+ * @param out_id Output rowid pointer.
+ * @return Error code.
+ */
 static c_orm_error_t mock_get_last_rowid_zero(c_orm_db_t *db, int64_t *out_id) {
   (void)db;
-  if (out_id)
-    *out_id = 0;
+  *out_id = 0;
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock get_last_rowid simulating failure.
+ * @param db Database handle.
+ * @param out_id Output rowid pointer.
+ * @return Error code.
+ */
 static c_orm_error_t mock_get_last_rowid_fail(c_orm_db_t *db, int64_t *out_id) {
   (void)db;
   (void)out_id;
   return C_ORM_ERROR_UNKNOWN;
 }
 
+/**
+ * @brief Mock is_null returning NULL only for prefixed columns.
+ * @param q Query pointer.
+ * @param i Column index.
+ * @param out Pointer to output integer.
+ * @return Error code.
+ */
 static c_orm_error_t mock_is_null_only_prefix(c_orm_query_t *q, int i,
                                               int *out) {
   (void)q;
-  if (out)
-    *out = (i == 1) ? 1 : 0;
+  *out = (i == 1) ? 1 : 0;
   return C_ORM_OK;
 }
 
 static int g_step_parent_only_cnt = 0;
+/**
+ * @brief Mock step function returning 1 only for parent query instances.
+ * @param q Query pointer.
+ * @param has_row Pointer to output boolean.
+ * @return Error code.
+ */
 static c_orm_error_t mock_step_parent_only(c_orm_query_t *q, int *has_row) {
   (void)q;
   if (!has_row)
@@ -1013,6 +1205,12 @@ static c_orm_error_t mock_step_parent_only(c_orm_query_t *q, int *has_row) {
 }
 
 static int g_step_rel_cnt = 0;
+/**
+ * @brief Mock step function for one-to-many relationship queries.
+ * @param q Query pointer.
+ * @param has_row Pointer to output boolean.
+ * @return Error code.
+ */
 static c_orm_error_t mock_step_rel_o2m(c_orm_query_t *q, int *has_row) {
   (void)q;
   if (!has_row)
@@ -1026,7 +1224,7 @@ static c_orm_error_t mock_step_rel_o2m(c_orm_query_t *q, int *has_row) {
     *has_row = 0;
     return C_ORM_OK;
   }
-  if (g_step_rel_cnt >= 3 && g_step_rel_cnt <= 7) {
+  if (g_step_rel_cnt <= 7) {
     *has_row = 1;
     return C_ORM_OK;
   }
@@ -1034,6 +1232,12 @@ static c_orm_error_t mock_step_rel_o2m(c_orm_query_t *q, int *has_row) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Mock step function for one-to-one relationship queries.
+ * @param q Query pointer.
+ * @param has_row Pointer to output boolean.
+ * @return Error code.
+ */
 static c_orm_error_t mock_step_rel_o2o(c_orm_query_t *q, int *has_row) {
   (void)q;
   if (!has_row)
@@ -1055,6 +1259,11 @@ static c_orm_error_t mock_step_rel_o2o(c_orm_query_t *q, int *has_row) {
   return C_ORM_OK;
 }
 
+/**
+ * @brief Tests hydration boundary conditions across all supported column and
+ * relationship types.
+ * @return GREATEST test result.
+ */
 TEST test_api_hydration_types_and_boundaries(void) {
   c_orm_driver_vtable_t custom_vt;
   c_orm_db_t custom_db;
@@ -1073,19 +1282,11 @@ TEST test_api_hydration_types_and_boundaries(void) {
   /* 1. c_orm_hydrate_row_from: BLOB null, Point/Poly/Blob NULL val, Blob zero
    * size, Expire NULL cb */
   {
-    struct MultiColBlobObj {
-      c_orm_blob_t b_col;
-      c_orm_point_t pt_col;
-      c_orm_polygon_t poly_col;
-    } m_obj;
+    struct MultiColBlobObj m_obj;
     c_orm_table_meta_t m_meta;
     c_orm_column_meta_t m_cols[3];
 
-    struct TtlObj {
-      int32_t id;
-      int64_t created_at;
-      int32_t expires_in;
-    } t_obj;
+    struct TtlObj t_obj;
     c_orm_table_meta_t t_meta;
 
     memset(&m_obj, 0, sizeof(m_obj));
@@ -1203,12 +1404,10 @@ TEST test_api_hydration_types_and_boundaries(void) {
     /* Line 563: nested_struct != NULL but is_null is true for prefix */
     p.child_o2o =
         (struct NestedChild *)c_orm_malloc(sizeof(struct NestedChild));
-    if (p.child_o2o) {
-      memset(p.child_o2o, 0, sizeof(struct NestedChild));
-      (void)c_orm_hydrate_row(&custom_db, (c_orm_query_t *)1, &p_meta, &p);
-      C_ORM_FREE(p.child_o2o);
-      p.child_o2o = NULL;
-    }
+    memset(p.child_o2o, 0, sizeof(struct NestedChild));
+    (void)c_orm_hydrate_row(&custom_db, (c_orm_query_t *)1, &p_meta, &p);
+    C_ORM_FREE(p.child_o2o);
+    p.child_o2o = NULL;
 
     /* Line 554: nested_struct allocation fails */
     custom_vt.is_null = mock_is_null_false;
@@ -1310,25 +1509,22 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
     /* Lines 1368, 1372 empty strings, and Line 1491: 5 rows to trigger cap*2 */
     out_arr.data = c_orm_malloc(sizeof(struct FullParentObj));
-    if (out_arr.data) {
-      memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
-      out_arr.length = 1;
-      out_arr.capacity = 1;
-      rels[0].custom_filter = "";
-      rels[0].order_by = "";
-      custom_vt.step = mock_step_rel_o2m;
-      g_step_rel_cnt = 0;
-      (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
-                                         &out_arr);
-      if (out_arr.data) {
-        struct FullParentObj *fpo = (struct FullParentObj *)out_arr.data;
-        if (fpo->children_o2m.data)
-          C_ORM_FREE(fpo->children_o2m.data);
-        C_ORM_FREE(out_arr.data);
-        out_arr.data = NULL;
-      }
-      custom_vt.step = g_vt.step;
+    memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
+    out_arr.length = 1;
+    out_arr.capacity = 1;
+    rels[0].custom_filter = "";
+    rels[0].order_by = "";
+    custom_vt.step = mock_step_rel_o2m;
+    g_step_rel_cnt = 0;
+    (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
+                                       &out_arr);
+    {
+      struct FullParentObj *fpo = (struct FullParentObj *)out_arr.data;
+      C_ORM_FREE(fpo->children_o2m.data);
+      C_ORM_FREE(out_arr.data);
+      out_arr.data = NULL;
     }
+    custom_vt.step = g_vt.step;
     rels[0].custom_filter = NULL;
     rels[0].order_by = NULL;
 
@@ -1341,22 +1537,19 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
     p.child_o2o = NULL;
     out_arr.data = c_orm_malloc(sizeof(struct FullParentObj));
-    if (out_arr.data) {
-      memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
-      out_arr.length = 1;
-      out_arr.capacity = 1;
-      custom_vt.step = mock_step_rel_o2o;
-      g_step_rel_cnt = 0;
-      (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
-                                         &out_arr);
-      custom_vt.step = g_vt.step;
-      if (out_arr.data) {
-        struct FullParentObj *fpo = (struct FullParentObj *)out_arr.data;
-        if (fpo->child_o2o)
-          C_ORM_FREE(fpo->child_o2o);
-        C_ORM_FREE(out_arr.data);
-        out_arr.data = NULL;
-      }
+    memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
+    out_arr.length = 1;
+    out_arr.capacity = 1;
+    custom_vt.step = mock_step_rel_o2o;
+    g_step_rel_cnt = 0;
+    (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
+                                       &out_arr);
+    custom_vt.step = g_vt.step;
+    {
+      struct FullParentObj *fpo = (struct FullParentObj *)out_arr.data;
+      C_ORM_FREE(fpo->child_o2o);
+      C_ORM_FREE(out_arr.data);
+      out_arr.data = NULL;
     }
   }
 
@@ -1490,18 +1683,13 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
   /* 7. Lines 2045, 2071: UUID and Timestamp binding */
   {
-    struct UuidTsObj {
-      char *id;
-      char *ts;
-    } ut_obj;
+    struct UuidTsObj ut_obj;
     c_orm_table_meta_t ut_meta;
     c_orm_column_meta_t ut_cols[2];
 
     c_orm_table_meta_t ts_pk_meta;
     c_orm_column_meta_t ts_pk_col[1];
-    struct {
-      char *ts;
-    } ts_pk_obj;
+    struct TsPkObj ts_pk_obj;
 
     memset(&ut_obj, 0, sizeof(ut_obj));
     memset(&ut_meta, 0, sizeof(ut_meta));
@@ -1546,15 +1734,23 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
   /* 8. Line 2594: iterator_close with iter->query == NULL */
   {
+    /**
+     * @brief Internal layout mirroring c_orm_iterator for unit testing iterator
+     * edge cases.
+     * @var db Database handle pointer
+     * @var meta Table metadata pointer
+     * @var query Active query pointer
+     * @var chunk_size Batch chunk size
+     */
     struct c_orm_iterator_int {
-      c_orm_db_t *db;
-      const c_orm_table_meta_t *meta;
-      c_orm_query_t *query;
-      size_t chunk_size;
+      c_orm_db_t *db; /**< Database connection handle pointer. */
+      const c_orm_table_meta_t *meta; /**< Model table metadata descriptor. */
+      c_orm_query_t *query;           /**< Prepared database query handle. */
+      size_t chunk_size;              /**< Iterator batch chunk size. */
     };
     struct c_orm_iterator *iter = NULL;
     (void)c_orm_find_batch_init(&custom_db, &Users_meta, NULL, 10, &iter);
-    if (iter) {
+    {
       struct c_orm_iterator_int *it = (struct c_orm_iterator_int *)(void *)iter;
       it->query = NULL;
       c_orm_iterator_close(iter);
@@ -1645,10 +1841,7 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
     /* Lines 2754 & 2938: nullable FK with local_key not found and with 0 */
     {
-      struct NullableFkObj {
-        int32_t *id;
-        void *child_ptr;
-      } n_obj;
+      struct NullableFkObj n_obj;
       int32_t actual_id;
       c_orm_table_meta_t n_meta;
       c_orm_column_meta_t n_cols[1];
@@ -1874,10 +2067,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     sql_tbl.n_table_constraints = 2;
 
     (void)c_orm_build_relation_meta(&sql_tbl, &out_rels, &out_num);
-    if (out_rels) {
-      C_ORM_FREE(out_rels);
-      out_rels = NULL;
-    }
+    C_ORM_FREE(out_rels);
+    out_rels = NULL;
   }
 
   /* 13. Line 5564 branch 0: free_relations with NULL str_name */
@@ -1888,10 +2079,6 @@ TEST test_api_hydration_types_and_boundaries(void) {
     c_orm_relation_meta_t rels[1];
     c_orm_lazy_load_context_t *ctx;
 
-    struct StringChildObj {
-      int32_t id;
-      char *str_name;
-    };
     c_orm_table_meta_t str_c_meta;
     c_orm_column_meta_t str_c_cols[2];
 
@@ -1934,12 +2121,11 @@ TEST test_api_hydration_types_and_boundaries(void) {
                                                 rels[0].lazy_ctx_offset);
     ctx->is_loaded = 1;
     p.children_o2m.data = c_orm_malloc(sizeof(struct StringChildObj) * 2);
-    if (p.children_o2m.data) {
+    {
       struct StringChildObj *scs = (struct StringChildObj *)p.children_o2m.data;
       memset(scs, 0, sizeof(struct StringChildObj) * 2);
       scs[0].str_name = (char *)c_orm_malloc(8);
-      if (scs[0].str_name)
-        C_ORM_STRCPY(scs[0].str_name, 8, "test");
+      C_ORM_STRCPY(scs[0].str_name, 8, "test");
       scs[1].str_name = NULL;
       p.children_o2m.length = 2;
       p.children_o2m.capacity = 2;
@@ -1961,10 +2147,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     g_scatter_step_call = 0;
     custom_vt.step = mock_scatter_mixed_step;
     (void)c_orm_scatter_gather_generic(sm, &Users_meta, &out_arr, &out_cnt);
-    if (out_arr) {
-      C_ORM_FREE(out_arr);
-      out_arr = NULL;
-    }
+    C_ORM_FREE(out_arr);
+    out_arr = NULL;
 
     custom_vt.step = g_vt.step;
     c_orm_shard_manager_free(sm);
@@ -2107,10 +2291,7 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
   /* 20. Line 2046 and 2069: UUID OOM and invalid timestamp */
   {
-    struct UuidTsObj2 {
-      char *id;
-      char *ts;
-    } ut_obj2;
+    struct UuidTsObj2 ut_obj2;
     c_orm_table_meta_t ut_meta2;
     c_orm_column_meta_t ut_cols2[2];
     int k;

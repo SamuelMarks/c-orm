@@ -1,5 +1,12 @@
 #if defined(__clang__) || defined(__GNUC__)
 #endif
+/**
+ * @file cdd_c_compat.c
+ * @brief Compatibility stubs and safe formatting utilities.
+ * @defgroup cdd_c_compat CDD-C Compatibility Layer
+ * @{
+ */
+
 /* clang-format off */
 #include <stdarg.h>
 #include <stdio.h>
@@ -14,9 +21,21 @@
 #if defined(__clang__) || defined(__GNUC__)
 __attribute__((__format__(__printf__, 1, 2)))
 #endif
+/**
+ * @brief Logs a debug message for cdd-c compatibility.
+ * @param fmt Format string.
+ * @param ... Additional arguments.
+ * @return 0 on success.
+ */
 C_ORM_EXPORT c_orm_error_t
 C_CDD_LOG_DEBUG(const char *fmt, ...);
 
+/**
+ * @brief Logs a debug message for cdd-c compatibility.
+ * @param fmt Format string.
+ * @param ... Additional arguments.
+ * @return 0 on success.
+ */
 C_ORM_EXPORT c_orm_error_t C_CDD_LOG_DEBUG(const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -28,6 +47,14 @@ C_ORM_EXPORT c_orm_error_t C_CDD_LOG_DEBUG(const char *fmt, ...) {
 #if defined(__clang__) || defined(__GNUC__)
 __attribute__((__format__(__printf__, 3, 4)))
 #endif
+/**
+ * @brief Formats a string safely into a buffer.
+ * @param buf Output character buffer.
+ * @param size Capacity of buffer in bytes.
+ * @param format Printf format string.
+ * @param ... Additional format arguments.
+ * @return Number of characters written, or negative on error.
+ */
 C_ORM_EXPORT int
 c_orm_sprintf(char *buf, size_t size, const char *format, ...) {
   int ret;

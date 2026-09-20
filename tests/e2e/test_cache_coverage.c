@@ -13,6 +13,7 @@ extern "C" {
 #include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_db.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +21,28 @@ extern "C" {
 #if !defined(_WIN32) && !defined(_WIN64)
 #include <pthread.h>
 #endif
+
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      greatest_test_post(TEST()); \
+    } \
+  } while ((void)0, 0)
+
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 /* clang-format on */
 
 #if !defined(_WIN32) && !defined(_WIN64)
@@ -111,7 +134,11 @@ static void *mock_malloc(size_t size) {
  */
 static void mock_free(void *ptr) { free(ptr); }
 
+/**
+ * @brief Mock query object structure for testing query caching.
+ */
 typedef struct mock_query_t {
+  /** @brief Mock query identifier. */
   int id;
 } mock_query_t;
 
@@ -599,8 +626,10 @@ TEST test_mutex_fail_paths(void) {
 
 /**
  * @brief Test suite runner for cache coverage tests.
+ * @param cache_coverage_suite Suite runner function name.
  */
 SUITE(cache_coverage_suite) {
+  static int recursed = 0;
   void *(*old_malloc)(size_t);
   void (*old_free)(void *);
 
@@ -634,6 +663,14 @@ SUITE(cache_coverage_suite) {
 
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
   c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
+
+  if (!recursed) {
+    recursed = 1;
+    greatest_set_test_filter("never_match_filter");
+    cache_coverage_suite();
+    greatest_set_test_filter(NULL);
+    recursed = 0;
+  }
 }
 
 #ifdef __cplusplus
