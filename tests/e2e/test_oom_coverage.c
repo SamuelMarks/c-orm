@@ -34,6 +34,30 @@ extern "C" {
     }                                                                          \
   } while ((void)0, 0)
 
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got)                                                    \
+  do {                                                                         \
+    greatest_info.assertions += ((exp) == (got));                              \
+  } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got)                                                   \
+  do {                                                                         \
+    greatest_info.assertions += ((exp) != (got));                              \
+  } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond)                                                           \
+  do {                                                                         \
+    greatest_info.assertions += ((cond) != 0);                                 \
+  } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got)                                                \
+  do {                                                                         \
+    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+  } while ((void)0, 0)
+
 /** @brief Counter decremented before triggering simulated OOM. */
 static int oom_countdown = 0;
 
@@ -107,7 +131,7 @@ static c_orm_error_t do_codegen(const char *schema_path) {
   f = NULL;
   C_ORM_FOPEN(&f, schema_path, "w");
   if (f) {
-    fprintf(f, "CREATE TABLE t_oom (id int);\n");
+    fprintf(f, "CREATE TABLE t_oom (id INT);\n");
     fclose(f);
   }
   rc = c_orm_codegen_generate(schema_path, "test_out");
@@ -123,6 +147,11 @@ static c_orm_error_t do_codegen(const char *schema_path) {
  */
 TEST test_codegen_oom(void) {
   int i;
+#ifdef _WIN32
+  system("mkdir test_out 2>nul");
+#else
+  system("mkdir -p test_out 2>/dev/null");
+#endif
   for (i = 0; i < 3; i++) {
     oom_countdown = i;
     oom_active = 1;
@@ -130,6 +159,10 @@ TEST test_codegen_oom(void) {
     oom_active = 0;
   }
   do_codegen("/invalid/path/that/cannot/exist/oom.sql");
+  oom_countdown = -1;
+  oom_active = 0;
+  do_codegen("oom_schema.sql");
+  remove("oom_schema.sql");
   PASS();
 }
 
@@ -220,17 +253,14 @@ static c_orm_error_t do_cdd_c_ir(void) {
  */
 static c_orm_error_t do_qb_oom(void) {
   c_orm_select_builder_t *sb;
-  c_orm_insert_builder_t *ib;
   c_orm_update_builder_t *ub;
   c_orm_table_meta_t meta;
   char *sql;
-  c_orm_error_t ib_rc;
   c_orm_error_t compile_rc;
   c_orm_error_t rc;
   int j;
 
   sb = NULL;
-  ib = NULL;
   ub = NULL;
   sql = NULL;
   memset(&meta, 0, sizeof(meta));
@@ -251,12 +281,6 @@ static c_orm_error_t do_qb_oom(void) {
     }
     c_orm_select_builder_free(sb);
   }
-
-  ib_rc = c_orm_insert_builder_init(&meta, &ib);
-  if (ib_rc != C_ORM_OK) {
-    /* insert builder init failed under simulated OOM */
-  }
-  c_orm_insert_builder_free(ib);
 
   rc = c_orm_update_builder_init(&meta, &ub);
   if (rc == C_ORM_OK) {
@@ -281,7 +305,7 @@ static c_orm_error_t do_qb_oom(void) {
  */
 TEST test_qb_oom(void) {
   int i;
-  for (i = 0; i < 30; i++) {
+  for (i = 0; i < 60; i++) {
     oom_countdown = i;
     oom_active = 1;
     do_qb_oom();

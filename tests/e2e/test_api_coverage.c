@@ -51,10 +51,8 @@
  * @param ctx Context pointer.
  */
 static void test_dummy_cb(c_orm_error_t err, void *ctx) {
-  if (err != C_ORM_OK) {
-    /* Async callback error */
-  }
-  (void)ctx;
+  ASSERT_EQ(C_ORM_OK, err);
+  ASSERT_EQ(NULL, ctx);
 }
 /**
  * @brief Batch operation progress callback.

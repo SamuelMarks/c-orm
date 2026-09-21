@@ -16,6 +16,12 @@
 #include <string.h>
 /* clang-format on */
 
+/** @brief Mock hook to simulate sql_to_c_header_emit failure. */
+C_ORM_EXPORT int c_orm_mock_codegen_header_emit_fail = 0;
+
+/** @brief Mock hook to simulate sql_to_c_source_emit failure. */
+C_ORM_EXPORT int c_orm_mock_codegen_source_emit_fail = 0;
+
 /**
  * @brief Generates C code from a SQL schema file.
  * @param schema_file The path to the SQL schema file.
@@ -57,32 +63,49 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
   sql_size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
-  if (sql_size > 0) {
-    sql_data = (char *)C_ORM_MALLOC((size_t)sql_size + 1);
-    if (!sql_data) {
-      LOG_DEBUG("c_orm_codegen_generate: OOM");
-      fclose(fp);
-      rc = C_ORM_ERROR_MEMORY;
-      goto cleanup;
-    }
-    if (fread(sql_data, 1, (size_t)sql_size, fp) != (size_t)sql_size) {
-      LOG_DEBUG("c_orm_codegen_generate: read error");
-      fclose(fp);
-      rc = C_ORM_ERROR_UNKNOWN;
-      goto cleanup;
-    }
-    sql_data[sql_size] = '\0';
+  if (sql_size <= 0) {
+    LOG_DEBUG("c_orm_codegen_generate: empty schema file");
+    fclose(fp);
+    rc = C_ORM_ERROR_UNKNOWN;
+    goto cleanup;
   }
+
+  sql_data = (char *)C_ORM_MALLOC((size_t)sql_size + 1);
+  if (!sql_data) {
+    LOG_DEBUG("c_orm_codegen_generate: OOM");
+    fclose(fp);
+    rc = C_ORM_ERROR_MEMORY;
+    goto cleanup;
+  }
+  if (fread(sql_data, 1, (size_t)sql_size, fp) != (size_t)sql_size) {
+    LOG_DEBUG("c_orm_codegen_generate: read error");
+    fclose(fp);
+    rc = C_ORM_ERROR_UNKNOWN;
+    goto cleanup;
+  }
+  sql_data[sql_size] = '\0';
   fclose(fp);
   fp = NULL;
 
-  if (sql_data) {
-    parse_sql_ddl(sql_data, &tables, &n_tables);
+  rc = parse_sql_ddl(sql_data, &tables, &n_tables);
+  if (rc != C_ORM_OK) {
+    LOG_DEBUG("c_orm_codegen_generate: parse_sql_ddl failed");
+    goto cleanup;
+  }
+  if (n_tables == 0) {
+    LOG_DEBUG("c_orm_codegen_generate: no tables parsed from schema");
+    rc = C_ORM_ERROR_UNKNOWN;
+    goto cleanup;
   }
 
   printf("NUM TABLES GENERATED: %d\n", (int)n_tables);
   h_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
   c_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
+  if (!h_path || !c_path) {
+    LOG_DEBUG("c_orm_codegen_generate: OOM for path buffers");
+    rc = C_ORM_ERROR_MEMORY;
+    goto cleanup;
+  }
 
   C_ORM_SPRINTF(h_path, strlen(output_dir) + 32, "%s/Models.h", output_dir);
   C_ORM_SPRINTF(c_path, strlen(output_dir) + 32, "%s/Models.c", output_dir);
@@ -146,7 +169,16 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
                 "on */\n\n");
 
     for (i = 0; i < n_tables; ++i) {
-      sql_to_c_header_emit(fp, &tables[i]);
+      if (c_orm_mock_codegen_header_emit_fail) {
+        rc = C_ORM_ERROR_UNKNOWN;
+      } else {
+        rc = sql_to_c_header_emit(fp, &tables[i]);
+      }
+      if (rc != C_ORM_OK) {
+        fclose(fp);
+        fp = NULL;
+        goto cleanup;
+      }
     }
     fprintf(fp, "#endif\n");
     fclose(fp);
@@ -172,7 +204,16 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     fprintf(fp, "/* clang-format "
                 "on */\n\n");
     for (i = 0; i < n_tables; ++i) {
-      sql_to_c_source_emit(fp, &tables[i], "Models.h");
+      if (c_orm_mock_codegen_source_emit_fail) {
+        rc = C_ORM_ERROR_UNKNOWN;
+      } else {
+        rc = sql_to_c_source_emit(fp, &tables[i], "Models.h");
+      }
+      if (rc != C_ORM_OK) {
+        fclose(fp);
+        fp = NULL;
+        goto cleanup;
+      }
     }
     fclose(fp);
     fp = NULL;

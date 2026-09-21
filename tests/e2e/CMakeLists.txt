@@ -35,10 +35,14 @@ else()
         DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
         COMMENT "Generating C Models from schema.sql using c-orm-cli..."
     )
+    add_custom_target(generate_e2e_models DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c)
 endif()
 
-    add_library(e2e_models STATIC "${CMAKE_CURRENT_BINARY_DIR}/Models.c")
-    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/Models.c" PROPERTIES COMPILE_DEFINITIONS "")
+    add_library(e2e_models STATIC "${CMAKE_CURRENT_SOURCE_DIR}/pregen/Models.c")
+    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/pregen/Models.c" PROPERTIES COMPILE_DEFINITIONS "")
+    if(TARGET generate_e2e_models)
+        add_dependencies(e2e_models generate_e2e_models)
+    endif()
 
     add_executable(c_orm_e2e_tests
     test_arena_uuid.c
@@ -107,6 +111,6 @@ if(WIN32 AND BUILD_SHARED_LIBS AND DEFINED CDD_C_PATH_ENV AND NOT CMAKE_CROSSCOM
     set_tests_properties(e2e_test PROPERTIES ENVIRONMENT "PATH=${CDD_C_PATH_ENV_ESCAPED}")
 endif()
 
-target_include_directories(e2e_models PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+target_include_directories(e2e_models PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/pregen" "${CMAKE_CURRENT_BINARY_DIR}")
 target_link_libraries(c_orm_e2e_tests PRIVATE e2e_models)
 target_link_libraries(e2e_models PRIVATE c-orm)

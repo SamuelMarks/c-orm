@@ -351,27 +351,33 @@ TEST test_api_finalize_cached_errors(void) {
     g_db_count = 0;
     g_db_target = t;
     g_step_count = 0;
-    (void)c_orm_find_by_composite_key(&g_db, &p_meta, 1, key_vals, &p);
+    rc = c_orm_find_by_composite_key(&g_db, &p_meta, 1, key_vals, &p);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_delete_by_composite_key(&g_db, &p_meta, 1, key_vals);
+    rc = c_orm_delete_by_composite_key(&g_db, &p_meta, 1, key_vals);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_find_by_id_int32(&g_db, &p_meta, 1, &p);
+    rc = c_orm_find_by_id_int32(&g_db, &p_meta, 1, &p);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "child_o2o", &p);
+    rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "child_o2o", &p);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "children_o2m", &p);
+    rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "children_o2m", &p);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "tags_m2m", &p);
+    rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "tags_m2m", &p);
+    ASSERT(rc != C_ORM_OK);
 
     free(p.children_o2m.data);
     free(p.tags_m2m.data);
@@ -385,7 +391,8 @@ TEST test_api_finalize_cached_errors(void) {
     out_arr.capacity = 2;
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_find_all_with_relation(&g_db, &p_meta, "child_o2o", &out_arr);
+    rc = c_orm_find_all_with_relation(&g_db, &p_meta, "child_o2o", &out_arr);
+    ASSERT(rc != C_ORM_OK);
 
     free(out_arr.data);
     out_arr.data = calloc(2, sizeof(struct FullParentObj));
@@ -393,8 +400,8 @@ TEST test_api_finalize_cached_errors(void) {
     out_arr.capacity = 2;
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_find_all_with_relation(&g_db, &p_meta, "children_o2m",
-                                       &out_arr);
+    rc = c_orm_find_all_with_relation(&g_db, &p_meta, "children_o2m", &out_arr);
+    ASSERT(rc != C_ORM_OK);
 
     free(out_arr.data);
     out_arr.data = calloc(2, sizeof(struct FullParentObj));
@@ -402,115 +409,146 @@ TEST test_api_finalize_cached_errors(void) {
     out_arr.capacity = 2;
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_find_all_with_relation(&g_db, &p_meta, "tags_m2m", &out_arr);
+    rc = c_orm_find_all_with_relation(&g_db, &p_meta, "tags_m2m", &out_arr);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_insert(&g_db, &p_meta, &p);
+    rc = c_orm_insert(&g_db, &p_meta, &p);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_update(&g_db, &p_meta, &p);
+    rc = c_orm_update(&g_db, &p_meta, &p);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_update(&g_db, &s_meta, &s_item);
+    rc = c_orm_update(&g_db, &s_meta, &s_item);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_update(&g_db, &i64_meta, &i64_item);
+    rc = c_orm_update(&g_db, &i64_meta, &i64_item);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_delete(&g_db, &p_meta, &p);
+    rc = c_orm_delete(&g_db, &p_meta, &p);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_delete(&g_db, &s_meta, &s_item);
+    rc = c_orm_delete(&g_db, &s_meta, &s_item);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_delete(&g_db, &i64_meta, &i64_item);
+    rc = c_orm_delete(&g_db, &i64_meta, &i64_item);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_delete_by_id_int32(&g_db, &p_meta, 1);
+    rc = c_orm_delete_by_id_int32(&g_db, &p_meta, 1);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_execute_raw(&g_db, "SELECT 1");
+    rc = c_orm_execute_raw(&g_db, "SELECT 1");
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_find_by_id_string(&g_db, &p_meta, "1", &p);
+    rc = c_orm_find_by_id_string(&g_db, &p_meta, "1", &p);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_find_for_update_by_id_int32(&g_db, &p_meta, 1, &p);
+    rc = c_orm_find_for_update_by_id_int32(&g_db, &p_meta, 1, &p);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_find_for_update_by_id_string(&g_db, &s_meta, "1", &s_item);
+    rc = c_orm_find_for_update_by_id_string(&g_db, &s_meta, "1", &s_item);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_delete_by_id_string(&g_db, &p_meta, "1");
+    rc = c_orm_delete_by_id_string(&g_db, &p_meta, "1");
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_find_one_by_string(&g_db, &p_meta, "name", "alice", &p);
+    rc = c_orm_find_one_by_string(&g_db, &p_meta, "name", "alice", &p);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_update_partial(&g_db, &p_meta, &p, fields, 2);
+    rc = c_orm_update_partial(&g_db, &p_meta, &p, fields, 2);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_update_partial(&g_db, &s_meta, &s_item, fields, 1);
+    rc = c_orm_update_partial(&g_db, &s_meta, &s_item, fields, 1);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_exists_int32(&g_db, &p_meta, 1, &exists_flag);
+    rc = c_orm_exists_int32(&g_db, &p_meta, 1, &exists_flag);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_exists_string(&g_db, &p_meta, "1", &exists_flag);
+    rc = c_orm_exists_string(&g_db, &p_meta, "1", &exists_flag);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_attach(&g_db, &p_meta, &p, "tags_m2m", &c_items[0]);
+    rc = c_orm_attach(&g_db, &p_meta, &p, "tags_m2m", &c_items[0]);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_detach(&g_db, &p_meta, &p, "tags_m2m", &c_items[0]);
+    rc = c_orm_detach(&g_db, &p_meta, &p, "tags_m2m", &c_items[0]);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_sync(&g_db, &p_meta, &p, "children_o2m", c_items, 2);
+    rc = c_orm_sync(&g_db, &p_meta, &p, "children_o2m", c_items, 2);
+    ASSERT(rc != C_ORM_OK);
 
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_sync(&g_db, &p_meta, &p, "tags_m2m", c_items, 2);
+    rc = c_orm_sync(&g_db, &p_meta, &p, "tags_m2m", c_items, 2);
+    ASSERT(rc != C_ORM_OK);
   }
   g_db_fail = 0;
 
   /* 3. Finalize cached fail when !has_row */
   g_step_count = 1;
-  (void)c_orm_find_by_composite_key(&g_db, &p_meta, 1, key_vals, &p);
+  rc = c_orm_find_by_composite_key(&g_db, &p_meta, 1, key_vals, &p);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 1;
-  (void)c_orm_find_by_id_int32(&g_db, &p_meta, 1, &p);
+  rc = c_orm_find_by_id_int32(&g_db, &p_meta, 1, &p);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 1;
-  (void)c_orm_find_by_id_string(&g_db, &p_meta, "1", &p);
+  rc = c_orm_find_by_id_string(&g_db, &p_meta, "1", &p);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 1;
-  (void)c_orm_find_for_update_by_id_int32(&g_db, &p_meta, 1, &p);
+  rc = c_orm_find_for_update_by_id_int32(&g_db, &p_meta, 1, &p);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 1;
-  (void)c_orm_find_for_update_by_id_string(&g_db, &s_meta, "1", &s_item);
+  rc = c_orm_find_for_update_by_id_string(&g_db, &s_meta, "1", &s_item);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 1;
-  (void)c_orm_find_one_by_string(&g_db, &p_meta, "name", "alice", &p);
+  rc = c_orm_find_one_by_string(&g_db, &p_meta, "name", "alice", &p);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 1;
-  (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "child_o2o", &p);
+  rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "child_o2o", &p);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 1;
-  (void)c_orm_update_partial(&g_db, &p_meta, &p, fields, 2);
+  rc = c_orm_update_partial(&g_db, &p_meta, &p, fields, 2);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 0;
 
   /* 4. Malloc failures with finalize cached failure (lines 1253, 1289, 1321) */
@@ -524,7 +562,8 @@ TEST test_api_finalize_cached_errors(void) {
     p.id = 1;
     g_step_count = 0;
     g_exhaust_malloc_countdown = t;
-    (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "child_o2o", &p);
+    rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "child_o2o", &p);
+    ASSERT(rc != C_ORM_OK);
 
     free(p.children_o2m.data);
     free(p.tags_m2m.data);
@@ -533,7 +572,8 @@ TEST test_api_finalize_cached_errors(void) {
     p.id = 1;
     g_step_count = 0;
     g_exhaust_malloc_countdown = t;
-    (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "children_o2m", &p);
+    rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "children_o2m", &p);
+    ASSERT(rc != C_ORM_OK);
 
     free(p.children_o2m.data);
     free(p.tags_m2m.data);
@@ -542,7 +582,8 @@ TEST test_api_finalize_cached_errors(void) {
     p.id = 1;
     g_step_count = 0;
     g_exhaust_malloc_countdown = t;
-    (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "tags_m2m", &p);
+    rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "tags_m2m", &p);
+    ASSERT(rc != C_ORM_OK);
   }
   free(p.children_o2m.data);
   free(p.tags_m2m.data);
@@ -558,7 +599,8 @@ TEST test_api_finalize_cached_errors(void) {
   g_db_target = 4;
   c_orm_mock_finalize_cached_fail = 1;
   g_step_count = 0;
-  (void)c_orm_update_partial(&g_db, &p_meta, &p, fields, 2);
+  rc = c_orm_update_partial(&g_db, &p_meta, &p, fields, 2);
+  ASSERT(rc != C_ORM_OK);
   g_db_fail = 0;
   c_orm_mock_finalize_cached_fail = 0;
 
@@ -571,15 +613,20 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_fail = 1;
   g_mock_fail_col_index = 3;
   g_step_count = 0;
-  (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "children_o2m", &p);
+  rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "children_o2m", &p);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 0;
-  (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "tags_m2m", &p);
+  rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "tags_m2m", &p);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 0;
-  (void)c_orm_find_all_with_relation(&g_db, &p_meta, "child_o2o", &out_arr);
+  rc = c_orm_find_all_with_relation(&g_db, &p_meta, "child_o2o", &out_arr);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 0;
-  (void)c_orm_find_all_with_relation(&g_db, &p_meta, "children_o2m", &out_arr);
+  rc = c_orm_find_all_with_relation(&g_db, &p_meta, "children_o2m", &out_arr);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 0;
-  (void)c_orm_find_all_with_relation(&g_db, &p_meta, "tags_m2m", &out_arr);
+  rc = c_orm_find_all_with_relation(&g_db, &p_meta, "tags_m2m", &out_arr);
+  ASSERT(rc != C_ORM_OK);
   g_mock_fail_col_index = -1;
   c_orm_mock_finalize_cached_fail = 0;
 
@@ -782,7 +829,8 @@ TEST test_api_finalize_cached_errors(void) {
     g_db_target = t;
     g_step_count = 0;
     c_orm_mock_finalize_cached_countdown = 1;
-    (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "children_o2m", &p);
+    rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "children_o2m", &p);
+    ASSERT(rc != C_ORM_OK);
   }
   g_db_fail = 0;
   c_orm_mock_finalize_cached_countdown = -1;
@@ -905,13 +953,16 @@ TEST test_api_string_builder_error_branches(void) {
   for (cd = 0; cd < 35; cd++) {
     g_step_count = 0;
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "child_o2o", &p);
+    rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "child_o2o", &p);
+    ASSERT(rc != C_ORM_OK);
     g_step_count = 0;
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "children_o2m", &p);
+    rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "children_o2m", &p);
+    ASSERT(rc != C_ORM_OK);
     g_step_count = 0;
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "tags_m2m", &p);
+    rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "tags_m2m", &p);
+    ASSERT(rc != C_ORM_OK);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
@@ -929,7 +980,8 @@ TEST test_api_string_builder_error_branches(void) {
     out_arr.length = 2;
     g_step_count = 0;
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_find_all_with_relation(&g_db, &p_meta, "tags_m2m", &out_arr);
+    rc = c_orm_find_all_with_relation(&g_db, &p_meta, "tags_m2m", &out_arr);
+    ASSERT(rc != C_ORM_OK);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
@@ -941,8 +993,8 @@ TEST test_api_string_builder_error_branches(void) {
     out_arr.capacity = 0;
     g_step_count = 0;
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_find_all_with_relation(&g_db, &p_meta, "children_o2m",
-                                       &out_arr);
+    rc = c_orm_find_all_with_relation(&g_db, &p_meta, "children_o2m", &out_arr);
+    ASSERT(rc != C_ORM_OK);
   }
   c_orm_mock_string_builder_append_countdown = -1;
   g_step_max = 1;
@@ -953,7 +1005,8 @@ TEST test_api_string_builder_error_branches(void) {
   out_arr.length = 2;
   g_step_count = 0;
   c_orm_mock_string_builder_append_countdown = 6;
-  (void)c_orm_find_all_with_relation(&g_db, &p_meta, "children_o2m", &out_arr);
+  rc = c_orm_find_all_with_relation(&g_db, &p_meta, "children_o2m", &out_arr);
+  ASSERT(rc != C_ORM_OK);
   c_orm_mock_string_builder_append_countdown = -1;
 
   free(out_arr.data);
@@ -961,7 +1014,8 @@ TEST test_api_string_builder_error_branches(void) {
   out_arr.length = 2;
   g_step_count = 0;
   c_orm_mock_string_builder_get_fail = 1;
-  (void)c_orm_find_all_with_relation(&g_db, &p_meta, "tags_m2m", &out_arr);
+  rc = c_orm_find_all_with_relation(&g_db, &p_meta, "tags_m2m", &out_arr);
+  ASSERT(rc != C_ORM_OK);
   c_orm_mock_string_builder_get_fail = 0;
 
   /* 3. Sweep c_orm_insert_batch_ext */
@@ -971,11 +1025,13 @@ TEST test_api_string_builder_error_branches(void) {
     batch[0].id = 1;
     batch[1].id = 2;
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_insert_batch_ext(&g_db, &p_meta, batch, 2, 2,
-                                 C_ORM_ON_CONFLICT_FAIL, NULL, NULL);
+    rc = c_orm_insert_batch_ext(&g_db, &p_meta, batch, 2, 2,
+                                C_ORM_ON_CONFLICT_FAIL, NULL, NULL);
+    ASSERT(rc != C_ORM_OK);
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_insert_batch_ext(&g_db, &p_meta, batch, 2, 2,
-                                 C_ORM_ON_CONFLICT_DO_NOTHING, NULL, NULL);
+    rc = c_orm_insert_batch_ext(&g_db, &p_meta, batch, 2, 2,
+                                C_ORM_ON_CONFLICT_DO_NOTHING, NULL, NULL);
+    ASSERT(rc != C_ORM_OK);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
@@ -998,7 +1054,8 @@ TEST test_api_string_builder_error_branches(void) {
     batch[0].id = 1;
     batch[1].id = 2;
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_delete_batch(&g_db, &p_meta, batch, 2, 2);
+    rc = c_orm_delete_batch(&g_db, &p_meta, batch, 2, 2);
+    ASSERT(rc != C_ORM_OK);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
@@ -1020,7 +1077,8 @@ TEST test_api_string_builder_error_branches(void) {
     batch[0].id = 1;
     batch[1].id = 2;
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_update_batch(&g_db, &p_meta, batch, 2, 2);
+    rc = c_orm_update_batch(&g_db, &p_meta, batch, 2, 2);
+    ASSERT(rc != C_ORM_OK);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
@@ -1038,7 +1096,8 @@ TEST test_api_string_builder_error_branches(void) {
   /* 6. Sweep c_orm_update_partial (2 fields for comma) */
   for (cd = 0; cd < 20; cd++) {
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_update_partial(&g_db, &p_meta, &p, fields, 2);
+    rc = c_orm_update_partial(&g_db, &p_meta, &p, fields, 2);
+    ASSERT(rc != C_ORM_OK);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
@@ -1050,13 +1109,17 @@ TEST test_api_string_builder_error_branches(void) {
   /* 7. Sweep generic getters and insert */
   for (cd = 0; cd < 15; cd++) {
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_insert_generic(&g_db, &p_meta, &p);
+    rc = c_orm_insert_generic(&g_db, &p_meta, &p);
+    ASSERT(rc != C_ORM_OK);
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_get_generic(&g_db, &p_meta, 1, &p);
+    rc = c_orm_get_generic(&g_db, &p_meta, 1, &p);
+    ASSERT(rc != C_ORM_OK);
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_find_all_generic(&g_db, &p_meta, &gen_data, &gen_count);
+    rc = c_orm_find_all_generic(&g_db, &p_meta, &gen_data, &gen_count);
+    ASSERT(rc != C_ORM_OK);
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_get_generic_string(&g_db, &p_meta, "1", &p);
+    rc = c_orm_get_generic_string(&g_db, &p_meta, "1", &p);
+    ASSERT(rc != C_ORM_OK);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
@@ -1074,7 +1137,8 @@ TEST test_api_string_builder_error_branches(void) {
   /* 8. c_orm_find_one_by_string builder fail */
   for (cd = 0; cd < 15; cd++) {
     c_orm_mock_string_builder_append_countdown = cd;
-    (void)c_orm_find_one_by_string(&g_db, &p_meta, "name", "alice", &p);
+    rc = c_orm_find_one_by_string(&g_db, &p_meta, "name", "alice", &p);
+    ASSERT(rc != C_ORM_OK);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
@@ -1240,23 +1304,29 @@ TEST test_api_batch_finalize_error_branches(void) {
     g_db_count = 0;
     g_db_target = t;
     g_step_count = 0;
-    (void)c_orm_insert_generic(&g_db, &p_meta, &batch[0]);
+    rc = c_orm_insert_generic(&g_db, &p_meta, &batch[0]);
+    ASSERT(rc != C_ORM_OK);
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_get_generic(&g_db, &p_meta, 1, &batch[0]);
+    rc = c_orm_get_generic(&g_db, &p_meta, 1, &batch[0]);
+    ASSERT(rc != C_ORM_OK);
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_find_all_generic(&g_db, &p_meta, &gen_data, &gen_count);
+    rc = c_orm_find_all_generic(&g_db, &p_meta, &gen_data, &gen_count);
+    ASSERT(rc != C_ORM_OK);
     g_db_count = 0;
     g_step_count = 0;
-    (void)c_orm_get_generic_string(&g_db, &p_meta, "1", &batch[0]);
+    rc = c_orm_get_generic_string(&g_db, &p_meta, "1", &batch[0]);
+    ASSERT(rc != C_ORM_OK);
   }
   g_db_fail = 0;
 
   g_step_count = 1; /* !has_row */
-  (void)c_orm_get_generic(&g_db, &p_meta, 1, &batch[0]);
+  rc = c_orm_get_generic(&g_db, &p_meta, 1, &batch[0]);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 1;
-  (void)c_orm_get_generic_string(&g_db, &p_meta, "1", &batch[0]);
+  rc = c_orm_get_generic_string(&g_db, &p_meta, "1", &batch[0]);
+  ASSERT(rc != C_ORM_OK);
   g_step_count = 0;
 
   /* 4. Find all generic OOM with finalize failure (line 7711) */
@@ -1265,7 +1335,8 @@ TEST test_api_batch_finalize_error_branches(void) {
   for (t = 0; t <= 6; t++) {
     g_step_count = 0;
     g_exhaust_malloc_countdown = t;
-    (void)c_orm_find_all_generic(&g_db, &p_meta, &gen_data, &gen_count);
+    rc = c_orm_find_all_generic(&g_db, &p_meta, &gen_data, &gen_count);
+    ASSERT(rc != C_ORM_OK);
   }
   c_orm_set_allocators(orig_m, orig_r, orig_f);
   g_exhaust_malloc_countdown = -1;
@@ -1276,7 +1347,8 @@ TEST test_api_batch_finalize_error_branches(void) {
   g_step_count = 0;
   g_step_max = 20;
   c_orm_set_allocators(orig_m, exhaust_mock_realloc, orig_f);
-  (void)c_orm_find_all_generic(&g_db, &p_meta, &gen_data, &gen_count);
+  rc = c_orm_find_all_generic(&g_db, &p_meta, &gen_data, &gen_count);
+  ASSERT(rc != C_ORM_OK);
   c_orm_set_allocators(orig_m, orig_r, orig_f);
   g_exhaust_realloc_countdown = -1;
   g_step_count = 0;

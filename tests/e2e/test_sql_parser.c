@@ -165,7 +165,9 @@ TEST test_sql_parser_oom(void) {
     oom_active = 1;
     oom_countdown = i;
     rc = parse_sql_ddl(sql, &tables, &n_tables);
-    (void)rc;
+    if (rc != C_ORM_OK) {
+      /* Handled simulated OOM error */
+    }
     if (tables != NULL) {
       test_cleanup_tables(&tables, &n_tables);
     }
@@ -261,63 +263,63 @@ TEST test_sql_parser_errors(void) {
   rc = parse_sql_ddl(
       "CREATE TABLE t1 (name VARCHAR(255) DEFAULT 'unterminated);", &tables,
       &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
 
   /* Parser errors */
   rc = parse_sql_ddl("CREATE;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id UNKNOWN_TYPE;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id TABLE;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id VARCHAR;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id VARCHAR(;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id VARCHAR(255;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT PRIMARY;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT NOT;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT DEFAULT;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT REFERENCES;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT REFERENCES p;", &tables,
                      &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT REFERENCES p(;", &tables,
                      &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT REFERENCES p(id;", &tables,
                      &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
 
   /* Call sql_parse_table directly to hit unreachable errors */
@@ -391,7 +393,7 @@ TEST test_sql_parser_errors(void) {
     toks[8].length = 3;
     list.size = 9;
     rc = sql_parse_table(&list, &tbl, &err);
-    (void)rc;
+    ASSERT(rc != C_ORM_OK);
   }
 
   rc = parse_sql_ddl("CREATE TABLE dummy (\n"
@@ -410,22 +412,22 @@ TEST test_sql_parser_errors(void) {
                      "  pid INT REFERENCES p(id)\n"
                      ");",
                      &tables, &n_tables);
-  (void)rc;
+  ASSERT_EQ(C_ORM_OK, rc);
   test_cleanup_tables(&tables, &n_tables);
 
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT, PRIMARY KEY;", &tables,
                      &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT, FOREIGN KEY;", &tables,
                      &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 (id INT, UNIQUE;", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
   rc = parse_sql_ddl("CREATE TABLE t1 ();", &tables, &n_tables);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   test_cleanup_tables(&tables, &n_tables);
 
   /* NULL tests */
@@ -461,12 +463,12 @@ TEST test_sql_parser_errors(void) {
 
     proj = NULL;
     rc = sql_parse_select(NULL, &proj, &err);
-    (void)rc;
+    ASSERT(rc != C_ORM_OK);
     cdd_c_query_projection_free(proj);
     free(proj);
     proj = NULL;
     rc = sql_parse_returning(NULL, &proj, &err);
-    (void)rc;
+    ASSERT(rc != C_ORM_OK);
     cdd_c_query_projection_free(proj);
     free(proj);
     proj = NULL;

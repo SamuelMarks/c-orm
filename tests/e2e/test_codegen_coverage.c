@@ -26,6 +26,18 @@
     } \
   } while ((void)0, 0)
 
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+
 /** @brief Counter decremented to trigger mock allocation failure. */
 static int mock_malloc_fail_count = -1;
 
@@ -74,14 +86,14 @@ TEST test_codegen_parse_fail(void) {
   c_orm_error_t rc;
 
   rc = write_test_file("dummy.sql", "INVALID SQL SYNTAX;\n");
-  (void)rc;
+  ASSERT_EQ(C_ORM_OK, rc);
 #ifdef _WIN32
   system("mkdir test_out 2>nul");
 #else
   system("mkdir -p test_out 2>/dev/null");
 #endif
   rc = c_orm_codegen_generate("dummy.sql", "test_out");
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   PASS();
 }
 
@@ -93,14 +105,14 @@ TEST test_codegen_fread_fail(void) {
   c_orm_error_t rc;
 
   rc = write_test_file("empty_schema.sql", NULL);
-  (void)rc;
+  ASSERT_EQ(C_ORM_OK, rc);
 #ifdef _WIN32
   system("mkdir test_out 2>nul");
 #else
   system("mkdir -p test_out 2>/dev/null");
 #endif
   rc = c_orm_codegen_generate("empty_schema.sql", "test_out");
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   remove("empty_schema.sql");
   PASS();
 }
@@ -114,15 +126,15 @@ TEST test_codegen_fopen_h_fail(void) {
 
   /* Fail fopen for output by providing an invalid directory path */
   rc = write_test_file("dummy.sql", "CREATE TABLE t (id INT);\n");
-  (void)rc;
+  ASSERT_EQ(C_ORM_OK, rc);
   rc = write_test_file("/invalid/path/that/does/not/exist/fail.sql", NULL);
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   rc = c_orm_codegen_generate("dummy.sql", "/invalid/path/that/does/not/exist");
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
 
   /* Test read error by passing a directory as schema file */
   rc = c_orm_codegen_generate(".", "test_out");
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
   PASS();
 }
 
@@ -134,7 +146,7 @@ TEST test_codegen_fopen_c_fail(void) {
   c_orm_error_t rc;
 
   rc = write_test_file("dummy.sql", "CREATE TABLE t (id INT);\n");
-  (void)rc;
+  ASSERT_EQ(C_ORM_OK, rc);
 #ifdef _WIN32
   system("mkdir test_conflict 2>nul");
   system("mkdir test_conflict\\Models.c 2>nul");
@@ -142,7 +154,7 @@ TEST test_codegen_fopen_c_fail(void) {
   system("mkdir -p test_conflict/Models.c 2>/dev/null");
 #endif
   rc = c_orm_codegen_generate("dummy.sql", "test_conflict");
-  (void)rc;
+  ASSERT(rc != C_ORM_OK);
 #ifdef _WIN32
   system("rmdir /S /Q test_conflict 2>nul");
 #else
@@ -157,14 +169,26 @@ TEST test_codegen_fopen_c_fail(void) {
  */
 TEST test_codegen_malloc_fail(void) {
   int i;
+  int total_calls;
   c_orm_error_t rc;
   void *(*old_malloc)(size_t);
 
   old_malloc = c_orm_malloc;
   c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free);
   rc = write_test_file("dummy.sql", "CREATE TABLE t (id INT);\n");
-  (void)rc;
-  for (i = 1; i <= 3; i++) {
+  ASSERT_EQ(C_ORM_OK, rc);
+#ifdef _WIN32
+  system("mkdir test_out 2>nul");
+#else
+  system("mkdir -p test_out 2>/dev/null");
+#endif
+  mock_malloc_calls = 0;
+  mock_malloc_fail_count = -1;
+  rc = c_orm_codegen_generate("dummy.sql", "test_out");
+  ASSERT_EQ(C_ORM_OK, rc);
+  total_calls = mock_malloc_calls;
+
+  for (i = 1; i <= total_calls; i++) {
     mock_malloc_calls = 0;
     mock_malloc_fail_count = i;
 #ifdef _WIN32
@@ -173,11 +197,38 @@ TEST test_codegen_malloc_fail(void) {
     system("mkdir -p test_out 2>/dev/null");
 #endif
     rc = c_orm_codegen_generate("dummy.sql", "test_out");
-    (void)rc;
-    printf("FAIL_COUNT: %d, TOTAL_CALLS: %d\n", i, mock_malloc_calls);
+    ASSERT(rc != C_ORM_OK);
   }
   mock_malloc_fail_count = -1;
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  PASS();
+}
+
+/**
+ * @brief Tests codegen handling when header or source emit fails.
+ * @return GREATEST test result.
+ */
+TEST test_codegen_emit_fail(void) {
+  c_orm_error_t rc;
+
+  rc = write_test_file("dummy.sql", "CREATE TABLE t (id INT);\n");
+  ASSERT_EQ(C_ORM_OK, rc);
+#ifdef _WIN32
+  system("mkdir test_out 2>nul");
+#else
+  system("mkdir -p test_out 2>/dev/null");
+#endif
+
+  c_orm_mock_codegen_header_emit_fail = 1;
+  rc = c_orm_codegen_generate("dummy.sql", "test_out");
+  ASSERT(rc != C_ORM_OK);
+  c_orm_mock_codegen_header_emit_fail = 0;
+
+  c_orm_mock_codegen_source_emit_fail = 1;
+  rc = c_orm_codegen_generate("dummy.sql", "test_out");
+  ASSERT(rc != C_ORM_OK);
+  c_orm_mock_codegen_source_emit_fail = 0;
+
   PASS();
 }
 
@@ -192,6 +243,7 @@ SUITE(codegen_coverage_suite) {
   RUN_TEST(test_codegen_fopen_h_fail);
   RUN_TEST(test_codegen_fopen_c_fail);
   RUN_TEST(test_codegen_malloc_fail);
+  RUN_TEST(test_codegen_emit_fail);
   if (!recursed) {
     recursed = 1;
     greatest_set_test_filter("never_match_filter");

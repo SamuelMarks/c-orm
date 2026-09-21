@@ -598,7 +598,7 @@ TEST test_mutex_fail_paths(void) {
   int res;
 
   res = pthread_mutex_init(&m, NULL);
-  (void)res;
+  ASSERT_EQ(0, res);
 
   mock_mutex_init_fail = 1;
   res = my_mock_init(&m, NULL);

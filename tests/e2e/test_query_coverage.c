@@ -640,7 +640,9 @@ TEST test_sql_oom(void) {
       oom_countdown = i;
       sql = NULL;
       oom_rc = c_orm_query_to_sql(simple_q, C_ORM_DIALECT_SQLITE, &sql, NULL);
-      (void)oom_rc;
+      if (oom_rc == C_ORM_OK) {
+        ASSERT(sql != NULL);
+      }
       oom_active = 0;
       c_orm_free(sql);
       sql = NULL;
@@ -747,7 +749,6 @@ TEST test_query_sql_coverage(void) {
 
   struct Generic_Array my_arr = {NULL, 0, 0};
 
-  size_t res_count = 0;
   c_orm_query_t *q = NULL;
   char *sql = NULL;
   c_orm_query_params_t p;
@@ -772,7 +773,6 @@ TEST test_query_sql_coverage(void) {
   c_orm_driver_vtable_t mock_vt;
   c_orm_query_t *q_emp = NULL;
   c_orm_query_t *q_inv = NULL;
-  (void)res_count;
 
   c_orm_query_new(&q);
   c_orm_query_params_init(&p);

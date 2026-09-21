@@ -313,13 +313,11 @@ TEST test_oauth2_crypto(void) {
     remove("c_orm_token.dat");
     cfs_rc = cfs_path_init_str(&p, "c_orm_token.dat");
     ASSERT_EQ(cfs_errc_success, cfs_rc);
-    cfs_rc = cfs_remove_all(&p, &rm_out, NULL);
-    (void)cfs_rc;
     cfs_rc = cfs_create_directory(&p, NULL);
-    (void)cfs_rc;
+    ASSERT_EQ(cfs_errc_success, cfs_rc);
     c_orm_store_token_secure(&t);
     cfs_rc = cfs_remove_all(&p, &rm_out, NULL);
-    (void)cfs_rc;
+    ASSERT_EQ(cfs_errc_success, cfs_rc);
     cfs_path_destroy(&p);
     remove("c_orm_token.dat");
   }

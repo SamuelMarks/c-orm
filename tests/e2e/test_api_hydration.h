@@ -1270,6 +1270,7 @@ TEST test_api_hydration_types_and_boundaries(void) {
   void *(*orig_m)(size_t);
   void *(*orig_r)(void *, size_t);
   void (*orig_f)(void *);
+  c_orm_error_t rc;
 
   orig_m = c_orm_malloc;
   orig_r = c_orm_realloc;
@@ -1311,19 +1312,22 @@ TEST test_api_hydration_types_and_boundaries(void) {
     /* Line 115: is_null true with b_col.data == NULL and is_nullable == 1 */
     m_obj.b_col.data = NULL;
     custom_vt.is_null = mock_is_null_true;
-    (void)c_orm_hydrate_row_from(&custom_db, (c_orm_query_t *)1, &m_meta,
-                                 &m_obj, 0);
+    rc = c_orm_hydrate_row_from(&custom_db, (c_orm_query_t *)1, &m_meta, &m_obj,
+                                0);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     custom_vt.is_null = mock_is_null_false;
 
     /* Lines 346, 362, 401: mock_cov_blob_null_100 */
     custom_vt.get_blob = mock_cov_blob_null_100;
-    (void)c_orm_hydrate_row_from(&custom_db, (c_orm_query_t *)1, &m_meta,
-                                 &m_obj, 0);
+    rc = c_orm_hydrate_row_from(&custom_db, (c_orm_query_t *)1, &m_meta, &m_obj,
+                                0);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 401: mock_cov_blob_zero_100 */
     custom_vt.get_blob = mock_cov_blob_zero_100;
-    (void)c_orm_hydrate_row_from(&custom_db, (c_orm_query_t *)1, &m_meta,
-                                 &m_obj, 0);
+    rc = c_orm_hydrate_row_from(&custom_db, (c_orm_query_t *)1, &m_meta, &m_obj,
+                                0);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     custom_vt.get_blob = g_vt.get_blob;
 
     /* Line 466: expire_cb is NULL with num_columns == 0 */
@@ -1338,8 +1342,9 @@ TEST test_api_hydration_types_and_boundaries(void) {
     t_obj.created_at = 1;
     t_obj.expires_in = 1;
     custom_db.expire_cb = NULL;
-    (void)c_orm_hydrate_row_from(&custom_db, (c_orm_query_t *)1, &t_meta,
-                                 &t_obj, 0);
+    rc = c_orm_hydrate_row_from(&custom_db, (c_orm_query_t *)1, &t_meta, &t_obj,
+                                0);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   }
 
   /* 2. c_orm_hydrate_row: Prefix hydration branches (lines 524, 551, 554, 563)
@@ -1393,19 +1398,22 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
     /* Line 524: col_name prefix matches but col_name[prefix_len] != '_' */
     custom_vt.get_column_name = mock_prefix_col_name_no_underscore;
-    (void)c_orm_hydrate_row(&custom_db, (c_orm_query_t *)1, &p_meta, &p);
+    rc = c_orm_hydrate_row(&custom_db, (c_orm_query_t *)1, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 551: p.child_o2o == NULL and is_null is true for prefix */
     custom_vt.get_column_name = mock_prefix_col_name_ok;
     custom_vt.is_null = mock_is_null_only_prefix;
     p.child_o2o = NULL;
-    (void)c_orm_hydrate_row(&custom_db, (c_orm_query_t *)1, &p_meta, &p);
+    rc = c_orm_hydrate_row(&custom_db, (c_orm_query_t *)1, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 563: nested_struct != NULL but is_null is true for prefix */
     p.child_o2o =
         (struct NestedChild *)c_orm_malloc(sizeof(struct NestedChild));
     memset(p.child_o2o, 0, sizeof(struct NestedChild));
-    (void)c_orm_hydrate_row(&custom_db, (c_orm_query_t *)1, &p_meta, &p);
+    rc = c_orm_hydrate_row(&custom_db, (c_orm_query_t *)1, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     C_ORM_FREE(p.child_o2o);
     p.child_o2o = NULL;
 
@@ -1413,7 +1421,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     custom_vt.is_null = mock_is_null_false;
     p.child_o2o = NULL;
     c_orm_set_allocators(cov_always_null_malloc, orig_r, orig_f);
-    (void)c_orm_hydrate_row(&custom_db, (c_orm_query_t *)1, &p_meta, &p);
+    rc = c_orm_hydrate_row(&custom_db, (c_orm_query_t *)1, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     c_orm_set_allocators(orig_m, orig_r, orig_f);
 
     custom_vt.get_column_count = g_vt.get_column_count;
@@ -1444,8 +1453,9 @@ TEST test_api_hydration_types_and_boundaries(void) {
     /* Line 992 branch 0 and line 999 branch 0: num_columns == 0 */
     empty_meta.name = "empty";
     empty_meta.num_columns = 0;
-    (void)c_orm_find_with_relation_int32(&custom_db, &empty_meta, 1, "rel",
-                                         &u_obj);
+    rc = c_orm_find_with_relation_int32(&custom_db, &empty_meta, 1, "rel",
+                                        &u_obj);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 999 branch 1: pk_col->type is STRING */
     str_pk_col = Users_meta.columns[0];
@@ -1453,8 +1463,9 @@ TEST test_api_hydration_types_and_boundaries(void) {
     str_pk_col.is_pk = 1;
     empty_meta.columns = &str_pk_col;
     empty_meta.num_columns = 1;
-    (void)c_orm_find_with_relation_int32(&custom_db, &empty_meta, 1, "rel",
-                                         &u_obj);
+    rc = c_orm_find_with_relation_int32(&custom_db, &empty_meta, 1, "rel",
+                                        &u_obj);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   }
 
   /* 4. Lines 1368, 1372, 1459, 1461, 1488: c_orm_find_all_with_relation */
@@ -1516,8 +1527,9 @@ TEST test_api_hydration_types_and_boundaries(void) {
     rels[0].order_by = "";
     custom_vt.step = mock_step_rel_o2m;
     g_step_rel_cnt = 0;
-    (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
-                                       &out_arr);
+    rc = c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
+                                      &out_arr);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     {
       struct FullParentObj *fpo = (struct FullParentObj *)out_arr.data;
       C_ORM_FREE(fpo->children_o2m.data);
@@ -1542,8 +1554,9 @@ TEST test_api_hydration_types_and_boundaries(void) {
     out_arr.capacity = 1;
     custom_vt.step = mock_step_rel_o2o;
     g_step_rel_cnt = 0;
-    (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
-                                       &out_arr);
+    rc = c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
+                                      &out_arr);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     custom_vt.step = g_vt.step;
     {
       struct FullParentObj *fpo = (struct FullParentObj *)out_arr.data;
@@ -1612,7 +1625,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     p.child_o2o = NULL;
     g_step_parent_only_cnt = 0;
     custom_vt.step = mock_step_parent_only;
-    (void)c_orm_find_with_relations_int32(&custom_db, &p_meta, 1, paths, 1, &p);
+    rc = c_orm_find_with_relations_int32(&custom_db, &p_meta, 1, paths, 1, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     custom_vt.step = g_vt.step;
   }
 
@@ -1659,15 +1673,18 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
     /* Line 1865 branch 0: is_nullable == 1 and pointer is NULL */
     ch_c[0].is_nullable = 1;
-    (void)c_orm_detach(&custom_db, &par_meta, &par, "kids", &ch);
+    rc = c_orm_detach(&custom_db, &par_meta, &par, "kids", &ch);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 1885: non-nullable STRING column in set_null_field */
     ch_c[0].is_nullable = 0;
     ch_c[0].type = C_ORM_TYPE_STRING;
-    (void)c_orm_detach(&custom_db, &par_meta, &par, "kids", &ch);
+    rc = c_orm_detach(&custom_db, &par_meta, &par, "kids", &ch);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 1949: STRING column in set_int_field */
-    (void)c_orm_attach(&custom_db, &par_meta, &par, "kids", &ch);
+    rc = c_orm_attach(&custom_db, &par_meta, &par, "kids", &ch);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 1918 branch 0: is_nullable == 1 and already allocated in
      * set_int_field */
@@ -1677,7 +1694,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
       ch_c[0].type = C_ORM_TYPE_INT32;
       ch_c[0].is_nullable = 1;
       memcpy((char *)&ch + ch_c[0].offset, &pval, sizeof(int32_t *));
-      (void)c_orm_attach(&custom_db, &par_meta, &par, "kids", &ch);
+      rc = c_orm_attach(&custom_db, &par_meta, &par, "kids", &ch);
+      ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     }
   }
 
@@ -1722,13 +1740,15 @@ TEST test_api_hydration_types_and_boundaries(void) {
     ts_pk_meta.columns = ts_pk_col;
     ts_pk_meta.num_columns = 1;
     ts_pk_meta.query_insert = "INSERT INTO ts_pk VALUES (?)";
-    (void)c_orm_insert(&custom_db, &ts_pk_meta, &ts_pk_obj);
+    rc = c_orm_insert(&custom_db, &ts_pk_meta, &ts_pk_obj);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 2071: valid timestamp with timezone offset != 0 */
     custom_db.timezone.offset_minutes = 60;
     ut_obj.id = "existing-uuid-123";
     ut_obj.ts = "2026-09-11 12:00:00";
-    (void)c_orm_insert(&custom_db, &ut_meta, &ut_obj);
+    rc = c_orm_insert(&custom_db, &ut_meta, &ut_obj);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     custom_db.timezone.offset_minutes = 0;
   }
 
@@ -1749,7 +1769,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
       size_t chunk_size;              /**< Iterator batch chunk size. */
     };
     struct c_orm_iterator *iter = NULL;
-    (void)c_orm_find_batch_init(&custom_db, &Users_meta, NULL, 10, &iter);
+    rc = c_orm_find_batch_init(&custom_db, &Users_meta, NULL, 10, &iter);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     {
       struct c_orm_iterator_int *it = (struct c_orm_iterator_int *)(void *)iter;
       it->query = NULL;
@@ -1810,33 +1831,40 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
     /* Lines 2689, 2808, 2895: target_meta is NULL */
     rels[0].target_meta = NULL;
-    (void)c_orm_insert(&custom_db, &p_meta, &p);
-    (void)c_orm_update(&custom_db, &p_meta, &p);
+    rc = c_orm_insert(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
+    rc = c_orm_update(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     rels[0].target_meta = &c_meta;
 
     /* Line 2686 branch 0: get_last_insert_rowid is NULL */
     p.child_o2o = &child;
     custom_vt.get_last_insert_rowid = NULL;
-    (void)c_orm_insert(&custom_db, &p_meta, &p);
+    rc = c_orm_insert(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 2689 branch 1: get_last_insert_rowid returns 0 */
     custom_vt.get_last_insert_rowid = mock_get_last_rowid_zero;
-    (void)c_orm_insert(&custom_db, &p_meta, &p);
+    rc = c_orm_insert(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Lines 2816 & 2824: parent_id == 0 in ONE_TO_ONE */
     rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
     p.child_o2o = &child;
     p.id = 0;
     custom_vt.get_last_insert_rowid = mock_get_last_rowid_zero;
-    (void)c_orm_insert(&custom_db, &p_meta, &p);
+    rc = c_orm_insert(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 2816 branch 1: get_last_insert_rowid returns error in ONE_TO_ONE */
     custom_vt.get_last_insert_rowid = mock_get_last_rowid_fail;
-    (void)c_orm_insert(&custom_db, &p_meta, &p);
+    rc = c_orm_insert(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 2816: get_last_insert_rowid == NULL in ONE_TO_ONE */
     custom_vt.get_last_insert_rowid = NULL;
-    (void)c_orm_insert(&custom_db, &p_meta, &p);
+    rc = c_orm_insert(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     custom_vt.get_last_insert_rowid = g_vt.get_last_insert_rowid;
 
     /* Lines 2754 & 2938: nullable FK with local_key not found and with 0 */
@@ -1878,19 +1906,25 @@ TEST test_api_hydration_types_and_boundaries(void) {
       n_obj.id = &actual_id;
       n_obj.child_ptr = NULL;
       /* local_key not found */
-      (void)c_orm_insert(&custom_db, &n_meta, &n_obj);
-      (void)c_orm_update(&custom_db, &n_meta, &n_obj);
+      rc = c_orm_insert(&custom_db, &n_meta, &n_obj);
+      ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
+      rc = c_orm_update(&custom_db, &n_meta, &n_obj);
+      ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
       /* existing_fk == 0 */
       n_rels[0].local_key = "id";
       actual_id = 0;
-      (void)c_orm_insert(&custom_db, &n_meta, &n_obj);
-      (void)c_orm_update(&custom_db, &n_meta, &n_obj);
+      rc = c_orm_insert(&custom_db, &n_meta, &n_obj);
+      ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
+      rc = c_orm_update(&custom_db, &n_meta, &n_obj);
+      ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
       /* Lines 2754 & 2938 branch 1: id == NULL */
       n_obj.id = NULL;
-      (void)c_orm_insert(&custom_db, &n_meta, &n_obj);
-      (void)c_orm_update(&custom_db, &n_meta, &n_obj);
+      rc = c_orm_insert(&custom_db, &n_meta, &n_obj);
+      ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
+      rc = c_orm_update(&custom_db, &n_meta, &n_obj);
+      ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     }
   }
 
@@ -1945,18 +1979,21 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
     /* Line 2925 branch 1: local_key not found in update */
     rels[0].local_key = "nonexistent";
-    (void)c_orm_update(&custom_db, &p_meta, &p);
+    rc = c_orm_update(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     rels[0].local_key = "id";
 
     /* Line 2925 branch 2: existing_fk == 0 in update */
     p.id = 0;
-    (void)c_orm_update(&custom_db, &p_meta, &p);
+    rc = c_orm_update(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     p.id = 1;
 
     /* Line 2985 default case: BOOL PK in update with 0 relations */
     p_meta.num_relations = 0;
     p_cols[0].type = C_ORM_TYPE_BOOL;
-    (void)c_orm_update(&custom_db, &p_meta, &p);
+    rc = c_orm_update(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   }
 
   /* 11. Lines 3589, 3612, 3634, 3662: delete cascade with STRING PK and
@@ -2004,7 +2041,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     rels[0].on_delete = C_ORM_CASCADE_DELETE;
     p_meta.relations = rels;
     p_meta.num_relations = 1;
-    (void)c_orm_delete(&custom_db, &p_meta, &p);
+    rc = c_orm_delete(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Lines 3634, 3662 case STRING: M2M CASCADE_DELETE with STRING PK */
     rels[0].type = C_ORM_RELATION_MANY_TO_MANY;
@@ -2012,25 +2050,31 @@ TEST test_api_hydration_types_and_boundaries(void) {
     rels[0].join_local_key = "p_id";
     rels[0].join_foreign_key = "c_id";
     rels[0].on_delete = C_ORM_CASCADE_DELETE;
-    (void)c_orm_delete(&custom_db, &p_meta, &p);
+    rc = c_orm_delete(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Case INT64: cascade delete with INT64 PK */
     p_cols[0].type = C_ORM_TYPE_INT64;
     rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
-    (void)c_orm_delete(&custom_db, &p_meta, &p);
+    rc = c_orm_delete(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     rels[0].type = C_ORM_RELATION_MANY_TO_MANY;
-    (void)c_orm_delete(&custom_db, &p_meta, &p);
+    rc = c_orm_delete(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Case default: cascade delete with BOOL PK */
     p_cols[0].type = C_ORM_TYPE_BOOL;
     rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
-    (void)c_orm_delete(&custom_db, &p_meta, &p);
+    rc = c_orm_delete(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     rels[0].type = C_ORM_RELATION_MANY_TO_MANY;
-    (void)c_orm_delete(&custom_db, &p_meta, &p);
+    rc = c_orm_delete(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 3612 branch 0: POLYMORPHIC relation */
     rels[0].type = C_ORM_RELATION_POLYMORPHIC;
-    (void)c_orm_delete(&custom_db, &p_meta, &p);
+    rc = c_orm_delete(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   }
 
   /* 12. Lines 4561, 4580: non-FK alongside FK constraints in
@@ -2066,7 +2110,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     sql_tbl.table_constraints = tbl_cons;
     sql_tbl.n_table_constraints = 2;
 
-    (void)c_orm_build_relation_meta(&sql_tbl, &out_rels, &out_num);
+    rc = c_orm_build_relation_meta(&sql_tbl, &out_rels, &out_num);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     C_ORM_FREE(out_rels);
     out_rels = NULL;
   }
@@ -2146,7 +2191,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
     g_scatter_step_call = 0;
     custom_vt.step = mock_scatter_mixed_step;
-    (void)c_orm_scatter_gather_generic(sm, &Users_meta, &out_arr, &out_cnt);
+    rc = c_orm_scatter_gather_generic(sm, &Users_meta, &out_arr, &out_cnt);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     C_ORM_FREE(out_arr);
     out_arr = NULL;
 
@@ -2159,7 +2205,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     struct Users u_obj;
     memset(&u_obj, 0, sizeof(u_obj));
     custom_vt.step = mock_always_step_not_found;
-    (void)c_orm_insert_generic(&custom_db, &Users_meta, &u_obj);
+    rc = c_orm_insert_generic(&custom_db, &Users_meta, &u_obj);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     custom_vt.step = g_vt.step;
   }
 
@@ -2188,7 +2235,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     vt1.relations = vrels1;
     vt1.num_relations = 2;
 
-    (void)c_orm_validate_relations(vtables, 2);
+    rc = c_orm_validate_relations(vtables, 2);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   }
 
   /* 17. load_relation_ext branches (lines 5280, 5481) */
@@ -2241,7 +2289,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     ctx = (c_orm_lazy_load_context_t *)(void *)((char *)&p +
                                                 rels[0].lazy_ctx_offset);
     ctx->is_loaded = 1;
-    (void)c_orm_load_relation_ext(&custom_db, &p, &p_meta, 0, 0, 5);
+    rc = c_orm_load_relation_ext(&custom_db, &p, &p_meta, 0, 0, 5);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     ctx->is_loaded = 0;
 
     /* Line 5481 branch 2: limit == 0 and offset > 0 on O2M */
@@ -2250,7 +2299,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     rels[0].struct_offset = offsetof(struct FullParentObj, children_o2m);
     rels[0].data_offset = offsetof(struct FullParentObj, children_o2m);
     rels[0].lazy_ctx_offset = offsetof(struct FullParentObj, o2m_ctx);
-    (void)c_orm_load_relation_ext(&custom_db, &p, &p_meta, 0, 0, 5);
+    rc = c_orm_load_relation_ext(&custom_db, &p, &p_meta, 0, 0, 5);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 5530 branch 0: ptr == NULL in free_relations */
     rels[0].type = C_ORM_RELATION_BELONGS_TO;
@@ -2271,7 +2321,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     struct Users u_obj;
     memset(&u_obj, 0, sizeof(u_obj));
     fields[0] = "nonexistent_field_xyz";
-    (void)c_orm_update_partial(&custom_db, &Users_meta, &u_obj, fields, 1);
+    rc = c_orm_update_partial(&custom_db, &Users_meta, &u_obj, fields, 1);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   }
 
   /* 19. Line 6556: sync with children_array == NULL and num_children == 0 */
@@ -2286,7 +2337,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     rels[0].type = C_ORM_RELATION_MANY_TO_MANY;
     p_meta.relations = rels;
     p_meta.num_relations = 1;
-    (void)c_orm_sync(&custom_db, &p_meta, &p, "tags", NULL, 0);
+    rc = c_orm_sync(&custom_db, &p_meta, &p, "tags", NULL, 0);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   }
 
   /* 20. Line 2046 and 2069: UUID OOM and invalid timestamp */
@@ -2319,7 +2371,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     custom_db.timezone.offset_minutes = 60;
     ut_obj2.id = "my-uuid";
     ut_obj2.ts = "invalid-date-format";
-    (void)c_orm_insert(&custom_db, &ut_meta2, &ut_obj2);
+    rc = c_orm_insert(&custom_db, &ut_meta2, &ut_obj2);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     custom_db.timezone.offset_minutes = 0;
 
     /* Line 2046 branch 0: countdown OOM for new_uuid allocation */
@@ -2328,7 +2381,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
       g_deep_fail_oom = k;
       g_deep_alloc_cnt = 0;
       c_orm_set_allocators(mock_deep_malloc, orig_r, orig_f);
-      (void)c_orm_insert(&custom_db, &ut_meta2, &ut_obj2);
+      rc = c_orm_insert(&custom_db, &ut_meta2, &ut_obj2);
+      ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
       c_orm_set_allocators(orig_m, orig_r, orig_f);
     }
     g_deep_fail_oom = -1;
@@ -2399,8 +2453,10 @@ TEST test_api_hydration_types_and_boundaries(void) {
     p_meta.num_relations = 2;
 
     p.child_o2o = NULL;
-    (void)c_orm_insert(&custom_db, &p_meta, &p);
-    (void)c_orm_update(&custom_db, &p_meta, &p);
+    rc = c_orm_insert(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
+    rc = c_orm_update(&custom_db, &p_meta, &p);
+    ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   }
 
   setup_vt();

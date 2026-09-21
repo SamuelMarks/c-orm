@@ -777,6 +777,7 @@ TEST test_api_find_with_relation_int32_deep(void) {
   void *(*orig_m)(size_t) = c_orm_malloc;
   void *(*orig_r)(void *, size_t) = c_orm_realloc;
   void (*orig_f)(void *) = c_orm_free;
+  c_orm_error_t rc;
 
   memset(&p, 0, sizeof(p));
   memset(p_cols, 0, sizeof(p_cols));
@@ -900,8 +901,9 @@ TEST test_api_find_with_relation_int32_deep(void) {
   g_deep_fail_realloc = 99;
   g_step_count = 2;
   c_orm_mock_finalize_cached_countdown = 1;
-  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
-                                       &p);
+  rc = c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                      &p);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   c_orm_mock_finalize_cached_countdown = -1;
   c_orm_set_allocators(orig_m, orig_r, orig_f);
   g_deep_fail_realloc = -1;
@@ -912,8 +914,9 @@ TEST test_api_find_with_relation_int32_deep(void) {
   g_mock_err_stage = 10;
   g_stage_step_cnt = 0;
   g_stage_step_max = 3;
-  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
-                                       &p);
+  rc = c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                      &p);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   g_mock_err_stage = 0;
   custom_vt.step = mock_step_sequence;
   c_orm_mock_finalize_cached_countdown = -1;
@@ -1430,6 +1433,7 @@ TEST test_api_find_and_eager_missing_branches(void) {
   void *(*orig_m)(size_t) = c_orm_malloc;
   void *(*orig_r)(void *, size_t) = c_orm_realloc;
   void (*orig_f)(void *) = c_orm_free;
+  c_orm_error_t rc;
 
   memset(&p, 0, sizeof(p));
   memset(&out_arr, 0, sizeof(out_arr));
@@ -1536,31 +1540,36 @@ TEST test_api_find_and_eager_missing_branches(void) {
   c_orm_mock_finalize_cached_countdown = 1;
   g_mock_err_stage = 6;
   g_stage_step_cnt = 0;
-  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "child_o2o", &p);
+  rc = c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "child_o2o", &p);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
   c_orm_mock_finalize_cached_countdown = 1;
   g_mock_err_stage = 7;
   g_stage_step_cnt = 0;
-  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "child_o2o", &p);
+  rc = c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "child_o2o", &p);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
   c_orm_mock_finalize_cached_countdown = 1;
   g_mock_err_stage = 6;
   g_stage_step_cnt = 0;
-  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
-                                       &p);
+  rc = c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                      &p);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
   c_orm_mock_finalize_cached_countdown = 1;
   g_mock_err_stage = 7;
   g_stage_step_cnt = 0;
-  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
-                                       &p);
+  rc = c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                      &p);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
   c_orm_mock_finalize_cached_countdown = 1;
   g_mock_err_stage = 10;
   g_stage_step_cnt = 0;
   g_stage_step_max = 3;
-  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
-                                       &p);
+  rc = c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                      &p);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
   /* Eager find_all_with_relation finalize failure paths (lines 1651, 1662,
    * 1720, 1733, 1755, 1773, 1790) */
@@ -1574,21 +1583,23 @@ TEST test_api_find_and_eager_missing_branches(void) {
 
   c_orm_mock_finalize_cached_fail = 1;
   g_mock_err_stage = 3;
-  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
-                                     &out_arr);
+  rc = c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o", &out_arr);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   g_mock_err_stage = 1;
-  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
-                                     &out_arr);
+  rc = c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o", &out_arr);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   g_mock_err_stage = 7;
-  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
-                                     &out_arr);
-  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
-                                     &out_arr);
+  rc = c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o", &out_arr);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
+  rc = c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
+                                    &out_arr);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   g_mock_err_stage = 10;
   g_stage_step_cnt = 1;
   g_stage_step_max = 2;
-  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
-                                     &out_arr);
+  rc = c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
+                                    &out_arr);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   g_mock_err_stage = 0;
   c_orm_mock_finalize_cached_fail = 0;
 
@@ -1596,8 +1607,8 @@ TEST test_api_find_and_eager_missing_branches(void) {
   g_deep_fail_oom = 0;
   g_deep_alloc_cnt = 0;
   c_orm_mock_finalize_cached_fail = 1;
-  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o",
-                                     &out_arr);
+  rc = c_orm_find_all_with_relation(&custom_db, &p_meta, "child_o2o", &out_arr);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   c_orm_set_allocators(orig_m, orig_r, orig_f);
   g_deep_fail_oom = -1;
   c_orm_mock_finalize_cached_fail = 0;
@@ -1605,8 +1616,9 @@ TEST test_api_find_and_eager_missing_branches(void) {
   c_orm_set_allocators(orig_m, mock_deep_realloc, orig_f);
   g_deep_fail_realloc = 99;
   c_orm_mock_finalize_cached_fail = 1;
-  (void)c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
-                                     &out_arr);
+  rc = c_orm_find_all_with_relation(&custom_db, &p_meta, "children_o2m",
+                                    &out_arr);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   c_orm_set_allocators(orig_m, orig_r, orig_f);
   g_deep_fail_realloc = -1;
   c_orm_mock_finalize_cached_fail = 0;
@@ -1617,8 +1629,9 @@ TEST test_api_find_and_eager_missing_branches(void) {
   c_orm_mock_finalize_cached_countdown = 1;
   g_stage_step_cnt = 0;
   g_stage_step_max = 5;
-  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
-                                       &p);
+  rc = c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                      &p);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   c_orm_set_allocators(orig_m, orig_r, orig_f);
   g_deep_fail_realloc = -1;
   c_orm_mock_finalize_cached_countdown = -1;
@@ -1627,8 +1640,9 @@ TEST test_api_find_and_eager_missing_branches(void) {
   g_mock_err_stage = 10;
   g_stage_step_cnt = 0;
   g_stage_step_max = 2;
-  (void)c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
-                                       &p);
+  rc = c_orm_find_with_relation_int32(&custom_db, &p_meta, 1, "children_o2m",
+                                      &p);
+  ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
   g_mock_err_stage = 0;
   c_orm_mock_finalize_cached_countdown = -1;
 

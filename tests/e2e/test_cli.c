@@ -178,7 +178,7 @@ TEST test_cli_init(void) {
   sys_rc = system("rm -rf test_migrations_dir_cli");
   sys_rc = system("rm -rf ./test_migrations_dir_cli");
 #endif
-  (void)sys_rc;
+  ASSERT_EQ(0, sys_rc);
 
   rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
   ASSERT_EQ(C_ORM_OK, rc);
@@ -361,13 +361,13 @@ TEST test_cli_status(void) {
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   s_rc = sqlite3_open("test_cli.db", &sdb);
-  (void)s_rc;
+  ASSERT_EQ(SQLITE_OK, s_rc);
   s_rc =
       sqlite3_exec(sdb,
                    "CREATE TABLE IF NOT EXISTS _c_orm_migrations (id INTEGER "
                    "PRIMARY KEY, version TEXT, name TEXT, applied_at DATETIME)",
                    0, 0, 0);
-  (void)s_rc;
+  ASSERT_EQ(SQLITE_OK, s_rc);
   sqlite3_close(sdb);
 
   rc = (c_orm_error_t)c_orm_cli_main(4, (char **)argv2);
@@ -430,7 +430,7 @@ TEST test_cli_sql2c(void) {
 #else
   sys_rc = system("mkdir -p test_out");
 #endif
-  (void)sys_rc;
+  ASSERT_EQ(0, sys_rc);
 
   C_ORM_FOPEN(&f, "test_schema.sql", "w");
   ASSERT(f != NULL);

@@ -29,6 +29,16 @@ extern "C" {
 C_ORM_EXPORT c_orm_error_t c_orm_codegen_generate(const char *schema_file,
                                                   const char *output_dir);
 
+/**
+ * @brief Mock hook to simulate sql_to_c_header_emit failure.
+ */
+C_ORM_EXPORT extern int c_orm_mock_codegen_header_emit_fail;
+
+/**
+ * @brief Mock hook to simulate sql_to_c_source_emit failure.
+ */
+C_ORM_EXPORT extern int c_orm_mock_codegen_source_emit_fail;
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

@@ -451,7 +451,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
     APPEND_SQL(" AS (");
     rc = c_orm_query_to_sql(wth->query, dialect, &subsql, out_params);
     if (rc != 0) {
-      (void)c_orm_string_builder_free(sb);
+      c_orm_string_builder_free(sb);
       LOG_DEBUG("c_orm_query_to_sql: with query failed");
       return rc;
     }
@@ -485,7 +485,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
     APPEND_SQL(" ON ");
     rc = render_node(jn->on_condition, dialect, sb, out_params, 0);
     if (rc != C_ORM_OK) {
-      (void)c_orm_string_builder_free(sb);
+      c_orm_string_builder_free(sb);
       LOG_DEBUG("c_orm_query_to_sql: join failed");
       return rc;
     }
@@ -495,7 +495,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
     APPEND_SQL(" WHERE ");
     rc = render_node(whr->condition, dialect, sb, out_params, 0);
     if (rc != C_ORM_OK) {
-      (void)c_orm_string_builder_free(sb);
+      c_orm_string_builder_free(sb);
       LOG_DEBUG("c_orm_query_to_sql: where failed");
       return rc;
     }
@@ -510,7 +510,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
     APPEND_SQL(" HAVING ");
     rc = render_node(hav->condition, dialect, sb, out_params, 0);
     if (rc != C_ORM_OK) {
-      (void)c_orm_string_builder_free(sb);
+      c_orm_string_builder_free(sb);
       LOG_DEBUG("c_orm_query_to_sql: having failed");
       return rc;
     }
@@ -521,7 +521,7 @@ c_orm_query_to_sql(c_orm_query_t *q, c_orm_dialect_t dialect, char **out_sql,
     APPEND_SQL(uni->is_all ? " UNION ALL " : " UNION ");
     rc = c_orm_query_to_sql(uni->query, dialect, &subsql, out_params);
     if (rc != 0) {
-      (void)c_orm_string_builder_free(sb);
+      c_orm_string_builder_free(sb);
       LOG_DEBUG("c_orm_query_to_sql: union failed");
       return rc;
     }
