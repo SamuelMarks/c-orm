@@ -114,6 +114,13 @@ int setenv(const char *name, const char *value, int overwrite);
     }                                                                          \
   } while (0)
 #define C_ORM_UNSETENV(var_name) unsetenv(var_name)
+/**
+ * @brief Sets an environment variable in POSIX environments.
+ * @param name Variable name.
+ * @param value Variable value.
+ * @param overwrite Whether to overwrite existing variable.
+ * @return 0 on success, non-zero on error.
+ */
 int setenv(const char *name, const char *value, int overwrite);
 #define C_ORM_SETENV(name, val) setenv(name, val, 1)
 #endif
