@@ -130,12 +130,6 @@ set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "Don't update dependencies o
 set(OLD_BUILD_TESTING_VAL "${BUILD_TESTING}")
 #set(BUILD_TESTING OFF)
 
-# Save global flags so strict flags don't break dependencies
-set(SAVED_CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-set(CMAKE_C_FLAGS "")
-
-
-
 if(NOT WIN32 AND NOT EMSCRIPTEN)
 if(TARGET curl OR TARGET CURL::libcurl OR TARGET libcurl)
     # Target already populated natively
@@ -255,14 +249,11 @@ else()
         cdd_c
         GIT_REPOSITORY https://github.com/SamuelMarks/cdd-c.git
         GIT_TAG master
-        PATCH_COMMAND ${CMAKE_COMMAND} -DCDD_SRC_DIR=<SOURCE_DIR> -P ${CMAKE_CURRENT_LIST_DIR}/cmake/patch_cdd_c.cmake
     )
     set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
     add_compile_definitions(CDD_BUILD_TESTS=1)
     FetchContent_MakeAvailable(cdd_c)
 endif()
-
-set(CMAKE_C_FLAGS "${SAVED_CMAKE_C_FLAGS}")
 
 set(BUILD_TESTING "${OLD_BUILD_TESTING_VAL}")
 
@@ -303,12 +294,12 @@ set_target_properties(c-orm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 target_compile_options(c-orm PRIVATE ${C_ORM_STRICT_OPTIONS})
 
-target_include_directories(c-orm SYSTEM PUBLIC include)
+target_include_directories(c-orm PUBLIC include)
 target_link_libraries(c-orm PUBLIC c_cdd cfs parson c89stringutils c_str_span)
 if(TARGET c_cdd)
     add_dependencies(c-orm c_cdd)
 endif()
-target_include_directories(c-orm SYSTEM PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../cdd-c/include>" "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../cdd-c/src>" "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/cdd_c-build/src>")
+target_include_directories(c-orm PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../cdd-c/include>" "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../cdd-c/src>" "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/cdd_c-build/src>")
 if(NOT WIN32 AND NOT EMSCRIPTEN)
     find_package(OpenSSL QUIET)
     if(OPENSSL_FOUND)
@@ -331,7 +322,7 @@ target_compile_definitions(c-orm PUBLIC $<$<BOOL:${BUILD_SHARED_LIBS}>:C_ORM_SHA
 add_library(c-orm-async src/c_orm_async.c)
 set_target_properties(c-orm-async PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 target_compile_options(c-orm-async PRIVATE ${C_ORM_STRICT_OPTIONS})
-target_include_directories(c-orm-async SYSTEM PUBLIC include)
+target_include_directories(c-orm-async PUBLIC include)
 target_link_libraries(c-orm-async PUBLIC c-orm)
 target_compile_definitions(c-orm-async PUBLIC $<$<BOOL:${BUILD_SHARED_LIBS}>:C_ORM_SHARED>)
 
@@ -371,7 +362,7 @@ if(C_ORM_SQLITE STREQUAL "LINKED")
             FetchContent_MakeAvailable(sqlite3)
             if(NOT TARGET sqlite3)
                 add_library(sqlite3 STATIC ${sqlite3_SOURCE_DIR}/sqlite3.c)
-                target_include_directories(sqlite3 SYSTEM PUBLIC ${sqlite3_SOURCE_DIR})
+                target_include_directories(sqlite3 PUBLIC ${sqlite3_SOURCE_DIR})
             endif()
             target_compile_definitions(c-orm PUBLIC C_ORM_SQLITE_LINKED C_ORM_ENABLE_SQLITE)
             target_link_libraries(c-orm PRIVATE sqlite3)
