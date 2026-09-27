@@ -35,6 +35,25 @@ C_ORM_EXPORT int
 c_orm_sprintf(char *buf, size_t size, const char *format, ...);
 #define C_ORM_SPRINTF c_orm_sprintf
 
+/**
+ * @brief Safe fopen wrapper.
+ *
+ * @param fp_ptr Pointer to file handle pointer.
+ * @param filename Path of file to open.
+ * @param mode Access mode.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN on error.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_fopen(FILE **fp_ptr, const char *filename,
+                                       const char *mode);
+
+/**
+ * @brief Safe tmpfile wrapper.
+ *
+ * @param fp_ptr Pointer to file handle pointer.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN on error.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_tmpfile(FILE **fp_ptr);
+
 #if defined(_MSC_VER)
 #define C_ORM_STRCPY(dest, size, src) strcpy_s(dest, size, src)
 #define C_ORM_STRNCPY(dest, size, src, count) strncpy_s(dest, size, src, count)
@@ -79,9 +98,8 @@ int setenv(const char *name, const char *value, int overwrite);
 #define C_ORM_STRCAT(dest, size, src) strcat(dest, src)
 #define C_ORM_STRNCAT(dest, size, src, count) strncat(dest, src, count)
 #define C_ORM_STRTOLL(nptr, endptr, base) strtoll(nptr, endptr, base)
-#define C_ORM_FOPEN(fp_ptr, filename, mode)                                    \
-  (*(fp_ptr) = fopen(filename, mode), *(fp_ptr) == NULL ? 1 : 0)
-#define C_ORM_TMPFILE(fp_ptr) (*(fp_ptr) = tmpfile(), *(fp_ptr) == NULL ? 1 : 0)
+#define C_ORM_FOPEN(fp_ptr, filename, mode) c_orm_fopen(fp_ptr, filename, mode)
+#define C_ORM_TMPFILE(fp_ptr) c_orm_tmpfile(fp_ptr)
 #define C_ORM_SSCANF sscanf
 #define C_ORM_GETENV(dest, size, var_name)                                     \
   do {                                                                         \
@@ -99,9 +117,8 @@ int setenv(const char *name, const char *value, int overwrite);
 #define C_ORM_STRCAT(dest, size, src) strcat(dest, src)
 #define C_ORM_STRNCAT(dest, size, src, count) strncat(dest, src, count)
 #define C_ORM_STRTOLL(nptr, endptr, base) strtol(nptr, endptr, base)
-#define C_ORM_FOPEN(fp_ptr, filename, mode)                                    \
-  (*(fp_ptr) = fopen(filename, mode), *(fp_ptr) == NULL ? 1 : 0)
-#define C_ORM_TMPFILE(fp_ptr) (*(fp_ptr) = tmpfile(), *(fp_ptr) == NULL ? 1 : 0)
+#define C_ORM_FOPEN(fp_ptr, filename, mode) c_orm_fopen(fp_ptr, filename, mode)
+#define C_ORM_TMPFILE(fp_ptr) c_orm_tmpfile(fp_ptr)
 #define C_ORM_SSCANF sscanf
 #define C_ORM_GETENV(dest, size, var_name)                                     \
   do {                                                                         \

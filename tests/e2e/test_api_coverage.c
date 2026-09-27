@@ -3481,6 +3481,25 @@ TEST test_shard_and_misc_coverage(void) {
   meta.num_columns = 1;
   meta.struct_size = sizeof(int32_t);
 
+  {
+    FILE *tf = NULL;
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_fopen(NULL, "dummy", "r"));
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_tmpfile(NULL));
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+              c_orm_fopen(&tf, "non_existent_dir_9999/dummy", "r"));
+    ASSERT_EQ(C_ORM_OK, c_orm_tmpfile(&tf));
+    if (tf) {
+      fclose(tf);
+      tf = NULL;
+    }
+    ASSERT_EQ(C_ORM_OK, c_orm_fopen(&tf, "test_fopen_tmp.txt", "w"));
+    if (tf) {
+      fclose(tf);
+      tf = NULL;
+      remove("test_fopen_tmp.txt");
+    }
+  }
+
   /* Shard manager init, add, route, scatter-gather, free */
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_shard_manager_init(0, &sm));
   ASSERT_EQ(C_ORM_OK, c_orm_shard_manager_init(2, &sm));

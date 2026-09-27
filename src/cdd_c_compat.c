@@ -69,5 +69,43 @@ c_orm_sprintf(char *buf, size_t size, const char *format, ...) {
   return ret;
 }
 
+/**
+ * @brief Safe fopen wrapper.
+ * @param fp_ptr Pointer to file handle pointer.
+ * @param filename Path of file to open.
+ * @param mode Access mode.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN on error.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_fopen(FILE **fp_ptr, const char *filename,
+                                       const char *mode) {
+  if (!fp_ptr) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+#if defined(_MSC_VER)
+  return (fopen_s(fp_ptr, filename, mode) == 0) ? C_ORM_OK
+                                                : C_ORM_ERROR_UNKNOWN;
+#else
+  *fp_ptr = fopen(filename, mode);
+  return (*fp_ptr == NULL) ? C_ORM_ERROR_UNKNOWN : C_ORM_OK;
+#endif
+}
+
+/**
+ * @brief Safe tmpfile wrapper.
+ * @param fp_ptr Pointer to file handle pointer.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN on error.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_tmpfile(FILE **fp_ptr) {
+  if (!fp_ptr) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+#if defined(_MSC_VER)
+  return (tmpfile_s(fp_ptr) == 0) ? C_ORM_OK : C_ORM_ERROR_UNKNOWN;
+#else
+  *fp_ptr = tmpfile();
+  return (*fp_ptr == NULL) ? C_ORM_ERROR_UNKNOWN : C_ORM_OK;
+#endif
+}
+
 #if defined(__clang__) || defined(__GNUC__)
 #endif
