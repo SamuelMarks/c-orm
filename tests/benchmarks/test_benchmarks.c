@@ -14,7 +14,27 @@
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
 #include "c_orm_ast.h"
-#include "greatest.h"
+#include <greatest.h>
+
+#undef ASSERT_EQ_FMT
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += !!(cond); } while ((void)0, 0)
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+#undef RUN_TEST
+#define RUN_TEST(TEST) \
+  do { \
+    int greatest_should_run = 0; \
+    greatest_test_pre(#TEST, &greatest_should_run); \
+    if (greatest_should_run == 1) { \
+      enum greatest_test_res res = TEST(); \
+      greatest_test_post(res); \
+    } \
+  } while ((void)0, 0)
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,30 +53,6 @@ static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_
 }
 #endif
 
-#undef RUN_TEST
-#define RUN_TEST(TEST) \
-  do { \
-    int greatest_should_run = 0; \
-    greatest_test_pre(#TEST, &greatest_should_run); \
-    if (greatest_should_run == 1) { \
-      greatest_test_post(TEST()); \
-    } \
-  } while ((void)0, 0)
-
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
-
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
-
-#undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
-
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 /* #include "abstract_struct.h" */
 /* clang-format on */
 

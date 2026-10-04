@@ -44,12 +44,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_async(c_orm_db_t *db,
     rc = C_ORM_ERROR_MEMORY;
     return rc;
   }
-  /* Phase 5 Async simulation stub mapped for libuv loops via queue injection */
+
+  /* Fallback to blocking sync for phase 5 until true thread pooling is active.
+   * It properly propagates errors to the callback. */
+  rc = c_orm_insert(db, meta, in_struct);
+
   if (cb) {
-    cb(C_ORM_ERROR_NOT_IMPLEMENTED, ctx);
+    cb(rc, ctx);
   }
 
-  rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   LOG_DEBUG("c_orm_insert_async: exit");
   return rc;
 }
@@ -77,12 +80,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(
     rc = C_ORM_ERROR_MEMORY;
     return rc;
   }
-  /* Async fetch loop enqueue simulation */
+
+  rc = c_orm_find_all(db, meta, out_array);
+
   if (cb) {
-    cb(C_ORM_ERROR_NOT_IMPLEMENTED, ctx);
+    cb(rc, ctx);
   }
 
-  rc = C_ORM_ERROR_NOT_IMPLEMENTED;
   LOG_DEBUG("c_orm_find_all_async: exit");
   return rc;
 }

@@ -994,7 +994,7 @@ C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath) {
  */
 C_ORM_EXPORT c_orm_error_t apply_migration(const char *filepath) {
   (void)filepath;
-  return ENOSYS;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 /**
@@ -1004,7 +1004,7 @@ C_ORM_EXPORT c_orm_error_t apply_migration(const char *filepath) {
  */
 C_ORM_EXPORT c_orm_error_t rollback_migration(const char *filepath) {
   (void)filepath;
-  return ENOSYS;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 /**
@@ -1015,7 +1015,7 @@ C_ORM_EXPORT c_orm_error_t rollback_migration(const char *filepath) {
  */
 C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
   (void)migrations_dir;
-  return ENOSYS;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 /**
@@ -1026,7 +1026,7 @@ C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
  */
 C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
   (void)migrations_dir;
-  return ENOSYS;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 /**
@@ -1040,7 +1040,7 @@ C_ORM_EXPORT c_orm_error_t create_migration_file(const char *migrations_dir,
                                                  const char *name) {
   (void)migrations_dir;
   (void)name;
-  return ENOSYS;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 /**
@@ -1050,7 +1050,7 @@ C_ORM_EXPORT c_orm_error_t create_migration_file(const char *migrations_dir,
  */
 C_ORM_EXPORT c_orm_error_t reset_database(const char *migrations_dir) {
   (void)migrations_dir;
-  return ENOSYS;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 /**
@@ -1060,7 +1060,7 @@ C_ORM_EXPORT c_orm_error_t reset_database(const char *migrations_dir) {
  */
 C_ORM_EXPORT c_orm_error_t dump_schema(const char *out_filepath) {
   (void)out_filepath;
-  return ENOSYS;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 /**
@@ -1073,7 +1073,7 @@ C_ORM_EXPORT c_orm_error_t setup_test_database(const char *db_name,
                                                const char *migrations_dir) {
   (void)db_name;
   (void)migrations_dir;
-  return ENOSYS;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 
 /**
@@ -1083,7 +1083,7 @@ C_ORM_EXPORT c_orm_error_t setup_test_database(const char *db_name,
  */
 C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath) {
   (void)seed_filepath;
-  return ENOSYS;
+  return C_ORM_ERROR_NOT_IMPLEMENTED;
 }
 #endif /* !(!defined(__EMSCRIPTEN__) && (defined(USE_LIBPQ_LINKED) ||          \
           defined(USE_LIBPQ_DYNAMIC))) */

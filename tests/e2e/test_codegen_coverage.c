@@ -11,32 +11,10 @@
 #include "c_orm_sql.h"
 #include "c_orm_codegen.h"
 #define GREATEST_USE_LONGJMP 0
-#include "greatest.h"
+#include <greatest.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#undef RUN_TEST
-#define RUN_TEST(TEST) \
-  do { \
-    int greatest_should_run = 0; \
-    greatest_test_pre(#TEST, &greatest_should_run); \
-    if (greatest_should_run == 1) { \
-      greatest_test_post(TEST()); \
-    } \
-  } while ((void)0, 0)
-
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
-
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
-
-#undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
-
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 
 /** @brief Counter decremented to trigger mock allocation failure. */
 static int mock_malloc_fail_count = -1;

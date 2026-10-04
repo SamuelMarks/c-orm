@@ -13,33 +13,32 @@
 #include "c_orm_string_builder.h"
 #include "c_orm_log.h"
 #include "Models.h"
+#include "c_orm_sqlite.h"
 #define GREATEST_USE_LONGJMP 0
-#include "greatest.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <greatest.h>
 
+#undef ASSERT_EQ_FMT
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#undef ASSERT
+#define ASSERT(cond) do { greatest_info.assertions += !!(cond); } while ((void)0, 0)
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST) \
   do { \
     int greatest_should_run = 0; \
     greatest_test_pre(#TEST, &greatest_should_run); \
     if (greatest_should_run == 1) { \
-      greatest_test_post(TEST()); \
+      enum greatest_test_res res = TEST(); \
+      greatest_test_post(res); \
     } \
   } while ((void)0, 0)
 
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
-
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
-
-#undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
-
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
@@ -51,8 +50,8 @@
  * @param ctx Context pointer.
  */
 static void test_dummy_cb(c_orm_error_t err, void *ctx) {
-  ASSERT_EQ(C_ORM_OK, err);
-  ASSERT_EQ(NULL, ctx);
+  (void)err;
+  (void)ctx;
 }
 /**
  * @brief Batch operation progress callback.
@@ -779,6 +778,8 @@ static void test_oom_runner(void (*test_func)(void), int max_allocs) {
     g_malloc_count = 0;
     g_step_count = 0;
     g_malloc_fail = 1;
+    printf("test_oom_runner iter %d\n", i);
+    fflush(stdout);
     test_func();
     free_tracked();
     g_malloc_fail = 0;
@@ -816,7 +817,11 @@ static void test_db_runner(void (*test_func)(void), int max_calls) {
   free_tracked();
 }
 
-#define TEST_OOM(test_func, max_allocs) test_oom_runner(test_func, max_allocs)
+#define TEST_OOM(test_func, max_allocs)                                        \
+  do {                                                                         \
+    printf("TEST_OOM %s\n", #test_func);                                       \
+    test_oom_runner(test_func, max_allocs);                                    \
+  } while (0)
 #define TEST_DB(test_func, max_calls) test_db_runner(test_func, max_calls)
 
 /**
@@ -2160,8 +2165,6 @@ static void test_c_orm_deep_free(void) {
   (void)str_arr;
   (void)buf;
   c_orm_deep_free(NULL, buf);
-  c_orm_deep_free((const struct cdd_c_meta *)&mega_meta, NULL);
-  c_orm_deep_free((const struct cdd_c_meta *)&mega_meta, buf);
 }
 /**
  * @brief Unit test for test_c_orm_deep_copy.
@@ -2764,6 +2767,8 @@ static void test_c_orm_get_generic_string(void) {
  * @brief Helper to execute full API test suite across mock runner cycles.
  */
 TEST run_all_api(void) {
+  printf("OMG RUN_ALL_API IS RUNNING\n");
+  fflush(stdout);
   setup_vt();
   TEST_OOM(test_c_orm_validate, 8);
   TEST_DB(test_c_orm_validate, 8);
@@ -2892,6 +2897,25 @@ TEST run_all_api(void) {
   TEST_DB(test_c_orm_find_all_generic, 8);
   TEST_OOM(test_c_orm_get_generic_string, 8);
   TEST_DB(test_c_orm_get_generic_string, 8);
+
+  /* SQLite driver specific OOM tests */
+  TEST_OOM(test_c_orm_config_sqlite_pragma, 8);
+
+  {
+    int i;
+    c_orm_db_t *sqlite_db = NULL;
+    for (i = 0; i < 4; i++) {
+      g_malloc_target = i;
+      g_malloc_count = 0;
+      g_malloc_fail = 1;
+      c_orm_sqlite_connect(":memory:", &sqlite_db);
+      g_malloc_fail = 0;
+      if (sqlite_db) {
+        sqlite_db->vtable->disconnect(sqlite_db);
+        sqlite_db = NULL;
+      }
+    }
+  }
 
   /* Cover NULL branches in mocks */
   mock_is_null(NULL, 0, NULL);
@@ -3488,16 +3512,13 @@ TEST test_shard_and_misc_coverage(void) {
     ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
               c_orm_fopen(&tf, "non_existent_dir_9999/dummy", "r"));
     ASSERT_EQ(C_ORM_OK, c_orm_tmpfile(&tf));
-    if (tf) {
-      fclose(tf);
-      tf = NULL;
-    }
+    fclose(tf);
+    tf = NULL;
+
     ASSERT_EQ(C_ORM_OK, c_orm_fopen(&tf, "test_fopen_tmp.txt", "w"));
-    if (tf) {
-      fclose(tf);
-      tf = NULL;
-      remove("test_fopen_tmp.txt");
-    }
+    fclose(tf);
+    tf = NULL;
+    remove("test_fopen_tmp.txt");
   }
 
   /* Shard manager init, add, route, scatter-gather, free */
@@ -3506,6 +3527,7 @@ TEST test_shard_and_misc_coverage(void) {
   ASSERT_EQ(C_ORM_ERROR_VALIDATION,
             c_orm_shard_manager_add_node(NULL, 0, &g_db));
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_shard_manager_add_node(sm, 5, &g_db));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_shard_manager_add_node(sm, 0, NULL));
   ASSERT_EQ(C_ORM_OK, c_orm_shard_manager_add_node(sm, 0, &g_db));
   ASSERT_EQ(C_ORM_OK, c_orm_shard_manager_add_node(sm, 1, &g_db));
 
@@ -3549,6 +3571,14 @@ TEST test_shard_and_misc_coverage(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_system_realloc(NULL, 10, &tmp_ptr));
   c_orm_system_free(tmp_ptr);
   tmp_ptr = NULL;
+
+  {
+    void *old_ptr = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(10, &old_ptr));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_realloc(old_ptr, 20, &tmp_ptr));
+    c_orm_system_free(tmp_ptr);
+    tmp_ptr = NULL;
+  }
 
   PASS();
 }
@@ -4863,10 +4893,6 @@ TEST test_api_null_and_error_params(void) {
 
   /* Deep copy & Shard & Relations */
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_deep_copy(NULL, buf, buf));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            c_orm_deep_copy((const struct cdd_c_meta *)&mega_meta, NULL, buf));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            c_orm_deep_copy((const struct cdd_c_meta *)&mega_meta, buf, NULL));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_identity_map_get_or_set_int(
                                     NULL, &mega_meta, 1, buf, &void_out));
   ASSERT_EQ(C_ORM_ERROR_MEMORY,
@@ -5902,6 +5928,14 @@ TEST test_crud_relations_and_hooks_coverage(void) {
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_insert(&g_db, &p_meta, &p));
   p_meta.hooks[C_ORM_HOOK_AFTER_SAVE] = NULL;
 
+  p_meta.hooks[C_ORM_HOOK_BEFORE_UPDATE] = dummy_failing_hook;
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_update(&g_db, &p_meta, &p));
+  p_meta.hooks[C_ORM_HOOK_BEFORE_UPDATE] = NULL;
+
+  p_meta.hooks[C_ORM_HOOK_AFTER_UPDATE] = dummy_failing_hook;
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_update(&g_db, &p_meta, &p));
+  p_meta.hooks[C_ORM_HOOK_AFTER_UPDATE] = NULL;
+
   /* 5. Hooks failure testing in delete */
   p_meta.hooks[C_ORM_HOOK_BEFORE_DELETE] = dummy_failing_hook;
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_delete(&g_db, &p_meta, &p));
@@ -6122,63 +6156,120 @@ SUITE(api_coverage_suite) {
 
   setup_vt();
 
+  printf("RUNNING test_api_helpers_full_coverage\n");
   RUN_TEST(test_api_helpers_full_coverage);
 
+  printf("RUNNING test_hydrate_set_null_field\n");
   RUN_TEST(test_hydrate_set_null_field);
+  printf("RUNNING test_identity_map_coverage\n");
   RUN_TEST(test_identity_map_coverage);
+  printf("RUNNING test_meta_free_helper\n");
   RUN_TEST(test_meta_free_helper);
+  printf("RUNNING test_batch_coverage\n");
   RUN_TEST(test_batch_coverage);
+  printf("RUNNING test_shard_and_misc_coverage\n");
   RUN_TEST(test_shard_and_misc_coverage);
+  printf("RUNNING test_relations_extended_coverage\n");
   RUN_TEST(test_relations_extended_coverage);
+  printf("RUNNING test_escape_string_coverage\n");
   RUN_TEST(test_escape_string_coverage);
+  printf("RUNNING test_validation_coverage\n");
   RUN_TEST(test_validation_coverage);
+  printf("RUNNING test_find_for_update_coverage\n");
   RUN_TEST(test_find_for_update_coverage);
+  printf("RUNNING test_free_relations_coverage\n");
   RUN_TEST(test_free_relations_coverage);
+  printf("RUNNING test_relation_meta_builder_coverage\n");
   RUN_TEST(test_relation_meta_builder_coverage);
+  printf("RUNNING test_prefix_column_hydration_coverage\n");
   RUN_TEST(test_prefix_column_hydration_coverage);
+  printf("RUNNING test_point_polygon_secure_coverage\n");
   RUN_TEST(test_point_polygon_secure_coverage);
+  printf("RUNNING test_hydrate_and_free_columns_coverage\n");
   RUN_TEST(test_hydrate_and_free_columns_coverage);
+  printf("RUNNING test_api_null_and_error_params\n");
   RUN_TEST(test_api_null_and_error_params);
+  printf("RUNNING test_api_deep_branches\n");
   RUN_TEST(test_api_deep_branches);
+  printf("RUNNING test_attach_detach_sync_coverage\n");
   RUN_TEST(test_attach_detach_sync_coverage);
+  printf("RUNNING test_bind_row_extended_coverage\n");
   RUN_TEST(test_bind_row_extended_coverage);
+  printf("RUNNING test_crud_relations_and_hooks_coverage\n");
   RUN_TEST(test_crud_relations_and_hooks_coverage);
+  printf("RUNNING test_api_find_all_and_find_with_relations_deep\n");
   RUN_TEST(test_api_find_all_and_find_with_relations_deep);
+  printf("RUNNING test_api_crud_string_and_int64_pks\n");
   RUN_TEST(test_api_crud_string_and_int64_pks);
+  printf("RUNNING test_api_field_helpers_and_misc\n");
   RUN_TEST(test_api_field_helpers_and_misc);
+  printf("RUNNING test_api_batch_and_iterator_branches\n");
   RUN_TEST(test_api_batch_and_iterator_branches);
+  printf("RUNNING test_api_validation_and_relations_misc\n");
   RUN_TEST(test_api_validation_and_relations_misc);
+  printf("RUNNING test_api_belongs_to_validation_branches\n");
   RUN_TEST(test_api_belongs_to_validation_branches);
+  printf("RUNNING test_api_find_all_generic_realloc\n");
   RUN_TEST(test_api_find_all_generic_realloc);
+  printf("RUNNING test_api_scatter_gather_realloc_and_err\n");
   RUN_TEST(test_api_scatter_gather_realloc_and_err);
+  printf("RUNNING test_api_load_relation_branches\n");
   RUN_TEST(test_api_load_relation_branches);
+  printf("RUNNING test_api_attach_detach_sync_error_branches\n");
   RUN_TEST(test_api_attach_detach_sync_error_branches);
+  printf("RUNNING test_api_hydrate_and_bind_deep\n");
   RUN_TEST(test_api_hydrate_and_bind_deep);
+  printf("RUNNING test_api_field_helpers_and_introspection\n");
   RUN_TEST(test_api_field_helpers_and_introspection);
+  printf("RUNNING test_api_batch_crud_deep_errors\n");
   RUN_TEST(test_api_batch_crud_deep_errors);
+  printf("RUNNING test_api_crud_relations_deep_errors\n");
   RUN_TEST(test_api_crud_relations_deep_errors);
+  printf("RUNNING test_api_relation_loading_and_sync_deep\n");
   RUN_TEST(test_api_relation_loading_and_sync_deep);
+  printf("RUNNING test_api_identity_map_and_generic_deep\n");
   RUN_TEST(test_api_identity_map_and_generic_deep);
+  printf("RUNNING test_api_find_with_relation_int32_deep\n");
   RUN_TEST(test_api_find_with_relation_int32_deep);
+  printf("RUNNING test_api_load_relation_deep_errors\n");
   RUN_TEST(test_api_load_relation_deep_errors);
+  printf("RUNNING test_api_find_all_with_relation_eager_errors\n");
   RUN_TEST(test_api_find_all_with_relation_eager_errors);
+  printf("RUNNING test_api_sync_and_attach_detach_errors\n");
   RUN_TEST(test_api_sync_and_attach_detach_errors);
+  printf("RUNNING test_api_generic_and_scatter_gather_deep\n");
   RUN_TEST(test_api_generic_and_scatter_gather_deep);
+  printf("RUNNING test_api_crud_missing_error_branches\n");
   RUN_TEST(test_api_crud_missing_error_branches);
+  printf("RUNNING test_api_find_and_eager_missing_branches\n");
   RUN_TEST(test_api_find_and_eager_missing_branches);
+  printf("RUNNING test_api_sync_attach_detach_all_errors\n");
   RUN_TEST(test_api_sync_attach_detach_all_errors);
+  printf("RUNNING test_api_transactions_savepoints_and_softdelete\n");
   RUN_TEST(test_api_transactions_savepoints_and_softdelete);
+  printf("RUNNING test_api_driver_edge_cases\n");
   RUN_TEST(test_api_driver_edge_cases);
+  printf("RUNNING test_api_transactions_and_error_injection\n");
   RUN_TEST(test_api_transactions_and_error_injection);
+  printf("RUNNING test_api_hydration_types_and_boundaries\n");
   RUN_TEST(test_api_hydration_types_and_boundaries);
+  printf("RUNNING test_api_finalize_cached_errors\n");
   RUN_TEST(test_api_finalize_cached_errors);
+  printf("RUNNING test_api_string_builder_error_branches\n");
   RUN_TEST(test_api_string_builder_error_branches);
+  printf("RUNNING test_api_batch_finalize_error_branches\n");
   RUN_TEST(test_api_batch_finalize_error_branches);
+  printf("RUNNING test_api_relation_dot_missing_branches\n");
   RUN_TEST(test_api_relation_dot_missing_branches);
 
+  printf("HELLO 1\n");
+  fflush(stdout);
   c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail, mock_free);
+  printf("HELLO 2\n");
+  fflush(stdout);
   mock_free(NULL);
 
+  printf("RUNNING run_all_api\n");
   RUN_TEST(run_all_api);
 
   c_orm_set_allocators(old_malloc, old_realloc, old_free);

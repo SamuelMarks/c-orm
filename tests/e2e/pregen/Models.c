@@ -6,6 +6,7 @@
 
 /* clang-format off */
 #include "Models.h"
+#include "c_orm_safe_crt.h"
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -91,7 +92,7 @@ c_orm_error_t Users_deepcopy(const struct Users *src, struct Users *dest) {
 #if defined(_MSC_VER)
     strcpy_s(dest->username, strlen(src->username) + 1, src->username);
 #else
-    strcpy(dest->username, src->username);
+    C_ORM_STRCPY(dest->username, sizeof(dest->username), src->username);
 #endif
   } else {
     dest->username = NULL;
@@ -105,7 +106,7 @@ c_orm_error_t Users_deepcopy(const struct Users *src, struct Users *dest) {
 #if defined(_MSC_VER)
     strcpy_s(dest->email, strlen(src->email) + 1, src->email);
 #else
-    strcpy(dest->email, src->email);
+    C_ORM_STRCPY(dest->email, sizeof(dest->email), src->email);
 #endif
   } else {
     dest->email = NULL;
@@ -147,7 +148,7 @@ c_orm_error_t Users_deepcopy(const struct Users *src, struct Users *dest) {
 #if defined(_MSC_VER)
     strcpy_s(dest->created_at, strlen(src->created_at) + 1, src->created_at);
 #else
-    strcpy(dest->created_at, src->created_at);
+    C_ORM_STRCPY(dest->created_at, sizeof(dest->created_at), src->created_at);
 #endif
   } else {
     dest->created_at = NULL;
@@ -313,7 +314,7 @@ c_orm_error_t Posts_deepcopy(const struct Posts *src, struct Posts *dest) {
 #if defined(_MSC_VER)
     strcpy_s(dest->title, strlen(src->title) + 1, src->title);
 #else
-    strcpy(dest->title, src->title);
+    C_ORM_STRCPY(dest->title, sizeof(dest->title), src->title);
 #endif
   } else {
     dest->title = NULL;
@@ -327,7 +328,7 @@ c_orm_error_t Posts_deepcopy(const struct Posts *src, struct Posts *dest) {
 #if defined(_MSC_VER)
     strcpy_s(dest->content, strlen(src->content) + 1, src->content);
 #else
-    strcpy(dest->content, src->content);
+    C_ORM_STRCPY(dest->content, sizeof(dest->content), src->content);
 #endif
   } else {
     dest->content = NULL;
@@ -352,7 +353,8 @@ c_orm_error_t Posts_deepcopy(const struct Posts *src, struct Posts *dest) {
     strcpy_s(dest->published_date, strlen(src->published_date) + 1,
              src->published_date);
 #else
-    strcpy(dest->published_date, src->published_date);
+    C_ORM_STRCPY(dest->published_date, sizeof(dest->published_date),
+                 src->published_date);
 #endif
   } else {
     dest->published_date = NULL;
@@ -518,7 +520,8 @@ c_orm_error_t Oauth2_tokens_deepcopy(const struct Oauth2_tokens *src,
     strcpy_s(dest->access_token, strlen(src->access_token) + 1,
              src->access_token);
 #else
-    strcpy(dest->access_token, src->access_token);
+    C_ORM_STRCPY(dest->access_token, sizeof(dest->access_token),
+                 src->access_token);
 #endif
   } else {
     dest->access_token = NULL;
@@ -533,7 +536,8 @@ c_orm_error_t Oauth2_tokens_deepcopy(const struct Oauth2_tokens *src,
     strcpy_s(dest->refresh_token, strlen(src->refresh_token) + 1,
              src->refresh_token);
 #else
-    strcpy(dest->refresh_token, src->refresh_token);
+    C_ORM_STRCPY(dest->refresh_token, sizeof(dest->refresh_token),
+                 src->refresh_token);
 #endif
   } else {
     dest->refresh_token = NULL;
@@ -547,7 +551,7 @@ c_orm_error_t Oauth2_tokens_deepcopy(const struct Oauth2_tokens *src,
 #if defined(_MSC_VER)
     strcpy_s(dest->token_type, strlen(src->token_type) + 1, src->token_type);
 #else
-    strcpy(dest->token_type, src->token_type);
+    C_ORM_STRCPY(dest->token_type, sizeof(dest->token_type), src->token_type);
 #endif
   } else {
     dest->token_type = NULL;

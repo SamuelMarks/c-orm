@@ -19,7 +19,7 @@
 #include "c_orm_sqlite.h"
 #include "c_orm_uuid.h"
 #include "c_orm_sql.h"
-#include "greatest.h"
+#include <greatest.h>
 #include <stdio.h>
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
 #include <unistd.h>
@@ -48,28 +48,6 @@ static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_
 #ifdef bool
 #undef bool
 #endif
-
-#undef RUN_TEST
-#define RUN_TEST(TEST) \
-  do { \
-    int greatest_should_run = 0; \
-    greatest_test_pre(#TEST, &greatest_should_run); \
-    if (greatest_should_run == 1) { \
-      greatest_test_post(TEST()); \
-    } \
-  } while ((void)0, 0)
-
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
-
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
-
-#undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
-
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
@@ -995,6 +973,11 @@ TEST test_c_orm_composite_keys(void) {
   user.username = "composite_user_updated";
   err = c_orm_update_by_composite_key(db, &Users_meta, 1, keys, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  if (db->identity_map) {
+    c_orm_identity_map_free(db->identity_map);
+    db->identity_map = NULL;
+  }
 
   memset(&fetched, 0, sizeof(fetched));
   err = c_orm_find_by_composite_key(db, &Users_meta, 1, keys, &fetched);

@@ -12,7 +12,7 @@ extern "C" {
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #define GREATEST_USE_LONGJMP 0
-#include "greatest.h"
+#include <greatest.h>
 #include "openapi/parse/openapi.h"
 #include "orm_gen.h"
 #include <errno.h>

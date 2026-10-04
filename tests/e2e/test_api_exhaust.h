@@ -11,7 +11,7 @@
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_string_builder.h"
-#include "greatest.h"
+#include <greatest.h>
 /* clang-format on */
 
 static int g_exhaust_fail_malloc = 0;

@@ -20,7 +20,7 @@ extern "C" {
 #include "c_orm_mysql.h"
 #include "cfs/cfs.h"
 #define GREATEST_USE_LONGJMP 0
-#include "greatest.h"
+#include <greatest.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,28 +31,6 @@ extern "C" {
 #else
 #include <direct.h>
 #endif
-
-#undef RUN_TEST
-#define RUN_TEST(TEST) \
-  do { \
-    int greatest_should_run = 0; \
-    greatest_test_pre(#TEST, &greatest_should_run); \
-    if (greatest_should_run == 1) { \
-      greatest_test_post(TEST()); \
-    } \
-  } while ((void)0, 0)
-
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
-
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
-
-#undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
-
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
@@ -307,19 +285,17 @@ TEST test_oauth2_crypto(void) {
 
   /* file open error */
   {
-    cfs_path p;
-    cfs_size_t rm_out = 0;
-    cfs_errc cfs_rc;
-    remove("c_orm_token.dat");
-    cfs_rc = cfs_path_init_str(&p, "c_orm_token.dat");
-    ASSERT_EQ(cfs_errc_success, cfs_rc);
-    cfs_rc = cfs_create_directory(&p, NULL);
-    ASSERT_EQ(cfs_errc_success, cfs_rc);
+#if defined(_MSC_VER)
+    _mkdir("c_orm_token.dat");
+#else
+    mkdir("c_orm_token.dat", 0777);
+#endif
     c_orm_store_token_secure(&t);
-    cfs_rc = cfs_remove_all(&p, &rm_out, NULL);
-    ASSERT_EQ(cfs_errc_success, cfs_rc);
-    cfs_path_destroy(&p);
-    remove("c_orm_token.dat");
+#if defined(_MSC_VER)
+    _rmdir("c_orm_token.dat");
+#else
+    rmdir("c_orm_token.dat");
+#endif
   }
 
   PASS();

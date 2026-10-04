@@ -6,6 +6,8 @@
  */
 
 /* clang-format off */
+#include "cdd_c_orm_meta.h"
+#include "abstract_struct.h"
 #include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_log.h"
@@ -256,6 +258,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
     case C_ORM_TYPE_JSON: {
       const char *val;
       rc = db->vtable->get_string(query, (int)col_idx, &val);
+
       if (rc != C_ORM_OK) {
         LOG_DEBUG("c_orm_hydrate_row_from: exit");
         goto error_out;
@@ -813,17 +816,108 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_by_composite_key(
    * For this stub, we route directly to c_orm_update which safely maps PKs via
    * `meta->columns[i].is_pk`.
    */
-  (void)num_keys;
-  (void)key_values;
-  {
-    LOG_DEBUG("c_orm_update_by_composite_key: entry");
-    rc = c_orm_update(db, meta, in_struct);
-    if (rc != C_ORM_OK)
-      return rc;
 
+  c_orm_query_t *query = NULL;
+  int bind_idx = 1;
+  size_t i;
+  int has_row;
+
+  LOG_DEBUG("c_orm_update_by_composite_key: entry");
+  if (!db || !meta || !in_struct || (num_keys > 0 && !key_values)) {
+    rc = C_ORM_ERROR_MEMORY;
     LOG_DEBUG("c_orm_update_by_composite_key: exit");
     return rc;
   }
+  if (meta->is_view) {
+    rc = C_ORM_ERROR_READ_ONLY;
+    LOG_DEBUG("c_orm_update_by_composite_key: exit");
+    return rc;
+  }
+
+  if (!meta->query_update) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    LOG_DEBUG("c_orm_update_by_composite_key: exit");
+    return rc;
+  }
+
+  rc = c_orm_prepare_cached(db, meta->query_update, &query);
+  if (rc != C_ORM_OK)
+    return rc;
+
+  for (i = 0; i < meta->num_columns; i++) {
+    const c_orm_column_meta_t *col = &meta->columns[i];
+    if (col->type == C_ORM_TYPE_INT32) {
+      int32_t val;
+      memcpy(&val, (char *)in_struct + col->offset, sizeof(val));
+      rc = db->vtable->bind_int32(query, bind_idx++, val);
+    } else if (col->type == C_ORM_TYPE_BOOL) {
+      /* Boolean is 1 byte typically, but casting via int32 pointer reads
+       * garbage! */
+      int32_t val = *(uint8_t *)((char *)in_struct + col->offset);
+      rc = db->vtable->bind_int32(query, bind_idx++, val);
+    } else if (col->type == C_ORM_TYPE_INT64) {
+      int64_t val;
+      memcpy(&val, (char *)in_struct + col->offset, sizeof(val));
+      rc = db->vtable->bind_int64(query, bind_idx++, val);
+    } else if (col->type == C_ORM_TYPE_DOUBLE ||
+               col->type == C_ORM_TYPE_FLOAT) {
+      double val;
+      if (col->type == C_ORM_TYPE_FLOAT) {
+        float temp;
+        memcpy(&temp, (char *)in_struct + col->offset, sizeof(temp));
+        val = (double)temp;
+      } else {
+        memcpy(&val, (char *)in_struct + col->offset, sizeof(val));
+      }
+      rc = db->vtable->bind_double(query, bind_idx++, val);
+    } else if (col->type == C_ORM_TYPE_STRING ||
+               col->type == C_ORM_TYPE_TIMESTAMP) {
+      char *val;
+      memcpy(&val, (char *)in_struct + col->offset, sizeof(val));
+      if (!val) {
+        rc = db->vtable->bind_null(query, bind_idx++);
+      } else {
+        rc = db->vtable->bind_string(query, bind_idx++, val);
+      }
+    } else {
+      rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    }
+    if (rc != C_ORM_OK) {
+      c_orm_finalize_cached(db, query);
+      return rc;
+    }
+  }
+
+  for (i = 0; i < num_keys; i++) {
+    const struct CddCVariant *var = &key_values[i];
+    if (var->type == CDD_C_VARIANT_TYPE_INT) {
+      rc = db->vtable->bind_int64(query, bind_idx++, var->value.i_val);
+    } else if (var->type == CDD_C_VARIANT_TYPE_FLOAT) {
+      rc = db->vtable->bind_double(query, bind_idx++, var->value.f_val);
+    } else if (var->type == CDD_C_VARIANT_TYPE_STRING) {
+      rc = db->vtable->bind_string(query, bind_idx++, var->value.s_val);
+    } else if (var->type == CDD_C_VARIANT_TYPE_BLOB) {
+      rc = db->vtable->bind_blob(query, bind_idx++,
+                                 (const void *)var->value.b_val.data,
+                                 (size_t)var->value.b_val.size);
+    } else {
+      rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    }
+    if (rc != C_ORM_OK) {
+      c_orm_finalize_cached(db, query);
+      return rc;
+    }
+  }
+
+  rc = db->vtable->step(query, &has_row);
+  if (rc != C_ORM_OK) {
+    c_orm_finalize_cached(db, query);
+    return rc;
+  }
+
+  rc = c_orm_finalize_cached(db, query);
+  LOG_DEBUG("c_orm_update_by_composite_key: exit");
+  return rc;
 }
 
 /**
@@ -1049,13 +1143,22 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_with_relation_int32(
   if (rel->type != C_ORM_RELATION_ONE_TO_ONE &&
       rel->type != C_ORM_RELATION_BELONGS_TO &&
       rel->type != C_ORM_RELATION_ONE_TO_MANY &&
-      rel->type != C_ORM_RELATION_MANY_TO_MANY) {
-    {
-      rc = C_ORM_ERROR_UNKNOWN;
-      LOG_DEBUG("c_orm_find_with_relation_int32: exit");
-      return rc;
-    } /* Eager load array not implemented here
-     yet for others */
+      rel->type != C_ORM_RELATION_MANY_TO_MANY &&
+      rel->type != C_ORM_RELATION_HAS_MANY_THROUGH &&
+      rel->type != C_ORM_RELATION_POLYMORPHIC) {
+    rc = C_ORM_ERROR_UNKNOWN;
+    LOG_DEBUG("c_orm_find_with_relation_int32: exit");
+    return rc;
+  }
+
+  if (rel->type == C_ORM_RELATION_POLYMORPHIC ||
+      rel->type == C_ORM_RELATION_HAS_MANY_THROUGH) {
+    /* For complex relationship types, we currently lack dynamic multi-table
+     * join construction. Fallback to executing them iteratively (N+1) using
+     * eager fetching APIs. For this stub removal, we simply return
+     * NOT_IMPLEMENTED as dynamic polymorphic eager mapping is beyond basic
+     * query string generation for now. */
+    return C_ORM_ERROR_NOT_IMPLEMENTED;
   }
 
   target_meta = rel->target_meta;
@@ -5744,6 +5847,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_deep_free(const struct cdd_c_meta *meta,
    * cdd-c. This is a stub until Phase 4's reflection engine allows
    * property-by-property iteration over nested struct sizes and pointers.
    */
+
+  size_t i;
   LOG_DEBUG("c_orm_deep_free: entry");
   if (!meta || !obj) {
     LOG_DEBUG("c_orm_deep_free: OOM");
@@ -5751,11 +5856,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_deep_free(const struct cdd_c_meta *meta,
     LOG_DEBUG("c_orm_deep_free: exit");
     return rc;
   }
-  {
-    rc = C_ORM_ERROR_UNKNOWN;
-    LOG_DEBUG("c_orm_deep_free: exit");
-    return rc;
+  for (i = 0; i < meta->num_props; i++) {
+    const cdd_c_prop_meta_t *prop = &meta->props[i];
+    if (prop->type && strstr(prop->type, "*")) {
+      void *ptr_loc;
+      memcpy(&ptr_loc, (char *)obj + prop->offset, sizeof(ptr_loc));
+      if (ptr_loc) {
+        c_orm_free(ptr_loc);
+        ptr_loc = NULL;
+      }
+    }
   }
+  rc = C_ORM_OK;
+  LOG_DEBUG("c_orm_deep_free: exit");
+  return rc;
 }
 
 /**
@@ -5774,6 +5888,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_deep_copy(const struct cdd_c_meta *meta,
    * Deep copy traverses struct pointers via c_orm_meta and duplicates them
    * dynamically. Requires Phase 4's cdd_c reflection accessors.
    */
+
+  size_t i;
   LOG_DEBUG("c_orm_deep_copy: entry");
   if (!meta || !dest || !src) {
     LOG_DEBUG("c_orm_deep_copy: OOM");
@@ -5781,11 +5897,39 @@ C_ORM_EXPORT c_orm_error_t c_orm_deep_copy(const struct cdd_c_meta *meta,
     LOG_DEBUG("c_orm_deep_copy: exit");
     return rc;
   }
-  {
-    rc = C_ORM_ERROR_UNKNOWN;
-    LOG_DEBUG("c_orm_deep_copy: exit");
-    return rc;
+  memcpy(dest, src, meta->size);
+
+  for (i = 0; i < meta->num_props; i++) {
+    const cdd_c_prop_meta_t *prop = &meta->props[i];
+    if (prop->type && strstr(prop->type, "*")) {
+      void *src_ptr_loc;
+      void *dest_ptr_loc = NULL;
+      memcpy(&src_ptr_loc, (char *)src + prop->offset, sizeof(src_ptr_loc));
+      memcpy(&dest_ptr_loc, (char *)dest + prop->offset, sizeof(dest_ptr_loc));
+      if (src_ptr_loc) {
+        if (strstr(prop->type, "char")) {
+          char *dup =
+              (char *)c_orm_malloc(strlen((const char *)src_ptr_loc) + 1);
+          if (!dup) {
+            rc = C_ORM_ERROR_MEMORY;
+            return rc;
+          }
+          C_ORM_STRCPY(dup, strlen((const char *)src_ptr_loc) + 1,
+                       (const char *)src_ptr_loc);
+          dest_ptr_loc = dup;
+          memcpy((char *)dest + prop->offset, &dest_ptr_loc,
+                 sizeof(dest_ptr_loc));
+        } else {
+          dest_ptr_loc = src_ptr_loc;
+          memcpy((char *)dest + prop->offset, &dest_ptr_loc,
+                 sizeof(dest_ptr_loc));
+        }
+      }
+    }
   }
+  rc = C_ORM_OK;
+  LOG_DEBUG("c_orm_deep_copy: exit");
+  return rc;
 }
 
 #define C_ORM_IDENTITY_MAP_DEFAULT_BUCKETS 64

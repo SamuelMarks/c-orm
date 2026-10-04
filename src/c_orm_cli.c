@@ -186,9 +186,9 @@ int main(int argc, char **argv) {
     }
 
   } else if (strcmp(command, "generate") == 0) {
-    printf("Schema diff auto-generation is not implemented dynamically via CLI "
-           "yet.\n");
-    printf("Please use cdd-c code generation or manual SQL creation.\n");
+    printf("Error: Schema diff auto-generation is not implemented.\n");
+    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
+    goto cleanup;
   } else if (strcmp(command, "sql2c") == 0) {
     if (argc < 4) {
       printf("Error: 'sql2c' requires <schema.sql> and <out_dir>.\n");
@@ -212,10 +212,10 @@ int main(int argc, char **argv) {
     c_orm_db_t *db = NULL;
     c_orm_error_t err;
     c_orm_migration_options_t opts;
-    /* we would load actual files from dir here */
     c_orm_migration_t *migs = NULL;
     size_t migs_count = 0;
 
+    /* we would load actual files from dir here */
     if (!db_str) {
       printf("Error: Database connection string required (--db or C_ORM_DB_URL "
              "env)\n");
@@ -249,8 +249,46 @@ int main(int argc, char **argv) {
     }
 
     db->vtable->disconnect(db);
+
   } else if (strcmp(command, "rollback") == 0) {
-    printf("Rollback logic stubbed.\n");
+    c_orm_db_t *db = NULL;
+    c_orm_error_t err;
+    c_orm_migration_options_t opts;
+    c_orm_migration_t *migs = NULL;
+    size_t migs_count = 0;
+
+    if (!db_str) {
+      printf("Error: Database connection string required (--db or C_ORM_DB_URL "
+             "env)\n");
+      rc = C_ORM_ERROR_UNKNOWN;
+      goto cleanup;
+    }
+
+    err = c_orm_sqlite_connect(db_str, &db);
+    if (err != C_ORM_OK) {
+      printf("Error connecting to database.\n");
+      rc = err;
+      goto cleanup;
+    }
+
+    memset(&opts, 0, sizeof(opts));
+    opts.log_cb = log_cb;
+
+    err = c_orm_migration_load_dir(dir_path, &migs, &migs_count);
+    if (err == C_ORM_OK && migs_count > 0) {
+      err = c_orm_migrate_rollback(db, migs, migs_count, 1, &opts);
+      if (err != C_ORM_OK) {
+        printf("Rollback failed.\n");
+        rc = err;
+      } else {
+        printf("Rollback completed.\n");
+      }
+      c_orm_migration_free_array(migs, migs_count);
+    } else {
+      printf("No migrations found in %s to rollback.\n", dir_path);
+    }
+
+    db->vtable->disconnect(db);
   } else if (strcmp(command, "status") == 0) {
     c_orm_db_t *db = NULL;
     c_orm_error_t err;

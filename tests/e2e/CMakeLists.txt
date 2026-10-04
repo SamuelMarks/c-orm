@@ -4,14 +4,6 @@ if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
 endif()
 
-# Fetch greatest.h
-include(FetchContent)
-FetchContent_Declare(
-  greatest
-  GIT_REPOSITORY https://github.com/SamuelMarks/greatest.git
-  GIT_TAG master
-)
-FetchContent_MakeAvailable(greatest)
 set(GREATEST_H_DIR "${greatest_SOURCE_DIR}")
 
 if(WIN32 AND BUILD_SHARED_LIBS OR CMAKE_CROSSCOMPILING_EMULATOR MATCHES "wine")

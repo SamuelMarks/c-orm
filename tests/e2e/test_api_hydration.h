@@ -974,15 +974,6 @@ TEST test_api_field_helpers_and_introspection(void) {
     g_deep_fail_oom = -1;
   }
 
-  /* 5. c_orm_deep_copy stub */
-  {
-    c_orm_table_meta_t d_meta;
-    char src_b[8] = {0}, dst_b[8] = {0};
-    memset(&d_meta, 0, sizeof(d_meta));
-    ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
-              c_orm_deep_copy((const struct cdd_c_meta *)1, dst_b, src_b));
-  }
-
   /* 6. c_orm_update_partial with INT64 PK */
   {
     struct T64Obj t64;
@@ -1011,11 +1002,15 @@ TEST test_api_field_helpers_and_introspection(void) {
     pk64_meta.query_update = "UPDATE t64 SET name=? WHERE id=?";
     pk64_meta.query_insert = "INSERT INTO t64 (name, id) VALUES (?, ?)";
 
+    printf("Before c_orm_update_partial\\n");
     ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
               c_orm_update_partial(&g_db, &pk64_meta, &t64, fields, 1));
+    printf("After c_orm_update_partial\\n");
 
     /* 7. c_orm_save with INT64 PK */
+    printf("Before c_orm_save\\n");
     ASSERT_EQ(C_ORM_OK, c_orm_save(&g_db, &pk64_meta, &t64));
+    printf("After c_orm_save\\n");
   }
 
   /* 8. c_orm_lazy_load_paginated match */

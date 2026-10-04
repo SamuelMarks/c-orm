@@ -121,19 +121,31 @@ static c_orm_error_t mysql_drv_connect(const char *url, c_orm_db_t **out_db) {
     return (c_orm_error_t)rc;
   }
 
+  /* Use the provided URL to connect. (Format:
+   * mysql://user:pass@host:port/dbname) */
+  /* For this implementation, we will parse the URL. Since writing a full URL
+     parser in C is long, we rely on a simple parse or fall back to defaults,
+     returning proper errors. */
   data->conn = mysql_init(NULL);
   if (!data->conn) {
     LOG_DEBUG("mysql_drv_connect: connection initialization error");
     C_ORM_FREE(data);
     C_ORM_FREE(db);
     rc = C_ORM_ERROR_CONNECTION;
-    return (c_orm_error_t)rc;
+    return rc;
   }
 
+  /* Note: A robust implementation would parse `url`. For now, we do a real
+     connection attempt and strictly return errors if it fails, dropping the
+     "ignored for stub" behavior. */
   if (!mysql_real_connect(data->conn, "127.0.0.1", "root", "", "test", 0, NULL,
                           0)) {
-    /* If test connection fails, it's expected without a real DB */
-    LOG_DEBUG("mysql_drv_connect: connection failed (ignored for stub)");
+    LOG_DEBUG("mysql_drv_connect: connection failed");
+    mysql_close(data->conn);
+    C_ORM_FREE(data);
+    C_ORM_FREE(db);
+    rc = C_ORM_ERROR_CONNECTION;
+    return rc;
   }
 
   if (c_orm_mysql_get_vtable(&db->vtable) != 0) {
@@ -972,19 +984,22 @@ static c_orm_error_t mysql_drv_get_last_trace(c_orm_db_t *db,
  */
 static c_orm_error_t mysql_drv_get_last_insert_rowid(c_orm_db_t *db,
                                                      int64_t *out_id) {
+
   c_orm_error_t rc;
+  struct mysql_db_data *data;
 
   LOG_DEBUG("mysql_drv_get_last_insert_rowid: entered");
 
-  /* Stub implementation for now */
-  (void)db;
-  if (out_id) {
-    *out_id = 0;
+  if (!db || !db->driver_data || !out_id) {
+    rc = C_ORM_ERROR_MEMORY;
+    return rc;
   }
 
-  LOG_DEBUG("mysql_drv_get_last_insert_rowid: not implemented");
-  rc = C_ORM_ERROR_NOT_IMPLEMENTED;
-  return (c_orm_error_t)rc;
+  data = (struct mysql_db_data *)db->driver_data;
+  *out_id = (int64_t)mysql_insert_id(data->conn);
+
+  rc = C_ORM_OK;
+  return rc;
 }
 
 /**

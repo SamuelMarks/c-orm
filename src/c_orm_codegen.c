@@ -197,7 +197,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
   if (fp) {
     fprintf(fp, "/* clang-format "
                 "off */\n");
-    fprintf(fp, "#include \"Models.h\"\n");
+    fprintf(fp, "#include \"Models.h\"\n#include \"c_orm_safe_crt.h\"\n");
     fprintf(fp, "#include <errno.h>\n");
     fprintf(fp, "#include <stdlib.h>\n");
     fprintf(fp, "#include <string.h>\n");
