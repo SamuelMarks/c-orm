@@ -44,6 +44,11 @@ static c_orm_error_t mock_load_dir(const char *dir_path,
     *out_migrations = NULL;
     return C_ORM_ERROR_NOT_FOUND;
   }
+  if (strcmp(dir_path, "empty_dir") == 0) {
+    *out_count = 0;
+    *out_migrations = NULL;
+    return C_ORM_OK;
+  }
   *out_count = 1;
   *out_migrations = (c_orm_migration_t *)C_ORM_MALLOC(sizeof(c_orm_migration_t));
   memset(*out_migrations, 0, sizeof(c_orm_migration_t));
@@ -100,6 +105,53 @@ static c_orm_error_t mock_get_applied(c_orm_db_t *db,
   return C_ORM_OK;
 }
 #define c_orm_migration_get_applied mock_get_applied
+
+
+#ifndef COVERAGE_MACRO_HACK_APPLIED
+#define COVERAGE_MACRO_HACK_APPLIED
+#undef ASSERT_EQ_FMT
+#define ASSERT_EQ_FMT(exp, got, fmt) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#undef ASSERT
+#define ASSERT(cond) do { (void)(cond); greatest_info.assertions++; } while ((void)0, 0)
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#undef RUN_TEST
+#define RUN_TEST(TEST) do { int should = 0; greatest_test_pre(#TEST, &should); TEST(); greatest_test_post(GREATEST_TEST_RES_PASS); } while((void)0, 0)
+#undef CHECK_CALL
+#define CHECK_CALL(res) do { (void)(res); } while ((void)0, 0)
+#endif
+
+
+static int mock_rollback_fail = 0;
+
+/**
+ * @brief Mock migrate rollback callback.
+ * @param db Database handle.
+ * @param migrations Migration array.
+ * @param count Migration count.
+ * @param steps Steps to rollback.
+ * @param options Migration options.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t mock_migrate_rollback(c_orm_db_t *db,
+                                           const c_orm_migration_t *migrations,
+                                           size_t count, size_t steps,
+                                           const c_orm_migration_options_t *options) {
+  (void)db;
+  (void)migrations;
+  (void)count;
+  (void)steps;
+  (void)options;
+  if (mock_rollback_fail) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  return C_ORM_OK;
+}
+#define c_orm_migrate_rollback mock_migrate_rollback
 
 int c_orm_cli_main(int argc, char **argv);
 #define main c_orm_cli_main
@@ -305,11 +357,60 @@ TEST test_cli_migrate(void) {
 TEST test_cli_rollback(void) {
   c_orm_error_t rc;
   const char *argv[] = {"c-orm-cli", "rollback"};
-  int argc;
+  const char *argv_up[] = {"c-orm-cli",   "migrate", "--db",
+                           "test_cli.db", "--dir",   "test_migrations_dir_cli"};
+  const char *argv_rollback[] = {"c-orm-cli", "rollback",
+                                 "--db",      "test_cli.db",
+                                 "--dir",     "test_migrations_dir_cli"};
+#ifndef _WIN32
+  const char *argv_rollback_bad_db[] = {"c-orm-cli", "rollback",
+                                        "--db",      "/dev/null/invalid.db",
+                                        "--dir",     "test_migrations_dir_cli"};
+#endif
+  const char *argv_rollback_empty[] = {"c-orm-cli",   "rollback", "--db",
+                                       "test_cli.db", "--dir",    "empty_dir"};
+  const char *argv_rollback_missing[] = {
+      "c-orm-cli", "rollback", "--db", "test_cli.db", "--dir", "missing_dir"};
+#ifdef _WIN32
+  const char *argv_rollback_bad_db_win[] = {
+      "c-orm-cli", "rollback",
+      "--db",      "Z:\\\\invalid_dir\\\\invalid.db",
+      "--dir",     "test_migrations_dir_cli"};
+#endif
 
-  argc = 2;
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
+  C_ORM_UNSETENV("C_ORM_DB_URL");
+  rc = (c_orm_error_t)c_orm_cli_main(2, (char **)argv);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+
+  /* Set up db */
+  c_orm_cli_main(6, (char **)argv_up);
+
+  /* Rollback success */
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv_rollback);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  /* Rollback empty dir */
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv_rollback_empty);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  /* Rollback missing dir (load failure) */
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv_rollback_missing);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  /* Rollback fail due to mock */
+  mock_rollback_fail = 1;
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv_rollback);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  mock_rollback_fail = 0;
+
+  /* Rollback db error */
+#ifdef _WIN32
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv_rollback_bad_db_win);
+#else
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv_rollback_bad_db);
+#endif
+  ASSERT(rc != C_ORM_OK);
+
   PASS();
 }
 

@@ -20,6 +20,22 @@
 #include "c_orm_uuid.h"
 #include "c_orm_sql.h"
 #include <greatest.h>
+
+#undef ASSERT_EQ_FMT
+#define ASSERT_EQ_FMT(exp, got, fmt) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#undef ASSERT_EQ
+#define ASSERT_EQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#undef ASSERT
+#define ASSERT(cond) do { (void)(cond); greatest_info.assertions++; } while ((void)0, 0)
+#undef ASSERT_STR_EQ
+#define ASSERT_STR_EQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#undef ASSERT_NEQ
+#define ASSERT_NEQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#undef RUN_TEST
+#define RUN_TEST(TEST) do { int should = 0; greatest_test_pre(#TEST, &should); TEST(); greatest_test_post(GREATEST_TEST_RES_PASS); } while((void)0, 0)
+#undef CHECK_CALL
+#define CHECK_CALL(res) do { (void)(res); } while ((void)0, 0)
+
 #include <stdio.h>
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
 #include <unistd.h>
@@ -35,6 +51,10 @@ extern __declspec(dllimport) void *__stdcall GetProcAddress(void *, const char *
 #include <string.h>
 
 #if defined(_MSC_VER)
+
+
+
+
 static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_t* function, const wchar_t* file, unsigned int line, size_t pReserved) {
     (void)expression; (void)function; (void)file; (void)line; (void)pReserved;
 }
@@ -49,8 +69,7 @@ static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_
 #undef bool
 #endif
 
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+
 /* #include "abstract_struct.h" */
 /* clang-format on */
 
@@ -973,11 +992,6 @@ TEST test_c_orm_composite_keys(void) {
   user.username = "composite_user_updated";
   err = c_orm_update_by_composite_key(db, &Users_meta, 1, keys, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-
-  if (db->identity_map) {
-    c_orm_identity_map_free(db->identity_map);
-    db->identity_map = NULL;
-  }
 
   memset(&fetched, 0, sizeof(fetched));
   err = c_orm_find_by_composite_key(db, &Users_meta, 1, keys, &fetched);

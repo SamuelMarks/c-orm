@@ -14,6 +14,7 @@
 #include "c_orm_log.h"
 #include "Models.h"
 #include "c_orm_sqlite.h"
+#include "cdd_c_orm_meta.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
 
@@ -945,14 +946,82 @@ static void test_c_orm_find_by_composite_key(void) {
  */
 static void test_c_orm_update_by_composite_key(void) {
   char buf[1024];
-  struct CddCVariant keys[2];
+  struct CddCVariant keys[5];
+  c_orm_table_meta_t m = mega_meta;
+  c_orm_column_meta_t cols[10];
+  int i;
   memset(buf, 0, sizeof(buf));
   memset(keys, 0, sizeof(keys));
+  memset(cols, 0, sizeof(cols));
+
+  for (i = 0; i < 10; i++) {
+    cols[i].name = "col";
+    cols[i].offset = 0;
+  }
+  cols[0].type = C_ORM_TYPE_INT32;
+  cols[1].type = C_ORM_TYPE_BOOL;
+  cols[2].type = C_ORM_TYPE_INT64;
+  cols[3].type = C_ORM_TYPE_DOUBLE;
+  cols[4].type = C_ORM_TYPE_FLOAT;
+  cols[5].type = C_ORM_TYPE_STRING;
+  cols[6].type = C_ORM_TYPE_TIMESTAMP;
+  cols[7].type = 999; /* Unknown */
+
+  m.columns = cols;
+  m.num_columns = 8;
+  m.query_update = "UPDATE t SET col = ?";
+
   keys[0].type = CDD_C_VARIANT_TYPE_INT;
   keys[0].value.i_val = 1;
   keys[1].type = CDD_C_VARIANT_TYPE_STRING;
   keys[1].value.s_val = "test";
-  c_orm_update_by_composite_key(&g_db, &mega_meta, 2, keys, buf);
+  keys[2].type = CDD_C_VARIANT_TYPE_FLOAT;
+  keys[2].value.f_val = 1.0;
+  keys[3].type = CDD_C_VARIANT_TYPE_BLOB;
+  keys[3].value.b_val.data = (unsigned char *)"b";
+  keys[3].value.b_val.size = 1;
+  keys[4].type = 999; /* Unknown */
+
+  /* First pass: let it fail on col 7 */
+  c_orm_update_by_composite_key(&g_db, &m, 5, keys, buf);
+
+  /* Second pass: let it pass the cols loop */
+  cols[7].type = C_ORM_TYPE_STRING;
+  c_orm_update_by_composite_key(&g_db, &m, 5, keys, buf);
+
+  /* Test NULL validation */
+  c_orm_update_by_composite_key(NULL, &m, 5, keys, buf);
+  c_orm_update_by_composite_key(&g_db, NULL, 5, keys, buf);
+  c_orm_update_by_composite_key(&g_db, &m, 5, keys, NULL);
+  c_orm_update_by_composite_key(&g_db, &m, 5, NULL, buf);
+
+  /* Test step failure */
+  {
+    const c_orm_driver_vtable_t *orig_vt = g_db.vtable;
+    keys[4].type = CDD_C_VARIANT_TYPE_INT; /* Fix early return */
+    g_db.vtable = &g_vt;
+    g_mock_step_fail_countdown = 0;
+    c_orm_update_by_composite_key(&g_db, &m, 5, keys, buf);
+    g_mock_step_fail_countdown = -1;
+    g_db.vtable = orig_vt;
+  }
+
+  m.query_update = NULL;
+  c_orm_update_by_composite_key(&g_db, &m, 5, keys, buf);
+
+  m.is_view = 1;
+  c_orm_update_by_composite_key(&g_db, &m, 5, keys, buf);
+
+  /* Also test string NULL branch */
+  m.is_view = 0;
+  m.query_update = "UPDATE t SET col = ?";
+  m.num_columns = 1;
+  cols[0].type = C_ORM_TYPE_STRING;
+  {
+    char *null_str = NULL;
+    memcpy(buf, &null_str, sizeof(char *));
+    c_orm_update_by_composite_key(&g_db, &m, 0, keys, buf);
+  }
 }
 /**
  * @brief Unit test for test_c_orm_delete_by_composite_key.
@@ -2141,61 +2210,82 @@ static void test_c_orm_abstract_from_json(void) {
  */
 static void test_c_orm_deep_free(void) {
   char buf[1024] = {0};
-  void *void_ptr = NULL;
-  char *str_ptr = NULL;
-  const char *str_arr[2] = {"a", "b"};
-  c_orm_query_t *q_ptr = NULL;
-  c_orm_db_t *db_ptr = NULL;
-  c_orm_pool_t *pool_ptr = NULL;
-  c_orm_shard_manager_t *sm_ptr = NULL;
-  c_orm_relation_meta_t *rel_ptr = NULL;
-  size_t sz_ptr = 0;
-  const c_orm_table_meta_t *m_arr[1] = {&mega_meta};
-  int int_out = 0;
-  (void)m_arr;
-  (void)str_ptr;
-  (void)void_ptr;
-  (void)q_ptr;
-  (void)db_ptr;
-  (void)pool_ptr;
-  (void)sm_ptr;
-  (void)rel_ptr;
-  (void)sz_ptr;
-  (void)int_out;
-  (void)str_arr;
-  (void)buf;
+  struct cdd_c_meta m;
+  struct cdd_c_prop_meta props[4];
+  char *ptr = (char *)c_orm_malloc(10);
+  char *ptr2 = NULL;
+
+  memset(&m, 0, sizeof(m));
+  memset(props, 0, sizeof(props));
+  props[0].name = "ptr";
+  props[0].type = "char *";
+  props[0].offset = 0;
+  props[1].name = "null_type";
+  props[1].type = NULL;
+  props[1].offset = 0;
+  props[2].name = "null_ptr";
+  props[2].type = "char *";
+  props[2].offset = sizeof(void *);
+  props[3].name = "no_star";
+  props[3].type = "int";
+  props[3].offset = 0;
+
+  m.num_props = 4;
+  m.props = props;
+
+  memcpy(buf, &ptr, sizeof(char *));
+  memcpy(buf + sizeof(void *), &ptr2, sizeof(void *));
+  c_orm_deep_free(&m, buf);
   c_orm_deep_free(NULL, buf);
+  c_orm_deep_free(&m, NULL);
 }
 /**
  * @brief Unit test for test_c_orm_deep_copy.
  * @return GREATEST test result.
  */
 static void test_c_orm_deep_copy(void) {
-  char buf[1024] = {0};
-  void *void_ptr = NULL;
-  char *str_ptr = NULL;
-  const char *str_arr[2] = {"a", "b"};
-  c_orm_query_t *q_ptr = NULL;
-  c_orm_db_t *db_ptr = NULL;
-  c_orm_pool_t *pool_ptr = NULL;
-  c_orm_shard_manager_t *sm_ptr = NULL;
-  c_orm_relation_meta_t *rel_ptr = NULL;
-  size_t sz_ptr = 0;
-  const c_orm_table_meta_t *m_arr[1] = {&mega_meta};
-  int int_out = 0;
-  (void)m_arr;
-  (void)str_ptr;
-  (void)void_ptr;
-  (void)q_ptr;
-  (void)db_ptr;
-  (void)pool_ptr;
-  (void)sm_ptr;
-  (void)rel_ptr;
-  (void)sz_ptr;
-  (void)int_out;
-  (void)str_arr;
-  (void)buf;
-  c_orm_deep_copy(NULL, buf, buf);
+  char src[1024] = {0};
+  char dest[1024] = {0};
+  struct cdd_c_meta m;
+  struct cdd_c_prop_meta props[5];
+  char *ptr = (char *)"hello";
+  char *ptr2 = (char *)"world";
+  char *ptr_null = NULL;
+
+  memset(&m, 0, sizeof(m));
+  memset(props, 0, sizeof(props));
+  props[0].name = "ptr";
+  props[0].type = "char *";
+  props[0].offset = 0;
+  props[1].name = "ptr2";
+  props[1].type = "int *"; /* Not char * */
+  props[1].offset = sizeof(void *);
+  props[2].name = "null_type";
+  props[2].type = NULL;
+  props[2].offset = 0;
+  props[3].name = "null_ptr";
+  props[3].type = "char *";
+  props[3].offset = 2 * sizeof(void *);
+  props[4].name = "no_star";
+  props[4].type = "int";
+  props[4].offset = 0;
+
+  m.num_props = 5;
+  m.props = props;
+  m.size = 1024;
+
+  memcpy(src, &ptr, sizeof(char *));
+  memcpy(src + sizeof(void *), &ptr2, sizeof(void *));
+  memcpy(src + 2 * sizeof(void *), &ptr_null, sizeof(void *));
+
+  if (c_orm_deep_copy(&m, dest, src) == C_ORM_OK) {
+    char *dup = NULL;
+    memcpy(&dup, dest, sizeof(char *));
+    c_orm_free(dup);
+  }
+  c_orm_deep_copy(NULL, src, src);
+  c_orm_deep_copy(&m, NULL, src);
+  c_orm_deep_copy(&m, dest, NULL);
 }
 /**
  * @brief Unit test for test_c_orm_insert_async.
@@ -3825,6 +3915,32 @@ TEST test_relations_extended_coverage(void) {
                                                      "children", &parent));
   c_orm_free(parent.child_ptr);
   parent.child_ptr = NULL;
+
+  /* Test HAS_MANY_THROUGH */
+  rels[0].type = C_ORM_RELATION_HAS_MANY_THROUGH;
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED,
+            c_orm_find_with_relation_int32(&g_db, &parent_meta, 1, "children",
+                                           &parent));
+  ASSERT_EQ(
+      C_ORM_ERROR_NOT_IMPLEMENTED,
+      c_orm_find_all_with_relation(&g_db, &parent_meta, "children", &parent));
+
+  /* Test POLYMORPHIC */
+  rels[0].type = C_ORM_RELATION_POLYMORPHIC;
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED,
+            c_orm_find_with_relation_int32(&g_db, &parent_meta, 1, "children",
+                                           &parent));
+  ASSERT_EQ(
+      C_ORM_ERROR_NOT_IMPLEMENTED,
+      c_orm_find_all_with_relation(&g_db, &parent_meta, "children", &parent));
+
+  /* Test unknown relation type */
+  rels[0].type = 999;
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_find_with_relation_int32(&g_db, &parent_meta, 1, "children",
+                                           &parent));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_find_all_with_relation(
+                                     &g_db, &parent_meta, "children", &parent));
   rels[0].type = C_ORM_RELATION_BELONGS_TO;
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&g_db, &parent_meta, 1,
@@ -5968,6 +6084,7 @@ TEST test_crud_relations_and_hooks_coverage(void) {
  */
 TEST test_api_helpers_full_coverage(void) {
   int32_t val32;
+  volatile size_t volatile_huge_size = (size_t)-1;
   double vald;
   const char *str_val;
   void *out_data;
@@ -6003,7 +6120,7 @@ TEST test_api_helpers_full_coverage(void) {
   rc = mock_prefix_get_column_name(NULL, 999, &str_val);
   ASSERT_EQ(C_ORM_OK, rc);
 
-  rc = mock_encrypt_ok(NULL, (size_t)-1, NULL, &out_data, &out_size);
+  rc = mock_encrypt_ok(NULL, volatile_huge_size, NULL, &out_data, &out_size);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
 
   g_step_pattern_len = 1;
@@ -6066,7 +6183,8 @@ TEST test_api_helpers_full_coverage(void) {
 
   out_data = NULL;
   out_size = 0;
-  rc = mock_test_encrypt_hook_ok(NULL, (size_t)-1, NULL, &out_data, &out_size);
+  rc = mock_test_encrypt_hook_ok(NULL, volatile_huge_size, NULL, &out_data,
+                                 &out_size);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
   rc = mock_test_encrypt_hook_ok("a", 1, NULL, &out_data, &out_size);
   ASSERT_EQ(C_ORM_OK, rc);

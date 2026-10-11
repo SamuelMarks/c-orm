@@ -87,6 +87,22 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
     C_ORM_STRCPY((*out_migrations)[0].down_sql, 128, "DROP TABLE t1;");
     return C_ORM_OK;
   }
+  if (strcmp(dir_path, "bad_rollback_cli") == 0) {
+    *out_count = 1;
+    *out_migrations = (c_orm_migration_t *)malloc(sizeof(c_orm_migration_t));
+    memset(*out_migrations, 0, sizeof(c_orm_migration_t));
+    C_ORM_STRCPY((*out_migrations)[0].version,
+                 sizeof((*out_migrations)[0].version), "1");
+    C_ORM_STRCPY((*out_migrations)[0].name, sizeof((*out_migrations)[0].name),
+                 "bad");
+    C_ORM_STRCPY((*out_migrations)[0].hash, sizeof((*out_migrations)[0].hash),
+                 "hash");
+    (*out_migrations)[0].up_sql = (char *)malloc(128);
+    C_ORM_STRCPY((*out_migrations)[0].up_sql, 128, "CREATE TABLE bad(id int);");
+    (*out_migrations)[0].down_sql = (char *)malloc(128);
+    C_ORM_STRCPY((*out_migrations)[0].down_sql, 128, "INVALID SQL SYNTAX;");
+    return C_ORM_OK;
+  }
   if (strcmp(dir_path, "empty_migrations_cli") == 0) {
     *out_count = 0;
     *out_migrations = NULL;
