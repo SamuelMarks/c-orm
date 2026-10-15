@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file perfect.c
  * @brief Minimal compilation and verification target.
@@ -22,6 +20,3 @@ int main(void) {
   rc = C_ORM_OK;
   return (int)rc;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

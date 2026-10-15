@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file relationships.c
  * @brief Demonstrates entity relationship mappings and cascade operations in
@@ -280,6 +278,3 @@ int main(void) {
 
   return 0;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

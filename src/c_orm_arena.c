@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_arena.c
  * @brief Implementation of memory arena for AST nodes.
@@ -168,8 +166,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_strdup(c_orm_arena_t *arena,
  * @brief Frees all memory associated with the given arena.
  *
  * @param arena The arena to free.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_arena_free(c_orm_arena_t *arena) {
+C_ORM_EXPORT c_orm_error_t c_orm_arena_free(c_orm_arena_t *arena) {
   c_orm_arena_block_t *block;
   c_orm_arena_block_t *next;
 
@@ -177,7 +176,7 @@ C_ORM_EXPORT void c_orm_arena_free(c_orm_arena_t *arena) {
 
   if (!arena) {
     LOG_DEBUG("c_orm_arena_free: invalid arguments");
-    return;
+    return C_ORM_OK;
   }
 
   block = arena->head;
@@ -189,7 +188,5 @@ C_ORM_EXPORT void c_orm_arena_free(c_orm_arena_t *arena) {
 
   C_ORM_FREE(arena);
   LOG_DEBUG("c_orm_arena_free: exit");
+  return C_ORM_OK;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

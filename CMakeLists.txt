@@ -89,41 +89,24 @@ if(MSVC AND MSVC_VERSION LESS 1600)
 endif()
 
 
-if(MSVC)
-    if(${PROJECT_NAME_SAFE}_CHARSET STREQUAL "UNICODE")
-        add_compile_definitions(UNICODE _UNICODE)
-    endif()
-
-    if(NOT ${PROJECT_NAME_SAFE}_THREADING)
-        # Note: MSVC doesn't support single-threaded CRT since 2005, but we can still avoid defining _MT if needed, though CMAKE_MSVC_RUNTIME_LIBRARY manages it.
-    endif()
-
-    if(NOT ${PROJECT_NAME_SAFE}_MSVC_RTC STREQUAL "OFF")
-        string(REGEX REPLACE "/RTC(1|c|s|u)+" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-        string(REGEX REPLACE "/RTC(1|c|s|u)+" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-        list(APPEND C_ORM_STRICT_OPTIONS "/RTC${${PROJECT_NAME_SAFE}_MSVC_RTC}")
-    endif()
-endif()
-
-
-# Step 278: Static Analysis Integration
-set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-option(C_ORM_ENABLE_CLANG_TIDY "Enable clang-tidy static analysis" OFF)
-if(C_ORM_ENABLE_CLANG_TIDY)
-    find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
-    if(CLANG_TIDY_EXE)
-        set(CMAKE_C_CLANG_TIDY ${CLANG_TIDY_EXE} "-checks=*,-readability-identifier-length,-misc-unused-parameters,-clang-analyzer-security.insecureAPI.strcpy,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling")
-    else()
-        message(WARNING "clang-tidy not found. Static analysis disabled.")
-    endif()
-endif()
-
 # Strict warnings
 if(MSVC)
     string(REGEX REPLACE "/W[0-4]" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
     string(REGEX REPLACE "/W[0-4]" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     set(C_ORM_STRICT_OPTIONS /W4 /WX /sdl)
     add_link_options("/MANIFEST:NO")
+
+    if(${PROJECT_NAME_SAFE}_CHARSET STREQUAL "UNICODE")
+        add_compile_definitions(UNICODE _UNICODE)
+    endif()
+
+    if(NOT ${PROJECT_NAME_SAFE}_MSVC_RTC STREQUAL "OFF")
+        string(REGEX REPLACE "/RTC(1|c|s|u)+" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+        string(REGEX REPLACE "/RTC(1|c|s|u)+" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+        string(REGEX REPLACE "/RTC(1|c|s|u)+" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+        string(REGEX REPLACE "/RTC(1|c|s|u)+" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+        list(APPEND C_ORM_STRICT_OPTIONS "/RTC${${PROJECT_NAME_SAFE}_MSVC_RTC}")
+    endif()
 elseif(CMAKE_C_COMPILER_ID MATCHES "Watcom")
     set(C_ORM_STRICT_OPTIONS -w4 -we)
 else()
@@ -142,6 +125,16 @@ endif()
 
 include(FetchContent)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "Don't update dependencies on reconfigure")
+unset(FETCHCONTENT_SOURCE_DIR_CFS CACHE)
+unset(FETCHCONTENT_SOURCE_DIR_C_FS CACHE)
+unset(FETCHCONTENT_SOURCE_DIR_CDD_C CACHE)
+unset(FETCHCONTENT_SOURCE_DIR_CDD-C CACHE)
+unset(FETCHCONTENT_SOURCE_DIR_C89STRINGUTILS CACHE)
+unset(FETCHCONTENT_SOURCE_DIR_C_STR_SPAN CACHE)
+unset(FETCHCONTENT_SOURCE_DIR_C-STR-SPAN CACHE)
+unset(FETCHCONTENT_SOURCE_DIR_PARSON CACHE)
+unset(FETCHCONTENT_SOURCE_DIR_C_ABSTRACT_HTTP CACHE)
+unset(FETCHCONTENT_SOURCE_DIR_C-ABSTRACT-HTTP CACHE)
 set(OLD_BUILD_TESTING_VAL "${BUILD_TESTING}")
 #set(BUILD_TESTING OFF)
 
@@ -230,7 +223,7 @@ set(C_REST_FRAMEWORK_FETCH_CDD_C OFF CACHE BOOL "Disable cdd_c fetch in c_rest_f
 
 if(TARGET cfs)
     # Target already populated natively
-elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../c-fs/CMakeLists.txt")
+elseif(FALSE)
     FetchContent_Declare(cfs SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../c-fs")
     if(NOT TARGET cfs)
     FetchContent_MakeAvailable(cfs)
@@ -241,10 +234,13 @@ else()
     FetchContent_MakeAvailable(cfs)
     endif()
 endif()
+if(MSVC AND TARGET cfs)
+    target_compile_options(cfs PRIVATE /wd4029)
+endif()
 
 if(TARGET parson)
     # Target already populated natively
-elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../parson/CMakeLists.txt")
+elseif(FALSE)
     FetchContent_Declare(parson SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../parson")
     if(NOT TARGET parson)
     FetchContent_MakeAvailable(parson)
@@ -266,7 +262,7 @@ else()
 endif()
 
 # We need greatest for tests. The core build defines `BUILD_TESTING` (or uses it implicitly).
-if (EXISTS "${CMAKE_CURRENT_LIST_DIR}/../greatest")
+if (FALSE)
     message(STATUS "Fetching greatest from local directory: ${CMAKE_CURRENT_LIST_DIR}/../greatest")
     FetchContent_Declare(greatest SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../greatest")
     FetchContent_MakeAvailable(greatest)
@@ -289,7 +285,7 @@ endif()
 
 if(TARGET c_cdd)
     # Target already populated natively
-elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../cdd-c/CMakeLists.txt")
+elseif(FALSE)
     FetchContent_Declare(cdd_c SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../cdd-c")
     set(c_orm_SOURCE_DIR ${CMAKE_SOURCE_DIR})
     if(NOT TARGET c_cdd)
@@ -305,6 +301,9 @@ else()
     if(NOT TARGET c_cdd)
     FetchContent_MakeAvailable(cdd_c)
     endif()
+endif()
+if(MSVC AND TARGET c_cdd)
+    target_compile_options(c_cdd PRIVATE /wd4701)
 endif()
 
 set(BUILD_TESTING "${OLD_BUILD_TESTING_VAL}")
@@ -360,13 +359,6 @@ if(NOT WIN32 AND NOT EMSCRIPTEN)
         target_link_libraries(c-orm PUBLIC crypto)
     endif()
 endif()
-  target_include_directories(c-orm PUBLIC )
-  target_include_directories(c-orm PUBLIC )
-
-
-
-
-
 
 target_compile_definitions(c-orm PUBLIC $<$<BOOL:${BUILD_SHARED_LIBS}>:C_ORM_SHARED>)
 
@@ -389,13 +381,17 @@ if(EMSCRIPTEN)
 endif()
 
 if(C_ORM_SQLITE STREQUAL "LINKED")
-    find_package(unofficial-sqlite3 CONFIG QUIET)
+    if(NOT (CMAKE_CROSSCOMPILING AND CMAKE_SYSTEM_NAME STREQUAL "Windows" AND NOT DEFINED CMAKE_TOOLCHAIN_FILE))
+        find_package(unofficial-sqlite3 CONFIG QUIET)
+        if( NOT TARGET unofficial::sqlite3::sqlite3)
+            find_package(SQLite3 QUIET)
+        endif()
+    endif()
     if(TARGET unofficial::sqlite3::sqlite3)
         target_compile_definitions(c-orm PUBLIC C_ORM_SQLITE_LINKED C_ORM_ENABLE_SQLITE)
         target_link_libraries(c-orm PRIVATE unofficial::sqlite3::sqlite3)
         set(C_ORM_SQLITE_TARGET unofficial::sqlite3::sqlite3 CACHE INTERNAL "SQLite3 target name")
     else()
-        find_package(SQLite3 QUIET)
         if(TARGET SQLite3::SQLite3)
             target_compile_definitions(c-orm PUBLIC C_ORM_SQLITE_LINKED C_ORM_ENABLE_SQLITE)
             target_link_libraries(c-orm PRIVATE SQLite3::SQLite3)
@@ -436,7 +432,7 @@ if(C_ORM_POSTGRESQL STREQUAL "LINKED")
     target_include_directories(c-orm PRIVATE ${PostgreSQL_INCLUDE_DIRS})
     target_link_libraries(c-orm PRIVATE PostgreSQL::PostgreSQL)
 elseif(C_ORM_POSTGRESQL STREQUAL "DYNAMIC")
-    target_compile_definitions(c-orm PUBLIC C_ORM_POSTGRESQL_DYNAMIC)
+    target_compile_definitions(c-orm PUBLIC C_ORM_POSTGRESQL_DYNAMIC C_ORM_ENABLE_POSTGRESQL)
     if(NOT WIN32 AND NOT EMSCRIPTEN)
         target_link_libraries(c-orm PRIVATE ${CMAKE_DL_LIBS})
     endif()
@@ -447,7 +443,7 @@ if(C_ORM_MYSQL STREQUAL "LINKED")
     target_compile_definitions(c-orm PUBLIC C_ORM_MYSQL_LINKED C_ORM_ENABLE_MYSQL)
     target_link_libraries(c-orm PRIVATE unofficial::libmariadb)
 elseif(C_ORM_MYSQL STREQUAL "DYNAMIC")
-    target_compile_definitions(c-orm PUBLIC C_ORM_MYSQL_DYNAMIC)
+    target_compile_definitions(c-orm PUBLIC C_ORM_MYSQL_DYNAMIC C_ORM_ENABLE_MYSQL)
     if(NOT WIN32 AND NOT EMSCRIPTEN)
         target_link_libraries(c-orm PRIVATE ${CMAKE_DL_LIBS})
     endif()
@@ -571,23 +567,6 @@ target_link_libraries(c-orm-cli PRIVATE c-orm)
 if(EMSCRIPTEN)
     target_link_options(c-orm-cli PRIVATE "SHELL:-s NODERAWFS=1" "SHELL:-s USE_PTHREADS=1" "SHELL:-s STACK_SIZE=5MB")
 endif()
-
-if(MSVC)
-    if(${PROJECT_NAME_SAFE}_CHARSET STREQUAL "UNICODE")
-        add_compile_definitions(UNICODE _UNICODE)
-    endif()
-
-    if(NOT ${PROJECT_NAME_SAFE}_THREADING)
-        # Note: MSVC doesn't support single-threaded CRT since 2005, but we can still avoid defining _MT if needed, though CMAKE_MSVC_RUNTIME_LIBRARY manages it.
-    endif()
-
-    if(NOT ${PROJECT_NAME_SAFE}_MSVC_RTC STREQUAL "OFF")
-        string(REGEX REPLACE "/RTC(1|c|s|u)+" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-        string(REGEX REPLACE "/RTC(1|c|s|u)+" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-        list(APPEND C_ORM_STRICT_OPTIONS "/RTC${${PROJECT_NAME_SAFE}_MSVC_RTC}")
-    endif()
-endif()
-
 
 if(WIN32 AND BUILD_SHARED_LIBS)
     add_custom_command(TARGET c-orm-cli POST_BUILD

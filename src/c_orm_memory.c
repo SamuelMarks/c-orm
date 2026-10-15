@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_memory.c
  * @brief Memory driver implementation for testing and simple in-memory
@@ -23,6 +21,36 @@ typedef enum {
   MEM_QUERY_DELETE,
   MEM_QUERY_RAW
 } mem_query_type_t;
+
+/** @brief Value type for in-memory cell */
+typedef enum {
+  MEM_VAL_NULL = 0,
+  MEM_VAL_INT32,
+  MEM_VAL_INT64,
+  MEM_VAL_DOUBLE,
+  MEM_VAL_STRING,
+  MEM_VAL_BLOB
+} mem_val_type_t;
+
+/**
+ * @brief In-memory cell value structure.
+ */
+typedef struct {
+  /** @brief Active cell value type. */
+  mem_val_type_t type;
+  /** @brief 32-bit integer value. */
+  int32_t i32;
+  /** @brief 64-bit integer value. */
+  int64_t i64;
+  /** @brief Double precision value. */
+  double d;
+  /** @brief String value. */
+  char *s;
+  /** @brief Blob data buffer. */
+  void *blob;
+  /** @brief Blob size in bytes. */
+  size_t blob_size;
+} mem_cell_t;
 
 /**
  * @brief Row structure
@@ -74,6 +102,7 @@ typedef struct {
  * @var num_bound Number of bound parameters.
  * @var current_row Current row pointer for iteration.
  * @var db Pointer to parent memory database instance.
+ * @var step_started Flag indicating whether iteration has started.
  */
 typedef struct {
   /** @brief Type of query being executed. */
@@ -88,7 +117,40 @@ typedef struct {
   mem_row_t *current_row; /* For iteration */
   /** @brief Pointer to parent memory database instance. */
   c_orm_memory_db_t *db;
+  /** @brief Flag indicating whether iteration has started. */
+  int step_started;
 } c_orm_memory_query_t;
+
+/**
+ * @brief Frees a single mem_cell_t and its owned buffers.
+ * @param cell Cell pointer to free.
+ */
+static void free_mem_cell(mem_cell_t *cell) {
+  if (!cell) {
+    return;
+  }
+  C_ORM_FREE(cell->s);
+  C_ORM_FREE(cell->blob);
+  C_ORM_FREE(cell);
+}
+
+/**
+ * @brief Helper to retrieve a cell from the current row.
+ * @param query Query handle.
+ * @param index 0-based column index.
+ * @param out_cell Output pointer receiving the cell.
+ * @return C_ORM_OK if found, C_ORM_ERROR_NOT_FOUND otherwise.
+ */
+static c_orm_error_t get_current_cell(c_orm_query_t *query, int index,
+                                      mem_cell_t **out_cell) {
+  c_orm_memory_query_t *q = (c_orm_memory_query_t *)query;
+  if (!q || !q->current_row || (size_t)index >= q->current_row->num_cols ||
+      !q->current_row->columns[index]) {
+    return C_ORM_ERROR_NOT_FOUND;
+  }
+  *out_cell = (mem_cell_t *)q->current_row->columns[index];
+  return C_ORM_OK;
+}
 
 /**
  * @brief Connects to in-memory database instance.
@@ -165,6 +227,10 @@ static c_orm_error_t mem_disconnect(c_orm_db_t *db) {
     mem_row_t *r = t->head;
     while (r) {
       mem_row_t *nr = r->next;
+      size_t col_i;
+      for (col_i = 0; col_i < r->num_cols; col_i++) {
+        free_mem_cell((mem_cell_t *)r->columns[col_i]);
+      }
       C_ORM_FREE(r->columns);
       C_ORM_FREE(r);
       r = nr;
@@ -186,8 +252,10 @@ static c_orm_error_t mem_disconnect(c_orm_db_t *db) {
  * @param sql Input SQL statement string.
  * @param prefix Keyword prefix preceding table name.
  * @param out Buffer to receive parsed table name string.
+ * @return C_ORM_OK on success.
  */
-static void parse_table_name(const char *sql, const char *prefix, char *out) {
+static c_orm_error_t parse_table_name(const char *sql, const char *prefix,
+                                      char *out) {
   const char *p;
   LOG_DEBUG("parse_table_name: entry");
   p = strstr(sql, prefix);
@@ -200,6 +268,7 @@ static void parse_table_name(const char *sql, const char *prefix, char *out) {
   }
   *out = '\0';
   LOG_DEBUG("parse_table_name: exit");
+  return C_ORM_OK;
 }
 
 /**
@@ -239,6 +308,7 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
   q->num_bound = 0;
   q->current_row = NULL;
   q->db = ctx;
+  q->step_started = 0;
   q->table_name[0] = '\0';
 
   if (strncmp(sql, "SELECT * FROM ", 14) == 0) {
@@ -268,6 +338,38 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
 }
 
 /**
+ * @brief Helper to allocate or replace a bound cell at a 1-based parameter
+ * index.
+ * @param query Query handle.
+ * @param index 1-based parameter index.
+ * @param out_cell Output pointer receiving the allocated cell.
+ * @return C_ORM_OK on success, or error code on failure.
+ */
+static c_orm_error_t get_or_alloc_bound_cell(c_orm_query_t *query, int index,
+                                             mem_cell_t **out_cell) {
+  c_orm_memory_query_t *q = (c_orm_memory_query_t *)query;
+  mem_cell_t *cell;
+  if (!q || index < 1 || index > 32) {
+    return C_ORM_ERROR_BIND;
+  }
+  if (q->bound_params[index - 1]) {
+    free_mem_cell((mem_cell_t *)q->bound_params[index - 1]);
+    q->bound_params[index - 1] = NULL;
+  }
+  cell = (mem_cell_t *)C_ORM_MALLOC(sizeof(mem_cell_t));
+  if (!cell) {
+    return C_ORM_ERROR_MEMORY;
+  }
+  memset(cell, 0, sizeof(mem_cell_t));
+  q->bound_params[index - 1] = cell;
+  if ((size_t)index > q->num_bound) {
+    q->num_bound = (size_t)index;
+  }
+  *out_cell = cell;
+  return C_ORM_OK;
+}
+
+/**
  * @brief Binds a 32-bit integer parameter.
  * @param query Query handle.
  * @param index 1-based parameter index.
@@ -276,14 +378,17 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
  */
 static c_orm_error_t mem_bind_int32(c_orm_query_t *query, int index,
                                     int32_t val) {
+  mem_cell_t *cell = NULL;
   c_orm_error_t rc;
   LOG_DEBUG("mem_bind_int32: entry");
-  (void)query;
-  (void)index;
-  (void)val;
-  rc = C_ORM_OK;
+  rc = get_or_alloc_bound_cell(query, index, &cell);
+  if (rc == C_ORM_OK) {
+    cell->type = MEM_VAL_INT32;
+    cell->i32 = val;
+    cell->i64 = (int64_t)val;
+  }
   LOG_DEBUG("mem_bind_int32: exit");
-  return (c_orm_error_t)rc;
+  return rc;
 }
 
 /**
@@ -295,14 +400,17 @@ static c_orm_error_t mem_bind_int32(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_bind_int64(c_orm_query_t *query, int index,
                                     int64_t val) {
+  mem_cell_t *cell = NULL;
   c_orm_error_t rc;
   LOG_DEBUG("mem_bind_int64: entry");
-  (void)query;
-  (void)index;
-  (void)val;
-  rc = C_ORM_OK;
+  rc = get_or_alloc_bound_cell(query, index, &cell);
+  if (rc == C_ORM_OK) {
+    cell->type = MEM_VAL_INT64;
+    cell->i64 = val;
+    cell->i32 = (int32_t)val;
+  }
   LOG_DEBUG("mem_bind_int64: exit");
-  return (c_orm_error_t)rc;
+  return rc;
 }
 
 /**
@@ -314,14 +422,16 @@ static c_orm_error_t mem_bind_int64(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_bind_double(c_orm_query_t *query, int index,
                                      double val) {
+  mem_cell_t *cell = NULL;
   c_orm_error_t rc;
   LOG_DEBUG("mem_bind_double: entry");
-  (void)query;
-  (void)index;
-  (void)val;
-  rc = C_ORM_OK;
+  rc = get_or_alloc_bound_cell(query, index, &cell);
+  if (rc == C_ORM_OK) {
+    cell->type = MEM_VAL_DOUBLE;
+    cell->d = val;
+  }
   LOG_DEBUG("mem_bind_double: exit");
-  return (c_orm_error_t)rc;
+  return rc;
 }
 
 /**
@@ -333,14 +443,18 @@ static c_orm_error_t mem_bind_double(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_bind_string(c_orm_query_t *query, int index,
                                      const char *val) {
+  mem_cell_t *cell = NULL;
   c_orm_error_t rc;
   LOG_DEBUG("mem_bind_string: entry");
-  (void)query;
-  (void)index;
-  (void)val;
-  rc = C_ORM_OK;
+  rc = get_or_alloc_bound_cell(query, index, &cell);
+  if (rc == C_ORM_OK) {
+    cell->type = MEM_VAL_STRING;
+    if (val) {
+      rc = C_ORM_STRDUP(val, &cell->s);
+    }
+  }
   LOG_DEBUG("mem_bind_string: exit");
-  return (c_orm_error_t)rc;
+  return rc;
 }
 
 /**
@@ -353,15 +467,23 @@ static c_orm_error_t mem_bind_string(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_bind_blob(c_orm_query_t *query, int index,
                                    const void *val, size_t size) {
+  mem_cell_t *cell = NULL;
   c_orm_error_t rc;
   LOG_DEBUG("mem_bind_blob: entry");
-  (void)query;
-  (void)index;
-  (void)val;
-  (void)size;
-  rc = C_ORM_OK;
+  rc = get_or_alloc_bound_cell(query, index, &cell);
+  if (rc == C_ORM_OK) {
+    cell->type = MEM_VAL_BLOB;
+    if (val) {
+      cell->blob = C_ORM_MALLOC(size);
+      if (!cell->blob) {
+        return C_ORM_ERROR_MEMORY;
+      }
+      memcpy(cell->blob, val, size);
+      cell->blob_size = size;
+    }
+  }
   LOG_DEBUG("mem_bind_blob: exit");
-  return (c_orm_error_t)rc;
+  return rc;
 }
 
 /**
@@ -371,13 +493,15 @@ static c_orm_error_t mem_bind_blob(c_orm_query_t *query, int index,
  * @return 0 on success.
  */
 static c_orm_error_t mem_bind_null(c_orm_query_t *query, int index) {
+  mem_cell_t *cell = NULL;
   c_orm_error_t rc;
   LOG_DEBUG("mem_bind_null: entry");
-  (void)query;
-  (void)index;
-  rc = C_ORM_OK;
+  rc = get_or_alloc_bound_cell(query, index, &cell);
+  if (rc == C_ORM_OK) {
+    cell->type = MEM_VAL_NULL;
+  }
   LOG_DEBUG("mem_bind_null: exit");
-  return (c_orm_error_t)rc;
+  return rc;
 }
 
 /**
@@ -387,14 +511,76 @@ static c_orm_error_t mem_bind_null(c_orm_query_t *query, int index) {
  * @return 0 on success.
  */
 static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
-  c_orm_error_t rc;
-  (void)query;
+  c_orm_memory_query_t *q = (c_orm_memory_query_t *)query;
+  mem_table_t *t;
   LOG_DEBUG("mem_step: entry");
 
   *out_has_row = 0;
-  rc = C_ORM_OK;
+  if (!q) {
+    return C_ORM_OK;
+  }
+
+  if (q->type == MEM_QUERY_INSERT) {
+    mem_row_t *row;
+    size_t i;
+    t = q->db->tables;
+    while (t && strcmp(t->name, q->table_name) != 0) {
+      t = t->next;
+    }
+    if (!t) {
+      t = (mem_table_t *)C_ORM_MALLOC(sizeof(mem_table_t));
+      if (!t) {
+        return C_ORM_ERROR_MEMORY;
+      }
+      if (C_ORM_STRDUP(q->table_name, &t->name) != C_ORM_OK) {
+        C_ORM_FREE(t);
+        return C_ORM_ERROR_MEMORY;
+      }
+      t->head = NULL;
+      t->next = q->db->tables;
+      q->db->tables = t;
+    }
+    row = (mem_row_t *)C_ORM_MALLOC(sizeof(mem_row_t));
+    if (!row) {
+      return C_ORM_ERROR_MEMORY;
+    }
+    row->num_cols = q->num_bound;
+    row->columns = q->num_bound > 0
+                       ? (void **)C_ORM_MALLOC(q->num_bound * sizeof(void *))
+                       : NULL;
+    if (q->num_bound > 0 && !row->columns) {
+      C_ORM_FREE(row);
+      return C_ORM_ERROR_MEMORY;
+    }
+    for (i = 0; i < q->num_bound; i++) {
+      row->columns[i] = q->bound_params[i];
+      q->bound_params[i] = NULL;
+    }
+    q->num_bound = 0;
+    row->next = t->head;
+    t->head = row;
+    LOG_DEBUG("mem_step: exit insert");
+    return C_ORM_OK;
+  }
+
+  if (q->type == MEM_QUERY_SELECT_ALL || q->type == MEM_QUERY_SELECT_PK) {
+    if (!q->step_started) {
+      q->step_started = 1;
+      t = q->db->tables;
+      while (t && strcmp(t->name, q->table_name) != 0) {
+        t = t->next;
+      }
+      q->current_row = t ? t->head : NULL;
+    } else if (q->current_row) {
+      q->current_row = q->current_row->next;
+    }
+    if (q->current_row) {
+      *out_has_row = 1;
+    }
+  }
+
   LOG_DEBUG("mem_step: exit");
-  return (c_orm_error_t)rc;
+  return C_ORM_OK;
 }
 
 /**
@@ -406,14 +592,15 @@ static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
  */
 static c_orm_error_t mem_get_int32(c_orm_query_t *query, int index,
                                    int32_t *out_val) {
-  c_orm_error_t rc;
+  mem_cell_t *cell = NULL;
   LOG_DEBUG("mem_get_int32: entry");
-  (void)query;
-  (void)index;
-  (void)out_val;
-  rc = C_ORM_ERROR_NOT_FOUND;
-  LOG_DEBUG("mem_get_int32: exit");
-  return (c_orm_error_t)rc;
+  if (out_val && get_current_cell(query, index, &cell) == C_ORM_OK) {
+    *out_val = cell->i32;
+    LOG_DEBUG("mem_get_int32: exit");
+    return C_ORM_OK;
+  }
+  LOG_DEBUG("mem_get_int32: exit not found");
+  return C_ORM_ERROR_NOT_FOUND;
 }
 
 /**
@@ -425,14 +612,15 @@ static c_orm_error_t mem_get_int32(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_get_int64(c_orm_query_t *query, int index,
                                    int64_t *out_val) {
-  c_orm_error_t rc;
+  mem_cell_t *cell = NULL;
   LOG_DEBUG("mem_get_int64: entry");
-  (void)query;
-  (void)index;
-  (void)out_val;
-  rc = C_ORM_ERROR_NOT_FOUND;
-  LOG_DEBUG("mem_get_int64: exit");
-  return (c_orm_error_t)rc;
+  if (out_val && get_current_cell(query, index, &cell) == C_ORM_OK) {
+    *out_val = cell->i64;
+    LOG_DEBUG("mem_get_int64: exit");
+    return C_ORM_OK;
+  }
+  LOG_DEBUG("mem_get_int64: exit not found");
+  return C_ORM_ERROR_NOT_FOUND;
 }
 
 /**
@@ -444,14 +632,15 @@ static c_orm_error_t mem_get_int64(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_get_double(c_orm_query_t *query, int index,
                                     double *out_val) {
-  c_orm_error_t rc;
+  mem_cell_t *cell = NULL;
   LOG_DEBUG("mem_get_double: entry");
-  (void)query;
-  (void)index;
-  (void)out_val;
-  rc = C_ORM_ERROR_NOT_FOUND;
-  LOG_DEBUG("mem_get_double: exit");
-  return (c_orm_error_t)rc;
+  if (out_val && get_current_cell(query, index, &cell) == C_ORM_OK) {
+    *out_val = cell->d;
+    LOG_DEBUG("mem_get_double: exit");
+    return C_ORM_OK;
+  }
+  LOG_DEBUG("mem_get_double: exit not found");
+  return C_ORM_ERROR_NOT_FOUND;
 }
 
 /**
@@ -463,14 +652,15 @@ static c_orm_error_t mem_get_double(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_get_string(c_orm_query_t *query, int index,
                                     const char **out_val) {
-  c_orm_error_t rc;
+  mem_cell_t *cell = NULL;
   LOG_DEBUG("mem_get_string: entry");
-  (void)query;
-  (void)index;
-  (void)out_val;
-  rc = C_ORM_ERROR_NOT_FOUND;
-  LOG_DEBUG("mem_get_string: exit");
-  return (c_orm_error_t)rc;
+  if (out_val && get_current_cell(query, index, &cell) == C_ORM_OK) {
+    *out_val = cell->s;
+    LOG_DEBUG("mem_get_string: exit");
+    return C_ORM_OK;
+  }
+  LOG_DEBUG("mem_get_string: exit not found");
+  return C_ORM_ERROR_NOT_FOUND;
 }
 
 /**
@@ -483,15 +673,17 @@ static c_orm_error_t mem_get_string(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_get_blob(c_orm_query_t *query, int index,
                                   const void **out_val, size_t *out_size) {
-  c_orm_error_t rc;
+  mem_cell_t *cell = NULL;
   LOG_DEBUG("mem_get_blob: entry");
-  (void)query;
-  (void)index;
-  (void)out_val;
-  (void)out_size;
-  rc = C_ORM_ERROR_NOT_FOUND;
-  LOG_DEBUG("mem_get_blob: exit");
-  return (c_orm_error_t)rc;
+  if (out_val && out_size &&
+      get_current_cell(query, index, &cell) == C_ORM_OK) {
+    *out_val = cell->blob;
+    *out_size = cell->blob_size;
+    LOG_DEBUG("mem_get_blob: exit");
+    return C_ORM_OK;
+  }
+  LOG_DEBUG("mem_get_blob: exit not found");
+  return C_ORM_ERROR_NOT_FOUND;
 }
 
 /**
@@ -503,16 +695,17 @@ static c_orm_error_t mem_get_blob(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_is_null(c_orm_query_t *query, int index,
                                  int *out_is_null) {
-  c_orm_error_t rc;
+  mem_cell_t *cell = NULL;
   LOG_DEBUG("mem_is_null: entry");
-  (void)query;
-  (void)index;
   if (out_is_null) {
-    *out_is_null = 1;
+    if (get_current_cell(query, index, &cell) == C_ORM_OK) {
+      *out_is_null = (cell->type == MEM_VAL_NULL) ? 1 : 0;
+    } else {
+      *out_is_null = 1;
+    }
   }
-  rc = C_ORM_OK;
   LOG_DEBUG("mem_is_null: exit");
-  return (c_orm_error_t)rc;
+  return C_ORM_OK;
 }
 
 /**
@@ -521,16 +714,20 @@ static c_orm_error_t mem_is_null(c_orm_query_t *query, int index,
  * @return 0 on success.
  */
 static c_orm_error_t mem_finalize(c_orm_query_t *query) {
-  c_orm_error_t rc;
   c_orm_memory_query_t *q;
+  size_t i;
   LOG_DEBUG("mem_finalize: entry");
 
   q = (c_orm_memory_query_t *)query;
+  for (i = 0; i < 32; i++) {
+    if (q->bound_params[i]) {
+      free_mem_cell((mem_cell_t *)q->bound_params[i]);
+    }
+  }
   C_ORM_FREE(q->bound_params);
   C_ORM_FREE(q);
-  rc = C_ORM_OK;
   LOG_DEBUG("mem_finalize: exit");
-  return (c_orm_error_t)rc;
+  return C_ORM_OK;
 }
 
 /**
@@ -539,12 +736,14 @@ static c_orm_error_t mem_finalize(c_orm_query_t *query) {
  * @return 0 on success.
  */
 static c_orm_error_t mem_reset(c_orm_query_t *query) {
-  c_orm_error_t rc;
+  c_orm_memory_query_t *q = (c_orm_memory_query_t *)query;
   LOG_DEBUG("mem_reset: entry");
-  (void)query;
-  rc = C_ORM_OK;
+  if (q) {
+    q->current_row = NULL;
+    q->step_started = 0;
+  }
   LOG_DEBUG("mem_reset: exit");
-  return (c_orm_error_t)rc;
+  return C_ORM_OK;
 }
 
 /**
@@ -673,6 +872,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_memory_connect(const char *url,
                                                 c_orm_db_t **out_db) {
   return mem_connect(url, out_db);
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

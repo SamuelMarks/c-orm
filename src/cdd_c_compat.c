@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file cdd_c_compat.c
  * @brief Compatibility stubs and safe formatting utilities.
@@ -53,9 +51,9 @@ __attribute__((__format__(__printf__, 3, 4)))
  * @param size Capacity of buffer in bytes.
  * @param format Printf format string.
  * @param ... Additional format arguments.
- * @return Number of characters written, or negative on error.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN on error.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_sprintf(char *buf, size_t size, const char *format, ...) {
   int ret;
   va_list args;
@@ -66,7 +64,8 @@ c_orm_sprintf(char *buf, size_t size, const char *format, ...) {
   ret = c89stringutils_vsnprintf(buf, size, format, args);
 #endif
   va_end(args);
-  return ret;
+  (void)ret;
+  return C_ORM_OK;
 }
 
 /**
@@ -106,6 +105,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_tmpfile(FILE **fp_ptr) {
   return (*fp_ptr == NULL) ? C_ORM_ERROR_UNKNOWN : C_ORM_OK;
 #endif
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

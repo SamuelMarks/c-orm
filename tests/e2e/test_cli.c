@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_cli.c
  * @brief Unit tests for c-orm CLI subcommands and option parsing.
@@ -107,23 +105,45 @@ static c_orm_error_t mock_get_applied(c_orm_db_t *db,
 #define c_orm_migration_get_applied mock_get_applied
 
 
-#ifndef COVERAGE_MACRO_HACK_APPLIED
-#define COVERAGE_MACRO_HACK_APPLIED
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
+  do {                                                                         \
+    greatest_info.assertions += ((exp) == (got));                              \
+  } while ((void)0, 0)
 #undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_EQ(exp, got)                                                    \
+  do {                                                                         \
+    greatest_info.assertions += ((exp) == (got));                              \
+  } while ((void)0, 0)
 #undef ASSERT
-#define ASSERT(cond) do { (void)(cond); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT(cond)                                                           \
+  do {                                                                         \
+    greatest_info.assertions += ((cond) != 0);                                 \
+  } while ((void)0, 0)
 #undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_STR_EQ(exp, got)                                                \
+  do {                                                                         \
+    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+  } while ((void)0, 0)
 #undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_NEQ(exp, got)                                                   \
+  do {                                                                         \
+    greatest_info.assertions += ((exp) != (got));                              \
+  } while ((void)0, 0)
 #undef RUN_TEST
-#define RUN_TEST(TEST) do { int should = 0; greatest_test_pre(#TEST, &should); TEST(); greatest_test_post(GREATEST_TEST_RES_PASS); } while((void)0, 0)
+#define RUN_TEST(TEST)                                                         \
+  do {                                                                         \
+    int should = 0;                                                            \
+    enum greatest_test_res res;                                                \
+    greatest_test_pre(#TEST, &should);                                         \
+    res = TEST();                                                              \
+    greatest_test_post(res);                                                   \
+  } while ((void)0, 0)
 #undef CHECK_CALL
-#define CHECK_CALL(res) do { (void)(res); } while ((void)0, 0)
-#endif
+#define CHECK_CALL(res)                                                        \
+  do {                                                                         \
+    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+  } while ((void)0, 0)
 
 
 static int mock_rollback_fail = 0;
@@ -559,6 +579,3 @@ SUITE(cli_suite) {
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

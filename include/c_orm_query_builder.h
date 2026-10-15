@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_query_builder.h
  * @brief Dynamic SQL Query builder definition.
@@ -45,8 +43,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_builder_init(
  * @brief Free resources associated with a select builder.
  *
  * @param builder Select builder instance to free.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_select_builder_free(c_orm_select_builder_t *builder);
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_builder_free(c_orm_select_builder_t *builder);
 
 /**
  * @brief Compile the select builder into a final string.
@@ -283,8 +283,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_builder_init(
  * @brief Free resources associated with an insert query builder.
  *
  * @param builder The insert builder to free.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_insert_builder_free(c_orm_insert_builder_t *builder);
+C_ORM_EXPORT c_orm_error_t
+c_orm_insert_builder_free(c_orm_insert_builder_t *builder);
 
 /**
  * @brief Compile the insert builder into a final string.
@@ -310,8 +312,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_builder_init(
  * @brief Free resources associated with an update query builder.
  *
  * @param builder The update builder to free.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_update_builder_free(c_orm_update_builder_t *builder);
+C_ORM_EXPORT c_orm_error_t
+c_orm_update_builder_free(c_orm_update_builder_t *builder);
 
 /**
  * @brief Add a SET clause to the update builder.
@@ -347,6 +351,3 @@ c_orm_update_builder_compile(c_orm_update_builder_t *builder, char **out_sql);
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_QUERY_BUILDER_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

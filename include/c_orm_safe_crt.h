@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_safe_crt.h
  * @brief Safe CRT wrappers and fallback macros.
@@ -8,16 +6,16 @@
 #ifndef C_ORM_SAFE_CRT_H
 #define C_ORM_SAFE_CRT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_meta.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 #if defined(__clang__) || defined(__GNUC__)
 __attribute__((__format__(__printf__, 3, 4)))
@@ -29,9 +27,9 @@ __attribute__((__format__(__printf__, 3, 4)))
  * @param size Buffer size.
  * @param format Printf format string.
  * @param ... Format arguments.
- * @return Number of characters written or negative on error.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN on error.
  */
-C_ORM_EXPORT int
+C_ORM_EXPORT c_orm_error_t
 c_orm_sprintf(char *buf, size_t size, const char *format, ...);
 #define C_ORM_SPRINTF c_orm_sprintf
 
@@ -171,6 +169,3 @@ typedef unsigned long c_orm_uint64_t;
 #endif /* __cplusplus */
 
 #endif /* C_ORM_SAFE_CRT_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

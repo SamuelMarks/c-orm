@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_api_coverage.c
  * @brief Complete unit and end-to-end API coverage test suite for c-orm.

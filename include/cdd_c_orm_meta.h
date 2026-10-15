@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file cdd_c_orm_meta.h
  * @brief Common definitions and enums for cdd-c struct meta-data.
@@ -8,13 +6,13 @@
 #ifndef C_CDD_C_ORM_META_H
 #define C_CDD_C_ORM_META_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <stddef.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Metadata describing a single property/field of an mapped struct.
@@ -45,6 +43,3 @@ typedef struct cdd_c_meta {
 #endif /* __cplusplus */
 
 #endif /* C_CDD_C_ORM_META_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_abstract_struct_oom.h
  * @brief Out-of-memory fault injection tests for abstract struct data
@@ -21,56 +19,45 @@ static int astruct_oom_countdown = 0;
 
 /** @brief Saved original malloc allocator pointer. */
 
-#ifndef COVERAGE_MACRO_HACK_APPLIED
-#define COVERAGE_MACRO_HACK_APPLIED
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) == (got));                              \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) == (got));                              \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    (void)(cond);                                                              \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((cond) != 0);                                 \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) != (got));                              \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
   do {                                                                         \
     int should = 0;                                                            \
+    enum greatest_test_res res;                                                \
     greatest_test_pre(#TEST, &should);                                         \
-    TEST();                                                                    \
-    greatest_test_post(GREATEST_TEST_RES_PASS);                                \
+    res = TEST();                                                              \
+    greatest_test_post(res);                                                   \
   } while ((void)0, 0)
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    (void)(res);                                                               \
+    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
   } while ((void)0, 0)
-#endif
 
 static void *(*old_malloc)(size_t) = NULL;
 
@@ -138,7 +125,7 @@ TEST test_abstract_struct_oom_coverage(void) {
   /* test array init malloc fail */
   astruct_oom_countdown = 0;
   c_orm_set_allocators(mock_malloc_astruct, c_orm_realloc, c_orm_free);
-  ASSERT_EQ(EINVAL, cdd_c_abstract_struct_array_init(&arr, 10));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, cdd_c_abstract_struct_array_init(&arr, 10));
 
   /* array push realloc fail */
   c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
@@ -146,7 +133,8 @@ TEST test_abstract_struct_oom_coverage(void) {
   cdd_c_abstract_struct_array_append(&arr, &astruct); /* fills capacity */
   astruct_oom_countdown = 0;
   c_orm_set_allocators(old_malloc, mock_realloc_astruct, c_orm_free);
-  ASSERT_EQ(EINVAL, cdd_c_abstract_struct_array_append(&arr, &astruct));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            cdd_c_abstract_struct_array_append(&arr, &astruct));
 
   /* test mock_realloc_astruct with countdown > 0 */
   {
@@ -169,7 +157,8 @@ TEST test_abstract_struct_oom_coverage(void) {
 
   astruct_oom_countdown = 0;
   c_orm_set_allocators(mock_malloc_astruct, old_realloc, c_orm_free);
-  ASSERT_EQ(EINVAL, cdd_c_abstract_struct_init_with_capacity(&astruct, 10));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            cdd_c_abstract_struct_init_with_capacity(&astruct, 10));
 
   /* abstract set array capacity malloc */
   cdd_c_abstract_struct_init(&astruct);
@@ -177,7 +166,7 @@ TEST test_abstract_struct_oom_coverage(void) {
   c_orm_set_allocators(mock_malloc_astruct, old_realloc, c_orm_free);
   v.type = CDD_C_VARIANT_TYPE_INT;
   v.value.i_val = 1;
-  ASSERT_EQ(EINVAL, cdd_c_abstract_set(&astruct, "key", &v));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, cdd_c_abstract_set(&astruct, "key", &v));
 
   c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
   cdd_c_abstract_set(&astruct, "key", &v);
@@ -189,14 +178,14 @@ TEST test_abstract_struct_oom_coverage(void) {
   /* The capacity is initially 4, so we need to add 3 more to force realloc */
   cdd_c_abstract_set(&astruct, "key3", &v);
   cdd_c_abstract_set(&astruct, "key4", &v);
-  ASSERT_EQ(EINVAL, cdd_c_abstract_set(&astruct, "key5", &v));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, cdd_c_abstract_set(&astruct, "key5", &v));
 
   /* duplicate_string failure in copy_variant */
   v.type = CDD_C_VARIANT_TYPE_STRING;
   v.value.s_val = "hello";
   astruct_oom_countdown = 1;
   c_orm_set_allocators(mock_malloc_astruct, old_realloc, c_orm_free);
-  ASSERT_EQ(EINVAL, cdd_c_abstract_set(&astruct, "key6", &v));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, cdd_c_abstract_set(&astruct, "key6", &v));
 
   /* duplicate_blob failure in copy_variant */
   v.type = CDD_C_VARIANT_TYPE_BLOB;
@@ -204,7 +193,7 @@ TEST test_abstract_struct_oom_coverage(void) {
   v.value.b_val.size = 4;
   astruct_oom_countdown = 1;
   c_orm_set_allocators(mock_malloc_astruct, old_realloc, c_orm_free);
-  ASSERT_EQ(EINVAL, cdd_c_abstract_set(&astruct, "key7", &v));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, cdd_c_abstract_set(&astruct, "key7", &v));
 
   c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
   cdd_c_abstract_struct_free(&astruct);
@@ -213,26 +202,31 @@ TEST test_abstract_struct_oom_coverage(void) {
   astruct_oom_countdown = 0;
   c_orm_set_allocators(mock_malloc_astruct, old_realloc, c_orm_free);
   json_set_allocation_functions(mock_malloc_astruct, mock_parson_free);
-  ASSERT_EQ(EINVAL, cdd_c_abstract_struct_array_to_json(NULL, &json));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            cdd_c_abstract_struct_array_to_json(NULL, &json));
 
   cdd_c_abstract_struct_array_init(&arr, 1);
   astruct_oom_countdown = 0;
-  ASSERT_EQ(EINVAL, cdd_c_abstract_struct_array_to_json(&arr, &json));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            cdd_c_abstract_struct_array_to_json(&arr, &json));
 
   astruct_oom_countdown = 1;
-  ASSERT_EQ(EINVAL, cdd_c_abstract_struct_array_to_json(&arr, &json));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            cdd_c_abstract_struct_array_to_json(&arr, &json));
 
   astruct_oom_countdown = 0;
-  ASSERT_EQ(EINVAL, cdd_c_abstract_struct_to_json(&astruct, &json));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            cdd_c_abstract_struct_to_json(&astruct, &json));
 
   astruct_oom_countdown = 1;
-  ASSERT_EQ(EINVAL, cdd_c_abstract_struct_to_json(&astruct, &json));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            cdd_c_abstract_struct_to_json(&astruct, &json));
 
   /* cdd_c_abstract_from_json failure in cdd_c_abstract_set */
   astruct_oom_countdown = 0;
   json_set_allocation_functions(malloc, free);
   c_orm_set_allocators(mock_malloc_astruct, old_realloc, c_orm_free);
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
             cdd_c_abstract_struct_from_json("{\"key\": \"val\"}", &astruct));
 
   c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
@@ -249,7 +243,8 @@ TEST test_abstract_struct_oom_coverage(void) {
     col.inferred_type = 4;
     astruct_oom_countdown = 0;
     c_orm_set_allocators(mock_malloc_astruct, old_realloc, c_orm_free);
-    ASSERT_EQ(EINVAL, cdd_c_abstract_hydrate(&astruct, row, &col, 1));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              cdd_c_abstract_hydrate(&astruct, row, &col, 1));
     c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
   }
 
@@ -264,7 +259,8 @@ TEST test_abstract_struct_oom_coverage(void) {
     col.inferred_type = 4;
     astruct_oom_countdown = 1;
     c_orm_set_allocators(mock_malloc_astruct, old_realloc, c_orm_free);
-    ASSERT_EQ(EINVAL, cdd_c_abstract_hydrate(&astruct, row, &col, 1));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              cdd_c_abstract_hydrate(&astruct, row, &col, 1));
     c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
   }
 
@@ -282,7 +278,8 @@ TEST test_abstract_struct_oom_coverage(void) {
     meta.num_props = 1;
     astruct_oom_countdown = 0;
     c_orm_set_allocators(old_malloc, mock_realloc_astruct, c_orm_free);
-    ASSERT_EQ(EINVAL, cdd_c_specific_to_abstract(&astruct, &dummy, &meta));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              cdd_c_specific_to_abstract(&astruct, &dummy, &meta));
     c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
   }
 
@@ -292,7 +289,8 @@ TEST test_abstract_struct_oom_coverage(void) {
     cdd_c_abstract_struct_init(&astruct_empty);
     astruct_oom_countdown = 2;
     json_set_allocation_functions(mock_malloc_astruct, mock_parson_free);
-    ASSERT_EQ(EINVAL, cdd_c_abstract_struct_to_json(&astruct_empty, &json));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              cdd_c_abstract_struct_to_json(&astruct_empty, &json));
     json_set_allocation_functions(malloc, free);
     cdd_c_abstract_struct_free(&astruct_empty);
   }
@@ -309,6 +307,3 @@ TEST test_abstract_struct_oom_coverage(void) {
 #endif /* __cplusplus */
 
 #endif /* TEST_ABSTRACT_STRUCT_OOM_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file cdd_c_ir.h
  * @brief Top-level Intermediate Representation for CDD-C
@@ -10,16 +8,16 @@
 #ifndef C_CDD_CLASSES_PARSE_CDD_C_IR_H
 #define C_CDD_CLASSES_PARSE_CDD_C_IR_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <stddef.h>
 #include "c_orm_db.h"
 #include "c_orm_sql.h"
 #include "query_projection.h"
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Core Intermediate Representation tracking all tables and query
@@ -86,6 +84,3 @@ extern C_ORM_EXPORT /**
 #endif /* __cplusplus */
 
 #endif /* C_CDD_CLASSES_PARSE_CDD_C_IR_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

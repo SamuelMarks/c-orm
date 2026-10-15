@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_benchmarks.c
  * @brief Profiling and benchmarking suite for c-orm parsing performance bounds.
@@ -171,15 +169,19 @@ TEST benchmark_ast_vs_string_concat(void) {
     c_orm_query_t *q = NULL;
     char *sql = NULL;
     c_orm_query_params_t params;
+    c_orm_ast_node_t *gt_node = NULL;
+    c_orm_ast_node_t *eq_node = NULL;
 
     err = c_orm_query_new(&q);
     ASSERT_EQ(C_ORM_OK, err);
-    q->select_(q, "id, name, email")
-        ->from(q, "users")
-        ->where(q, q->gt(q, "age", "18", 0))
-        ->and_where(q, q->eq(q, "status", "active", 1))
-        ->order_by(q, "created_at", 1)
-        ->limit(q, 10);
+    q->select_(q, "id, name, email");
+    q->from(q, "users");
+    q->gt(q, "age", "18", 0, &gt_node);
+    q->where(q, gt_node);
+    q->eq(q, "status", "active", 1, &eq_node);
+    q->and_where(q, eq_node);
+    q->order_by(q, "created_at", 1);
+    q->limit(q, 10);
 
     c_orm_query_params_init(&params);
     err = c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &params);
@@ -630,6 +632,3 @@ int main(int argc, char **argv) {
   RUN_SUITE(benchmarks_suite);
   GREATEST_MAIN_END();
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

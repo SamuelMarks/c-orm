@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_orm_gen.c
  * @brief Unit tests for OpenAPI to ORM model code generation.
@@ -326,6 +324,3 @@ SUITE(orm_gen_suite) {
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

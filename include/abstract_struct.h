@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file abstract_struct.h
  * @brief CDD_C generic representation (dynamic dictionary/array)
@@ -13,15 +11,15 @@
 #ifndef C_CDD_CLASSES_PARSE_ABSTRACT_STRUCT_H
 #define C_CDD_CLASSES_PARSE_ABSTRACT_STRUCT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <stddef.h>
 #include "c_orm_safe_crt.h"
 #include "c_orm_db.h"
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Types of variant values.
@@ -447,6 +445,3 @@ C_ORM_EXPORT c_orm_error_t cdd_c_abstract_to_specific(
 #endif /* __cplusplus */
 
 #endif /* C_CDD_CLASSES_PARSE_ABSTRACT_STRUCT_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_migrations.c
  * @brief Unit tests for database migration runner, locking, dry-run, schema
@@ -20,25 +18,22 @@ extern "C" {
 #include <greatest.h>
 
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 #undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 #undef ASSERT
-#define ASSERT(cond) do { (void)(cond); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
 #undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 #undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
 #undef RUN_TEST
-#define RUN_TEST(TEST) do { int should = 0; greatest_test_pre(#TEST, &should); TEST(); greatest_test_post(GREATEST_TEST_RES_PASS); } while((void)0, 0)
+#define RUN_TEST(TEST) do { int should = 0; enum greatest_test_res res; greatest_test_pre(#TEST, &should); res = TEST(); greatest_test_post(res); } while((void)0, 0)
 #undef CHECK_CALL
-#define CHECK_CALL(res) do { (void)(res); } while ((void)0, 0)
+#define CHECK_CALL(res) do { greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS); } while ((void)0, 0)
 
 #include <stdlib.h>
 #include <string.h>
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 /* clang-format on */
 
 /**
@@ -600,6 +595,12 @@ TEST test_migration_lock_unlock_branches(void) { PASS(); }
  * @brief Tests failure branches during migrate_all.
  * @return GREATEST test result.
  */
+/**
+ * @brief Executes mock_pre_migrate_fail.
+ * @param db Parameter db.
+ * @param mig Parameter mig.
+ * @param user_data Parameter user_data.
+ */
 static c_orm_error_t mock_pre_migrate_fail(c_orm_db_t *db,
                                            const c_orm_migration_t *mig,
                                            void *user_data) {
@@ -608,6 +609,12 @@ static c_orm_error_t mock_pre_migrate_fail(c_orm_db_t *db,
   (void)user_data;
   return C_ORM_ERROR_UNKNOWN;
 }
+/**
+ * @brief Executes mock_post_migrate_fail.
+ * @param db Parameter db.
+ * @param mig Parameter mig.
+ * @param user_data Parameter user_data.
+ */
 static c_orm_error_t mock_post_migrate_fail(c_orm_db_t *db,
                                             const c_orm_migration_t *mig,
                                             void *user_data) {
@@ -616,12 +623,22 @@ static c_orm_error_t mock_post_migrate_fail(c_orm_db_t *db,
   (void)user_data;
   return C_ORM_ERROR_UNKNOWN;
 }
+/**
+ * @brief Executes mock_log_cb.
+ * @param msg Parameter msg.
+ */
 static c_orm_error_t mock_log_cb(const char *msg) {
   (void)msg;
   printf("DEBUG: mock_log_cb called\n");
   fflush(stdout);
   return C_ORM_OK;
 }
+/**
+ * @brief Executes mock_pre_migrate_success.
+ * @param db Parameter db.
+ * @param mig Parameter mig.
+ * @param user_data Parameter user_data.
+ */
 static c_orm_error_t mock_pre_migrate_success(c_orm_db_t *db,
                                               const c_orm_migration_t *mig,
                                               void *user_data) {
@@ -630,6 +647,12 @@ static c_orm_error_t mock_pre_migrate_success(c_orm_db_t *db,
   (void)user_data;
   return C_ORM_OK;
 }
+/**
+ * @brief Executes mock_post_migrate_success.
+ * @param db Parameter db.
+ * @param mig Parameter mig.
+ * @param user_data Parameter user_data.
+ */
 static c_orm_error_t mock_post_migrate_success(c_orm_db_t *db,
                                                const c_orm_migration_t *mig,
                                                void *user_data) {
@@ -639,6 +662,11 @@ static c_orm_error_t mock_post_migrate_success(c_orm_db_t *db,
   return C_ORM_OK;
 }
 
+/**
+ * @brief Executes clear_migs.
+ * @param db Parameter db.
+ * @param orig_vt Parameter orig_vt.
+ */
 static void clear_migs(c_orm_db_t *db, c_orm_driver_vtable_t *orig_vt) {
   c_orm_query_t *query = NULL;
   int has_row = 0;
@@ -652,6 +680,9 @@ static void clear_migs(c_orm_db_t *db, c_orm_driver_vtable_t *orig_vt) {
   orig_vt->finalize(query);
 }
 
+/**
+ * @brief Executes test_migrate_all_failure_branches.
+ */
 TEST test_migrate_all_failure_branches(void) {
   c_orm_db_t *db = NULL;
   c_orm_driver_vtable_t orig_vt;

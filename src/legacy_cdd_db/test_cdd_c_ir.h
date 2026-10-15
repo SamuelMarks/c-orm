@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_cdd_c_ir.h
  * @brief Unit tests for CDD C IR construction, SQL parsing, and projections.
@@ -214,6 +212,3 @@ SUITE(cdd_c_ir_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_CDD_C_IR_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

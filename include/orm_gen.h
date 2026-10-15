@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file orm_gen.h
  * @brief Code generation interfaces for OpenAPI to c-orm models.
@@ -10,15 +8,15 @@
 #ifndef C_CDD_ROUTES_EMIT_ORM_GEN_H
 #define C_CDD_ROUTES_EMIT_ORM_GEN_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_db.h"
 #include "openapi/parse/openapi.h"
 #include "routes/emit/client_gen.h" /* For config */
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Emit c-orm compatible database schema models and C structures.
@@ -35,6 +33,3 @@ extern C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
 #endif /* __cplusplus */
 
 #endif /* C_CDD_ROUTES_EMIT_ORM_GEN_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

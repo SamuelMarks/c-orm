@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_cli.c
  * @brief Command line interface for C-ORM migrations and tools.
@@ -30,8 +28,6 @@ extern __declspec(dllimport) void *__stdcall GetProcAddress(void *, const char *
 #define MKDIR(path) _mkdir(path)
 #if defined(_MSC_VER)
 #include <crtdbg.h>
-#endif
-#if defined(_MSC_VER) && defined(_DEBUG)
 #endif
 #else
 #include <sys/stat.h>
@@ -127,7 +123,6 @@ int main(int argc, char **argv) {
     rc = C_ORM_ERROR_UNKNOWN;
     LOG_DEBUG("main: missing command");
     LOG_DEBUG("main: exit");
-    printf("RETURNING RC %d\n", rc);
     goto cleanup;
   }
 
@@ -161,7 +156,6 @@ int main(int argc, char **argv) {
       rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: create requires migration name");
       LOG_DEBUG("main: exit");
-      printf("RETURNING RC %d\n", rc);
       goto cleanup;
     }
 
@@ -195,15 +189,11 @@ int main(int argc, char **argv) {
       rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: sql2c requires arguments");
       LOG_DEBUG("main: exit");
-      printf("RETURNING RC %d\n", rc);
       goto cleanup;
     }
-    printf("SQL2C CALLED WITH %s AND %s\n", argv[2], argv[3]);
     rc = c_orm_codegen_generate(argv[2], argv[3]);
-    printf("CODEGEN RC IS %d\n", rc);
     if (rc != 0) {
       printf("Failed to generate code from schema.\n");
-      printf("RETURNING RC %d\n", rc);
       goto cleanup;
     } else {
       printf("Code generation successful.\n");
@@ -222,18 +212,15 @@ int main(int argc, char **argv) {
       rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: DB string required for migrate");
       LOG_DEBUG("main: exit");
-      printf("RETURNING RC %d\n", rc);
       goto cleanup;
     }
 
     err = c_orm_sqlite_connect(db_str, &db);
-    printf("SQLITE CONNECT RETURNED %d FOR %s\n", err, db_str);
     if (err != C_ORM_OK) {
       printf("Error connecting to database.\n");
       rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: failed connecting to db in migrate");
       LOG_DEBUG("main: exit");
-      printf("RETURNING RC %d\n", rc);
       goto cleanup;
     }
 
@@ -301,18 +288,15 @@ int main(int argc, char **argv) {
       rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: DB string required for status");
       LOG_DEBUG("main: exit");
-      printf("RETURNING RC %d\n", rc);
       goto cleanup;
     }
 
     err = c_orm_sqlite_connect(db_str, &db);
-    printf("SQLITE CONNECT RETURNED %d FOR %s\n", err, db_str);
     if (err != C_ORM_OK) {
       printf("Error connecting to database.\n");
       rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: failed connecting to db in status");
       LOG_DEBUG("main: exit");
-      printf("RETURNING RC %d\n", rc);
       goto cleanup;
     }
 
@@ -331,7 +315,6 @@ int main(int argc, char **argv) {
       rc = C_ORM_ERROR_UNKNOWN;
       LOG_DEBUG("main: failed to fetch migration status");
       LOG_DEBUG("main: exit");
-      printf("RETURNING RC %d\n", rc);
       goto cleanup;
     }
     db->vtable->disconnect(db);
@@ -341,16 +324,11 @@ int main(int argc, char **argv) {
     rc = C_ORM_ERROR_UNKNOWN;
     LOG_DEBUG("main: unknown command");
     LOG_DEBUG("main: exit");
-    printf("RETURNING RC %d\n", rc);
     goto cleanup;
   }
 
   rc = C_ORM_OK;
   LOG_DEBUG("main: exit");
-  printf("RETURNING RC %d\n", rc);
 cleanup:
   return (int)rc;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

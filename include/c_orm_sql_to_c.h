@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file sql_to_c.h
  * @brief Emits C structures and array containers from SQL DDL AST.
@@ -7,10 +5,6 @@
 
 #ifndef C_CDD_SQL_TO_C_H
 #define C_CDD_SQL_TO_C_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 
 /* clang-format off */
 #include "c_orm_db.h"
@@ -21,6 +15,10 @@ extern "C" {
 #include "abstract_struct.h"
 #include <stdio.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Map a SQL data type to a C type string.
@@ -179,6 +177,3 @@ C_ORM_EXPORT c_orm_error_t sql_to_c_projection_polymorphic_struct_emit(
 #endif /* __cplusplus */
 
 #endif /* C_CDD_SQL_TO_C_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

@@ -1,6 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
-
 /**
  * @file c_orm_inline_macros.h
  * @brief Compile-time macro engine to generate cdd-c compatible metadata (Steps
@@ -137,6 +134,3 @@ extern "C" {
 #endif /* __cplusplus */
 
 #endif /* C_ORM_INLINE_MACROS_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

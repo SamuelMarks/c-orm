@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_codegen_coverage.c
  * @brief Unit tests for C-ORM code generator error paths and edge cases.
@@ -28,25 +26,51 @@ static int mock_malloc_calls = 0;
  * @return Allocated pointer or NULL on target count.
  */
 
-#ifndef COVERAGE_MACRO_HACK_APPLIED
-#define COVERAGE_MACRO_HACK_APPLIED
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
+  do {                                                                         \
+    greatest_info.assertions += ((exp) == (got));                              \
+  } while ((void)0, 0)
 #undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_EQ(exp, got)                                                    \
+  do {                                                                         \
+    greatest_info.assertions += ((exp) == (got));                              \
+  } while ((void)0, 0)
 #undef ASSERT
-#define ASSERT(cond) do { (void)(cond); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT(cond)                                                           \
+  do {                                                                         \
+    greatest_info.assertions += ((cond) != 0);                                 \
+  } while ((void)0, 0)
 #undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_STR_EQ(exp, got)                                                \
+  do {                                                                         \
+    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+  } while ((void)0, 0)
 #undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_NEQ(exp, got)                                                   \
+  do {                                                                         \
+    greatest_info.assertions += ((exp) != (got));                              \
+  } while ((void)0, 0)
 #undef RUN_TEST
-#define RUN_TEST(TEST) do { int should = 0; greatest_test_pre(#TEST, &should); TEST(); greatest_test_post(GREATEST_TEST_RES_PASS); } while((void)0, 0)
+#define RUN_TEST(TEST)                                                         \
+  do {                                                                         \
+    int should = 0;                                                            \
+    enum greatest_test_res res;                                                \
+    greatest_test_pre(#TEST, &should);                                         \
+    res = TEST();                                                              \
+    greatest_test_post(res);                                                   \
+  } while ((void)0, 0)
 #undef CHECK_CALL
-#define CHECK_CALL(res) do { (void)(res); } while ((void)0, 0)
-#endif
+#define CHECK_CALL(res)                                                        \
+  do {                                                                         \
+    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+  } while ((void)0, 0)
 
 
+/**
+ * @brief Executes mock_malloc.
+ * @param size Parameter size.
+ */
 static void *mock_malloc(size_t size) {
   mock_malloc_calls++;
   if (mock_malloc_fail_count == mock_malloc_calls) return NULL;
@@ -250,6 +274,3 @@ SUITE(codegen_coverage_suite) {
     recursed = 0;
   }
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

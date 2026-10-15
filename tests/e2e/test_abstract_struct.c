@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_abstract_struct.c
  * @brief Tests for abstract_struct generic representations.
@@ -24,57 +22,49 @@ extern "C" {
 #include "test_abstract_struct_oom.h"
 /* clang-format on */
 
-#ifndef COVERAGE_MACRO_HACK_APPLIED
-#define COVERAGE_MACRO_HACK_APPLIED
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) == (got));                              \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) == (got));                              \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    (void)(cond);                                                              \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((cond) != 0);                                 \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) != (got));                              \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
   do {                                                                         \
     int should = 0;                                                            \
+    enum greatest_test_res res;                                                \
     greatest_test_pre(#TEST, &should);                                         \
-    TEST();                                                                    \
-    greatest_test_post(GREATEST_TEST_RES_PASS);                                \
+    res = TEST();                                                              \
+    greatest_test_post(res);                                                   \
   } while ((void)0, 0)
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    (void)(res);                                                               \
+    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
   } while ((void)0, 0)
-#endif
 
+/**
+ * @brief Executes test_abstract_struct_memory_layout.
+ */
 TEST test_abstract_struct_memory_layout(void) {
   cdd_c_abstract_struct_t astruct;
   ASSERT_EQ(0, cdd_c_abstract_struct_init(&astruct));
@@ -138,7 +128,8 @@ TEST test_abstract_struct_set_get(void) {
   ASSERT_EQ(200, v_out->value.i_val);
 
   /* Get missing key */
-  ASSERT_EQ(EINVAL, cdd_c_abstract_get(&astruct, "missing", &v_out));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            cdd_c_abstract_get(&astruct, "missing", &v_out));
 
   /* Force resize */
   for (i = 0; i < 10; ++i) {
@@ -455,7 +446,8 @@ TEST test_abstract_struct_conversion(void) {
  */
 TEST test_abstract_hydrate_sqlite3(void) {
   cdd_c_abstract_struct_t astruct;
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_hydrate_sqlite3(&astruct, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_hydrate_sqlite3(&astruct, NULL));
   PASS();
 }
 
@@ -466,7 +458,8 @@ TEST test_abstract_hydrate_sqlite3(void) {
 TEST test_cdd_c_inspect_schema_sqlite3(void) {
   cdd_c_abstract_struct_array_t schema;
   cdd_c_abstract_struct_array_init(&schema, 10);
-  ASSERT_EQ(EINVAL, (int)cdd_c_inspect_schema_sqlite3(NULL, "test", &schema));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_inspect_schema_sqlite3(NULL, "test", &schema));
   cdd_c_abstract_struct_array_free(&schema);
   PASS();
 }
@@ -477,7 +470,8 @@ TEST test_cdd_c_inspect_schema_sqlite3(void) {
  */
 TEST test_abstract_hydrate_libpq(void) {
   cdd_c_abstract_struct_t astruct;
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_hydrate_libpq(&astruct, NULL, 0));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_hydrate_libpq(&astruct, NULL, 0));
   PASS();
 }
 
@@ -487,7 +481,8 @@ TEST test_abstract_hydrate_libpq(void) {
  */
 TEST test_abstract_hydrate_mysql(void) {
   cdd_c_abstract_struct_t astruct;
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_hydrate_mysql(&astruct, NULL, NULL, 0));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_hydrate_mysql(&astruct, NULL, NULL, 0));
   PASS();
 }
 
@@ -779,70 +774,101 @@ TEST test_abstract_struct_null_checks(void) {
   memset(&meta, 0, sizeof(meta));
 
   /* null checks */
-  ASSERT_EQ(EINVAL, (int)cdd_c_get_allocated_bytes(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_get_allocated_bytes(NULL));
   ASSERT_EQ(0, (int)cdd_c_get_allocated_bytes(&bytes));
 
-  ASSERT_EQ(EINVAL, (int)cdd_c_get_freed_calls(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_get_freed_calls(NULL));
   ASSERT_EQ(0, (int)cdd_c_get_freed_calls(&calls));
 
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_init(NULL, 10));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_append(NULL, &astruct));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_array_init(NULL, 10));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_array_append(NULL, &astruct));
 
   /* Trigger ENOMEM with SIZE_MAX */
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_init(&arr, (size_t)-1));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_init_with_capacity(&astruct,
-                                                                  (size_t)-1));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_array_init(&arr, (size_t)-1));
+  ASSERT_EQ(
+      C_ORM_ERROR_VALIDATION,
+      (int)cdd_c_abstract_struct_init_with_capacity(&astruct, (size_t)-1));
 
   ASSERT_EQ(0, (int)cdd_c_abstract_struct_array_init(&arr, 10));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_append(&arr, NULL));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_free(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_array_append(&arr, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_array_free(NULL));
 
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_to_json(NULL, &json_out));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_to_json(&arr, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_array_to_json(NULL, &json_out));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_array_to_json(&arr, NULL));
   cdd_c_abstract_struct_array_free(&arr);
 
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_init_with_capacity(NULL, 10));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_set(NULL, "k", &v));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_init_with_capacity(NULL, 10));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_abstract_set(NULL, "k", &v));
   ASSERT_EQ(0, (int)cdd_c_abstract_struct_init(&astruct));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_set(&astruct, NULL, &v));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_set(&astruct, "k", NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_set(&astruct, NULL, &v));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_set(&astruct, "k", NULL));
 
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_get(NULL, "k", &v_out));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_get(&astruct, NULL, &v_out));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_get(&astruct, "k", NULL));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_get(&astruct, "missing_key", &v_out));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_abstract_get(NULL, "k", &v_out));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_get(&astruct, NULL, &v_out));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_get(&astruct, "k", NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_get(&astruct, "missing_key", &v_out));
 
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_deep_copy(NULL, &astruct));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_deep_copy(&astruct, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_deep_copy(NULL, &astruct));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_deep_copy(&astruct, NULL));
 
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_free(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_abstract_struct_free(NULL));
 
   cdd_c_variant_free(NULL);
 
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_to_json(NULL, &json_out));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_to_json(&astruct, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_to_json(NULL, &json_out));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_to_json(&astruct, NULL));
 
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_from_json(NULL, &astruct));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_from_json("{}", NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_from_json(NULL, &astruct));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_from_json("{}", NULL));
 
   cdd_c_abstract_print(NULL);
 
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_hydrate(NULL, NULL, NULL, 0));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_hydrate(&astruct, NULL, NULL, 0));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_hydrate(NULL, NULL, NULL, 0));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_hydrate(&astruct, NULL, NULL, 0));
   {
     void *row_data[1];
-    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_hydrate(&astruct, row_data, NULL, 1));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              (int)cdd_c_abstract_hydrate(&astruct, row_data, NULL, 1));
   }
 
-  ASSERT_EQ(EINVAL, (int)cdd_c_meta_offsetof(NULL, "f", &bytes));
-  ASSERT_EQ(EINVAL, (int)cdd_c_meta_offsetof(&meta, NULL, &bytes));
-  ASSERT_EQ(EINVAL, (int)cdd_c_meta_offsetof(&meta, "f", NULL));
-  ASSERT_EQ(EINVAL, (int)cdd_c_specific_to_abstract(NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, (int)cdd_c_specific_to_abstract(&astruct, NULL, &meta));
-  ASSERT_EQ(EINVAL, (int)cdd_c_specific_to_abstract(&astruct, &bytes, NULL));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(NULL, NULL, NULL, 0));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&bytes, NULL, &meta, 0));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&bytes, &astruct, NULL, 0));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_meta_offsetof(NULL, "f", &bytes));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_meta_offsetof(&meta, NULL, &bytes));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_meta_offsetof(&meta, "f", NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_specific_to_abstract(NULL, NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_specific_to_abstract(&astruct, NULL, &meta));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_specific_to_abstract(&astruct, &bytes, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_to_specific(NULL, NULL, NULL, 0));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_to_specific(&bytes, NULL, &meta, 0));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_to_specific(&bytes, &astruct, NULL, 0));
 
   cdd_c_abstract_struct_free(&astruct);
 
@@ -894,8 +920,10 @@ TEST test_abstract_struct_edge_types(void) {
  */
 TEST test_inspect_schema_null(void) {
   cdd_c_abstract_struct_array_t schema;
-  ASSERT_EQ(EINVAL, (int)cdd_c_inspect_schema_libpq(NULL, "test", &schema));
-  ASSERT_EQ(EINVAL, (int)cdd_c_inspect_schema_mysql(NULL, "test", &schema));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_inspect_schema_libpq(NULL, "test", &schema));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_inspect_schema_mysql(NULL, "test", &schema));
   PASS();
 }
 
@@ -918,7 +946,8 @@ TEST test_meta_offsetof(void) {
 
   ASSERT_EQ(0, (int)cdd_c_meta_offsetof(&meta, "id", &off));
   ASSERT_EQ(42, (int)off);
-  ASSERT_EQ(EINVAL, (int)cdd_c_meta_offsetof(&meta, "missing", &off));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_meta_offsetof(&meta, "missing", &off));
 
   PASS();
 }
@@ -930,10 +959,11 @@ TEST test_meta_offsetof(void) {
 TEST test_json_edge_cases(void) {
   cdd_c_abstract_struct_t astruct;
   /* Bad JSON */
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
             (int)cdd_c_abstract_struct_from_json("{ bad json ", &astruct));
   /* Not object */
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_from_json("[]", &astruct));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_from_json("[]", &astruct));
 
   /* Parse floats, bools, nulls, and non-primitive JSON value types */
   ASSERT_EQ(0, (int)cdd_c_abstract_struct_from_json(
@@ -975,8 +1005,8 @@ TEST test_specific_edge_cases(void) {
 
   cdd_c_abstract_struct_init(&astruct_in);
   /* Missing keys for strict mapping */
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
-                                                    &meta, 1));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_abstract_to_specific(
+                                        &specific_out, &astruct_in, &meta, 1));
   ASSERT_EQ(0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
                                                &meta, 0)); /* Non-strict ok */
   cdd_c_abstract_struct_free(&astruct_in);
@@ -996,8 +1026,9 @@ TEST test_specific_edge_cases(void) {
     v.value.i_val = 1;
     cdd_c_abstract_struct_init(&astruct_in);
     cdd_c_abstract_set(&astruct_in, "other", &v);
-    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(
-                          &specific_out, &astruct_in, &meta_single, 1));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
+                                              &meta_single, 1));
     cdd_c_abstract_struct_free(&astruct_in);
   }
 
@@ -1016,8 +1047,9 @@ TEST test_specific_edge_cases(void) {
     v.value.s_val = (char *)"bad";
     cdd_c_abstract_struct_init(&astruct_in);
     cdd_c_abstract_set(&astruct_in, "id", &v);
-    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(
-                          &specific_out, &astruct_in, &meta_single, 1));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
+                                              &meta_single, 1));
     ASSERT_EQ(0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
                                                  &meta_single, 0));
     cdd_c_abstract_struct_free(&astruct_in);
@@ -1038,8 +1070,9 @@ TEST test_specific_edge_cases(void) {
     v.value.s_val = (char *)"bad";
     cdd_c_abstract_struct_init(&astruct_in);
     cdd_c_abstract_set(&astruct_in, "ratio", &v);
-    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(
-                          &specific_out, &astruct_in, &meta_single, 1));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
+                                              &meta_single, 1));
     ASSERT_EQ(0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
                                                  &meta_single, 0));
     cdd_c_abstract_struct_free(&astruct_in);
@@ -1052,8 +1085,9 @@ TEST test_specific_edge_cases(void) {
     v.value.i_val = 123;
     cdd_c_abstract_struct_init(&astruct_in);
     cdd_c_abstract_set(&astruct_in, "greeting", &v);
-    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&specific_out,
-                                                      &astruct_in, &meta, 1));
+    ASSERT_EQ(
+        C_ORM_ERROR_VALIDATION,
+        (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in, &meta, 1));
     ASSERT_EQ(0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in,
                                                  &meta, 0));
     cdd_c_abstract_struct_free(&astruct_in);
@@ -1074,8 +1108,8 @@ TEST test_specific_edge_cases(void) {
     v.type = CDD_C_VARIANT_TYPE_STRING;
     v.value.s_val = (char *)"bad";
     cdd_c_abstract_set(&astruct_in, "id64", &v);
-    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&specific_out,
-                                                      &astruct_in, &m, 1));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_abstract_to_specific(
+                                          &specific_out, &astruct_in, &m, 1));
     ASSERT_EQ(
         0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in, &m, 0));
     cdd_c_abstract_struct_free(&astruct_in);
@@ -1096,8 +1130,8 @@ TEST test_specific_edge_cases(void) {
     v.type = CDD_C_VARIANT_TYPE_STRING;
     v.value.s_val = (char *)"bad";
     cdd_c_abstract_set(&astruct_in, "dbl", &v);
-    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&specific_out,
-                                                      &astruct_in, &m, 1));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_abstract_to_specific(
+                                          &specific_out, &astruct_in, &m, 1));
     ASSERT_EQ(
         0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in, &m, 0));
     cdd_c_abstract_struct_free(&astruct_in);
@@ -1118,8 +1152,8 @@ TEST test_specific_edge_cases(void) {
     v.type = CDD_C_VARIANT_TYPE_INT;
     v.value.i_val = 123;
     cdd_c_abstract_set(&astruct_in, "str_dyn", &v);
-    ASSERT_EQ(EINVAL, (int)cdd_c_abstract_to_specific(&specific_out,
-                                                      &astruct_in, &m, 1));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_abstract_to_specific(
+                                          &specific_out, &astruct_in, &m, 1));
     ASSERT_EQ(
         0, (int)cdd_c_abstract_to_specific(&specific_out, &astruct_in, &m, 0));
     cdd_c_abstract_struct_free(&astruct_in);
@@ -1211,7 +1245,7 @@ TEST test_abstract_struct_allocation_limits(void) {
 
   (void)json;
   /* init array with huge size */
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
             (int)cdd_c_abstract_struct_array_init(
                 &arr, ((size_t)-1) / sizeof(cdd_c_abstract_struct_t) + 1));
 
@@ -1220,11 +1254,13 @@ TEST test_abstract_struct_allocation_limits(void) {
   arr.capacity = ((size_t)-1) / 2 + 1; /* fake capacity */
   arr.count = arr.capacity;
   ASSERT_EQ(0, cdd_c_abstract_struct_init(&astruct1));
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_append(&arr, &astruct1));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_array_append(&arr, &astruct1));
 
   arr.capacity = ((size_t)-1) / sizeof(cdd_c_abstract_struct_t) - 1;
   arr.count = arr.capacity;
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_array_append(&arr, &astruct1));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_array_append(&arr, &astruct1));
   arr.capacity = 0;
   arr.count = 0; /* clean up for free */
   cdd_c_abstract_struct_array_free(&arr);
@@ -1239,7 +1275,8 @@ TEST test_abstract_struct_allocation_limits(void) {
   astruct1.kvs[0].value.type = CDD_C_VARIANT_TYPE_BLOB;
   astruct1.kvs[0].value.value.b_val.data = (unsigned char *)"fake";
   astruct1.kvs[0].value.value.b_val.size = (size_t)-1;
-  ASSERT_EQ(EINVAL, (int)cdd_c_abstract_struct_deep_copy(&astruct2, &astruct1));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            (int)cdd_c_abstract_struct_deep_copy(&astruct2, &astruct1));
   astruct1.kvs[0].value.type = CDD_C_VARIANT_TYPE_NULL; /* prevent free crash */
   cdd_c_abstract_struct_free(&astruct1);
 
@@ -1318,6 +1355,3 @@ SUITE(abstract_struct_suite) {
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_sql_to_c.h
  * @brief Tests for SQL to C struct emission.
@@ -27,57 +25,49 @@ extern "C" {
  * @return GREATEST test result.
  */
 
-#ifndef COVERAGE_MACRO_HACK_APPLIED
-#define COVERAGE_MACRO_HACK_APPLIED
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) == (got));                              \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) == (got));                              \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    (void)(cond);                                                              \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((cond) != 0);                                 \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) != (got));                              \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
   do {                                                                         \
     int should = 0;                                                            \
+    enum greatest_test_res res;                                                \
     greatest_test_pre(#TEST, &should);                                         \
-    TEST();                                                                    \
-    greatest_test_post(GREATEST_TEST_RES_PASS);                                \
+    res = TEST();                                                              \
+    greatest_test_post(res);                                                   \
   } while ((void)0, 0)
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    (void)(res);                                                               \
+    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
   } while ((void)0, 0)
-#endif
 
+/**
+ * @brief Executes test_sql_to_c_header_emit.
+ */
 TEST test_sql_to_c_header_emit(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
@@ -260,6 +250,3 @@ SUITE(sql_to_c_suite) {
 #endif /* __cplusplus */
 
 #endif /* C_CDD_TEST_SQL_TO_C_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

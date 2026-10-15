@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_postgres.c
  * @brief PostgreSQL driver implementation for c-orm.
@@ -13,24 +11,129 @@
 #include <string.h>
 #include "c_orm_log.h"
 #ifdef C_ORM_ENABLE_POSTGRESQL
+#ifdef C_ORM_POSTGRESQL_DYNAMIC
+#if defined(_WIN32)
+__declspec(dllimport) void *__stdcall LoadLibraryA(const char *lpLibFileName);
+__declspec(dllimport) void *__stdcall GetProcAddress(void *hModule,
+                                                     const char *lpProcName);
+#else
+#include <dlfcn.h>
+#endif
+typedef struct pg_conn PGconn;
+typedef struct pg_result PGresult;
+typedef unsigned int Oid;
+#define InvalidOid ((Oid)0)
+#define CONNECTION_OK 0
+#define PGRES_COMMAND_OK 1
+#define PGRES_TUPLES_OK 2
+#define INV_WRITE 0x00020000
+#define INV_READ 0x00040000
+#else
 #include <libpq-fe.h>
 #include <libpq/libpq-fs.h>
+#endif
 #endif
 /* clang-format on */
 
 #ifdef C_ORM_ENABLE_POSTGRESQL
 
-#if defined(_MSC_VER)
-#define C_ORM_INT64_FORMAT "%I64d"
-#define C_ORM_INT64_CAST __int64
-#elif defined(__x86_64__) || defined(__aarch64__) ||                           \
-    (defined(__APPLE__) && defined(__MACH__))
-#define C_ORM_INT64_FORMAT "%ld"
-#define C_ORM_INT64_CAST long
+#ifdef C_ORM_POSTGRESQL_DYNAMIC
+static PGconn *(*dyn_PQconnectdb)(const char *conninfo);
+static int (*dyn_PQstatus)(const PGconn *conn);
+static char *(*dyn_PQerrorMessage)(const PGconn *conn);
+static void (*dyn_PQfinish)(PGconn *conn);
+static PGresult *(*dyn_PQprepare)(PGconn *conn, const char *stmtName,
+                                  const char *query, int nParams,
+                                  const Oid *paramTypes);
+static PGresult *(*dyn_PQexecPrepared)(PGconn *conn, const char *stmtName,
+                                       int nParams,
+                                       const char *const *paramValues,
+                                       const int *paramLengths,
+                                       const int *paramFormats,
+                                       int resultFormat);
+static PGresult *(*dyn_PQexec)(PGconn *conn, const char *query);
+static int (*dyn_PQresultStatus)(const PGresult *res);
+static void (*dyn_PQclear)(PGresult *res);
+static int (*dyn_PQntuples)(const PGresult *res);
+static char *(*dyn_PQgetvalue)(const PGresult *res, int tup_num, int field_num);
+static int (*dyn_PQgetlength)(const PGresult *res, int tup_num, int field_num);
+static int (*dyn_PQgetisnull)(const PGresult *res, int tup_num, int field_num);
+static Oid (*dyn_lo_creat)(PGconn *conn, int mode);
+static int (*dyn_lo_open)(PGconn *conn, Oid lobjId, int mode);
+static int (*dyn_lo_read)(PGconn *conn, int fd, char *buf, size_t len);
+static int (*dyn_lo_write)(PGconn *conn, int fd, const char *buf, size_t len);
+static int (*dyn_lo_close)(PGconn *conn, int fd);
+
+/**
+ * @brief Dynamically loads libpq symbols at runtime.
+ * @return C_ORM_OK on success, C_ORM_ERROR_CONNECTION on failure.
+ */
+static c_orm_error_t c_orm_load_libpq(void) {
+  static int loaded = 0;
+  void *h;
+  if (loaded)
+    return C_ORM_OK;
+#if defined(_WIN32)
+  h = LoadLibraryA("libpq.dll");
+#elif defined(__APPLE__)
+  h = dlopen("libpq.dylib", RTLD_LAZY);
+  if (!h)
+    h = dlopen("libpq.5.dylib", RTLD_LAZY);
 #else
-#define C_ORM_INT64_FORMAT "%lld"
-#define C_ORM_INT64_CAST long long
+  h = dlopen("libpq.so", RTLD_LAZY);
+  if (!h)
+    h = dlopen("libpq.so.5", RTLD_LAZY);
 #endif
+  if (!h)
+    return C_ORM_ERROR_CONNECTION;
+#if defined(_WIN32)
+#define PG_SYM(name, type) *(void **)(&dyn_##name) = GetProcAddress(h, #name)
+#else
+#define PG_SYM(name, type) *(void **)(&dyn_##name) = dlsym(h, #name)
+#endif
+  PG_SYM(PQconnectdb, void *);
+  PG_SYM(PQstatus, void *);
+  PG_SYM(PQerrorMessage, void *);
+  PG_SYM(PQfinish, void *);
+  PG_SYM(PQprepare, void *);
+  PG_SYM(PQexecPrepared, void *);
+  PG_SYM(PQexec, void *);
+  PG_SYM(PQresultStatus, void *);
+  PG_SYM(PQclear, void *);
+  PG_SYM(PQntuples, void *);
+  PG_SYM(PQgetvalue, void *);
+  PG_SYM(PQgetlength, void *);
+  PG_SYM(PQgetisnull, void *);
+  PG_SYM(lo_creat, void *);
+  PG_SYM(lo_open, void *);
+  PG_SYM(lo_read, void *);
+  PG_SYM(lo_write, void *);
+  PG_SYM(lo_close, void *);
+#undef PG_SYM
+  if (!dyn_PQconnectdb || !dyn_PQexec || !dyn_PQfinish)
+    return C_ORM_ERROR_CONNECTION;
+  loaded = 1;
+  return C_ORM_OK;
+}
+#define PQconnectdb dyn_PQconnectdb
+#define PQstatus dyn_PQstatus
+#define PQerrorMessage dyn_PQerrorMessage
+#define PQfinish dyn_PQfinish
+#define PQprepare dyn_PQprepare
+#define PQexecPrepared dyn_PQexecPrepared
+#define PQexec dyn_PQexec
+#define PQresultStatus dyn_PQresultStatus
+#define PQclear dyn_PQclear
+#define PQntuples dyn_PQntuples
+#define PQgetvalue dyn_PQgetvalue
+#define PQgetlength dyn_PQgetlength
+#define PQgetisnull dyn_PQgetisnull
+#define lo_creat dyn_lo_creat
+#define lo_open dyn_lo_open
+#define lo_read dyn_lo_read
+#define lo_write dyn_lo_write
+#define lo_close dyn_lo_close
+#endif /* C_ORM_POSTGRESQL_DYNAMIC */
 
 /** @brief Postgres DB data */
 struct postgres_db_data {
@@ -58,15 +161,12 @@ struct postgres_query_data {
 
 /** @brief Generate unique statement name */
 static c_orm_error_t generate_stmt_name(char *buf, size_t size) {
-  int rc;
+  c_orm_error_t rc;
   static int counter = 0;
   LOG_DEBUG("generate_stmt_name: entry");
   rc = C_ORM_SPRINTF(buf, size, "c_orm_stmt_%d", ++counter);
   LOG_DEBUG("generate_stmt_name: exit");
-  if (rc < 0) {
-    return C_ORM_ERROR_UNKNOWN;
-  }
-  return C_ORM_OK;
+  return rc;
 }
 
 /** @brief Rewrite query to postgres format */
@@ -106,9 +206,10 @@ static c_orm_error_t rewrite_query(const char *sql, int *out_param_count,
   count = 0;
   while (*p) {
     if (*p == '?') {
-      int num_len;
+      size_t num_len;
       count++;
-      num_len = C_ORM_SPRINTF(num_buf, sizeof(num_buf), "$%d", count);
+      C_ORM_SPRINTF(num_buf, sizeof(num_buf), "$%d", count);
+      num_len = strlen(num_buf);
       memcpy(q, num_buf, num_len);
       q += num_len;
       p++;
@@ -123,8 +224,13 @@ static c_orm_error_t rewrite_query(const char *sql, int *out_param_count,
   return C_ORM_OK;
 }
 
-/** @brief Set error message */
-static void set_error(c_orm_db_t *db, const char *msg) {
+/**
+ * @brief Set error message on database handle.
+ * @param db Database handle.
+ * @param msg Error message string.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t set_error(c_orm_db_t *db, const char *msg) {
   LOG_DEBUG("set_error: entry");
   if (db && db->driver_data) {
     struct postgres_db_data *data = (struct postgres_db_data *)db->driver_data;
@@ -144,6 +250,7 @@ static void set_error(c_orm_db_t *db, const char *msg) {
     }
   }
   LOG_DEBUG("set_error: exit");
+  return C_ORM_OK;
 }
 
 /** @brief Postgres connect */
@@ -159,6 +266,13 @@ static c_orm_error_t postgres_connect(const char *url, c_orm_db_t **out_db) {
     rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
+
+#ifdef C_ORM_POSTGRESQL_DYNAMIC
+  rc = c_orm_load_libpq();
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+#endif
 
   db = (c_orm_db_t *)calloc(1, sizeof(c_orm_db_t));
   if (!db) {
@@ -353,28 +467,20 @@ static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
   return (c_orm_error_t)rc;
 }
 
-/** @brief Free a parameter */
-static void free_param(struct postgres_query_data *q_data, int index) {
+/**
+ * @brief Free a bound parameter at index.
+ * @param q_data Postgres query data.
+ * @param index 1-based parameter index.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t free_param(struct postgres_query_data *q_data, int index) {
   LOG_DEBUG("free_param: entry");
   if (q_data->param_values[index - 1]) {
     C_ORM_FREE(q_data->param_values[index - 1]);
     q_data->param_values[index - 1] = NULL;
   }
   LOG_DEBUG("free_param: exit");
-}
-
-/** @brief Strdup for ORM */
-static char *orm_strdup(const char *s) {
-  size_t len;
-  char *dup;
-  LOG_DEBUG("orm_strdup: entry");
-  len = strlen(s);
-  dup = (char *)C_ORM_MALLOC(len + 1);
-  if (dup) {
-    C_ORM_STRCPY(dup, len + 1, s);
-  }
-  LOG_DEBUG("orm_strdup: exit");
-  return dup;
+  return C_ORM_OK;
 }
 
 /** @brief Bind int32 */
@@ -391,10 +497,9 @@ static c_orm_error_t postgres_bind_int32(c_orm_query_t *query, int index,
   }
   free_param(query->data, index);
   C_ORM_SPRINTF(buf, sizeof(buf), "%d", (int)val);
-  query->data->param_values[index - 1] = orm_strdup(buf);
-  if (!query->data->param_values[index - 1]) {
+  rc = c_orm_strdup(buf, &query->data->param_values[index - 1]);
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("postgres_bind_int32: OOM");
-    rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
 
@@ -416,11 +521,10 @@ static c_orm_error_t postgres_bind_int64(c_orm_query_t *query, int index,
     return (c_orm_error_t)rc;
   }
   free_param(query->data, index);
-  C_ORM_SPRINTF(buf, sizeof(buf), C_ORM_INT64_FORMAT, (C_ORM_INT64_CAST)val);
-  query->data->param_values[index - 1] = orm_strdup(buf);
-  if (!query->data->param_values[index - 1]) {
+  C_ORM_SPRINTF(buf, sizeof(buf), C_ORM_INT64_FORMAT, (c_orm_int64_t)val);
+  rc = c_orm_strdup(buf, &query->data->param_values[index - 1]);
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("postgres_bind_int64: OOM");
-    rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
 
@@ -443,10 +547,9 @@ static c_orm_error_t postgres_bind_double(c_orm_query_t *query, int index,
   }
   free_param(query->data, index);
   C_ORM_SPRINTF(buf, sizeof(buf), "%.17g", val);
-  query->data->param_values[index - 1] = orm_strdup(buf);
-  if (!query->data->param_values[index - 1]) {
+  rc = c_orm_strdup(buf, &query->data->param_values[index - 1]);
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("postgres_bind_double: OOM");
-    rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
 
@@ -467,10 +570,9 @@ static c_orm_error_t postgres_bind_string(c_orm_query_t *query, int index,
     return (c_orm_error_t)rc;
   }
   free_param(query->data, index);
-  query->data->param_values[index - 1] = orm_strdup(val);
-  if (!query->data->param_values[index - 1]) {
+  rc = c_orm_strdup(val, &query->data->param_values[index - 1]);
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("postgres_bind_string: OOM");
-    rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
 
@@ -804,16 +906,31 @@ static c_orm_error_t postgres_get_last_trace(c_orm_db_t *db,
 static c_orm_error_t postgres_get_last_insert_rowid(c_orm_db_t *db,
                                                     int64_t *out_id) {
   c_orm_error_t rc;
+  struct postgres_db_data *data;
+  PGresult *res;
 
   LOG_DEBUG("postgres_get_last_insert_rowid: entry");
-  (void)db;
-  if (out_id) {
-    *out_id = 0;
+  if (!db || !db->driver_data || !out_id) {
+    LOG_DEBUG("postgres_get_last_insert_rowid: invalid args");
+    return C_ORM_ERROR_MEMORY;
   }
+  data = (struct postgres_db_data *)db->driver_data;
+  res = PQexec(data->conn, "SELECT LASTVAL()");
+  if (!res || PQresultStatus(res) != PGRES_TUPLES_OK || PQntuples(res) < 1) {
+    if (res) {
+      PQclear(res);
+    }
+    set_error(db, NULL);
+    rc = C_ORM_ERROR_SQL;
+    LOG_DEBUG("postgres_get_last_insert_rowid: exit error");
+    return rc;
+  }
+  *out_id = (int64_t)C_ORM_STRTOLL(PQgetvalue(res, 0, 0), NULL, 10);
+  PQclear(res);
 
   LOG_DEBUG("postgres_get_last_insert_rowid: exit");
-  rc = C_ORM_ERROR_NOT_IMPLEMENTED;
-  return (c_orm_error_t)rc;
+  rc = C_ORM_OK;
+  return rc;
 }
 
 /** @brief Postgres vtable */
@@ -1145,7 +1262,4 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd) {
   return (c_orm_error_t)rc;
 }
 
-#endif
-
-#if defined(__clang__) || defined(__GNUC__)
 #endif

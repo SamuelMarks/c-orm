@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_string_builder.h
  * @brief Dynamic string builder for safe SQL generation.
@@ -35,8 +33,10 @@ c_orm_string_builder_init(c_orm_string_builder_t **out_builder);
  * @brief Free resources associated with a string builder.
  *
  * @param builder The builder to free.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_string_builder_free(c_orm_string_builder_t *builder);
+C_ORM_EXPORT c_orm_error_t
+c_orm_string_builder_free(c_orm_string_builder_t *builder);
 
 /**
  * @brief Append a string to the builder.
@@ -69,6 +69,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
 C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
     const c_orm_string_builder_t *builder, size_t *out_len);
 
+#ifdef C_ORM_TEST_ALLOCATOR
 /**
  * @brief Countdown counter to simulate string builder append allocation
  * failure.
@@ -79,11 +80,9 @@ C_ORM_EXPORT extern int c_orm_mock_string_builder_append_countdown;
  * @brief Flag to simulate string builder get failure.
  */
 C_ORM_EXPORT extern int c_orm_mock_string_builder_get_fail;
+#endif /* C_ORM_TEST_ALLOCATOR */
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_STRING_BUILDER_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

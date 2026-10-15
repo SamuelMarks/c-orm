@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file hydrate_router.c
  * @brief Implementation of dynamic runtime routing APIs for C-ORM struct
@@ -42,9 +40,13 @@ c_orm_error_t cdd_c_hydrate_router_get_last_error(const char **out_msg) {
   return C_ORM_OK;
 }
 
+#ifdef C_ORM_TEST_ALLOCATOR
+/** @brief Mock hook to simulate cdd_c_hydrate_router_set_last_error failure. */
 C_ORM_EXPORT int c_orm_mock_hydrate_router_set_last_error_fail = 0;
+#endif /* C_ORM_TEST_ALLOCATOR */
 
 c_orm_error_t cdd_c_hydrate_router_set_last_error(const char *msg) {
+#ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_hydrate_router_set_last_error_fail == 1 && msg &&
       strstr(msg, "Invalid"))
     return C_ORM_ERROR_UNKNOWN;
@@ -56,6 +58,7 @@ c_orm_error_t cdd_c_hydrate_router_set_last_error(const char *msg) {
   if (c_orm_mock_hydrate_router_set_last_error_fail == 4 && msg &&
       strstr(msg, "not found"))
     return C_ORM_ERROR_UNKNOWN;
+#endif
   if (!msg) {
 
     cdd_c_hydrate_error_msg[0] = '\0';
@@ -173,6 +176,3 @@ c_orm_error_t cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router) {
   router->capacity = 0;
   return C_ORM_OK;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

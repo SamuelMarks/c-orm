@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_sqlite_driver.c
  * @brief Unit tests for SQLite database driver vtable, operations, blobs, and
@@ -17,19 +15,19 @@ extern "C" {
 #include <greatest.h>
 
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 #undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 #undef ASSERT
-#define ASSERT(cond) do { (void)(cond); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
 #undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
 #undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { (void)(exp); (void)(got); greatest_info.assertions++; } while ((void)0, 0)
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
 #undef RUN_TEST
-#define RUN_TEST(TEST) do { int should = 0; greatest_test_pre(#TEST, &should); TEST(); greatest_test_post(GREATEST_TEST_RES_PASS); } while((void)0, 0)
+#define RUN_TEST(TEST) do { int should = 0; enum greatest_test_res res; greatest_test_pre(#TEST, &should); res = TEST(); greatest_test_post(res); } while((void)0, 0)
 #undef CHECK_CALL
-#define CHECK_CALL(res) do { (void)(res); } while ((void)0, 0)
+#define CHECK_CALL(res) do { greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS); } while ((void)0, 0)
 
 #include <stdio.h>
 #include <string.h>
@@ -37,6 +35,9 @@ extern "C" {
 
 /* clang-format on */
 
+/**
+ * @brief Executes test_c_orm_sqlite_blob_open_errors.
+ */
 TEST test_c_orm_sqlite_blob_open_errors(void) {
   void *handle;
   ASSERT_EQ(C_ORM_ERROR_MEMORY,
@@ -46,6 +47,9 @@ TEST test_c_orm_sqlite_blob_open_errors(void) {
   PASS();
 }
 
+/**
+ * @brief Executes test_c_orm_sqlite_blob_read_errors.
+ */
 TEST test_c_orm_sqlite_blob_read_errors(void) {
   char buf[10];
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_sqlite_blob_read(NULL, buf, 10, 0));
@@ -53,12 +57,18 @@ TEST test_c_orm_sqlite_blob_read_errors(void) {
   PASS();
 }
 
+/**
+ * @brief Executes test_c_orm_sqlite_blob_write_errors.
+ */
 TEST test_c_orm_sqlite_blob_write_errors(void) {
   char buf[10];
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_sqlite_blob_write(NULL, buf, 10, 0));
   PASS();
 }
 
+/**
+ * @brief Executes test_c_orm_sqlite_blob_operations.
+ */
 TEST test_c_orm_sqlite_blob_operations(void) {
 #ifdef C_ORM_ENABLE_SQLITE
   c_orm_db_t *db = NULL;
@@ -126,11 +136,17 @@ TEST test_c_orm_sqlite_blob_operations(void) {
   PASS();
 }
 
+/**
+ * @brief Executes test_c_orm_sqlite_blob_close_errors.
+ */
 TEST test_c_orm_sqlite_blob_close_errors(void) {
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_sqlite_blob_close(NULL));
   PASS();
 }
 
+/**
+ * @brief Executes test_c_orm_sqlite_connect_errors.
+ */
 TEST test_c_orm_sqlite_connect_errors(void) {
   c_orm_db_t *db = NULL;
   const char *str;
@@ -181,6 +197,9 @@ TEST test_c_orm_sqlite_connect_errors(void) {
   PASS();
 }
 
+/**
+ * @brief Executes test_c_orm_sqlite_operations_errors.
+ */
 TEST test_c_orm_sqlite_operations_errors(void) {
   const c_orm_driver_vtable_t *vtable = NULL;
   c_orm_db_t *db = NULL;
@@ -389,6 +408,9 @@ TEST test_c_orm_sqlite_operations_errors(void) {
   PASS();
 }
 
+/**
+ * @brief Executes test_sqlite_vtable.
+ */
 TEST test_sqlite_vtable(void) {
   const c_orm_driver_vtable_t *vtable = NULL;
   c_orm_error_t err;
@@ -433,11 +455,19 @@ TEST test_sqlite_vtable(void) {
   PASS();
 }
 
+/**
+ * @brief Executes dummy_log_cb.
+ * @param msg Parameter msg.
+ * @param user_data Parameter user_data.
+ */
 static void dummy_log_cb(const char *msg, void *user_data) {
   (void)msg;
   (void)user_data;
 }
 
+/**
+ * @brief Executes test_c_orm_sqlite_slow_query.
+ */
 TEST test_c_orm_sqlite_slow_query(void) {
 #ifdef C_ORM_ENABLE_SQLITE
   c_orm_db_t *db = NULL;
@@ -498,6 +528,3 @@ SUITE(sqlite_driver_suite) {
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

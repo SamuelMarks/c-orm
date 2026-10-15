@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_query_fluent.c
  * @brief Implementation of fluent AST-based query builder.
@@ -20,9 +18,11 @@
  *
  * @param arena Memory arena.
  * @param val Value to escape.
- * @return Escaped string or NULL on error.
+ * @param out_escaped Output pointer receiving escaped string.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static const char *c_orm_escape_literal(c_orm_arena_t *arena, const char *val) {
+static c_orm_error_t c_orm_escape_literal(c_orm_arena_t *arena, const char *val,
+                                          const char **out_escaped) {
   size_t len;
   size_t count = 0;
   size_t i, j;
@@ -31,30 +31,33 @@ static const char *c_orm_escape_literal(c_orm_arena_t *arena, const char *val) {
   LOG_DEBUG("c_orm_escape_literal: entry");
   if (!val) {
     LOG_DEBUG("c_orm_escape_literal: val is null");
-    return NULL;
+    *out_escaped = NULL;
+    return C_ORM_OK;
   }
   len = strlen(val);
 
   for (i = 0; i < len; i++) {
-    if (val[i] == '\'')
+    if (val[i] == '\x27')
       count++;
   }
 
   if (count == 0) {
     LOG_DEBUG("c_orm_escape_literal: exit without escaping");
-    return val;
+    *out_escaped = val;
+    return C_ORM_OK;
   }
 
   if (c_orm_arena_alloc(arena, len + count + 1, (void **)&escaped) != 0) {
     LOG_DEBUG("c_orm_escape_literal: OOM");
-    return NULL;
+    *out_escaped = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
 
   j = 0;
   for (i = 0; i < len; i++) {
-    if (val[i] == '\'') {
-      escaped[j++] = '\'';
-      escaped[j++] = '\'';
+    if (val[i] == '\x27') {
+      escaped[j++] = '\x27';
+      escaped[j++] = '\x27';
     } else {
       escaped[j++] = val[i];
     }
@@ -62,7 +65,8 @@ static const char *c_orm_escape_literal(c_orm_arena_t *arena, const char *val) {
   escaped[j] = '\0';
 
   LOG_DEBUG("c_orm_escape_literal: exit");
-  return escaped;
+  *out_escaped = escaped;
+  return C_ORM_OK;
 }
 
 /**
@@ -70,35 +74,41 @@ static const char *c_orm_escape_literal(c_orm_arena_t *arena, const char *val) {
  *
  * @param q Query structure.
  * @param sql Raw SQL string.
- * @return The AST node or NULL on error.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_raw_impl(c_orm_query_t *q,
-                                              const char *sql) {
+static c_orm_error_t c_orm_query_raw_impl(c_orm_query_t *q, const char *sql,
+                                          c_orm_ast_node_t **out_node) {
   c_orm_ast_raw_t *node;
   const char *sql_copy = NULL;
   c_orm_error_t err;
   LOG_DEBUG("c_orm_query_raw_impl: entry");
-  if (!q || q->error) {
+  if (!q || q->error || !out_node) {
     LOG_DEBUG("c_orm_query_raw_impl: invalid state");
-    return NULL;
+    if (out_node)
+      *out_node = NULL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   err = c_orm_arena_strdup(q->arena, sql, &sql_copy);
   if (err != C_ORM_OK) {
     LOG_DEBUG("c_orm_query_raw_impl: OOM for sql string");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_raw_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_raw_impl: OOM");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_RAW;
   node->base.next = NULL;
   node->sql = sql_copy;
+  *out_node = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_raw_impl: exit");
-  return (c_orm_ast_node_t *)node;
+  return C_ORM_OK;
 }
 
 /**
@@ -106,35 +116,41 @@ static c_orm_ast_node_t *c_orm_query_raw_impl(c_orm_query_t *q,
  *
  * @param q Query structure.
  * @param name Column name.
- * @return The AST node or NULL on error.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_col_impl(c_orm_query_t *q,
-                                              const char *name) {
+static c_orm_error_t c_orm_query_col_impl(c_orm_query_t *q, const char *name,
+                                          c_orm_ast_node_t **out_node) {
   c_orm_ast_column_t *node;
   const char *name_copy = NULL;
   c_orm_error_t err;
   LOG_DEBUG("c_orm_query_col_impl: entry");
-  if (!q || q->error) {
+  if (!q || q->error || !out_node) {
     LOG_DEBUG("c_orm_query_col_impl: invalid state");
-    return NULL;
+    if (out_node)
+      *out_node = NULL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   err = c_orm_arena_strdup(q->arena, name, &name_copy);
   if (err != C_ORM_OK) {
     LOG_DEBUG("c_orm_query_col_impl: OOM for name string");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_column_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_col_impl: OOM");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_COLUMN;
   node->base.next = NULL;
   node->name = name_copy;
+  *out_node = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_col_impl: exit");
-  return (c_orm_ast_node_t *)node;
+  return C_ORM_OK;
 }
 
 /**
@@ -143,37 +159,44 @@ static c_orm_ast_node_t *c_orm_query_col_impl(c_orm_query_t *q,
  * @param q Query structure.
  * @param val Literal value.
  * @param is_string True if value is a string.
- * @return The AST node or NULL on error.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_lit_impl(c_orm_query_t *q, const char *val,
-                                              int is_string) {
+static c_orm_error_t c_orm_query_lit_impl(c_orm_query_t *q, const char *val,
+                                          int is_string,
+                                          c_orm_ast_node_t **out_node) {
   c_orm_ast_literal_t *node;
   LOG_DEBUG("c_orm_query_lit_impl: entry");
-  if (!q || q->error) {
+  if (!q || q->error || !out_node) {
     LOG_DEBUG("c_orm_query_lit_impl: invalid state");
-    return NULL;
+    if (out_node)
+      *out_node = NULL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_literal_t),
                         (void **)&node) != 0) {
     LOG_DEBUG("c_orm_query_lit_impl: OOM");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_LITERAL;
   node->base.next = NULL;
   node->is_string = is_string;
   if (is_string) {
-    node->value = c_orm_escape_literal(q->arena, val);
+    c_orm_escape_literal(q->arena, val, &node->value);
     if (!node->value && val) {
       LOG_DEBUG("c_orm_query_lit_impl: escape failed");
       q->error = 1;
-      return NULL;
+      *out_node = NULL;
+      return C_ORM_ERROR_MEMORY;
     }
   } else {
     node->value = val;
   }
+  *out_node = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_lit_impl: exit");
-  return (c_orm_ast_node_t *)node;
+  return C_ORM_OK;
 }
 
 /**
@@ -183,30 +206,36 @@ static c_orm_ast_node_t *c_orm_query_lit_impl(c_orm_query_t *q, const char *val,
  * @param op Operator string.
  * @param left Left operand.
  * @param right Right operand.
- * @return The AST node or NULL on error.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_op_impl(c_orm_query_t *q, const char *op,
-                                             c_orm_ast_node_t *left,
-                                             c_orm_ast_node_t *right) {
+static c_orm_error_t c_orm_query_op_impl(c_orm_query_t *q, const char *op,
+                                         c_orm_ast_node_t *left,
+                                         c_orm_ast_node_t *right,
+                                         c_orm_ast_node_t **out_node) {
   c_orm_ast_operator_t *node;
   LOG_DEBUG("c_orm_query_op_impl: entry");
-  if (!q || q->error) {
+  if (!q || q->error || !out_node) {
     LOG_DEBUG("c_orm_query_op_impl: invalid state");
-    return NULL;
+    if (out_node)
+      *out_node = NULL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_operator_t),
                         (void **)&node) != 0) {
     LOG_DEBUG("c_orm_query_op_impl: OOM");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_OPERATOR;
   node->base.next = NULL;
   node->op = op;
   node->left = left;
   node->right = right;
+  *out_node = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_op_impl: exit");
-  return (c_orm_ast_node_t *)node;
+  return C_ORM_OK;
 }
 
 /**
@@ -215,16 +244,21 @@ static c_orm_ast_node_t *c_orm_query_op_impl(c_orm_query_t *q, const char *op,
  * @param col Column name.
  * @param val Value string.
  * @param is_string True if value is string.
- * @return AST node or NULL on error.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_eq_impl(c_orm_query_t *q, const char *col,
-                                             const char *val, int is_string) {
-  c_orm_ast_node_t *ret;
+static c_orm_error_t c_orm_query_eq_impl(c_orm_query_t *q, const char *col,
+                                         const char *val, int is_string,
+                                         c_orm_ast_node_t **out_node) {
+  c_orm_ast_node_t *l = NULL;
+  c_orm_ast_node_t *r = NULL;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_query_eq_impl: entry");
-  ret = c_orm_query_op_impl(q, "=", c_orm_query_col_impl(q, col),
-                            c_orm_query_lit_impl(q, val, is_string));
+  c_orm_query_col_impl(q, col, &l);
+  c_orm_query_lit_impl(q, val, is_string, &r);
+  rc = c_orm_query_op_impl(q, "=", l, r, out_node);
   LOG_DEBUG("c_orm_query_eq_impl: exit");
-  return ret;
+  return rc;
 }
 
 /**
@@ -233,16 +267,21 @@ static c_orm_ast_node_t *c_orm_query_eq_impl(c_orm_query_t *q, const char *col,
  * @param col Column name.
  * @param val Value string.
  * @param is_string True if value is string.
- * @return AST node or NULL on error.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_neq_impl(c_orm_query_t *q, const char *col,
-                                              const char *val, int is_string) {
-  c_orm_ast_node_t *ret;
+static c_orm_error_t c_orm_query_neq_impl(c_orm_query_t *q, const char *col,
+                                          const char *val, int is_string,
+                                          c_orm_ast_node_t **out_node) {
+  c_orm_ast_node_t *l = NULL;
+  c_orm_ast_node_t *r = NULL;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_query_neq_impl: entry");
-  ret = c_orm_query_op_impl(q, "!=", c_orm_query_col_impl(q, col),
-                            c_orm_query_lit_impl(q, val, is_string));
+  c_orm_query_col_impl(q, col, &l);
+  c_orm_query_lit_impl(q, val, is_string, &r);
+  rc = c_orm_query_op_impl(q, "!=", l, r, out_node);
   LOG_DEBUG("c_orm_query_neq_impl: exit");
-  return ret;
+  return rc;
 }
 
 /**
@@ -251,16 +290,21 @@ static c_orm_ast_node_t *c_orm_query_neq_impl(c_orm_query_t *q, const char *col,
  * @param col Column name.
  * @param val Value string.
  * @param is_string True if value is string.
- * @return AST node or NULL on error.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_gt_impl(c_orm_query_t *q, const char *col,
-                                             const char *val, int is_string) {
-  c_orm_ast_node_t *ret;
+static c_orm_error_t c_orm_query_gt_impl(c_orm_query_t *q, const char *col,
+                                         const char *val, int is_string,
+                                         c_orm_ast_node_t **out_node) {
+  c_orm_ast_node_t *l = NULL;
+  c_orm_ast_node_t *r = NULL;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_query_gt_impl: entry");
-  ret = c_orm_query_op_impl(q, ">", c_orm_query_col_impl(q, col),
-                            c_orm_query_lit_impl(q, val, is_string));
+  c_orm_query_col_impl(q, col, &l);
+  c_orm_query_lit_impl(q, val, is_string, &r);
+  rc = c_orm_query_op_impl(q, ">", l, r, out_node);
   LOG_DEBUG("c_orm_query_gt_impl: exit");
-  return ret;
+  return rc;
 }
 
 /**
@@ -269,16 +313,21 @@ static c_orm_ast_node_t *c_orm_query_gt_impl(c_orm_query_t *q, const char *col,
  * @param col Column name.
  * @param val Value string.
  * @param is_string True if value is string.
- * @return AST node or NULL on error.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_lt_impl(c_orm_query_t *q, const char *col,
-                                             const char *val, int is_string) {
-  c_orm_ast_node_t *ret;
+static c_orm_error_t c_orm_query_lt_impl(c_orm_query_t *q, const char *col,
+                                         const char *val, int is_string,
+                                         c_orm_ast_node_t **out_node) {
+  c_orm_ast_node_t *l = NULL;
+  c_orm_ast_node_t *r = NULL;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_query_lt_impl: entry");
-  ret = c_orm_query_op_impl(q, "<", c_orm_query_col_impl(q, col),
-                            c_orm_query_lit_impl(q, val, is_string));
+  c_orm_query_col_impl(q, col, &l);
+  c_orm_query_lit_impl(q, val, is_string, &r);
+  rc = c_orm_query_op_impl(q, "<", l, r, out_node);
   LOG_DEBUG("c_orm_query_lt_impl: exit");
-  return ret;
+  return rc;
 }
 
 /**
@@ -286,16 +335,21 @@ static c_orm_ast_node_t *c_orm_query_lt_impl(c_orm_query_t *q, const char *col,
  * @param q Query structure.
  * @param col Column name.
  * @param val Value pattern.
- * @return AST node or NULL on error.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *
-c_orm_query_like_impl(c_orm_query_t *q, const char *col, const char *val) {
-  c_orm_ast_node_t *ret;
+static c_orm_error_t c_orm_query_like_impl(c_orm_query_t *q, const char *col,
+                                           const char *val,
+                                           c_orm_ast_node_t **out_node) {
+  c_orm_ast_node_t *l = NULL;
+  c_orm_ast_node_t *r = NULL;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_query_like_impl: entry");
-  ret = c_orm_query_op_impl(q, "LIKE", c_orm_query_col_impl(q, col),
-                            c_orm_query_lit_impl(q, val, 1));
+  c_orm_query_col_impl(q, col, &l);
+  c_orm_query_lit_impl(q, val, 1, &r);
+  rc = c_orm_query_op_impl(q, "LIKE", l, r, out_node);
   LOG_DEBUG("c_orm_query_like_impl: exit");
-  return ret;
+  return rc;
 }
 
 /**
@@ -303,16 +357,21 @@ c_orm_query_like_impl(c_orm_query_t *q, const char *col, const char *val) {
  * @param q Query structure.
  * @param col Column name.
  * @param val_list Value list string.
- * @return AST node or NULL on error.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_in_impl(c_orm_query_t *q, const char *col,
-                                             const char *val_list) {
-  c_orm_ast_node_t *ret;
+static c_orm_error_t c_orm_query_in_impl(c_orm_query_t *q, const char *col,
+                                         const char *val_list,
+                                         c_orm_ast_node_t **out_node) {
+  c_orm_ast_node_t *l = NULL;
+  c_orm_ast_node_t *r = NULL;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_query_in_impl: entry");
-  ret = c_orm_query_op_impl(q, "IN", c_orm_query_col_impl(q, col),
-                            c_orm_query_raw_impl(q, val_list));
+  c_orm_query_col_impl(q, col, &l);
+  c_orm_query_raw_impl(q, val_list, &r);
+  rc = c_orm_query_op_impl(q, "IN", l, r, out_node);
   LOG_DEBUG("c_orm_query_in_impl: exit");
-  return ret;
+  return rc;
 }
 
 /**
@@ -320,16 +379,19 @@ static c_orm_ast_node_t *c_orm_query_in_impl(c_orm_query_t *q, const char *col,
  *
  * @param arena Arena for allocation.
  * @param node Node to clone.
- * @return Cloned node.
+ * @param out_node Output pointer receiving cloned node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_ast_clone_node(c_orm_arena_t *arena,
-                                              c_orm_ast_node_t *node) {
+static c_orm_error_t c_orm_ast_clone_node(c_orm_arena_t *arena,
+                                          c_orm_ast_node_t *node,
+                                          c_orm_ast_node_t **out_node) {
   c_orm_ast_node_t *new_node = NULL;
   size_t size = 0;
   LOG_DEBUG("c_orm_ast_clone_node: entry");
   if (!node) {
     LOG_DEBUG("c_orm_ast_clone_node: node is null");
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_OK;
   }
 
   switch (node->type) {
@@ -404,27 +466,28 @@ static c_orm_ast_node_t *c_orm_ast_clone_node(c_orm_arena_t *arena,
   if (c_orm_arena_alloc(arena, size, (void **)&new_node) == 0) {
     memcpy(new_node, node, size);
     if (node->type == C_ORM_AST_NODE_WHERE) {
-      ((c_orm_ast_where_t *)new_node)->condition =
-          c_orm_ast_clone_node(arena, ((c_orm_ast_where_t *)node)->condition);
+      c_orm_ast_clone_node(arena, ((c_orm_ast_where_t *)node)->condition,
+                           &((c_orm_ast_where_t *)new_node)->condition);
     } else if (node->type == C_ORM_AST_NODE_JOIN) {
-      ((c_orm_ast_join_t *)new_node)->on_condition =
-          c_orm_ast_clone_node(arena, ((c_orm_ast_join_t *)node)->on_condition);
+      c_orm_ast_clone_node(arena, ((c_orm_ast_join_t *)node)->on_condition,
+                           &((c_orm_ast_join_t *)new_node)->on_condition);
     } else if (node->type == C_ORM_AST_NODE_HAVING) {
-      ((c_orm_ast_having_t *)new_node)->condition =
-          c_orm_ast_clone_node(arena, ((c_orm_ast_having_t *)node)->condition);
+      c_orm_ast_clone_node(arena, ((c_orm_ast_having_t *)node)->condition,
+                           &((c_orm_ast_having_t *)new_node)->condition);
     } else if (node->type == C_ORM_AST_NODE_OPERATOR) {
-      ((c_orm_ast_operator_t *)new_node)->left =
-          c_orm_ast_clone_node(arena, ((c_orm_ast_operator_t *)node)->left);
-      ((c_orm_ast_operator_t *)new_node)->right =
-          c_orm_ast_clone_node(arena, ((c_orm_ast_operator_t *)node)->right);
+      c_orm_ast_clone_node(arena, ((c_orm_ast_operator_t *)node)->left,
+                           &((c_orm_ast_operator_t *)new_node)->left);
+      c_orm_ast_clone_node(arena, ((c_orm_ast_operator_t *)node)->right,
+                           &((c_orm_ast_operator_t *)new_node)->right);
     } else if (node->type == C_ORM_AST_NODE_GROUP) {
-      ((c_orm_ast_group_t *)new_node)->expr =
-          c_orm_ast_clone_node(arena, ((c_orm_ast_group_t *)node)->expr);
+      c_orm_ast_clone_node(arena, ((c_orm_ast_group_t *)node)->expr,
+                           &((c_orm_ast_group_t *)new_node)->expr);
     }
     new_node->next = NULL;
   }
   LOG_DEBUG("c_orm_ast_clone_node: exit");
-  return new_node;
+  *out_node = new_node;
+  return new_node ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /**
@@ -457,7 +520,7 @@ static c_orm_error_t c_orm_query_clone(c_orm_query_t *q,
 
   curr = q->ast_head;
   while (curr) {
-    cloned = c_orm_ast_clone_node((*out_q)->arena, curr);
+    c_orm_ast_clone_node((*out_q)->arena, curr, &cloned);
     if (!cloned) {
       c_orm_query_free(*out_q);
       *out_q = NULL;
@@ -484,29 +547,29 @@ static c_orm_error_t c_orm_query_clone(c_orm_query_t *q,
  *
  * @param q Query structure.
  * @param columns Columns string.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_select_impl(c_orm_query_t *q,
-                                              const char *columns) {
+static c_orm_error_t c_orm_query_select_impl(c_orm_query_t *q,
+                                             const char *columns) {
   c_orm_ast_select_t *node;
   const char *cols_copy = NULL;
   c_orm_error_t err;
   LOG_DEBUG("c_orm_query_select_impl: entry");
   if (!q || q->error) {
     LOG_DEBUG("c_orm_query_select_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   err = c_orm_arena_strdup(q->arena, columns, &cols_copy);
   if (err != C_ORM_OK) {
     LOG_DEBUG("c_orm_query_select_impl: OOM for columns string");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_select_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_select_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_SELECT;
   node->base.next = q->ast_head;
@@ -514,7 +577,7 @@ static c_orm_query_t *c_orm_query_select_impl(c_orm_query_t *q,
   node->is_distinct = 0;
   q->ast_head = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_select_impl: exit");
-  return q;
+  return C_ORM_OK;
 }
 
 /**
@@ -522,29 +585,29 @@ static c_orm_query_t *c_orm_query_select_impl(c_orm_query_t *q,
  *
  * @param q Query structure.
  * @param table Table name.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_from_impl(c_orm_query_t *q,
-                                            const char *table) {
+static c_orm_error_t c_orm_query_from_impl(c_orm_query_t *q,
+                                           const char *table) {
   c_orm_ast_from_t *node;
   const char *tbl_copy = NULL;
   c_orm_error_t err;
   LOG_DEBUG("c_orm_query_from_impl: entry");
   if (!q || q->error) {
     LOG_DEBUG("c_orm_query_from_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   err = c_orm_arena_strdup(q->arena, table, &tbl_copy);
   if (err != C_ORM_OK) {
     LOG_DEBUG("c_orm_query_from_impl: OOM for table string");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_from_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_from_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_FROM;
   node->base.next = q->ast_head;
@@ -552,7 +615,7 @@ static c_orm_query_t *c_orm_query_from_impl(c_orm_query_t *q,
   node->alias = NULL;
   q->ast_head = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_from_impl: exit");
-  return q;
+  return C_ORM_OK;
 }
 
 /**
@@ -560,28 +623,28 @@ static c_orm_query_t *c_orm_query_from_impl(c_orm_query_t *q,
  *
  * @param q Query structure.
  * @param condition Condition node.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_where_impl(c_orm_query_t *q,
-                                             c_orm_ast_node_t *condition) {
+static c_orm_error_t c_orm_query_where_impl(c_orm_query_t *q,
+                                            c_orm_ast_node_t *condition) {
   c_orm_ast_where_t *node;
   LOG_DEBUG("c_orm_query_where_impl: entry");
   if (!q || q->error) {
     LOG_DEBUG("c_orm_query_where_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_where_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_where_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_WHERE;
   node->base.next = q->ast_head;
   node->condition = condition;
   q->ast_head = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_where_impl: exit");
-  return q;
+  return C_ORM_OK;
 }
 
 /**
@@ -589,29 +652,29 @@ static c_orm_query_t *c_orm_query_where_impl(c_orm_query_t *q,
  *
  * @param q Query structure.
  * @param condition Condition node.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_and_where_impl(c_orm_query_t *q,
-                                                 c_orm_ast_node_t *condition) {
+static c_orm_error_t c_orm_query_and_where_impl(c_orm_query_t *q,
+                                                c_orm_ast_node_t *condition) {
   c_orm_ast_node_t *curr;
-  c_orm_query_t *ret;
+  c_orm_error_t ret;
   c_orm_ast_where_t *w;
   LOG_DEBUG("c_orm_query_and_where_impl: entry");
   if (!q || q->error || !condition) {
     LOG_DEBUG("c_orm_query_and_where_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   curr = q->ast_head;
   while (curr) {
     if (curr->type == C_ORM_AST_NODE_WHERE) {
       w = (c_orm_ast_where_t *)curr;
       if (w->condition) {
-        w->condition = c_orm_query_op_impl(q, "AND", w->condition, condition);
+        c_orm_query_op_impl(q, "AND", w->condition, condition, &w->condition);
       } else {
         w->condition = condition;
       }
       LOG_DEBUG("c_orm_query_and_where_impl: exit updated");
-      return q;
+      return q->error ? C_ORM_ERROR_MEMORY : C_ORM_OK;
     }
     curr = curr->next;
   }
@@ -625,29 +688,29 @@ static c_orm_query_t *c_orm_query_and_where_impl(c_orm_query_t *q,
  *
  * @param q Query structure.
  * @param condition Condition node.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_or_where_impl(c_orm_query_t *q,
-                                                c_orm_ast_node_t *condition) {
+static c_orm_error_t c_orm_query_or_where_impl(c_orm_query_t *q,
+                                               c_orm_ast_node_t *condition) {
   c_orm_ast_node_t *curr;
-  c_orm_query_t *ret;
+  c_orm_error_t ret;
   c_orm_ast_where_t *w;
   LOG_DEBUG("c_orm_query_or_where_impl: entry");
   if (!q || q->error || !condition) {
     LOG_DEBUG("c_orm_query_or_where_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   curr = q->ast_head;
   while (curr) {
     if (curr->type == C_ORM_AST_NODE_WHERE) {
       w = (c_orm_ast_where_t *)curr;
       if (w->condition) {
-        w->condition = c_orm_query_op_impl(q, "OR", w->condition, condition);
+        c_orm_query_op_impl(q, "OR", w->condition, condition, &w->condition);
       } else {
         w->condition = condition;
       }
       LOG_DEBUG("c_orm_query_or_where_impl: exit updated");
-      return q;
+      return q->error ? C_ORM_ERROR_MEMORY : C_ORM_OK;
     }
     curr = curr->next;
   }
@@ -662,9 +725,9 @@ static c_orm_query_t *c_orm_query_or_where_impl(c_orm_query_t *q,
  * @param q Query structure.
  * @param column Column string.
  * @param is_desc Descending flag.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *
+static c_orm_error_t
 c_orm_query_order_by_impl(c_orm_query_t *q, const char *column, int is_desc) {
   c_orm_ast_order_by_t *node;
   const char *col_copy = NULL;
@@ -672,19 +735,19 @@ c_orm_query_order_by_impl(c_orm_query_t *q, const char *column, int is_desc) {
   LOG_DEBUG("c_orm_query_order_by_impl: entry");
   if (!q || q->error) {
     LOG_DEBUG("c_orm_query_order_by_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   err = c_orm_arena_strdup(q->arena, column, &col_copy);
   if (err != C_ORM_OK) {
     LOG_DEBUG("c_orm_query_order_by_impl: OOM for column string");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_order_by_t),
                         (void **)&node) != 0) {
     LOG_DEBUG("c_orm_query_order_by_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_ORDER_BY;
   node->base.next = q->ast_head;
@@ -692,7 +755,7 @@ c_orm_query_order_by_impl(c_orm_query_t *q, const char *column, int is_desc) {
   node->is_desc = is_desc;
   q->ast_head = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_order_by_impl: exit");
-  return q;
+  return C_ORM_OK;
 }
 
 /**
@@ -700,27 +763,27 @@ c_orm_query_order_by_impl(c_orm_query_t *q, const char *column, int is_desc) {
  *
  * @param q Query structure.
  * @param n Limit number.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_limit_impl(c_orm_query_t *q, size_t n) {
+static c_orm_error_t c_orm_query_limit_impl(c_orm_query_t *q, size_t n) {
   c_orm_ast_limit_t *node;
   LOG_DEBUG("c_orm_query_limit_impl: entry");
   if (!q || q->error) {
     LOG_DEBUG("c_orm_query_limit_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_limit_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_limit_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_LIMIT;
   node->base.next = q->ast_head;
   node->limit = n;
   q->ast_head = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_limit_impl: exit");
-  return q;
+  return C_ORM_OK;
 }
 
 /**
@@ -728,27 +791,27 @@ static c_orm_query_t *c_orm_query_limit_impl(c_orm_query_t *q, size_t n) {
  *
  * @param q Query structure.
  * @param n Offset number.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_offset_impl(c_orm_query_t *q, size_t n) {
+static c_orm_error_t c_orm_query_offset_impl(c_orm_query_t *q, size_t n) {
   c_orm_ast_offset_t *node;
   LOG_DEBUG("c_orm_query_offset_impl: entry");
   if (!q || q->error) {
     LOG_DEBUG("c_orm_query_offset_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_offset_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_offset_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_OFFSET;
   node->base.next = q->ast_head;
   node->offset = n;
   q->ast_head = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_offset_impl: exit");
-  return q;
+  return C_ORM_OK;
 }
 
 /**
@@ -758,11 +821,11 @@ static c_orm_query_t *c_orm_query_offset_impl(c_orm_query_t *q, size_t n) {
  * @param table Table name.
  * @param type_str Join type string.
  * @param on_condition On condition node.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_join_impl(c_orm_query_t *q, const char *table,
-                                            const char *type_str,
-                                            c_orm_ast_node_t *on_condition) {
+static c_orm_error_t c_orm_query_join_impl(c_orm_query_t *q, const char *table,
+                                           const char *type_str,
+                                           c_orm_ast_node_t *on_condition) {
   c_orm_ast_join_t *node;
   const char *tbl_copy = NULL;
   const char *type_copy = NULL;
@@ -770,25 +833,25 @@ static c_orm_query_t *c_orm_query_join_impl(c_orm_query_t *q, const char *table,
   LOG_DEBUG("c_orm_query_join_impl: entry");
   if (!q || q->error) {
     LOG_DEBUG("c_orm_query_join_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   err = c_orm_arena_strdup(q->arena, table, &tbl_copy);
   if (err != C_ORM_OK) {
     LOG_DEBUG("c_orm_query_join_impl: OOM for table string");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   err = c_orm_arena_strdup(q->arena, type_str, &type_copy);
   if (err != C_ORM_OK) {
     LOG_DEBUG("c_orm_query_join_impl: OOM for type string");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_join_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_join_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_JOIN;
   node->base.next = q->ast_head;
@@ -797,7 +860,7 @@ static c_orm_query_t *c_orm_query_join_impl(c_orm_query_t *q, const char *table,
   node->on_condition = on_condition;
   q->ast_head = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_join_impl: exit");
-  return q;
+  return C_ORM_OK;
 }
 
 /**
@@ -805,12 +868,12 @@ static c_orm_query_t *c_orm_query_join_impl(c_orm_query_t *q, const char *table,
  * @param q Query structure.
  * @param table Target table name.
  * @param on_condition ON join condition AST node.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *
+static c_orm_error_t
 c_orm_query_left_join_impl(c_orm_query_t *q, const char *table,
                            c_orm_ast_node_t *on_condition) {
-  c_orm_query_t *ret;
+  c_orm_error_t ret;
   LOG_DEBUG("c_orm_query_left_join_impl: entry");
   ret = c_orm_query_join_impl(q, table, "LEFT", on_condition);
   LOG_DEBUG("c_orm_query_left_join_impl: exit");
@@ -822,12 +885,12 @@ c_orm_query_left_join_impl(c_orm_query_t *q, const char *table,
  * @param q Query structure.
  * @param table Target table name.
  * @param on_condition ON join condition AST node.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *
+static c_orm_error_t
 c_orm_query_right_join_impl(c_orm_query_t *q, const char *table,
                             c_orm_ast_node_t *on_condition) {
-  c_orm_query_t *ret;
+  c_orm_error_t ret;
   LOG_DEBUG("c_orm_query_right_join_impl: entry");
   ret = c_orm_query_join_impl(q, table, "RIGHT", on_condition);
   LOG_DEBUG("c_orm_query_right_join_impl: exit");
@@ -839,28 +902,28 @@ c_orm_query_right_join_impl(c_orm_query_t *q, const char *table,
  *
  * @param q Query structure.
  * @param columns Columns string.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_group_by_impl(c_orm_query_t *q,
-                                                const char *columns) {
+static c_orm_error_t c_orm_query_group_by_impl(c_orm_query_t *q,
+                                               const char *columns) {
   c_orm_ast_group_by_t *node;
   LOG_DEBUG("c_orm_query_group_by_impl: entry");
   if (!q || q->error) {
     LOG_DEBUG("c_orm_query_group_by_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_group_by_t),
                         (void **)&node) != 0) {
     LOG_DEBUG("c_orm_query_group_by_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_GROUP_BY;
   node->base.next = q->ast_head;
   node->columns = columns;
   q->ast_head = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_group_by_impl: exit");
-  return q;
+  return C_ORM_OK;
 }
 
 /**
@@ -868,28 +931,28 @@ static c_orm_query_t *c_orm_query_group_by_impl(c_orm_query_t *q,
  *
  * @param q Query structure.
  * @param condition Condition node.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_having_impl(c_orm_query_t *q,
-                                              c_orm_ast_node_t *condition) {
+static c_orm_error_t c_orm_query_having_impl(c_orm_query_t *q,
+                                             c_orm_ast_node_t *condition) {
   c_orm_ast_having_t *node;
   LOG_DEBUG("c_orm_query_having_impl: entry");
   if (!q || q->error) {
     LOG_DEBUG("c_orm_query_having_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_having_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_having_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_HAVING;
   node->base.next = q->ast_head;
   node->condition = condition;
   q->ast_head = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_having_impl: exit");
-  return q;
+  return C_ORM_OK;
 }
 
 /**
@@ -898,21 +961,21 @@ static c_orm_query_t *c_orm_query_having_impl(c_orm_query_t *q,
  * @param q Query structure.
  * @param alias Alias string.
  * @param subquery Subquery.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_with_impl(c_orm_query_t *q, const char *alias,
-                                            c_orm_query_t *subquery) {
+static c_orm_error_t c_orm_query_with_impl(c_orm_query_t *q, const char *alias,
+                                           c_orm_query_t *subquery) {
   c_orm_ast_with_t *node;
   LOG_DEBUG("c_orm_query_with_impl: entry");
   if (!q || q->error || !subquery) {
     LOG_DEBUG("c_orm_query_with_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_with_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_with_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_WITH;
   node->base.next = q->ast_head;
@@ -920,7 +983,7 @@ static c_orm_query_t *c_orm_query_with_impl(c_orm_query_t *q, const char *alias,
   node->query = subquery;
   q->ast_head = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_with_impl: exit");
-  return q;
+  return C_ORM_OK;
 }
 
 /**
@@ -929,21 +992,21 @@ static c_orm_query_t *c_orm_query_with_impl(c_orm_query_t *q, const char *alias,
  * @param q Query structure.
  * @param other Other query.
  * @param is_all UNION ALL flag.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_union_impl(c_orm_query_t *q,
-                                             c_orm_query_t *other, int is_all) {
+static c_orm_error_t c_orm_query_union_impl(c_orm_query_t *q,
+                                            c_orm_query_t *other, int is_all) {
   c_orm_ast_union_t *node;
   LOG_DEBUG("c_orm_query_union_impl: entry");
   if (!q || q->error || !other) {
     LOG_DEBUG("c_orm_query_union_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_union_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_union_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_UNION;
   node->base.next = q->ast_head;
@@ -951,37 +1014,38 @@ static c_orm_query_t *c_orm_query_union_impl(c_orm_query_t *q,
   node->query = other;
   q->ast_head = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_union_impl: exit");
-  return q;
+  return C_ORM_OK;
 }
 
 /**
  * @brief Sets DISTINCT flag on query.
  *
  * @param q Query structure.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_distinct_impl(c_orm_query_t *q) {
+static c_orm_error_t c_orm_query_distinct_impl(c_orm_query_t *q) {
   c_orm_ast_node_t *curr;
+  c_orm_error_t rc;
   LOG_DEBUG("c_orm_query_distinct_impl: entry");
   if (!q || q->error) {
     LOG_DEBUG("c_orm_query_distinct_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   curr = q->ast_head;
   while (curr) {
     if (curr->type == C_ORM_AST_NODE_SELECT) {
       ((c_orm_ast_select_t *)curr)->is_distinct = 1;
       LOG_DEBUG("c_orm_query_distinct_impl: exit modified existing");
-      return q;
+      return C_ORM_OK;
     }
     curr = curr->next;
   }
-  q->select_(q, "*");
+  rc = q->select_(q, "*");
   if (q->ast_head) {
     ((c_orm_ast_select_t *)q->ast_head)->is_distinct = 1;
   }
   LOG_DEBUG("c_orm_query_distinct_impl: exit new select");
-  return q;
+  return rc;
 }
 
 /**
@@ -990,22 +1054,22 @@ static c_orm_query_t *c_orm_query_distinct_impl(c_orm_query_t *q) {
  * @param q Query structure.
  * @param table Table name.
  * @param alias Alias name.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *c_orm_query_from_alias_impl(c_orm_query_t *q,
-                                                  const char *table,
-                                                  const char *alias) {
+static c_orm_error_t c_orm_query_from_alias_impl(c_orm_query_t *q,
+                                                 const char *table,
+                                                 const char *alias) {
   c_orm_ast_from_t *node;
   LOG_DEBUG("c_orm_query_from_alias_impl: entry");
   if (!q || q->error) {
     LOG_DEBUG("c_orm_query_from_alias_impl: invalid state");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_from_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_from_alias_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_FROM;
   node->base.next = q->ast_head;
@@ -1013,7 +1077,7 @@ static c_orm_query_t *c_orm_query_from_alias_impl(c_orm_query_t *q,
   node->alias = alias;
   q->ast_head = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_from_alias_impl: exit");
-  return q;
+  return C_ORM_OK;
 }
 
 /**
@@ -1022,26 +1086,26 @@ static c_orm_query_t *c_orm_query_from_alias_impl(c_orm_query_t *q,
  * @param q Query structure.
  * @param meta Table metadata.
  * @param relation_name Relation name.
- * @return Query structure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_query_t *
-c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
-                            const char *relation_name) {
+static c_orm_error_t c_orm_query_eager_load_impl(c_orm_query_t *q,
+                                                 const c_orm_table_meta_t *meta,
+                                                 const char *relation_name) {
   size_t i;
   const c_orm_relation_meta_t *rel = NULL;
   char *on_cond;
   char *columns;
   c_orm_ast_node_t *curr;
+  c_orm_ast_node_t *raw_node = NULL;
   char *p;
   size_t col_i;
   int first;
-  int w;
 
   LOG_DEBUG("c_orm_query_eager_load_impl: entry");
 
   if (!q || q->error || !meta || !relation_name) {
     LOG_DEBUG("c_orm_query_eager_load_impl: invalid state or args");
-    return q;
+    return C_ORM_ERROR_UNKNOWN;
   }
 
   for (i = 0; i < meta->num_relations; i++) {
@@ -1054,19 +1118,20 @@ c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
   if (!rel || !rel->target_meta) {
     LOG_DEBUG("c_orm_query_eager_load_impl: relation not found");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_NOT_FOUND;
   }
 
   on_cond = (char *)C_ORM_MALLOC(128);
   if (!on_cond) {
     LOG_DEBUG("c_orm_query_eager_load_impl: OOM");
     q->error = 1;
-    return q;
+    return C_ORM_ERROR_MEMORY;
   }
   C_ORM_SPRINTF(on_cond, 128, "%s.%s = %s.%s", meta->name, rel->local_key,
                 rel->target_meta->name, rel->foreign_key);
 
-  q->left_join(q, rel->target_meta->name, q->raw(q, on_cond));
+  q->raw(q, on_cond, &raw_node);
+  q->left_join(q, rel->target_meta->name, raw_node);
   C_ORM_FREE(on_cond);
 
   /* Expand SELECT columns dynamically to add child columns with prefix
@@ -1083,9 +1148,9 @@ c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
         *p++ = ' ';
       }
       first = 0;
-      w = C_ORM_SPRINTF(p, (size_t)(4096 - (p - columns)), "%s.%s", meta->name,
-                        meta->columns[col_i].name);
-      p += w;
+      C_ORM_SPRINTF(p, (size_t)(4096 - (p - columns)), "%s.%s", meta->name,
+                    meta->columns[col_i].name);
+      p += strlen(p);
     }
 
     for (col_i = 0; col_i < rel->target_meta->num_columns; col_i++) {
@@ -1094,11 +1159,11 @@ c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
         *p++ = ' ';
       }
       first = 0;
-      w = C_ORM_SPRINTF(p, (size_t)(4096 - (p - columns)), "%s.%s AS %s_%s",
-                        rel->target_meta->name,
-                        rel->target_meta->columns[col_i].name, relation_name,
-                        rel->target_meta->columns[col_i].name);
-      p += w;
+      C_ORM_SPRINTF(p, (size_t)(4096 - (p - columns)), "%s.%s AS %s_%s",
+                    rel->target_meta->name,
+                    rel->target_meta->columns[col_i].name, relation_name,
+                    rel->target_meta->columns[col_i].name);
+      p += strlen(p);
     }
 
     /* Find existing SELECT and replace it */
@@ -1114,7 +1179,7 @@ c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
   }
 
   LOG_DEBUG("c_orm_query_eager_load_impl: exit");
-  return q;
+  return q->error ? C_ORM_ERROR_MEMORY : C_ORM_OK;
 }
 
 /**
@@ -1122,27 +1187,33 @@ c_orm_query_eager_load_impl(c_orm_query_t *q, const c_orm_table_meta_t *meta,
  *
  * @param q Query structure.
  * @param expr Expression node.
- * @return Group AST node.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_group_node_impl(c_orm_query_t *q,
-                                                     c_orm_ast_node_t *expr) {
+static c_orm_error_t c_orm_query_group_node_impl(c_orm_query_t *q,
+                                                 c_orm_ast_node_t *expr,
+                                                 c_orm_ast_node_t **out_node) {
   c_orm_ast_group_t *node;
   LOG_DEBUG("c_orm_query_group_node_impl: entry");
-  if (!q || q->error) {
+  if (!q || q->error || !out_node) {
     LOG_DEBUG("c_orm_query_group_node_impl: invalid state");
-    return NULL;
+    if (out_node)
+      *out_node = NULL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_group_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_group_node_impl: OOM");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_GROUP;
   node->base.next = NULL;
   node->expr = expr;
+  *out_node = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_group_node_impl: exit");
-  return (c_orm_ast_node_t *)node;
+  return C_ORM_OK;
 }
 
 /**
@@ -1151,29 +1222,34 @@ static c_orm_ast_node_t *c_orm_query_group_node_impl(c_orm_query_t *q,
  * @param q Query structure.
  * @param subq Subquery.
  * @param alias Alias.
- * @return Subquery AST node.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_subquery_node_impl(c_orm_query_t *q,
-                                                        c_orm_query_t *subq,
-                                                        const char *alias) {
+static c_orm_error_t
+c_orm_query_subquery_node_impl(c_orm_query_t *q, c_orm_query_t *subq,
+                               const char *alias, c_orm_ast_node_t **out_node) {
   c_orm_ast_subquery_t *node;
   LOG_DEBUG("c_orm_query_subquery_node_impl: entry");
-  if (!q || q->error || !subq) {
+  if (!q || q->error || !subq || !out_node) {
     LOG_DEBUG("c_orm_query_subquery_node_impl: invalid state");
-    return NULL;
+    if (out_node)
+      *out_node = NULL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_subquery_t),
                         (void **)&node) != 0) {
     LOG_DEBUG("c_orm_query_subquery_node_impl: OOM");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_SUBQUERY;
   node->base.next = NULL;
   node->query = subq;
   node->alias = alias;
+  *out_node = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_subquery_node_impl: exit");
-  return (c_orm_ast_node_t *)node;
+  return C_ORM_OK;
 }
 
 /**
@@ -1183,31 +1259,35 @@ static c_orm_ast_node_t *c_orm_query_subquery_node_impl(c_orm_query_t *q,
  * @param name Function name.
  * @param args Arguments string.
  * @param alias Alias.
- * @return Function AST node.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_func_impl(c_orm_query_t *q,
-                                               const char *name,
-                                               const char *args,
-                                               const char *alias) {
+static c_orm_error_t c_orm_query_func_impl(c_orm_query_t *q, const char *name,
+                                           const char *args, const char *alias,
+                                           c_orm_ast_node_t **out_node) {
   c_orm_ast_function_t *node;
   LOG_DEBUG("c_orm_query_func_impl: entry");
-  if (!q || q->error) {
+  if (!q || q->error || !out_node) {
     LOG_DEBUG("c_orm_query_func_impl: invalid state");
-    return NULL;
+    if (out_node)
+      *out_node = NULL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_function_t),
                         (void **)&node) != 0) {
     LOG_DEBUG("c_orm_query_func_impl: OOM");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_FUNCTION;
   node->base.next = NULL;
   node->name = name;
   node->args = args;
   node->alias = alias;
+  *out_node = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_func_impl: exit");
-  return (c_orm_ast_node_t *)node;
+  return C_ORM_OK;
 }
 
 /**
@@ -1216,28 +1296,34 @@ static c_orm_ast_node_t *c_orm_query_func_impl(c_orm_query_t *q,
  * @param q Query structure.
  * @param col Column name.
  * @param type Cast type.
- * @return CAST AST node.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *
-c_orm_query_cast_impl(c_orm_query_t *q, const char *col, const char *type) {
+static c_orm_error_t c_orm_query_cast_impl(c_orm_query_t *q, const char *col,
+                                           const char *type,
+                                           c_orm_ast_node_t **out_node) {
   c_orm_ast_cast_t *node;
   LOG_DEBUG("c_orm_query_cast_impl: entry");
-  if (!q || q->error) {
+  if (!q || q->error || !out_node) {
     LOG_DEBUG("c_orm_query_cast_impl: invalid state");
-    return NULL;
+    if (out_node)
+      *out_node = NULL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_cast_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_cast_impl: OOM");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_CAST;
   node->base.next = NULL;
   node->col = col;
   node->type = type;
+  *out_node = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_cast_impl: exit");
-  return (c_orm_ast_node_t *)node;
+  return C_ORM_OK;
 }
 
 /**
@@ -1246,29 +1332,35 @@ c_orm_query_cast_impl(c_orm_query_t *q, const char *col, const char *type) {
  * @param q Query structure.
  * @param col Column name.
  * @param is_not NOT flag.
- * @return IS NULL AST node.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_is_null_impl(c_orm_query_t *q,
-                                                  const char *col, int is_not) {
+static c_orm_error_t c_orm_query_is_null_impl(c_orm_query_t *q, const char *col,
+                                              int is_not,
+                                              c_orm_ast_node_t **out_node) {
   c_orm_ast_operator_t *node;
   LOG_DEBUG("c_orm_query_is_null_impl: entry");
-  if (!q || q->error) {
+  if (!q || q->error || !out_node) {
     LOG_DEBUG("c_orm_query_is_null_impl: invalid state");
-    return NULL;
+    if (out_node)
+      *out_node = NULL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_operator_t),
                         (void **)&node) != 0) {
     LOG_DEBUG("c_orm_query_is_null_impl: OOM");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_OPERATOR;
   node->base.next = NULL;
   node->op = is_not ? "IS NOT NULL" : "IS NULL";
-  node->left = q->col(q, col);
+  q->col(q, col, &node->left);
   node->right = NULL;
+  *out_node = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_is_null_impl: exit");
-  return (c_orm_ast_node_t *)node;
+  return C_ORM_OK;
 }
 
 /**
@@ -1279,31 +1371,42 @@ static c_orm_ast_node_t *c_orm_query_is_null_impl(c_orm_query_t *q,
  * @param low Low value.
  * @param high High value.
  * @param is_string String flag.
- * @return BETWEEN AST node.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *
-c_orm_query_between_impl(c_orm_query_t *q, const char *col, const char *low,
-                         const char *high, int is_string) {
+static c_orm_error_t c_orm_query_between_impl(c_orm_query_t *q, const char *col,
+                                              const char *low, const char *high,
+                                              int is_string,
+                                              c_orm_ast_node_t **out_node) {
   c_orm_ast_between_t *node;
   LOG_DEBUG("c_orm_query_between_impl: entry");
-  if (!q || q->error) {
+  if (!q || q->error || !out_node) {
     LOG_DEBUG("c_orm_query_between_impl: invalid state");
-    return NULL;
+    if (out_node)
+      *out_node = NULL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_between_t),
                         (void **)&node) != 0) {
     LOG_DEBUG("c_orm_query_between_impl: OOM");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_BETWEEN;
   node->base.next = NULL;
   node->col = col;
-  node->low = is_string ? c_orm_escape_literal(q->arena, low) : low;
-  node->high = is_string ? c_orm_escape_literal(q->arena, high) : high;
+  if (is_string) {
+    c_orm_escape_literal(q->arena, low, &node->low);
+    c_orm_escape_literal(q->arena, high, &node->high);
+  } else {
+    node->low = low;
+    node->high = high;
+  }
   node->is_string = is_string;
+  *out_node = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_between_impl: exit");
-  return (c_orm_ast_node_t *)node;
+  return C_ORM_OK;
 }
 
 /**
@@ -1312,28 +1415,34 @@ c_orm_query_between_impl(c_orm_query_t *q, const char *col, const char *low,
  * @param q Query structure.
  * @param subq Subquery.
  * @param is_not NOT flag.
- * @return EXISTS AST node.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *
-c_orm_query_exists_impl(c_orm_query_t *q, c_orm_query_t *subq, int is_not) {
+static c_orm_error_t c_orm_query_exists_impl(c_orm_query_t *q,
+                                             c_orm_query_t *subq, int is_not,
+                                             c_orm_ast_node_t **out_node) {
   c_orm_ast_exists_t *node;
   LOG_DEBUG("c_orm_query_exists_impl: entry");
-  if (!q || q->error || !subq) {
+  if (!q || q->error || !subq || !out_node) {
     LOG_DEBUG("c_orm_query_exists_impl: invalid state");
-    return NULL;
+    if (out_node)
+      *out_node = NULL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_exists_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_exists_impl: OOM");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_EXISTS;
   node->base.next = NULL;
   node->query = subq;
   node->is_not = is_not;
+  *out_node = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_exists_impl: exit");
-  return (c_orm_ast_node_t *)node;
+  return C_ORM_OK;
 }
 
 /**
@@ -1344,24 +1453,27 @@ c_orm_query_exists_impl(c_orm_query_t *q, c_orm_query_t *subq, int is_not) {
  * @param partition_by Partition by.
  * @param order_by Order by.
  * @param alias Alias.
- * @return WINDOW AST node.
+ * @param out_node Output pointer receiving the AST node.
+ * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_ast_node_t *c_orm_query_window_impl(c_orm_query_t *q,
-                                                 const char *func_name,
-                                                 const char *partition_by,
-                                                 const char *order_by,
-                                                 const char *alias) {
+static c_orm_error_t
+c_orm_query_window_impl(c_orm_query_t *q, const char *func_name,
+                        const char *partition_by, const char *order_by,
+                        const char *alias, c_orm_ast_node_t **out_node) {
   c_orm_ast_window_t *node;
   LOG_DEBUG("c_orm_query_window_impl: entry");
-  if (!q || q->error) {
+  if (!q || q->error || !out_node) {
     LOG_DEBUG("c_orm_query_window_impl: invalid state");
-    return NULL;
+    if (out_node)
+      *out_node = NULL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   if (c_orm_arena_alloc(q->arena, sizeof(c_orm_ast_window_t), (void **)&node) !=
       0) {
     LOG_DEBUG("c_orm_query_window_impl: OOM");
     q->error = 1;
-    return NULL;
+    *out_node = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
   node->base.type = C_ORM_AST_NODE_WINDOW;
   node->base.next = NULL;
@@ -1369,8 +1481,9 @@ static c_orm_ast_node_t *c_orm_query_window_impl(c_orm_query_t *q,
   node->partition_by = partition_by;
   node->order_by = order_by;
   node->alias = alias;
+  *out_node = (c_orm_ast_node_t *)node;
   LOG_DEBUG("c_orm_query_window_impl: exit");
-  return (c_orm_ast_node_t *)node;
+  return C_ORM_OK;
 }
 
 /**
@@ -1458,15 +1571,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_new(c_orm_query_t **out_query) {
  * @brief Frees a fluent query structure.
  *
  * @param query Query structure to free.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_query_free(c_orm_query_t *query) {
+C_ORM_EXPORT c_orm_error_t c_orm_query_free(c_orm_query_t *query) {
   LOG_DEBUG("c_orm_query_free: entry");
   if (query) {
     c_orm_arena_free(query->arena);
     C_ORM_FREE(query);
   }
   LOG_DEBUG("c_orm_query_free: exit");
+  return C_ORM_OK;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

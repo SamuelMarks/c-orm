@@ -1,8 +1,11 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_async.c
  * @brief Implementation of high-level asynchronous API for c-orm.
+ *
+ * When built with single-threaded mode (`C_ORM_THREADING=OFF`) or when
+ * dispatched inline without an external event loop, these functions execute
+ * synchronously on the calling thread and invoke the completion callback
+ * immediately before returning the operation's `c_orm_error_t` status code.
  */
 
 /* Define C_ORM_ASYNC_EXPORTS if not already defined for shared builds */
@@ -22,13 +25,16 @@
 /**
  * @brief Asynchronously inserts a record into the database.
  *
+ * Falls back to synchronous execution on the calling thread when
+ * `C_ORM_THREADING=OFF` or no background worker pool is attached, invoking `cb`
+ * inline with the resulting `c_orm_error_t`.
+ *
  * @param db The database connection.
  * @param meta The table metadata.
  * @param in_struct Pointer to the structure containing data to insert.
  * @param cb Callback function to execute upon completion.
  * @param ctx User context pointer to pass to the callback.
- * @return C_ORM_ERROR_NOT_IMPLEMENTED indicating stub implementation, or memory
- * error.
+ * @return C_ORM_OK on success, or error code propagated from `c_orm_insert`.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_insert_async(c_orm_db_t *db,
                                               const c_orm_table_meta_t *meta,
@@ -45,8 +51,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_async(c_orm_db_t *db,
     return rc;
   }
 
-  /* Fallback to blocking sync for phase 5 until true thread pooling is active.
-   * It properly propagates errors to the callback. */
+  /* Synchronous fallback when C_ORM_THREADING=OFF or inline dispatch is active.
+   * Propagates the resulting c_orm_error_t directly to the completion callback.
+   */
   rc = c_orm_insert(db, meta, in_struct);
 
   if (cb) {
@@ -60,13 +67,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_async(c_orm_db_t *db,
 /**
  * @brief Asynchronously finds all records from a table.
  *
+ * Falls back to synchronous execution on the calling thread when
+ * `C_ORM_THREADING=OFF` or no background worker pool is attached, invoking `cb`
+ * inline with the resulting `c_orm_error_t`.
+ *
  * @param db The database connection.
  * @param meta The table metadata.
  * @param out_array Array to store the retrieved records.
  * @param cb Callback function to execute upon completion.
  * @param ctx User context pointer to pass to the callback.
- * @return C_ORM_ERROR_NOT_IMPLEMENTED indicating stub implementation, or memory
- * error.
+ * @return C_ORM_OK on success, or error code propagated from `c_orm_find_all`.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(
     c_orm_db_t *db, const c_orm_table_meta_t *meta, void *out_array,
@@ -90,6 +100,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(
   LOG_DEBUG("c_orm_find_all_async: exit");
   return rc;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_log.c
  * @brief Implementation of logging utilities.
@@ -24,6 +22,3 @@ C_ORM_EXPORT void c_orm_log_debug(const char *fmt, ...) {
   fprintf(stderr, "\n");
   va_end(args);
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file dashboard.c
  * @brief Demonstrates dynamic abstract fallback router API in c-orm.
@@ -147,6 +145,3 @@ int main(void) {
 
   return 0;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

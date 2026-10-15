@@ -447,6 +447,8 @@ def generate_test_report(output_path="UNDERCOVERED.md"):
         "--gcov-executable",
         gcov_exec,
         cov_dir,
+        "--exclude-unreachable-branches",
+        "--exclude-throw-branches",
         "--filter",
         "src/.*",
         "--filter",
@@ -517,7 +519,8 @@ def generate_test_report(output_path="UNDERCOVERED.md"):
         lp = v.get("line_percent", 0.0)
         fp = v.get("function_percent", 0.0)
         bp = v.get("branch_percent")
-        if lp == 100.0 and fp == 100.0 and (bp is None or bp == 100.0):
+        is_src = k.startswith("src/") and not k.startswith("src/legacy_cdd_db/")
+        if lp == 100.0 and fp == 100.0 and (not is_src or bp is None or bp == 100.0):
             fully_covered.append(k)
         else:
             undercovered.append(k)

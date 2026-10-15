@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_meta.h
  * @brief Core definitions and structures for c-orm.
@@ -10,14 +8,7 @@
 
 /* clang-format off */
 #include <stddef.h>
-
-#ifdef __cplusplus
-#define C_ORM_IN_CPLUSPLUS 1
-extern "C" {
-#endif /* __cplusplus */
-
-#if defined(_MSC_VER)
-#if _MSC_VER < 1600
+#if defined(_MSC_VER) && _MSC_VER < 1600
 typedef signed __int8 int8_t;
 typedef signed __int16 int16_t;
 typedef signed __int32 int32_t;
@@ -29,41 +20,29 @@ typedef unsigned __int64 uint64_t;
 #else
 #include <stdint.h>
 #endif
-#ifndef C_ORM_IN_CPLUSPLUS
-#ifndef _STDBOOL_H
-#define _STDBOOL_H
-#ifndef __STDBOOL_H
-#define __STDBOOL_H
-#endif
-#ifndef __bool_true_false_are_defined
-#define __bool_true_false_are_defined 1
-#endif
-typedef unsigned char bool;
-#define true 1
-#define false 0
-#endif
-#endif
-#else
-#include <stdint.h>
-#ifndef C_ORM_IN_CPLUSPLUS
-#ifndef _STDBOOL_H
-#define _STDBOOL_H
-#ifndef __STDBOOL_H
-#define __STDBOOL_H
-#endif
-#ifndef __bool_true_false_are_defined
-#define __bool_true_false_are_defined 1
-#endif
-typedef unsigned char bool;
-#define true 1
-#define false 0
-#endif
-#endif
-#endif
-
 #include <stdlib.h>
 #include "c_orm_no_discard.h"
 /* clang-format on */
+
+#ifdef __cplusplus
+#define C_ORM_IN_CPLUSPLUS 1
+extern "C" {
+#endif /* __cplusplus */
+
+#ifndef C_ORM_IN_CPLUSPLUS
+#ifndef _STDBOOL_H
+#define _STDBOOL_H
+#ifndef __STDBOOL_H
+#define __STDBOOL_H
+#endif
+#ifndef __bool_true_false_are_defined
+#define __bool_true_false_are_defined 1
+#endif
+typedef unsigned char bool;
+#define true 1
+#define false 0
+#endif
+#endif
 
 #ifndef C_ORM_EXPORT
 #if defined(_WIN32) || defined(__CYGWIN__)
@@ -525,6 +504,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_system_realloc(void *ptr, size_t size,
 #endif /* __cplusplus */
 
 #endif /* C_ORM_META_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

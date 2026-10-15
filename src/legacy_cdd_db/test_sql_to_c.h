@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_sql_to_c.h
  * @brief Tests for SQL to C struct emission.
@@ -208,6 +206,3 @@ SUITE(sql_to_c_suite) {
 #endif /* __cplusplus */
 
 #endif /* C_CDD_TEST_SQL_TO_C_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

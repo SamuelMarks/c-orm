@@ -3,8 +3,7 @@
  * @brief Unit tests and test coverage for fluent query builder and SQL query
  * construction.
  */
-#if defined(__clang__) || defined(__GNUC__)
-#endif
+
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_ast.h"
@@ -15,9 +14,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 /* clang-format on */
 
 /**
@@ -46,58 +42,6 @@ static int oom_active = 0;
  * @param size Allocation size in bytes.
  * @return Allocated pointer or NULL on simulated OOM.
  */
-
-#ifndef COVERAGE_MACRO_HACK_APPLIED
-#define COVERAGE_MACRO_HACK_APPLIED
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    (void)(cond);                                                              \
-    greatest_info.assertions++;                                                \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    greatest_test_pre(#TEST, &should);                                         \
-    TEST();                                                                    \
-    greatest_test_post(GREATEST_TEST_RES_PASS);                                \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    (void)(res);                                                               \
-  } while ((void)0, 0)
-#endif
-
 static void *q_mock_malloc(size_t size) {
   if (oom_active) {
     if (oom_countdown == 0) {
@@ -136,31 +80,47 @@ static void q_mock_free(void *ptr) { free(ptr); }
  */
 TEST test_query_fluent_coverage(void) {
   c_orm_query_t *q = NULL;
-  c_orm_ast_node_t *n_lit;
+  c_orm_ast_node_t *n_lit = NULL;
+  c_orm_ast_node_t *tmp = NULL;
   c_orm_query_t *q_sub = NULL;
   c_orm_query_new(&q);
 
   /* Execute and create all nodes for coverage */
-  n_lit = q->lit(q, "1", 0);
+  q->lit(q, "1", 0, &n_lit);
   ASSERT(n_lit != NULL);
-  ASSERT(q->col(q, "id") != NULL);
-  ASSERT(q->eq(q, "a", "b", 1) != NULL);
-  ASSERT(q->neq(q, "a", "b", 1) != NULL);
-  ASSERT(q->gt(q, "a", "b", 1) != NULL);
-  ASSERT(q->lt(q, "a", "b", 1) != NULL);
-  ASSERT(q->like(q, "a", "b") != NULL);
-  ASSERT(q->raw(q, "SELECT 1") != NULL);
-  ASSERT(q->is_null(q, "a", 1) != NULL);
-  ASSERT(q->between(q, "a", "b", "c", 1) != NULL);
-  ASSERT(q->group(q, n_lit) != NULL);
-  ASSERT(q->func(q, "COUNT", "id", "c") != NULL);
-  ASSERT(q->cast_(q, "id", "TEXT") != NULL);
-  ASSERT(q->window(q, "ROW_NUMBER", "id", "id DESC", "rn") != NULL);
+  q->col(q, "id", &tmp);
+  ASSERT(tmp != NULL);
+  q->eq(q, "a", "b", 1, &tmp);
+  ASSERT(tmp != NULL);
+  q->neq(q, "a", "b", 1, &tmp);
+  ASSERT(tmp != NULL);
+  q->gt(q, "a", "b", 1, &tmp);
+  ASSERT(tmp != NULL);
+  q->lt(q, "a", "b", 1, &tmp);
+  ASSERT(tmp != NULL);
+  q->like(q, "a", "b", &tmp);
+  ASSERT(tmp != NULL);
+  q->raw(q, "SELECT 1", &tmp);
+  ASSERT(tmp != NULL);
+  q->is_null(q, "a", 1, &tmp);
+  ASSERT(tmp != NULL);
+  q->between(q, "a", "b", "c", 1, &tmp);
+  ASSERT(tmp != NULL);
+  q->group(q, n_lit, &tmp);
+  ASSERT(tmp != NULL);
+  q->func(q, "COUNT", "id", "c", &tmp);
+  ASSERT(tmp != NULL);
+  q->cast_(q, "id", "TEXT", &tmp);
+  ASSERT(tmp != NULL);
+  q->window(q, "ROW_NUMBER", "id", "id DESC", "rn", &tmp);
+  ASSERT(tmp != NULL);
 
   c_orm_query_new(&q_sub);
   q_sub->select_(q_sub, "1");
-  ASSERT(q->subquery(q, q_sub, "s") != NULL);
-  ASSERT(q->exists(q, q_sub, 1) != NULL);
+  q->subquery(q, q_sub, "s", &tmp);
+  ASSERT(tmp != NULL);
+  q->exists(q, q_sub, 1, &tmp);
+  ASSERT(tmp != NULL);
 
   /* Exhaustive NULL arg tests to reach 100% coverage naturally */
   q->select_(NULL, "a");
@@ -219,76 +179,88 @@ TEST test_query_fluent_coverage(void) {
   q->eager_load(q, NULL, "b");
   q->eager_load(q, NULL, NULL);
 
-  q->group(NULL, n_lit);
-  q->group(q, NULL);
+  q->group(NULL, n_lit, &tmp);
+  q->group(q, n_lit, NULL);
+  q->group(q, NULL, &tmp);
 
-  q->subquery(NULL, q_sub, "a");
-  q->subquery(q, NULL, "a");
-  q->subquery(q, q_sub, NULL);
+  q->subquery(NULL, q_sub, "a", &tmp);
+  q->subquery(q, q_sub, "a", NULL);
+  q->subquery(q, NULL, "a", &tmp);
+  q->subquery(q, q_sub, NULL, &tmp);
 
-  q->func(NULL, "a", "b", "c");
-  q->func(q, NULL, "b", "c");
-  q->func(q, "a", NULL, "c");
-  q->func(q, "a", "b", NULL);
+  q->func(NULL, "a", "b", "c", &tmp);
+  q->func(q, "a", "b", "c", NULL);
+  q->func(q, NULL, "b", "c", &tmp);
+  q->func(q, "a", NULL, "c", &tmp);
+  q->func(q, "a", "b", NULL, &tmp);
 
-  q->cast_(NULL, "a", "b");
-  q->cast_(q, NULL, "b");
-  q->cast_(q, "a", NULL);
+  q->cast_(NULL, "a", "b", &tmp);
+  q->cast_(q, "a", "b", NULL);
+  q->cast_(q, NULL, "b", &tmp);
+  q->cast_(q, "a", NULL, &tmp);
 
-  q->between(NULL, "a", "b", "c", 0);
-  q->between(q, NULL, "b", "c", 0);
-  q->between(q, "a", NULL, "c", 0);
-  q->between(q, "a", "b", NULL, 0);
+  q->between(NULL, "a", "b", "c", 0, &tmp);
+  q->between(q, "a", "b", "c", 0, NULL);
+  q->between(q, NULL, "b", "c", 0, &tmp);
+  q->between(q, "a", NULL, "c", 0, &tmp);
+  q->between(q, "a", "b", NULL, 0, &tmp);
 
-  q->exists(NULL, q_sub, 0);
-  q->exists(q, NULL, 0);
+  q->exists(NULL, q_sub, 0, &tmp);
+  q->exists(q, q_sub, 0, NULL);
+  q->exists(q, NULL, 0, &tmp);
 
-  q->window(NULL, "a", "b", "c", "d");
-  q->window(q, NULL, "b", "c", "d");
-  q->window(q, "a", NULL, "c", "d");
-  q->window(q, "a", "b", NULL, "d");
-  q->window(q, "a", "b", "c", NULL);
+  q->window(NULL, "a", "b", "c", "d", &tmp);
+  q->window(q, "a", "b", "c", "d", NULL);
+  q->window(q, NULL, "b", "c", "d", &tmp);
+  q->window(q, "a", NULL, "c", "d", &tmp);
+  q->window(q, "a", "b", NULL, "d", &tmp);
+  q->window(q, "a", "b", "c", NULL, &tmp);
 
-  q->raw(NULL, "a");
-  q->raw(q, NULL);
+  q->raw(NULL, "a", &tmp);
+  q->raw(q, "a", NULL);
+  q->raw(q, NULL, &tmp);
 
-  q->col(NULL, "a");
-  q->col(q, NULL);
+  q->col(NULL, "a", &tmp);
+  q->col(q, "a", NULL);
+  q->col(q, NULL, &tmp);
 
-  q->lit(NULL, "a", 0);
-  q->lit(q, NULL, 0);
+  q->lit(NULL, "a", 0, &tmp);
+  q->lit(q, "a", 0, NULL);
+  q->lit(q, NULL, 0, &tmp);
 
-  q->eq(NULL, "a", "b", 0);
-  q->eq(q, NULL, "b", 0);
-  q->eq(q, "a", NULL, 0);
+  q->eq(NULL, "a", "b", 0, &tmp);
+  q->eq(q, NULL, "b", 0, &tmp);
+  q->eq(q, "a", NULL, 0, &tmp);
 
-  q->neq(NULL, "a", "b", 0);
-  q->neq(q, NULL, "b", 0);
-  q->neq(q, "a", NULL, 0);
+  q->neq(NULL, "a", "b", 0, &tmp);
+  q->neq(q, NULL, "b", 0, &tmp);
+  q->neq(q, "a", NULL, 0, &tmp);
 
-  q->gt(NULL, "a", "b", 0);
-  q->gt(q, NULL, "b", 0);
-  q->gt(q, "a", NULL, 0);
+  q->gt(NULL, "a", "b", 0, &tmp);
+  q->gt(q, NULL, "b", 0, &tmp);
+  q->gt(q, "a", NULL, 0, &tmp);
 
-  q->lt(NULL, "a", "b", 0);
-  q->lt(q, NULL, "b", 0);
-  q->lt(q, "a", NULL, 0);
+  q->lt(NULL, "a", "b", 0, &tmp);
+  q->lt(q, NULL, "b", 0, &tmp);
+  q->lt(q, "a", NULL, 0, &tmp);
 
-  q->like(NULL, "a", "b");
-  q->like(q, NULL, "b");
-  q->like(q, "a", NULL);
+  q->like(NULL, "a", "b", &tmp);
+  q->like(q, NULL, "b", &tmp);
+  q->like(q, "a", NULL, &tmp);
 
-  q->in(NULL, "a", "b");
-  q->in(q, NULL, "b");
-  q->in(q, "a", NULL);
+  q->in(NULL, "a", "b", &tmp);
+  q->in(q, NULL, "b", &tmp);
+  q->in(q, "a", NULL, &tmp);
 
-  q->op(NULL, "a", n_lit, n_lit);
-  q->op(q, NULL, n_lit, n_lit);
-  q->op(q, "a", NULL, n_lit);
-  q->op(q, "a", n_lit, NULL);
+  q->op(NULL, "a", n_lit, n_lit, &tmp);
+  q->op(q, "a", n_lit, n_lit, NULL);
+  q->op(q, NULL, n_lit, n_lit, &tmp);
+  q->op(q, "a", NULL, n_lit, &tmp);
+  q->op(q, "a", n_lit, NULL, &tmp);
 
-  q->is_null(NULL, "a", 0);
-  q->is_null(q, NULL, 0);
+  q->is_null(NULL, "a", 0, &tmp);
+  q->is_null(q, "a", 0, NULL);
+  q->is_null(q, NULL, 0, &tmp);
 
   {
     c_orm_query_t *q_cloned = NULL;
@@ -298,8 +270,10 @@ TEST test_query_fluent_coverage(void) {
   c_orm_query_new(NULL);
 
   /* IN node */
-  ASSERT(q->in(q, "id", "1,2") != NULL);
-  ASSERT(q->op(q, "AND", n_lit, n_lit) != NULL);
+  q->in(q, "id", "1,2", &tmp);
+  ASSERT(tmp != NULL);
+  q->op(q, "AND", n_lit, n_lit, &tmp);
+  ASSERT(tmp != NULL);
 
   c_orm_query_free(q_sub);
   c_orm_query_free(q);
@@ -377,31 +351,35 @@ TEST test_fluent_oom(void) {
   do {                                                                         \
     c_orm_query_t *oq = NULL;                                                  \
     c_orm_ast_node_t *n = (c_orm_ast_node_t *)1;                               \
+    c_orm_ast_node_t *out_n = NULL;                                            \
     c_orm_query_t *sq = (c_orm_query_t *)1;                                    \
     c_orm_query_new(&oq);                                                      \
     oom_active = 1;                                                            \
     oom_countdown = 0;                                                         \
     (void)sq;                                                                  \
     (void)n;                                                                   \
+    (void)out_n;                                                               \
     expr;                                                                      \
     oom_active = 0;                                                            \
     c_orm_query_free(oq);                                                      \
   } while (0)
 
-  TEST_OOM(oq->raw(oq, "1"));
-  TEST_OOM(oq->col(oq, "1"));
-  TEST_OOM(oq->lit(oq, "1", 0));
-  TEST_OOM(oq->lit(oq, "x\'x", 1));
-  TEST_OOM(oq->op(oq, "=", n, n));
+  TEST_OOM(oq->raw(oq, "1", &out_n));
+  TEST_OOM(oq->col(oq, "1", &out_n));
+  TEST_OOM(oq->lit(oq, "1", 0, &out_n));
+  TEST_OOM(oq->lit(oq, "x'x", 1, &out_n));
+  TEST_OOM(oq->op(oq, "=", n, n, &out_n));
   TEST_OOM(oq->select_(oq, "1"));
   TEST_OOM(oq->from(oq, "1"));
   TEST_OOM(oq->where(oq, n));
   TEST_OOM({
-    oq->where(oq, oq->raw(oq, "1"));
+    oq->raw(oq, "1", &out_n);
+    oq->where(oq, out_n);
     oq->and_where(oq, n);
   });
   TEST_OOM({
-    oq->where(oq, oq->raw(oq, "1"));
+    oq->raw(oq, "1", &out_n);
+    oq->where(oq, out_n);
     oq->or_where(oq, n);
   });
   TEST_OOM(oq->order_by(oq, "1", 0));
@@ -416,14 +394,14 @@ TEST test_fluent_oom(void) {
   TEST_OOM(oq->union_(oq, sq, 0));
   TEST_OOM(oq->from_alias(oq, "1", "2"));
   TEST_OOM(oq->distinct(oq));
-  TEST_OOM(oq->group(oq, n));
-  TEST_OOM(oq->subquery(oq, sq, "s"));
-  TEST_OOM(oq->func(oq, "f", "c", "a"));
-  TEST_OOM(oq->cast_(oq, "c", "t"));
-  TEST_OOM(oq->is_null(oq, "c", 0));
-  TEST_OOM(oq->between(oq, "c", "1", "2", 0));
-  TEST_OOM(oq->exists(oq, sq, 0));
-  TEST_OOM(oq->window(oq, "f", "p", "o", "a"));
+  TEST_OOM(oq->group(oq, n, &out_n));
+  TEST_OOM(oq->subquery(oq, sq, "s", &out_n));
+  TEST_OOM(oq->func(oq, "f", "c", "a", &out_n));
+  TEST_OOM(oq->cast_(oq, "c", "t", &out_n));
+  TEST_OOM(oq->is_null(oq, "c", 0, &out_n));
+  TEST_OOM(oq->between(oq, "c", "1", "2", 0, &out_n));
+  TEST_OOM(oq->exists(oq, sq, 0, &out_n));
+  TEST_OOM(oq->window(oq, "f", "p", "o", "a", &out_n));
 
 #undef TEST_OOM
 
@@ -432,6 +410,7 @@ TEST test_fluent_oom(void) {
     c_orm_query_t *oq = NULL;                                                  \
     void *dummy = NULL;                                                        \
     c_orm_ast_node_t *n = (c_orm_ast_node_t *)1;                               \
+    c_orm_ast_node_t *out_n = NULL;                                            \
     c_orm_query_t *sq = (c_orm_query_t *)1;                                    \
     c_orm_query_new(&oq);                                                      \
     c_orm_arena_alloc(oq->arena, 4096, &dummy);                                \
@@ -439,26 +418,39 @@ TEST test_fluent_oom(void) {
     oom_countdown = (count);                                                   \
     (void)sq;                                                                  \
     (void)n;                                                                   \
+    (void)out_n;                                                               \
     (void)dummy;                                                               \
     expr;                                                                      \
     oom_active = 0;                                                            \
     c_orm_query_free(oq);                                                      \
   } while (0)
 
-  TEST_OOM_COUNT(oq->raw(oq, "1"), 1);
-  TEST_OOM_COUNT(oq->col(oq, "1"), 1);
+  TEST_OOM_COUNT(oq->raw(oq, "1", &out_n), 1);
+  TEST_OOM_COUNT(oq->col(oq, "1", &out_n), 1);
   TEST_OOM_COUNT(oq->select_(oq, "1"), 1);
   TEST_OOM_COUNT(oq->from(oq, "1"), 1);
   TEST_OOM_COUNT(oq->order_by(oq, "1", 0), 1);
   TEST_OOM_COUNT(oq->join(oq, "1", "2", n), 1);
   TEST_OOM_COUNT(oq->join(oq, "1", "2", n), 2);
-  TEST_OOM_COUNT(oq->raw(oq, NULL), 0);
-  TEST_OOM_COUNT(oq->col(oq, NULL), 0);
+  TEST_OOM_COUNT(oq->raw(oq, NULL, &out_n), 0);
+  TEST_OOM_COUNT(oq->col(oq, NULL, &out_n), 0);
   TEST_OOM_COUNT(oq->select_(oq, NULL), 0);
   TEST_OOM_COUNT(oq->from(oq, NULL), 0);
   TEST_OOM_COUNT(oq->order_by(oq, NULL, 0), 0);
   TEST_OOM_COUNT(oq->join(oq, NULL, "2", n), 0);
   TEST_OOM_COUNT(oq->join(oq, NULL, NULL, n), 0);
+  TEST_OOM_COUNT(
+      {
+        oq->where(oq, n);
+        oq->and_where(oq, n);
+      },
+      0);
+  TEST_OOM_COUNT(
+      {
+        oq->where(oq, n);
+        oq->or_where(oq, n);
+      },
+      0);
 #undef TEST_OOM_COUNT
 
   {
@@ -466,15 +458,16 @@ TEST test_fluent_oom(void) {
     char big_str[5000];
     memset(big_str, 'x', 4999);
     big_str[4999] = '\0';
-    big_str[0] = '\'';
+    big_str[0] = '\x27';
 
     while (1) {
       c_orm_error_t err;
       c_orm_query_t *oq = NULL;
+      c_orm_ast_node_t *out_n = NULL;
       c_orm_query_new(&oq);
       oom_active = 1;
       oom_countdown = count;
-      oq->lit(oq, big_str, 1);
+      oq->lit(oq, big_str, 1, &out_n);
       oom_active = 0;
       err = (c_orm_error_t)oq->error;
       c_orm_query_free(oq);
@@ -486,22 +479,25 @@ TEST test_fluent_oom(void) {
 
   {
     c_orm_query_t *qc = NULL;
-    c_orm_ast_node_t *n_raw, *n_group, *n_sq, *n_func, *n_cast, *n_exists,
-        *n_between, *n_window, *n_in, *n_like;
+    c_orm_ast_node_t *n_raw = NULL, *n_group = NULL, *n_sq = NULL,
+                     *n_func = NULL, *n_cast = NULL, *n_exists = NULL,
+                     *n_between = NULL, *n_window = NULL, *n_in = NULL,
+                     *n_like = NULL, *n_lit2 = NULL, *n_eq = NULL;
     c_orm_query_t *sq2 = NULL, *w_sq = NULL, *u = NULL;
 
     c_orm_query_new(&qc);
-    n_raw = qc->raw(qc, "1");
-    n_group = qc->group(qc, qc->lit(qc, "2", 0));
+    qc->raw(qc, "1", &n_raw);
+    qc->lit(qc, "2", 0, &n_lit2);
+    qc->group(qc, n_lit2, &n_group);
     c_orm_query_new(&sq2);
-    n_sq = qc->subquery(qc, sq2, "sq_alias");
-    n_func = qc->func(qc, "COUNT", "id", "c");
-    n_cast = qc->cast_(qc, "id", "TEXT");
-    n_exists = qc->exists(qc, sq2, 0);
-    n_between = qc->between(qc, "age", "10", "20", 0);
-    n_window = qc->window(qc, "RANK", "id", "id", "r");
-    n_in = qc->in(qc, "id", "1,2");
-    n_like = qc->like(qc, "name", "sam%");
+    qc->subquery(qc, sq2, "sq_alias", &n_sq);
+    qc->func(qc, "COUNT", "id", "c", &n_func);
+    qc->cast_(qc, "id", "TEXT", &n_cast);
+    qc->exists(qc, sq2, 0, &n_exists);
+    qc->between(qc, "age", "10", "20", 0, &n_between);
+    qc->window(qc, "RANK", "id", "id", "r", &n_window);
+    qc->in(qc, "id", "1,2", &n_in);
+    qc->like(qc, "name", "sam%", &n_like);
 
     qc->and_where(qc, n_raw);
     qc->and_where(qc, n_group);
@@ -515,7 +511,8 @@ TEST test_fluent_oom(void) {
     qc->and_where(qc, n_like);
     qc->group_by(qc, "id");
     qc->having(qc, n_raw);
-    qc->join(qc, "users", "INNER", qc->eq(qc, "a", "b", 0));
+    qc->eq(qc, "a", "b", 0, &n_eq);
+    qc->join(qc, "users", "INNER", n_eq);
     c_orm_query_new(&w_sq);
     w_sq->select_(w_sq, "1");
     qc->with(qc, "w", w_sq);
@@ -589,6 +586,18 @@ TEST test_fluent_oom(void) {
       oom_active = 0;
       c_orm_query_free(qo);
     }
+    {
+      c_orm_query_t *qo = NULL;
+      void *dummy = NULL;
+      c_orm_query_new(&qo);
+      qo->select_(qo, "*");
+      c_orm_arena_alloc(qo->arena, 4000, &dummy);
+      oom_active = 1;
+      oom_countdown = 1;
+      qo->eager_load(qo, &meta, "my_rel");
+      oom_active = 0;
+      c_orm_query_free(qo);
+    }
     c_orm_query_free(qe);
   }
 
@@ -597,7 +606,8 @@ TEST test_fluent_oom(void) {
     c_orm_ast_node_t *n;
     c_orm_query_t *qc2 = NULL;
     c_orm_query_new(&qc);
-    n = qc->where(qc, NULL)->ast_head;
+    qc->where(qc, NULL);
+    n = qc->ast_head;
     (void)n;
     qc->clone(qc, &qc2);
     c_orm_query_free(qc2);
@@ -610,9 +620,9 @@ TEST test_fluent_oom(void) {
 
   {
     c_orm_query_t *oq = NULL;
-    c_orm_ast_node_t *n;
+    c_orm_ast_node_t *n = NULL;
     c_orm_query_new(&oq);
-    n = oq->raw(oq, "1");
+    oq->raw(oq, "1", &n);
     oq->where(oq, NULL);
     oq->and_where(oq, n);
     c_orm_query_free(oq);
@@ -620,9 +630,9 @@ TEST test_fluent_oom(void) {
 
   {
     c_orm_query_t *oq = NULL;
-    c_orm_ast_node_t *n;
+    c_orm_ast_node_t *n = NULL;
     c_orm_query_new(&oq);
-    n = oq->raw(oq, "1");
+    oq->raw(oq, "1", &n);
     oq->where(oq, NULL);
     oq->or_where(oq, n);
     c_orm_query_free(oq);
@@ -630,11 +640,11 @@ TEST test_fluent_oom(void) {
 
   {
     c_orm_query_t *oq = NULL;
-    c_orm_ast_node_t *n;
+    c_orm_ast_node_t *n = NULL;
     c_orm_query_new(&oq);
     oq->select_(oq, "1");
     oq->from(oq, "t");
-    n = oq->raw(oq, "1");
+    oq->raw(oq, "1", &n);
     oq->or_where(oq, n);
     c_orm_query_free(oq);
   }
@@ -657,6 +667,7 @@ TEST test_sql_oom(void) {
   c_orm_query_t *q = NULL;
   char *sql = NULL;
   c_orm_query_params_t p;
+  c_orm_ast_node_t *eq_n = NULL;
   int i;
 
   /* Target lines 560-565 in c_orm_query_sql.c: out_sql malloc OOM */
@@ -683,7 +694,10 @@ TEST test_sql_oom(void) {
   c_orm_query_new(&q);
   c_orm_query_params_init(&p);
 
-  q->select_(q, "id")->from(q, "users")->where(q, q->eq(q, "id", "1", 0));
+  q->select_(q, "id");
+  q->from(q, "users");
+  q->eq(q, "id", "1", 0, &eq_n);
+  q->where(q, eq_n);
 
   /* OOM query_to_sql */
   for (i = 0; i < 20; i++) {
@@ -699,17 +713,26 @@ TEST test_sql_oom(void) {
 
   {
     c_orm_query_t *qb = NULL;
+    c_orm_ast_node_t *n = NULL;
     c_orm_query_new(&qb);
-    qb->select_(qb, "1")
-        ->from(qb, "t")
-        ->where(qb, qb->eq(qb, "a", "1", 0))
-        ->and_where(qb, qb->eq(qb, "a", "2", 0))
-        ->and_where(qb, qb->eq(qb, "a", "3", 0))
-        ->and_where(qb, qb->eq(qb, "a", "4", 0))
-        ->and_where(qb, qb->eq(qb, "a", "5", 0))
-        ->and_where(qb, qb->eq(qb, "a", "6", 0))
-        ->and_where(qb, qb->eq(qb, "a", "7", 0))
-        ->and_where(qb, qb->between(qb, "a", "8", "9", 0));
+    qb->select_(qb, "1");
+    qb->from(qb, "t");
+    qb->eq(qb, "a", "1", 0, &n);
+    qb->where(qb, n);
+    qb->eq(qb, "a", "2", 0, &n);
+    qb->and_where(qb, n);
+    qb->eq(qb, "a", "3", 0, &n);
+    qb->and_where(qb, n);
+    qb->eq(qb, "a", "4", 0, &n);
+    qb->and_where(qb, n);
+    qb->eq(qb, "a", "5", 0, &n);
+    qb->and_where(qb, n);
+    qb->eq(qb, "a", "6", 0, &n);
+    qb->and_where(qb, n);
+    qb->eq(qb, "a", "7", 0, &n);
+    qb->and_where(qb, n);
+    qb->between(qb, "a", "8", "9", 0, &n);
+    qb->and_where(qb, n);
     for (i = 0; i < 20; i++) {
       oom_active = 1;
       oom_countdown = i;
@@ -725,14 +748,18 @@ TEST test_sql_oom(void) {
 
   {
     c_orm_query_t *qb = NULL, *sq = NULL;
+    c_orm_ast_node_t *n = NULL;
     c_orm_query_new(&qb);
     c_orm_query_new(&sq);
     sq->select_(sq, "1");
 
     qb->with(qb, "cte", sq);
-    qb->select_(qb, "1")->from(qb, "t");
-    qb->where(qb, qb->exists(qb, sq, 0));
-    qb->and_where(qb, qb->subquery(qb, sq, "alias"));
+    qb->select_(qb, "1");
+    qb->from(qb, "t");
+    qb->exists(qb, sq, 0, &n);
+    qb->where(qb, n);
+    qb->subquery(qb, sq, "alias", &n);
+    qb->and_where(qb, n);
     qb->union_(qb, sq, 0);
 
     for (i = 0; i < 50; i++) {
@@ -782,16 +809,17 @@ TEST test_query_sql_coverage(void) {
   c_orm_query_t *q = NULL;
   char *sql = NULL;
   c_orm_query_params_t p;
-  c_orm_ast_node_t *f;
-  c_orm_ast_node_t *c;
-  c_orm_ast_node_t *w;
-  c_orm_ast_node_t *r;
+  c_orm_ast_node_t *f = NULL;
+  c_orm_ast_node_t *c = NULL;
+  c_orm_ast_node_t *w = NULL;
+  c_orm_ast_node_t *r = NULL;
+  c_orm_ast_node_t *tmp = NULL;
   c_orm_query_t *sq = NULL;
   c_orm_query_t *u = NULL;
   c_orm_query_t *q_sq = NULL;
-  c_orm_ast_node_t *r_exists;
-  c_orm_ast_node_t *r_not_exists;
-  c_orm_ast_node_t *r_sub;
+  c_orm_ast_node_t *r_exists = NULL;
+  c_orm_ast_node_t *r_not_exists = NULL;
+  c_orm_ast_node_t *r_sub = NULL;
   char *pg_sql = NULL;
   c_orm_query_params_t pg_p;
   c_orm_query_t *pg_q = NULL;
@@ -808,26 +836,33 @@ TEST test_query_sql_coverage(void) {
   c_orm_query_params_init(&p);
 
   /* Complex Select to hit all SQL generation paths */
-  q->select_(q, "id, name")
-      ->distinct(q)
-      ->from_alias(q, "users", "u")
-      ->join(q, "posts", "INNER", q->eq(q, "posts.u_id", "u.id", 0))
-      ->left_join(q, "comments", q->eq(q, "comments.p_id", "posts.id", 0))
-      ->right_join(q, "likes", q->eq(q, "likes.p_id", "posts.id", 0))
-      ->where(q, q->is_null(q, "deleted_at", 0))
-      ->and_where(q, q->between(q, "age", "18", "30", 0))
-      ->or_where(q, q->like(q, "name", "sam%"))
-      ->group_by(q, "id")
-      ->having(q, q->gt(q, "id", "5", 0))
-      ->order_by(q, "id", 1) /* desc */
-      ->limit(q, 10)
-      ->offset(q, 5);
+  q->select_(q, "id, name");
+  q->distinct(q);
+  q->from_alias(q, "users", "u");
+  q->eq(q, "posts.u_id", "u.id", 0, &tmp);
+  q->join(q, "posts", "INNER", tmp);
+  q->eq(q, "comments.p_id", "posts.id", 0, &tmp);
+  q->left_join(q, "comments", tmp);
+  q->eq(q, "likes.p_id", "posts.id", 0, &tmp);
+  q->right_join(q, "likes", tmp);
+  q->is_null(q, "deleted_at", 0, &tmp);
+  q->where(q, tmp);
+  q->between(q, "age", "18", "30", 0, &tmp);
+  q->and_where(q, tmp);
+  q->like(q, "name", "sam%", &tmp);
+  q->or_where(q, tmp);
+  q->group_by(q, "id");
+  q->gt(q, "id", "5", 0, &tmp);
+  q->having(q, tmp);
+  q->order_by(q, "id", 1); /* desc */
+  q->limit(q, 10);
+  q->offset(q, 5);
 
   /* Add functions, window, cast, raw */
-  f = q->func(q, "MAX", "age", "max_age");
-  c = q->cast_(q, "id", "TEXT");
-  w = q->window(q, "RANK", "id", "id DESC", "rn");
-  r = q->raw(q, "1=1");
+  q->func(q, "MAX", "age", "max_age", &f);
+  q->cast_(q, "id", "TEXT", &c);
+  q->window(q, "RANK", "id", "id DESC", "rn", &w);
+  q->raw(q, "1=1", &r);
 
   /* We append them to where so they get compiled */
   q->and_where(q, f);
@@ -837,7 +872,8 @@ TEST test_query_sql_coverage(void) {
 
   /* Subquery and UNION */
   c_orm_query_new(&sq);
-  sq->select_(sq, "id")->from(sq, "other");
+  sq->select_(sq, "id");
+  sq->from(sq, "other");
   q->with(q, "cte", sq);
 
   c_orm_query_new(&u);
@@ -848,9 +884,9 @@ TEST test_query_sql_coverage(void) {
   c_orm_query_new(&q_sq);
   q_sq->select_(q_sq, "1");
 
-  r_exists = q->exists(q, q_sq, 0);
-  r_not_exists = q->exists(q, q_sq, 1);
-  r_sub = q->subquery(q, q_sq, "my_sq");
+  q->exists(q, q_sq, 0, &r_exists);
+  q->exists(q, q_sq, 1, &r_not_exists);
+  q->subquery(q, q_sq, "my_sq", &r_sub);
 
   q->and_where(q, r_exists);
   q->and_where(q, r_not_exists);
@@ -871,14 +907,19 @@ TEST test_query_sql_coverage(void) {
   {
     c_orm_query_t *q_inline = NULL;
     char *sql_inline = NULL;
+    c_orm_ast_node_t *n1 = NULL, *n2 = NULL, *n3 = NULL, *n4 = NULL, *n5 = NULL;
     c_orm_query_new(&q_inline);
-    q_inline->select_(q_inline, "1")
-        ->from(q_inline, "t")
-        ->where(q_inline, q_inline->between(q_inline, "a", "1", "2", 1))
-        ->and_where(q_inline, q_inline->eq(q_inline, "b", "3", 1))
-        ->and_where(q_inline, q_inline->in(q_inline, "c", "4,5"))
-        ->and_where(q_inline,
-                    q_inline->group(q_inline, q_inline->lit(q_inline, "6", 1)));
+    q_inline->select_(q_inline, "1");
+    q_inline->from(q_inline, "t");
+    q_inline->between(q_inline, "a", "1", "2", 1, &n1);
+    q_inline->where(q_inline, n1);
+    q_inline->eq(q_inline, "b", "3", 1, &n2);
+    q_inline->and_where(q_inline, n2);
+    q_inline->in(q_inline, "c", "4,5", &n3);
+    q_inline->and_where(q_inline, n3);
+    q_inline->lit(q_inline, "6", 1, &n4);
+    q_inline->group(q_inline, n4, &n5);
+    q_inline->and_where(q_inline, n5);
 
     c_orm_query_to_sql(q_inline, C_ORM_DIALECT_POSTGRES, &sql_inline, NULL);
     C_ORM_FREE(sql_inline);
@@ -892,10 +933,12 @@ TEST test_query_sql_coverage(void) {
   /* Render Postgres params manually */
   c_orm_query_params_init(&pg_p);
   c_orm_query_new(&pg_q);
-  pg_q->select_(pg_q, "1")
-      ->from(pg_q, "t")
-      ->where(pg_q, pg_q->between(pg_q, "a", "1", "2", 0))
-      ->and_where(pg_q, pg_q->in(pg_q, "c", "1, 2"));
+  pg_q->select_(pg_q, "1");
+  pg_q->from(pg_q, "t");
+  pg_q->between(pg_q, "a", "1", "2", 0, &tmp);
+  pg_q->where(pg_q, tmp);
+  pg_q->in(pg_q, "c", "1, 2", &tmp);
+  pg_q->and_where(pg_q, tmp);
   c_orm_query_to_sql(pg_q, C_ORM_DIALECT_POSTGRES, &pg_sql, &pg_p);
   C_ORM_FREE(pg_sql);
   pg_sql = NULL;
@@ -924,7 +967,10 @@ TEST test_query_sql_coverage(void) {
     c_orm_query_t *qn = NULL;
     char *sql_n = NULL;
     c_orm_query_new(&qn);
-    qn->select_(qn, "1")->from(qn, "t")->where(qn, qn->group(qn, NULL));
+    qn->select_(qn, "1");
+    qn->from(qn, "t");
+    qn->group(qn, NULL, &tmp);
+    qn->where(qn, tmp);
     c_orm_query_to_sql(qn, C_ORM_DIALECT_SQLITE, &sql_n, NULL);
     C_ORM_FREE(sql_n);
     sql_n = NULL;
@@ -934,9 +980,9 @@ TEST test_query_sql_coverage(void) {
   {
     c_orm_query_t *qn = NULL;
     char *sql_n = NULL;
-    c_orm_ast_node_t *dummy_node;
+    c_orm_ast_node_t *dummy_node = NULL;
     c_orm_query_new(&qn);
-    dummy_node = qn->raw(qn, "1");
+    qn->raw(qn, "1", &dummy_node);
     dummy_node->type = (c_orm_ast_node_type_t)999;
     qn->ast_head = dummy_node;
     c_orm_query_to_sql(qn, C_ORM_DIALECT_SQLITE, &sql_n, NULL);
@@ -944,7 +990,10 @@ TEST test_query_sql_coverage(void) {
     sql_n = NULL;
 
     qn->ast_head = NULL;
-    qn->select_(qn, "1")->from(qn, "t")->where(qn, qn->group(qn, dummy_node));
+    qn->select_(qn, "1");
+    qn->from(qn, "t");
+    qn->group(qn, dummy_node, &tmp);
+    qn->where(qn, tmp);
     c_orm_query_to_sql(qn, C_ORM_DIALECT_SQLITE, &sql_n, NULL);
     C_ORM_FREE(sql_n);
     sql_n = NULL;
@@ -961,8 +1010,10 @@ TEST test_query_sql_coverage(void) {
     old_depth = cdd_c_sql_parser_max_depth;
 
     c_orm_query_new(&q1);
-    q1->select_(q1, "1")->from(q1, "t")->join(q1, "t2", "INNER",
-                                              q1->eq(q1, "a", "b", 0));
+    q1->select_(q1, "1");
+    q1->from(q1, "t");
+    q1->eq(q1, "a", "b", 0, &tmp);
+    q1->join(q1, "t2", "INNER", tmp);
     cdd_c_sql_parser_max_depth = 0;
     c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql_d, NULL);
     ASSERT_EQ(NULL, sql_d);
@@ -970,7 +1021,10 @@ TEST test_query_sql_coverage(void) {
     c_orm_query_free(q1);
 
     c_orm_query_new(&q2);
-    q2->select_(q2, "1")->from(q2, "t")->having(q2, q2->eq(q2, "c", "d", 0));
+    q2->select_(q2, "1");
+    q2->from(q2, "t");
+    q2->eq(q2, "c", "d", 0, &tmp);
+    q2->having(q2, tmp);
     cdd_c_sql_parser_max_depth = 0;
     c_orm_query_to_sql(q2, C_ORM_DIALECT_SQLITE, &sql_d, NULL);
     ASSERT_EQ(NULL, sql_d);
@@ -981,7 +1035,8 @@ TEST test_query_sql_coverage(void) {
   {
     c_orm_query_t *qo = NULL;
     c_orm_query_new(&qo);
-    qo->select_(qo, "1")->from(qo, "t");
+    qo->select_(qo, "1");
+    qo->from(qo, "t");
 
     oom_active = 1;
     oom_countdown = 0;
@@ -1005,13 +1060,17 @@ TEST test_query_sql_coverage(void) {
     c_orm_query_t *qb = NULL;
     int i;
     char big[4500];
+    c_orm_ast_node_t *r_big = NULL, *g_big = NULL;
 
     c_orm_query_params_init(&p);
     c_orm_query_new(&qb);
     memset(big, 'a', 4499);
     big[4499] = '\0';
-    qb->select_(qb, "1")->from(qb, "t")->where(qb,
-                                               qb->group(qb, qb->raw(qb, big)));
+    qb->select_(qb, "1");
+    qb->from(qb, "t");
+    qb->raw(qb, big, &r_big);
+    qb->group(qb, r_big, &g_big);
+    qb->where(qb, g_big);
 
     for (i = 0; i < 20; i++) {
       oom_active = 1;
@@ -1040,15 +1099,17 @@ TEST test_query_sql_coverage(void) {
   ASSERT_EQ(C_ORM_OK, err);
 
   c_orm_query_new(&qe);
-  qe->select_(qe, "id")
-      ->from(qe, "t_exec")
-      ->where(qe, qe->eq(qe, "id", "1", 0));
+  qe->select_(qe, "id");
+  qe->from(qe, "t_exec");
+  qe->eq(qe, "id", "1", 0, &tmp);
+  qe->where(qe, tmp);
 
   c_orm_query_execute(exec_db, qe);
 
   /* Mock prepare fail */
   c_orm_query_new(&q_bad);
-  q_bad->select_(q_bad, "id")->from(q_bad, "bad_table");
+  q_bad->select_(q_bad, "id");
+  q_bad->from(q_bad, "bad_table");
   c_orm_query_execute(exec_db, q_bad);
   c_orm_query_free(q_bad);
 
@@ -1090,9 +1151,10 @@ TEST test_query_sql_coverage(void) {
 
   /* fetch_one empty */
   c_orm_query_new(&q_emp);
-  q_emp->select_(q_emp, "id")
-      ->from(q_emp, "t_exec")
-      ->where(q_emp, q_emp->eq(q_emp, "id", "2", 0));
+  q_emp->select_(q_emp, "id");
+  q_emp->from(q_emp, "t_exec");
+  q_emp->eq(q_emp, "id", "2", 0, &tmp);
+  q_emp->where(q_emp, tmp);
   c_orm_query_fetch_one(exec_db, q_emp, &meta, &res_obj);
   c_orm_query_free(q_emp);
 
@@ -1116,9 +1178,10 @@ TEST test_query_sql_coverage(void) {
     exec_db->vtable = (const c_orm_driver_vtable_t *)&vtable_fin;
 
     c_orm_query_new(&qf);
-    qf->select_(qf, "id")
-        ->from(qf, "t_exec")
-        ->where(qf, qf->eq(qf, "id", "1", 1));
+    qf->select_(qf, "id");
+    qf->from(qf, "t_exec");
+    qf->eq(qf, "id", "1", 1, &tmp);
+    qf->where(qf, tmp);
 
     my_fail_finalize = 1;
     fail_bind = 1;
@@ -1142,7 +1205,8 @@ TEST test_query_sql_coverage(void) {
       exec_db->vtable = sqlite_vt;
       memset(&my_arr, 0, sizeof(my_arr));
       c_orm_query_new(&q_all);
-      q_all->select_(q_all, "id")->from(q_all, "t_exec");
+      q_all->select_(q_all, "id");
+      q_all->from(q_all, "t_exec");
       fa_err = c_orm_query_fetch_all(exec_db, q_all, &meta, &my_arr);
       ASSERT_EQ_FMT(C_ORM_OK, fa_err, "%d");
       c_orm_query_free(q_all);
@@ -1212,8 +1276,10 @@ static c_orm_error_t mock_prepare(c_orm_db_t *db, const char *sql,
   return C_ORM_ERROR_SQL;
 }
 
-/* mock_step and mock_fin removed for coverage */
-
+/**
+ * @brief Tests query execution failure handling when SQL conversion fails.
+ * @return GREATEST test result.
+ */
 TEST test_query_sql_to_sql_fail(void) {
   void *(*old_malloc)(size_t) = c_orm_malloc;
   void *(*old_realloc)(void *, size_t) = c_orm_realloc;
@@ -1235,7 +1301,8 @@ TEST test_query_sql_to_sql_fail(void) {
   {
     c_orm_query_t *q_prep = NULL;
     c_orm_query_new(&q_prep);
-    q_prep->select_(q_prep, "1")->from(q_prep, "t");
+    q_prep->select_(q_prep, "1");
+    q_prep->from(q_prep, "t");
     c_orm_query_execute(&db, q_prep);
     c_orm_query_free(q_prep);
   }
@@ -1446,30 +1513,30 @@ TEST fluent_exhaustive_oom(void) {
       c_orm_query_new(&query);
       if (extra == 0) {
         query->group_by(query, "id");
-        cond = query->eq(query, "id", "123", 0);
+        query->eq(query, "id", "123", 0, &cond);
         query->having(query, cond);
         query->order_by(query, "id", 1);
         query->limit(query, 10);
         query->offset(query, 5);
-        cond = query->raw(query, "1=1");
-        cond = query->group(query, cond);
+        query->raw(query, "1=1", &cond);
+        query->group(query, cond, &cond);
         query->and_where(query, cond);
-        cond = query->subquery(query, subq, "sub");
+        query->subquery(query, subq, "sub", &cond);
         query->and_where(query, cond);
         query->union_(query, subq, 0);
         query->with(query, "w", subq);
       } else if (extra == 1) {
-        cond = query->func(query, "MAX", "id", "max_id");
+        query->func(query, "MAX", "id", "max_id", &cond);
         query->and_where(query, cond);
-        cond = query->cast_(query, "id", "TEXT");
+        query->cast_(query, "id", "TEXT", &cond);
         query->and_where(query, cond);
-        cond = query->between(query, "id", "1", "10", 0);
+        query->between(query, "id", "1", "10", 0, &cond);
         query->and_where(query, cond);
-        cond = query->exists(query, subq, 0);
+        query->exists(query, subq, 0, &cond);
         query->and_where(query, cond);
-        cond = query->window(query, "ROW_NUMBER", "id", "id DESC", "rn");
+        query->window(query, "ROW_NUMBER", "id", "id DESC", "rn", &cond);
         query->and_where(query, cond);
-        cond = query->eq(query, "id", "123", 0);
+        query->eq(query, "id", "123", 0, &cond);
         query->join(query, "posts", "INNER JOIN", cond);
       } else if (extra == 2) {
         size_t k;
@@ -1480,7 +1547,7 @@ TEST fluent_exhaustive_oom(void) {
         query->right_join(query, "posts", NULL);
         query->distinct(query);
         query->from_alias(query, "users", "u");
-        cond = query->is_null(query, "id", 1);
+        query->is_null(query, "id", 1, &cond);
         query->and_where(query, cond);
       }
 
@@ -1701,41 +1768,41 @@ TEST query_sql_exhaustive_oom(void) {
     query->from(query, "t");
 
     if (extra == 0) {
-      cond = query->between(query, "id", "1", "10", 0);
+      query->between(query, "id", "1", "10", 0, &cond);
       query->where(query, cond);
     } else if (extra == 1) {
       static char bufs1[7][16];
       for (i = 0; i < 7; i++) {
         C_ORM_SPRINTF(bufs1[i], sizeof(bufs1[i]), "c%d", i);
-        cond = query->eq(query, bufs1[i], "1", 0);
+        query->eq(query, bufs1[i], "1", 0, &cond);
         query->and_where(query, cond);
       }
-      cond = query->between(query, "id", "1", "10", 0);
+      query->between(query, "id", "1", "10", 0, &cond);
       query->and_where(query, cond);
     } else if (extra == 2) {
       static char bufs2[8][16];
       for (i = 0; i < 8; i++) {
         C_ORM_SPRINTF(bufs2[i], sizeof(bufs2[i]), "c%d", i);
-        cond = query->eq(query, bufs2[i], "1", 0);
+        query->eq(query, bufs2[i], "1", 0, &cond);
         query->and_where(query, cond);
       }
-      cond = query->eq(query, "id", "1", 0);
-      cond = query->group(query, cond);
+      query->eq(query, "id", "1", 0, &cond);
+      query->group(query, cond, &cond);
       query->and_where(query, cond);
     } else if (extra == 3) {
-      cond = query->eq(query, "a", "1", 0);
+      query->eq(query, "a", "1", 0, &cond);
       query->where(query, cond);
     } else if (extra == 4) {
       query->limit(query, 10);
     } else if (extra == 5) {
       query->order_by(query, "id", 0);
     } else if (extra == 6) {
-      cond = query->exists(query, subq, 0);
+      query->exists(query, subq, 0, &cond);
       query->where(query, cond);
-      cond = query->exists(query, subq, 1);
+      query->exists(query, subq, 1, &cond);
       query->and_where(query, cond);
     } else if (extra == 7) {
-      cond = query->subquery(query, subq, "alias");
+      query->subquery(query, subq, "alias", &cond);
       query->where(query, cond);
     } else {
       query->union_(query, subq, 0);
@@ -1816,6 +1883,7 @@ TEST test_fluent_error_state_branches(void) {
   c_orm_table_meta_t target_meta;
   c_orm_column_meta_t target_col;
   c_orm_ast_node_t bad_node;
+  c_orm_ast_node_t *tmp = NULL;
   c_orm_error_t rc;
 
   rc = c_orm_query_new(&q);
@@ -1831,7 +1899,8 @@ TEST test_fluent_error_state_branches(void) {
   q->ast_head = NULL;
 
   /* Clone with exists node */
-  q->where(q, q->exists(q, subq, 0));
+  q->exists(q, subq, 0, &tmp);
+  q->where(q, tmp);
   rc = q->clone(q, &cloned);
   ASSERT_EQ(C_ORM_OK, rc);
   c_orm_query_free(cloned);
@@ -1875,23 +1944,23 @@ TEST test_fluent_error_state_branches(void) {
   ASSERT_NEQ(C_ORM_OK, q->clone(q, NULL));
   q->with(q, "cte", NULL);
   q->union_(q, NULL, 1);
-  q->subquery(q, NULL, "s");
-  q->exists(q, NULL, 0);
+  q->subquery(q, NULL, "s", &tmp);
+  q->exists(q, NULL, 0, &tmp);
 
   /* Error state branches */
   q->error = 1;
 
-  q->raw(q, "SELECT 1");
-  q->col(q, "id");
-  q->lit(q, "123", 0);
-  q->lit(q, "str", 1);
-  q->op(q, "+", NULL, NULL);
-  q->eq(q, "id", "1", 0);
-  q->neq(q, "id", "1", 0);
-  q->gt(q, "id", "1", 0);
-  q->lt(q, "id", "1", 0);
-  q->like(q, "name", "%test%");
-  q->in(q, "id", 0);
+  q->raw(q, "SELECT 1", &tmp);
+  q->col(q, "id", &tmp);
+  q->lit(q, "123", 0, &tmp);
+  q->lit(q, "str", 1, &tmp);
+  q->op(q, "+", NULL, NULL, &tmp);
+  q->eq(q, "id", "1", 0, &tmp);
+  q->neq(q, "id", "1", 0, &tmp);
+  q->gt(q, "id", "1", 0, &tmp);
+  q->lt(q, "id", "1", 0, &tmp);
+  q->like(q, "name", "%test%", &tmp);
+  q->in(q, "id", 0, &tmp);
   q->select_(q, "id");
   q->from(q, "users");
   q->from_alias(q, "users", "u");
@@ -1909,14 +1978,14 @@ TEST test_fluent_error_state_branches(void) {
   q->with(q, "cte", subq);
   q->union_(q, subq, 1);
   q->distinct(q);
-  q->group(q, NULL);
-  q->subquery(q, subq, "s");
-  q->func(q, "COUNT", "*", "cnt");
-  q->cast_(q, "id", "TEXT");
-  q->is_null(q, "deleted_at", 0);
-  q->between(q, "age", "18", "65", 0);
-  q->exists(q, subq, 0);
-  q->window(q, "ROW_NUMBER()", "dept", "salary DESC", "rn");
+  q->group(q, NULL, &tmp);
+  q->subquery(q, subq, "s", &tmp);
+  q->func(q, "COUNT", "*", "cnt", &tmp);
+  q->cast_(q, "id", "TEXT", &tmp);
+  q->is_null(q, "deleted_at", 0, &tmp);
+  q->between(q, "age", "18", "65", 0, &tmp);
+  q->exists(q, subq, 0, &tmp);
+  q->window(q, "ROW_NUMBER()", "dept", "salary DESC", "rn", &tmp);
 
   c_orm_query_free(q);
   c_orm_query_free(subq);
@@ -1974,15 +2043,17 @@ TEST test_query_sql_all_branches(void) {
   /* 3. SQL generation variations with params == NULL (inlined literals &
    * between) */
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&q1));
-  q1->select_(q1, "id")
-      ->from(q1, "users")
-      ->where(q1, q1->eq(q1, "name", "alice", 1)) /* string literal */
-      ->and_where(q1, q1->eq(q1, "age", "25", 0)) /* non-string literal */
-      ->and_where(q1, q1->between(q1, "created_at", "2020", "2025",
-                                  1)) /* string between */
-      ->and_where(
-          q1, q1->between(q1, "score", "10", "100", 0)) /* non-string between */
-      ->order_by(q1, "id", 0); /* ASC (ord->is_desc = 0) */
+  q1->select_(q1, "id");
+  q1->from(q1, "users");
+  q1->eq(q1, "name", "alice", 1, &n); /* string literal */
+  q1->where(q1, n);
+  q1->eq(q1, "age", "25", 0, &n); /* non-string literal */
+  q1->and_where(q1, n);
+  q1->between(q1, "created_at", "2020", "2025", 1, &n); /* string between */
+  q1->and_where(q1, n);
+  q1->between(q1, "score", "10", "100", 0, &n); /* non-string between */
+  q1->and_where(q1, n);
+  q1->order_by(q1, "id", 0); /* ASC (ord->is_desc = 0) */
   ASSERT_EQ(C_ORM_OK, c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql, NULL));
   ASSERT(strstr(sql, "ASC") != NULL);
   ASSERT(strstr(sql, "'alice'") != NULL);
@@ -1997,11 +2068,12 @@ TEST test_query_sql_all_branches(void) {
   /* 4. Union without all (is_all = 0), Distinct, Table without alias */
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&q1));
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&subq));
-  subq->select_(subq, "id")->from(subq, "other_users");
+  subq->select_(subq, "id");
+  subq->from(subq, "other_users");
 
-  q1->select_(q1, "id")
-      ->from(q1, "users")    /* no alias */
-      ->union_(q1, subq, 0); /* UNION (is_all = 0) */
+  q1->select_(q1, "id");
+  q1->from(q1, "users");   /* no alias */
+  q1->union_(q1, subq, 0); /* UNION (is_all = 0) */
   ASSERT_EQ(C_ORM_OK, c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql, NULL));
   ASSERT(strstr(sql, " UNION ") != NULL);
   c_orm_free(sql);
@@ -2013,10 +2085,14 @@ TEST test_query_sql_all_branches(void) {
    * without alias */
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&q1));
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&subq));
-  subq->select_(subq, "1")->from(subq, "logs");
+  subq->select_(subq, "1");
+  subq->from(subq, "logs");
 
   /* Exists NOT */
-  q1->select_(q1, "id")->from(q1, "users")->where(q1, q1->exists(q1, subq, 1));
+  q1->select_(q1, "id");
+  q1->from(q1, "users");
+  q1->exists(q1, subq, 1, &n);
+  q1->where(q1, n);
   ASSERT_EQ(C_ORM_OK, c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql, NULL));
   ASSERT(strstr(sql, "NOT EXISTS") != NULL);
   c_orm_free(sql);
@@ -2026,9 +2102,11 @@ TEST test_query_sql_all_branches(void) {
 
   /* Window without order_by, Window without partition_by */
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&q1));
-  n = q1->window(q1, "AVG(val)", "dept", NULL,
-                 NULL); /* no order_by, no alias */
-  q1->select_(q1, "id")->from(q1, "t")->where(q1, n);
+  q1->window(q1, "AVG(val)", "dept", NULL, NULL,
+             &n); /* no order_by, no alias */
+  q1->select_(q1, "id");
+  q1->from(q1, "t");
+  q1->where(q1, n);
   ASSERT_EQ(C_ORM_OK, c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql, NULL));
   ASSERT(strstr(sql, "PARTITION BY dept") != NULL);
   c_orm_free(sql);
@@ -2037,9 +2115,11 @@ TEST test_query_sql_all_branches(void) {
   q1 = NULL;
 
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&q1));
-  n = q1->window(q1, "COUNT(*)", NULL, "salary ASC",
-                 "cnt"); /* no partition_by */
-  q1->select_(q1, "id")->from(q1, "t")->where(q1, n);
+  q1->window(q1, "COUNT(*)", NULL, "salary ASC", "cnt",
+             &n); /* no partition_by */
+  q1->select_(q1, "id");
+  q1->from(q1, "t");
+  q1->where(q1, n);
   ASSERT_EQ(C_ORM_OK, c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql, NULL));
   ASSERT(strstr(sql, "ORDER BY salary ASC") != NULL);
   c_orm_free(sql);
@@ -2050,10 +2130,12 @@ TEST test_query_sql_all_branches(void) {
   /* Subquery without alias */
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&q1));
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&subq));
-  subq->select_(subq, "MAX(id)")->from(subq, "t");
-  q1->select_(q1, "id")
-      ->from(q1, "users")
-      ->where(q1, q1->subquery(q1, subq, NULL));
+  subq->select_(subq, "MAX(id)");
+  subq->from(subq, "t");
+  q1->select_(q1, "id");
+  q1->from(q1, "users");
+  q1->subquery(q1, subq, NULL, &n);
+  q1->where(q1, n);
   ASSERT_EQ(C_ORM_OK, c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql, NULL));
   c_orm_free(sql);
   sql = NULL;
@@ -2062,8 +2144,10 @@ TEST test_query_sql_all_branches(void) {
 
   /* Function without alias */
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&q1));
-  q1->select_(q1, "id")->from(q1, "t")->where(
-      q1, q1->func(q1, "LOWER", "name", NULL));
+  q1->select_(q1, "id");
+  q1->from(q1, "t");
+  q1->func(q1, "LOWER", "name", NULL, &n);
+  q1->where(q1, n);
   ASSERT_EQ(C_ORM_OK, c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql, NULL));
   c_orm_free(sql);
   sql = NULL;
@@ -2075,12 +2159,16 @@ TEST test_query_sql_all_branches(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&subq));
   subq->select_(subq, "1");
 
-  q1->select_(q1, "id")
-      ->from_alias(q1, "users", "")
-      ->where(q1, q1->func(q1, "LOWER", "name", ""))
-      ->and_where(q1, q1->subquery(q1, subq, ""))
-      ->and_where(q1, q1->window(q1, "AVG(x)", "", "", ""))
-      ->and_where(q1, q1->window(q1, "AVG(x)", "dept", "", "alias"));
+  q1->select_(q1, "id");
+  q1->from_alias(q1, "users", "");
+  q1->func(q1, "LOWER", "name", "", &n);
+  q1->where(q1, n);
+  q1->subquery(q1, subq, "", &n);
+  q1->and_where(q1, n);
+  q1->window(q1, "AVG(x)", "", "", "", &n);
+  q1->and_where(q1, n);
+  q1->window(q1, "AVG(x)", "dept", "", "alias", &n);
+  q1->and_where(q1, n);
   ASSERT_EQ(C_ORM_OK, c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql, NULL));
   c_orm_free(sql);
   sql = NULL;
@@ -2089,9 +2177,11 @@ TEST test_query_sql_all_branches(void) {
 
   /* >32 joins to take the FALSE branch of join_count < 32 */
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&q1));
-  q1->select_(q1, "id")->from(q1, "t");
+  q1->select_(q1, "id");
+  q1->from(q1, "t");
   for (i = 0; i < 35; i++) {
-    q1->join(q1, "t2", "id", q1->col(q1, "id"));
+    q1->col(q1, "id", &n);
+    q1->join(q1, "t2", "id", n);
   }
   ASSERT_EQ(C_ORM_OK, c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql, NULL));
   c_orm_free(sql);
@@ -2101,7 +2191,8 @@ TEST test_query_sql_all_branches(void) {
 
   /* where with NULL condition and having with NULL condition */
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&q1));
-  q1->select_(q1, "id")->from(q1, "t");
+  q1->select_(q1, "id");
+  q1->from(q1, "t");
   q1->where(q1, NULL);
   q1->having(q1, NULL);
   ASSERT_EQ(C_ORM_OK, c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql, NULL));
@@ -2112,7 +2203,7 @@ TEST test_query_sql_all_branches(void) {
 
   /* Unary / Right-null operator */
   ASSERT_EQ(C_ORM_OK, c_orm_query_new(&q1));
-  op = (c_orm_ast_operator_t *)q1->col(q1, "status");
+  q1->col(q1, "status", (c_orm_ast_node_t **)&op);
   {
     c_orm_ast_operator_t n_op;
     memset(&n_op, 0, sizeof(n_op));
@@ -2120,7 +2211,9 @@ TEST test_query_sql_all_branches(void) {
     n_op.left = (c_orm_ast_node_t *)op;
     n_op.op = "IS NULL";
     n_op.right = NULL;
-    q1->select_(q1, "id")->from(q1, "t")->where(q1, (c_orm_ast_node_t *)&n_op);
+    q1->select_(q1, "id");
+    q1->from(q1, "t");
+    q1->where(q1, (c_orm_ast_node_t *)&n_op);
     ASSERT_EQ(C_ORM_OK,
               c_orm_query_to_sql(q1, C_ORM_DIALECT_SQLITE, &sql, NULL));
     ASSERT(strstr(sql, "IS NULL") != NULL);
@@ -2154,7 +2247,8 @@ TEST test_query_sql_all_branches(void) {
   /* Fetch one returning NOT_FOUND (!has_row) */
   c_orm_execute_raw(db, "CREATE TABLE empty_t (id INT);");
   q1->ast_head = NULL;
-  q1->select_(q1, "id")->from(q1, "empty_t");
+  q1->select_(q1, "id");
+  q1->from(q1, "empty_t");
   ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
             c_orm_query_fetch_one(db, q1, &meta, &dummy_out));
 
@@ -2179,7 +2273,8 @@ TEST test_query_sql_all_branches(void) {
     c_orm_execute_raw(db, "INSERT INTO empty_t VALUES (42);");
 
     q1->ast_head = NULL;
-    q1->select_(q1, "id")->from(q1, "empty_t");
+    q1->select_(q1, "id");
+    q1->from(q1, "empty_t");
     ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
               c_orm_query_fetch_one(db, q1, &blob_meta, blob_out));
     ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
@@ -2237,7 +2332,8 @@ TEST test_query_sql_append_oom_branches(void) {
   c_orm_query_t *uni_q = NULL;
   c_orm_query_params_t params;
   c_orm_ast_select_t *sel_node;
-  c_orm_ast_node_t *raw_left;
+  c_orm_ast_node_t *raw_left = NULL;
+  c_orm_ast_node_t *tmp = NULL;
   char *sql = NULL;
   c_orm_error_t err;
 
@@ -2246,15 +2342,18 @@ TEST test_query_sql_append_oom_branches(void) {
   /* Build subqueries */
   err = c_orm_query_new(&subq);
   ASSERT_EQ(C_ORM_OK, err);
-  subq->select_(subq, "1")->from(subq, "sub_table");
+  subq->select_(subq, "1");
+  subq->from(subq, "sub_table");
 
   err = c_orm_query_new(&cte_q);
   ASSERT_EQ(C_ORM_OK, err);
-  cte_q->select_(cte_q, "id, val")->from(cte_q, "cte_source");
+  cte_q->select_(cte_q, "id, val");
+  cte_q->from(cte_q, "cte_source");
 
   err = c_orm_query_new(&uni_q);
   ASSERT_EQ(C_ORM_OK, err);
-  uni_q->select_(uni_q, "id, name")->from(uni_q, "archive_users");
+  uni_q->select_(uni_q, "id, name");
+  uni_q->from(uni_q, "archive_users");
 
   /* Build comprehensive main query */
   err = c_orm_query_new(&q);
@@ -2266,18 +2365,25 @@ TEST test_query_sql_append_oom_branches(void) {
   sel_node->is_distinct = 1;
 
   q->from_alias(q, "users", "u");
-  q->join(q, "roles", "INNER", q->eq(q, "u.role_id", "roles.id", 0));
-  q->join(q, "departments", "LEFT", q->eq(q, "u.dept_id", "departments.id", 0));
+  q->eq(q, "u.role_id", "roles.id", 0, &tmp);
+  q->join(q, "roles", "INNER", tmp);
+  q->eq(q, "u.dept_id", "departments.id", 0, &tmp);
+  q->join(q, "departments", "LEFT", tmp);
 
   /* WHERE conditions covering all node types */
-  q->where(q, q->col(q, "u.id"));
-  q->and_where(q, q->lit(q, "alice", 1));
-  q->and_where(q, q->lit(q, "42", 0));
-  q->and_where(q, q->raw(q, "1 = 1"));
-  q->and_where(q, q->eq(q, "u.status", "active", 1));
+  q->col(q, "u.id", &tmp);
+  q->where(q, tmp);
+  q->lit(q, "alice", 1, &tmp);
+  q->and_where(q, tmp);
+  q->lit(q, "42", 0, &tmp);
+  q->and_where(q, tmp);
+  q->raw(q, "1 = 1", &tmp);
+  q->and_where(q, tmp);
+  q->eq(q, "u.status", "active", 1, &tmp);
+  q->and_where(q, tmp);
 
   /* Unary operator without right operand */
-  raw_left = q->col(q, "u.deleted_at");
+  q->col(q, "u.deleted_at", &raw_left);
   {
     c_orm_ast_operator_t u_op;
     memset(&u_op, 0, sizeof(u_op));
@@ -2288,28 +2394,46 @@ TEST test_query_sql_append_oom_branches(void) {
     q->and_where(q, (c_orm_ast_node_t *)&u_op);
   }
 
-  q->and_where(q, q->group(q, q->eq(q, "u.verified", "1", 0)));
-  q->and_where(q, q->cast_(q, "u.age", "INTEGER"));
-  q->and_where(q, q->func(q, "UPPER", "u.name", "upper_name"));
-  q->and_where(q, q->func(q, "LOWER", "u.name", ""));
-  q->and_where(q, q->func(q, "COUNT", "*", NULL));
+  q->eq(q, "u.verified", "1", 0, &tmp);
+  q->group(q, tmp, &tmp);
+  q->and_where(q, tmp);
+  q->cast_(q, "u.age", "INTEGER", &tmp);
+  q->and_where(q, tmp);
+  q->func(q, "UPPER", "u.name", "upper_name", &tmp);
+  q->and_where(q, tmp);
+  q->func(q, "LOWER", "u.name", "", &tmp);
+  q->and_where(q, tmp);
+  q->func(q, "COUNT", "*", NULL, &tmp);
+  q->and_where(q, tmp);
 
-  q->and_where(q, q->between(q, "u.created_at", "2020-01-01", "2025-01-01", 1));
-  q->and_where(q, q->between(q, "u.age", "18", "65", 0));
+  q->between(q, "u.created_at", "2020-01-01", "2025-01-01", 1, &tmp);
+  q->and_where(q, tmp);
+  q->between(q, "u.age", "18", "65", 0, &tmp);
+  q->and_where(q, tmp);
 
-  q->and_where(q, q->exists(q, subq, 0));
-  q->and_where(q, q->exists(q, subq, 1));
-  q->and_where(q, q->subquery(q, subq, "sq_alias"));
-  q->and_where(q, q->subquery(q, subq, ""));
-  q->and_where(q, q->subquery(q, subq, NULL));
+  q->exists(q, subq, 0, &tmp);
+  q->and_where(q, tmp);
+  q->exists(q, subq, 1, &tmp);
+  q->and_where(q, tmp);
+  q->subquery(q, subq, "sq_alias", &tmp);
+  q->and_where(q, tmp);
+  q->subquery(q, subq, "", &tmp);
+  q->and_where(q, tmp);
+  q->subquery(q, subq, NULL, &tmp);
+  q->and_where(q, tmp);
 
-  q->and_where(q, q->window(q, "ROW_NUMBER()", "dept", "salary DESC", "rn"));
-  q->and_where(q, q->window(q, "ROW_NUMBER()", "dept", "", ""));
-  q->and_where(q, q->window(q, "ROW_NUMBER()", "", "salary DESC", "rn"));
-  q->and_where(q, q->window(q, "ROW_NUMBER()", NULL, NULL, NULL));
+  q->window(q, "ROW_NUMBER()", "dept", "salary DESC", "rn", &tmp);
+  q->and_where(q, tmp);
+  q->window(q, "ROW_NUMBER()", "dept", "", "", &tmp);
+  q->and_where(q, tmp);
+  q->window(q, "ROW_NUMBER()", "", "salary DESC", "rn", &tmp);
+  q->and_where(q, tmp);
+  q->window(q, "ROW_NUMBER()", NULL, NULL, NULL, &tmp);
+  q->and_where(q, tmp);
 
   q->group_by(q, "u.id, u.name");
-  q->having(q, q->gt(q, "COUNT(*)", "5", 0));
+  q->gt(q, "COUNT(*)", "5", 0, &tmp);
+  q->having(q, tmp);
   q->union_(q, uni_q, 1);    /* UNION ALL */
   q->order_by(q, "u.id", 1); /* DESC */
   q->limit(q, 50);
@@ -2337,7 +2461,8 @@ TEST test_query_sql_append_oom_branches(void) {
     c_orm_ast_from_t *from_node;
     err = c_orm_query_new(&q2);
     ASSERT_EQ(C_ORM_OK, err);
-    q2->select_(q2, "x")->from(q2, "simple_tbl");
+    q2->select_(q2, "x");
+    q2->from(q2, "simple_tbl");
     from_node = (c_orm_ast_from_t *)q2->ast_head;
     from_node->alias = "";
     q2->union_(q2, uni_q, 0); /* UNION (is_all = 0) */
@@ -2352,9 +2477,12 @@ TEST test_query_sql_append_oom_branches(void) {
     c_orm_query_t *qe = NULL;
     err = c_orm_query_new(&qe);
     ASSERT_EQ(C_ORM_OK, err);
-    qe->select_(qe, "1")->from(qe, "t");
-    qe->where(qe, qe->exists(qe, subq, 0));
-    qe->and_where(qe, qe->exists(qe, subq, 1));
+    qe->select_(qe, "1");
+    qe->from(qe, "t");
+    qe->exists(qe, subq, 0, &tmp);
+    qe->where(qe, tmp);
+    qe->exists(qe, subq, 1, &tmp);
+    qe->and_where(qe, tmp);
     err = run_query_countdown(qe, C_ORM_DIALECT_SQLITE, &params, 40);
     ASSERT_EQ(C_ORM_OK, err);
     err = run_query_countdown(qe, C_ORM_DIALECT_SQLITE, NULL, 40);
@@ -2367,10 +2495,14 @@ TEST test_query_sql_append_oom_branches(void) {
     c_orm_query_t *qs = NULL;
     err = c_orm_query_new(&qs);
     ASSERT_EQ(C_ORM_OK, err);
-    qs->select_(qs, "1")->from(qs, "t");
-    qs->where(qs, qs->subquery(qs, subq, "sub_alias"));
-    qs->and_where(qs, qs->subquery(qs, subq, ""));
-    qs->and_where(qs, qs->subquery(qs, subq, NULL));
+    qs->select_(qs, "1");
+    qs->from(qs, "t");
+    qs->subquery(qs, subq, "sub_alias", &tmp);
+    qs->where(qs, tmp);
+    qs->subquery(qs, subq, "", &tmp);
+    qs->and_where(qs, tmp);
+    qs->subquery(qs, subq, NULL, &tmp);
+    qs->and_where(qs, tmp);
     err = run_query_countdown(qs, C_ORM_DIALECT_SQLITE, &params, 50);
     ASSERT_EQ(C_ORM_OK, err);
     err = run_query_countdown(qs, C_ORM_DIALECT_SQLITE, NULL, 50);
@@ -2383,12 +2515,18 @@ TEST test_query_sql_append_oom_branches(void) {
     c_orm_query_t *qw = NULL;
     err = c_orm_query_new(&qw);
     ASSERT_EQ(C_ORM_OK, err);
-    qw->select_(qw, "1")->from(qw, "t");
-    qw->where(qw, qw->window(qw, "ROW_NUMBER()", "dept", "salary DESC", "rn"));
-    qw->and_where(qw, qw->window(qw, "ROW_NUMBER()", "dept", "", ""));
-    qw->and_where(qw, qw->window(qw, "ROW_NUMBER()", "", "salary DESC", "rn"));
-    qw->and_where(qw, qw->window(qw, "ROW_NUMBER()", NULL, NULL, NULL));
-    qw->and_where(qw, qw->window(qw, "ROW_NUMBER()", "dept", "salary", NULL));
+    qw->select_(qw, "1");
+    qw->from(qw, "t");
+    qw->window(qw, "ROW_NUMBER()", "dept", "salary DESC", "rn", &tmp);
+    qw->where(qw, tmp);
+    qw->window(qw, "ROW_NUMBER()", "dept", "", "", &tmp);
+    qw->and_where(qw, tmp);
+    qw->window(qw, "ROW_NUMBER()", "", "salary DESC", "rn", &tmp);
+    qw->and_where(qw, tmp);
+    qw->window(qw, "ROW_NUMBER()", NULL, NULL, NULL, &tmp);
+    qw->and_where(qw, tmp);
+    qw->window(qw, "ROW_NUMBER()", "dept", "salary", NULL, &tmp);
+    qw->and_where(qw, tmp);
     err = run_query_countdown(qw, C_ORM_DIALECT_SQLITE, &params, 50);
     ASSERT_EQ(C_ORM_OK, err);
     err = run_query_countdown(qw, C_ORM_DIALECT_SQLITE, NULL, 50);
@@ -2401,8 +2539,11 @@ TEST test_query_sql_append_oom_branches(void) {
     c_orm_query_t *qh = NULL;
     err = c_orm_query_new(&qh);
     ASSERT_EQ(C_ORM_OK, err);
-    qh->select_(qh, "dept, COUNT(*)")->from(qh, "t")->group_by(qh, "dept");
-    qh->having(qh, qh->gt(qh, "COUNT(*)", "5", 0));
+    qh->select_(qh, "dept, COUNT(*)");
+    qh->from(qh, "t");
+    qh->group_by(qh, "dept");
+    qh->gt(qh, "COUNT(*)", "5", 0, &tmp);
+    qh->having(qh, tmp);
     err = run_query_countdown(qh, C_ORM_DIALECT_SQLITE, &params, 30);
     ASSERT_EQ(C_ORM_OK, err);
     err = run_query_countdown(qh, C_ORM_DIALECT_SQLITE, NULL, 30);
@@ -2415,7 +2556,8 @@ TEST test_query_sql_append_oom_branches(void) {
     c_orm_query_t *qu = NULL;
     err = c_orm_query_new(&qu);
     ASSERT_EQ(C_ORM_OK, err);
-    qu->select_(qu, "1")->from(qu, "t");
+    qu->select_(qu, "1");
+    qu->from(qu, "t");
     qu->union_(qu, subq, 0);
     qu->union_(qu, subq, 1);
     err = run_query_countdown(qu, C_ORM_DIALECT_SQLITE, &params, 30);
@@ -2430,10 +2572,10 @@ TEST test_query_sql_append_oom_branches(void) {
     c_orm_query_t *q_lim = NULL;
     err = c_orm_query_new(&q_lim);
     ASSERT_EQ(C_ORM_OK, err);
-    q_lim->select_(q_lim, "1")
-        ->from(q_lim, "t")
-        ->limit(q_lim, 5)
-        ->offset(q_lim, 10);
+    q_lim->select_(q_lim, "1");
+    q_lim->from(q_lim, "t");
+    q_lim->limit(q_lim, 5);
+    q_lim->offset(q_lim, 10);
     err = run_query_countdown(q_lim, C_ORM_DIALECT_SQLITE, NULL, 15);
     ASSERT_EQ(C_ORM_OK, err);
     c_orm_query_free(q_lim);
@@ -2444,7 +2586,8 @@ TEST test_query_sql_append_oom_branches(void) {
     c_orm_query_t *q_simple = NULL;
     err = c_orm_query_new(&q_simple);
     ASSERT_EQ(C_ORM_OK, err);
-    q_simple->select_(q_simple, "1")->from(q_simple, "t");
+    q_simple->select_(q_simple, "1");
+    q_simple->from(q_simple, "t");
 
     c_orm_mock_string_builder_get_fail = 1;
     sql = NULL;
@@ -2504,6 +2647,3 @@ SUITE(query_fluent_coverage_suite) {
     recursed = 0;
   }
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

@@ -7,6 +7,9 @@
 #ifndef TEST_API_HELPERS_H
 #define TEST_API_HELPERS_H
 
+/* clang-format off */
+/* clang-format on */
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */

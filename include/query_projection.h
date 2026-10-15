@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file query_projection.h
  * @brief CDD_C query projection AST representation
@@ -12,15 +10,15 @@
 #ifndef C_CDD_CLASSES_PARSE_QUERY_PROJECTION_H
 #define C_CDD_CLASSES_PARSE_QUERY_PROJECTION_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <stddef.h>
 #include "c_orm_db.h"
 #include "c_orm_sql.h"
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Represents the target mapping kind.
@@ -99,6 +97,3 @@ extern C_ORM_EXPORT /**
 #endif /* __cplusplus */
 
 #endif /* C_CDD_CLASSES_PARSE_QUERY_PROJECTION_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file sql.h
  * @brief Parses SQL DDL into an AST.
@@ -8,20 +6,15 @@
 #ifndef C_CDD_SQL_PARSER_H
 #define C_CDD_SQL_PARSER_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_db.h"
 #include <stddef.h>
-
-#if defined(__GNUC__) || defined(__clang__)
-#endif
 #include <c_str_span.h>
 /* clang-format on */
-#if defined(__GNUC__) || defined(__clang__)
-#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /*
  * Phase 1: AST Node Structs
@@ -263,6 +256,3 @@ C_ORM_EXPORT c_orm_error_t sql_parse_returning(
 #endif /* __cplusplus */
 
 #endif /* C_CDD_SQL_PARSER_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

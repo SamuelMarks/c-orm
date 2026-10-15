@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_oom_coverage.c
  * @brief Out-Of-Memory stress tests for various ORM subsystems.
@@ -36,57 +34,50 @@ static int oom_active = 0;
  * @return Allocated memory or NULL on failure.
  */
 
-#ifndef COVERAGE_MACRO_HACK_APPLIED
-#define COVERAGE_MACRO_HACK_APPLIED
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) == (got));                              \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) == (got));                              \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    (void)(cond);                                                              \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((cond) != 0);                                 \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) != (got));                              \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
   do {                                                                         \
     int should = 0;                                                            \
+    enum greatest_test_res res;                                                \
     greatest_test_pre(#TEST, &should);                                         \
-    TEST();                                                                    \
-    greatest_test_post(GREATEST_TEST_RES_PASS);                                \
+    res = TEST();                                                              \
+    greatest_test_post(res);                                                   \
   } while ((void)0, 0)
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    (void)(res);                                                               \
+    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
   } while ((void)0, 0)
-#endif
 
+/**
+ * @brief Executes mock_malloc_oom.
+ * @param size Parameter size.
+ */
 static void *mock_malloc_oom(size_t size) {
   if (oom_active) {
     if (oom_countdown == 0) {
@@ -409,6 +400,3 @@ SUITE(oom_coverage_suite) {
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

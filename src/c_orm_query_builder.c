@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_query_builder.c
  * @brief Implementation of dynamic SQL query builder.
@@ -80,13 +78,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_builder_init(
   return rc;
 }
 
-C_ORM_EXPORT void c_orm_select_builder_free(c_orm_select_builder_t *builder) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_select_builder_free(c_orm_select_builder_t *builder) {
   LOG_DEBUG("c_orm_select_builder_free: entry");
   if (builder) {
     c_orm_string_builder_free(builder->sb);
     C_ORM_FREE(builder);
   }
   LOG_DEBUG("c_orm_select_builder_free: exit");
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t
@@ -801,10 +801,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_builder_init(
   return rc;
 }
 
-C_ORM_EXPORT void c_orm_insert_builder_free(c_orm_insert_builder_t *builder) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_insert_builder_free(c_orm_insert_builder_t *builder) {
   LOG_DEBUG("c_orm_insert_builder_free: entry");
   (void)builder;
   LOG_DEBUG("c_orm_insert_builder_free: exit");
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t
@@ -890,13 +892,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_builder_init(
   return rc;
 }
 
-C_ORM_EXPORT void c_orm_update_builder_free(c_orm_update_builder_t *builder) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_update_builder_free(c_orm_update_builder_t *builder) {
   LOG_DEBUG("c_orm_update_builder_free: entry");
   if (builder) {
     c_orm_string_builder_free(builder->sb);
     C_ORM_FREE(builder);
   }
   LOG_DEBUG("c_orm_update_builder_free: exit");
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_update_set(c_orm_update_builder_t *builder,
@@ -991,6 +995,3 @@ c_orm_update_builder_compile(c_orm_update_builder_t *builder, char **out_sql) {
   rc = *out_sql ? C_ORM_OK : C_ORM_ERROR_UNKNOWN;
   return rc;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

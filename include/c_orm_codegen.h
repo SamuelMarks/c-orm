@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_codegen.h
  * @brief Code generation capabilities wrapping cdd-c.
@@ -29,6 +27,7 @@ extern "C" {
 C_ORM_EXPORT c_orm_error_t c_orm_codegen_generate(const char *schema_file,
                                                   const char *output_dir);
 
+#ifdef C_ORM_TEST_ALLOCATOR
 /**
  * @brief Mock hook to simulate sql_to_c_header_emit failure.
  */
@@ -38,12 +37,10 @@ C_ORM_EXPORT extern int c_orm_mock_codegen_header_emit_fail;
  * @brief Mock hook to simulate sql_to_c_source_emit failure.
  */
 C_ORM_EXPORT extern int c_orm_mock_codegen_source_emit_fail;
+#endif /* C_ORM_TEST_ALLOCATOR */
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 #endif /* C_ORM_CODEGEN_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

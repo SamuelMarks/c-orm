@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_c_orm_c_to_sql.c
  * @brief Unit tests for C struct to SQL generation, schema diffing, and
@@ -26,57 +24,68 @@ extern "C" {
  * @return GREATEST test result.
  */
 
-#ifndef COVERAGE_MACRO_HACK_APPLIED
-#define COVERAGE_MACRO_HACK_APPLIED
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) == (got));                              \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) == (got));                              \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    (void)(cond);                                                              \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((cond) != 0);                                 \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) != (got));                              \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
   do {                                                                         \
     int should = 0;                                                            \
+    enum greatest_test_res res;                                                \
     greatest_test_pre(#TEST, &should);                                         \
-    TEST();                                                                    \
-    greatest_test_post(GREATEST_TEST_RES_PASS);                                \
+    res = TEST();                                                              \
+    greatest_test_post(res);                                                   \
   } while ((void)0, 0)
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    (void)(res);                                                               \
+    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
   } while ((void)0, 0)
-#endif
 
+/** @brief Countdown for mock malloc in c_to_sql tests. */
+static int c2s_oom_countdown = -1;
+
+/**
+ * @brief Mock malloc for c_to_sql OOM testing.
+ * @param size Allocation size in bytes.
+ * @return Allocated pointer or NULL on countdown expiry.
+ */
+static void *c2s_mock_malloc(size_t size) {
+  if (c2s_oom_countdown == 0) {
+    c2s_oom_countdown--;
+    return NULL;
+  }
+  if (c2s_oom_countdown > 0) {
+    c2s_oom_countdown--;
+  }
+  return malloc(size);
+}
+
+/**
+ * @brief Executes test_write_struct_to_sql_create_table.
+ */
 TEST test_write_struct_to_sql_create_table(void) {
   struct StructField fields[3];
   struct StructFields sf;
@@ -861,6 +870,88 @@ TEST test_c_to_sql_additional_branches(void) {
     ASSERT(sorted[3] == &m_cm);
   }
 
+  /* 4. c_orm_table_meta_to_cdd_meta coverage */
+  {
+    c_orm_column_meta_t cols[6];
+    c_orm_table_meta_t tmeta;
+    cdd_c_meta_t *cmeta = NULL;
+
+    memset(cols, 0, sizeof(cols));
+    cols[0].name = "id";
+    cols[0].type = C_ORM_TYPE_INT32;
+    cols[0].offset = 0;
+    cols[0].is_nullable = false;
+
+    cols[1].name = "big_id";
+    cols[1].type = C_ORM_TYPE_INT64;
+    cols[1].offset = 8;
+    cols[1].is_nullable = true;
+
+    cols[2].name = "flt";
+    cols[2].type = C_ORM_TYPE_FLOAT;
+    cols[2].offset = 16;
+
+    cols[3].name = "dbl";
+    cols[3].type = C_ORM_TYPE_DOUBLE;
+    cols[3].offset = 24;
+
+    cols[4].name = "flag";
+    cols[4].type = C_ORM_TYPE_BOOL;
+    cols[4].offset = 32;
+
+    cols[5].name = "title";
+    cols[5].type = C_ORM_TYPE_STRING;
+    cols[5].offset = 40;
+
+    memset(&tmeta, 0, sizeof(tmeta));
+    tmeta.name = "items";
+    tmeta.struct_size = 48;
+    tmeta.num_columns = 6;
+    tmeta.columns = cols;
+
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_table_meta_to_cdd_meta(NULL, &cmeta));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_table_meta_to_cdd_meta(&tmeta, NULL));
+
+    ASSERT_EQ(C_ORM_OK, c_orm_table_meta_to_cdd_meta(&tmeta, &cmeta));
+    ASSERT(cmeta != NULL);
+    ASSERT_STR_EQ("items", cmeta->name);
+    ASSERT_EQ(6, cmeta->num_props);
+    ASSERT_STR_EQ("C_ORM_TYPE_INT32", cmeta->props[0].type);
+    ASSERT_STR_EQ("C_ORM_TYPE_INT64", cmeta->props[1].type);
+    ASSERT_STR_EQ("C_ORM_TYPE_FLOAT", cmeta->props[2].type);
+    ASSERT_STR_EQ("C_ORM_TYPE_DOUBLE", cmeta->props[3].type);
+    ASSERT_STR_EQ("C_ORM_TYPE_INT32", cmeta->props[4].type);
+    ASSERT_STR_EQ("C_ORM_TYPE_STRING", cmeta->props[5].type);
+    C_ORM_FREE((void *)cmeta->props);
+    C_ORM_FREE(cmeta);
+    cmeta = NULL;
+
+    /* OOM on cm alloc and cm->props alloc */
+    {
+      void *(*old_malloc)(size_t) = c_orm_malloc;
+      tmeta.num_columns = 6;
+      c_orm_set_allocators(c2s_mock_malloc, c_orm_realloc, c_orm_free);
+      c2s_oom_countdown = 0;
+      ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                c_orm_table_meta_to_cdd_meta(&tmeta, &cmeta));
+      c2s_oom_countdown = 1;
+      ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                c_orm_table_meta_to_cdd_meta(&tmeta, &cmeta));
+      c2s_oom_countdown = -1;
+      c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+    }
+
+    /* Empty columns table */
+    tmeta.num_columns = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_table_meta_to_cdd_meta(&tmeta, &cmeta));
+    ASSERT(cmeta != NULL);
+    ASSERT_EQ(NULL, cmeta->props);
+    C_ORM_FREE(cmeta);
+    cmeta = NULL;
+  }
+
   PASS();
 }
 
@@ -895,6 +986,3 @@ SUITE(c_to_sql_suite) {
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

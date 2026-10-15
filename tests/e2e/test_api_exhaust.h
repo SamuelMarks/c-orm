@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_api_exhaust.h
  * @brief Unit tests covering remaining error branches in c_orm_api.c.

@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_string_builder.c
  * @brief Implementation of dynamic string builder.
@@ -76,8 +74,10 @@ c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
  * @brief Free resources associated with a string builder.
  *
  * @param builder The builder to free.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_string_builder_free(c_orm_string_builder_t *builder) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_string_builder_free(c_orm_string_builder_t *builder) {
   LOG_DEBUG("c_orm_string_builder_free: entry");
   if (builder) {
     if (builder->buffer) {
@@ -86,8 +86,10 @@ C_ORM_EXPORT void c_orm_string_builder_free(c_orm_string_builder_t *builder) {
     C_ORM_FREE(builder);
   }
   LOG_DEBUG("c_orm_string_builder_free: exit");
+  return C_ORM_OK;
 }
 
+#ifdef C_ORM_TEST_ALLOCATOR
 /**
  * @brief Countdown counter to simulate string builder append allocation
  * failure.
@@ -98,6 +100,7 @@ C_ORM_EXPORT int c_orm_mock_string_builder_append_countdown = -1;
  * @brief Flag to simulate string builder get failure.
  */
 C_ORM_EXPORT int c_orm_mock_string_builder_get_fail = 0;
+#endif /* C_ORM_TEST_ALLOCATOR */
 
 /**
  * @brief Append a string to the builder.
@@ -128,6 +131,7 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
     return rc;
   }
 
+#ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_string_builder_append_countdown >= 0) {
     if (c_orm_mock_string_builder_append_countdown == 0) {
       c_orm_mock_string_builder_append_countdown = -1;
@@ -137,6 +141,7 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
     }
     c_orm_mock_string_builder_append_countdown--;
   }
+#endif
 
   len = strlen(str);
   if (len == 0) {
@@ -196,11 +201,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
     return rc;
   }
 
+#ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_string_builder_get_fail) {
     LOG_DEBUG("c_orm_string_builder_get: mock failure");
     rc = C_ORM_ERROR_MEMORY;
     return rc;
   }
+#endif
 
   *out_str = builder->buffer ? builder->buffer : "";
   rc = C_ORM_OK;
@@ -238,6 +245,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
   LOG_DEBUG("c_orm_string_builder_len: exit");
   return rc;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

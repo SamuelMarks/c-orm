@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file migration_runner.h
  * @brief Logic for applying and rolling back SQL migrations.
@@ -10,14 +8,14 @@
 #ifndef C_CDD_MIGRATION_RUNNER_H
 #define C_CDD_MIGRATION_RUNNER_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_db.h"
 #include <stddef.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Apply a migration file (run the UP statements).
@@ -121,6 +119,3 @@ extern C_ORM_EXPORT c_orm_error_t dump_schema(const char *out_filepath);
 #endif /* __cplusplus */
 
 #endif /* C_CDD_MIGRATION_RUNNER_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

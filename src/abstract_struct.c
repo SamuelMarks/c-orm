@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file abstract_struct.c
  * @brief Implementation of CDD_C generic representation.
@@ -11,7 +9,6 @@
 #include "c_orm_safe_crt.h"
 #include "abstract_struct.h"
 #include <stdlib.h>
-#include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <parson.h>
@@ -41,17 +38,17 @@ static c_orm_error_t cdd_c_malloc(size_t size, void **out_ptr) {
   void *ptr;
   if (size > 2147483647) {
     *out_ptr = NULL;
-    return ENOMEM;
+    return C_ORM_ERROR_MEMORY;
   }
   ptr = C_ORM_MALLOC(size);
   if (ptr)
     cdd_c_memory_allocated += size;
   else {
     *out_ptr = NULL;
-    return ENOMEM;
+    return C_ORM_ERROR_MEMORY;
   }
   *out_ptr = ptr;
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -68,10 +65,10 @@ static c_orm_error_t cdd_c_realloc(void *ptr, size_t size, void **out_ptr) {
     cdd_c_memory_allocated += size; /* Rough estimate */
   if (!new_ptr) {
     *out_ptr = NULL;
-    return ENOMEM;
+    return C_ORM_ERROR_MEMORY;
   }
   *out_ptr = new_ptr;
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -92,9 +89,9 @@ static void cdd_c_free(void *ptr) {
  */
 c_orm_error_t cdd_c_get_allocated_bytes(size_t *out_bytes) {
   if (!out_bytes)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   *out_bytes = cdd_c_memory_allocated;
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -104,9 +101,9 @@ c_orm_error_t cdd_c_get_allocated_bytes(size_t *out_bytes) {
  */
 c_orm_error_t cdd_c_get_freed_calls(size_t *out_calls) {
   if (!out_calls)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   *out_calls = cdd_c_memory_freed;
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -119,21 +116,21 @@ c_orm_error_t
 cdd_c_abstract_struct_array_init(cdd_c_abstract_struct_array_t *arr,
                                  size_t capacity) {
   if (!arr)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   if (capacity > ((size_t)-1) / sizeof(cdd_c_abstract_struct_t))
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   arr->items = NULL;
   arr->count = 0;
   arr->capacity = capacity;
   if (capacity > 0) {
     if (cdd_c_malloc(arr->capacity * sizeof(cdd_c_abstract_struct_t),
-                     (void **)&arr->items) != 0)
-      return EINVAL;
+                     (void **)&arr->items) != C_ORM_OK)
+      return C_ORM_ERROR_VALIDATION;
     /* Initialize children to 0 counts so deep frees don't blow up on partial
      * errors */
     memset(arr->items, 0, capacity * sizeof(cdd_c_abstract_struct_t));
   }
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -146,20 +143,20 @@ c_orm_error_t
 cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
                                    cdd_c_abstract_struct_t *astruct) {
   if (!arr || !astruct)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   if (arr->count >= arr->capacity) {
     size_t new_cap;
     cdd_c_abstract_struct_t *new_items = NULL;
     c_orm_error_t err;
     if (arr->capacity > ((size_t)-1) / 2)
-      return EINVAL;
+      return C_ORM_ERROR_VALIDATION;
     new_cap = arr->capacity == 0 ? 4 : arr->capacity * 2;
     if (new_cap > ((size_t)-1) / sizeof(cdd_c_abstract_struct_t))
-      return EINVAL;
+      return C_ORM_ERROR_VALIDATION;
     err = cdd_c_realloc(arr->items, new_cap * sizeof(cdd_c_abstract_struct_t),
                         (void **)&new_items);
     if (err != C_ORM_OK)
-      return EINVAL;
+      return C_ORM_ERROR_VALIDATION;
     arr->items = new_items;
     arr->capacity = new_cap;
   }
@@ -170,7 +167,7 @@ cdd_c_abstract_struct_array_append(cdd_c_abstract_struct_array_t *arr,
   astruct->count = 0;
   astruct->capacity = 0;
   arr->count++;
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -182,7 +179,7 @@ c_orm_error_t
 cdd_c_abstract_struct_array_free(cdd_c_abstract_struct_array_t *arr) {
   size_t i;
   if (!arr)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   if (arr->items) {
     for (i = 0; i < arr->count; ++i) {
       cdd_c_abstract_struct_free(&arr->items[i]);
@@ -192,7 +189,7 @@ cdd_c_abstract_struct_array_free(cdd_c_abstract_struct_array_t *arr) {
   arr->items = NULL;
   arr->count = 0;
   arr->capacity = 0;
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -207,11 +204,11 @@ cdd_c_abstract_struct_array_to_json(const cdd_c_abstract_struct_array_t *arr,
   JSON_Array *root_arr;
   size_t i, j;
   if (!arr || !out_json)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   root_val = json_value_init_array();
   if (!root_val)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   root_arr = json_value_get_array(root_val);
 
   for (i = 0; i < arr->count; ++i) {
@@ -249,7 +246,7 @@ cdd_c_abstract_struct_array_to_json(const cdd_c_abstract_struct_array_t *arr,
 
   *out_json = json_serialize_to_string_pretty(root_val);
   json_value_free(root_val);
-  return *out_json ? C_ORM_OK : C_ORM_ERROR_UNKNOWN;
+  return *out_json ? C_ORM_OK : C_ORM_ERROR_VALIDATION;
 }
 
 c_orm_error_t cdd_c_abstract_struct_init(cdd_c_abstract_struct_t *astruct) {
@@ -260,18 +257,18 @@ c_orm_error_t
 cdd_c_abstract_struct_init_with_capacity(cdd_c_abstract_struct_t *astruct,
                                          size_t capacity) {
   if (!astruct)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   if (capacity > ((size_t)-1) / sizeof(cdd_c_abstract_struct_kv_t))
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   astruct->kvs = NULL;
   astruct->count = 0;
   astruct->capacity = capacity;
   if (capacity > 0) {
     if (cdd_c_malloc(astruct->capacity * sizeof(cdd_c_abstract_struct_kv_t),
-                     (void **)&astruct->kvs) != 0)
-      return EINVAL;
+                     (void **)&astruct->kvs) != C_ORM_OK)
+      return C_ORM_ERROR_VALIDATION;
   }
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -284,13 +281,13 @@ static c_orm_error_t duplicate_string(const char *src, char **dest) {
   size_t len;
   if (!src) {
     *dest = NULL;
-    return 0;
+    return C_ORM_OK;
   }
   len = strlen(src);
-  if (cdd_c_malloc(len + 1, (void **)dest) != 0)
-    return EINVAL;
+  if (cdd_c_malloc(len + 1, (void **)dest) != C_ORM_OK)
+    return C_ORM_ERROR_VALIDATION;
   memcpy(*dest, src, len + 1);
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -304,17 +301,17 @@ static c_orm_error_t duplicate_blob(const unsigned char *src, size_t size,
                                     unsigned char **dest) {
   if (!src || size == 0) {
     *dest = NULL;
-    return 0;
+    return C_ORM_OK;
   }
-  if (cdd_c_malloc(size, (void **)dest) != 0)
-    return EINVAL;
+  if (cdd_c_malloc(size, (void **)dest) != C_ORM_OK)
+    return C_ORM_ERROR_VALIDATION;
   memcpy(*dest, src, size);
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t cdd_c_variant_free(cdd_c_variant_t *variant) {
   if (!variant)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   switch (variant->type) {
   case CDD_C_VARIANT_TYPE_STRING:
     if (variant->value.s_val) {
@@ -332,7 +329,7 @@ c_orm_error_t cdd_c_variant_free(cdd_c_variant_t *variant) {
     break;
   }
   variant->type = CDD_C_VARIANT_TYPE_NULL;
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -352,14 +349,14 @@ static c_orm_error_t copy_variant(cdd_c_variant_t *dest,
     dest->value.f_val = src->value.f_val;
     break;
   case CDD_C_VARIANT_TYPE_STRING:
-    if (duplicate_string(src->value.s_val, &dest->value.s_val) != 0) {
-      return EINVAL;
+    if (duplicate_string(src->value.s_val, &dest->value.s_val) != C_ORM_OK) {
+      return C_ORM_ERROR_VALIDATION;
     }
     break;
   case CDD_C_VARIANT_TYPE_BLOB:
     if (duplicate_blob(src->value.b_val.data, src->value.b_val.size,
-                       &dest->value.b_val.data) != 0) {
-      return EINVAL;
+                       &dest->value.b_val.data) != C_ORM_OK) {
+      return C_ORM_ERROR_VALIDATION;
     }
     dest->value.b_val.size = src->value.b_val.size;
     break;
@@ -367,7 +364,7 @@ static c_orm_error_t copy_variant(cdd_c_variant_t *dest,
   default:
     break;
   }
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -394,7 +391,7 @@ c_orm_error_t cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct,
   unsigned long khash;
   c_orm_error_t err;
   if (!astruct || !key || !value)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   hash_string(key, &khash);
 
@@ -413,23 +410,23 @@ c_orm_error_t cdd_c_abstract_set(cdd_c_abstract_struct_t *astruct,
                         new_cap * sizeof(cdd_c_abstract_struct_kv_t),
                         (void **)&new_kvs);
     if (err != C_ORM_OK)
-      return EINVAL;
+      return C_ORM_ERROR_VALIDATION;
     astruct->kvs = new_kvs;
     astruct->capacity = new_cap;
   }
 
-  if (duplicate_string(key, &astruct->kvs[astruct->count].key) != 0) {
-    return EINVAL;
+  if (duplicate_string(key, &astruct->kvs[astruct->count].key) != C_ORM_OK) {
+    return C_ORM_ERROR_VALIDATION;
   }
   astruct->kvs[astruct->count].key_hash = khash;
 
-  if (copy_variant(&astruct->kvs[astruct->count].value, value) != 0) {
+  if (copy_variant(&astruct->kvs[astruct->count].value, value) != C_ORM_OK) {
     cdd_c_free(astruct->kvs[astruct->count].key);
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   astruct->count++;
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t cdd_c_abstract_get(const cdd_c_abstract_struct_t *astruct,
@@ -437,7 +434,7 @@ c_orm_error_t cdd_c_abstract_get(const cdd_c_abstract_struct_t *astruct,
   size_t i;
   unsigned long khash;
   if (!astruct || !key || !out_value)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   hash_string(key, &khash);
 
@@ -445,10 +442,10 @@ c_orm_error_t cdd_c_abstract_get(const cdd_c_abstract_struct_t *astruct,
     if (astruct->kvs[i].key_hash == khash &&
         strcmp(astruct->kvs[i].key, key) == 0) {
       *out_value = &astruct->kvs[i].value;
-      return 0;
+      return C_ORM_OK;
     }
   }
-  return EINVAL; /* Not found */
+  return C_ORM_ERROR_VALIDATION; /* Not found */
 }
 
 c_orm_error_t
@@ -456,23 +453,24 @@ cdd_c_abstract_struct_deep_copy(cdd_c_abstract_struct_t *dest,
                                 const cdd_c_abstract_struct_t *src) {
   size_t i;
   if (!dest || !src)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   cdd_c_abstract_struct_init(dest);
 
   for (i = 0; i < src->count; ++i) {
-    if (cdd_c_abstract_set(dest, src->kvs[i].key, &src->kvs[i].value) != 0) {
+    if (cdd_c_abstract_set(dest, src->kvs[i].key, &src->kvs[i].value) !=
+        C_ORM_OK) {
       cdd_c_abstract_struct_free(dest);
-      return EINVAL;
+      return C_ORM_ERROR_VALIDATION;
     }
   }
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t cdd_c_abstract_struct_free(cdd_c_abstract_struct_t *astruct) {
   size_t i;
   if (!astruct)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   for (i = 0; i < astruct->count; ++i) {
     cdd_c_free(astruct->kvs[i].key);
@@ -482,7 +480,7 @@ c_orm_error_t cdd_c_abstract_struct_free(cdd_c_abstract_struct_t *astruct) {
   astruct->kvs = NULL;
   astruct->count = 0;
   astruct->capacity = 0;
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t cdd_c_abstract_print(const cdd_c_abstract_struct_t *astruct) {
@@ -533,11 +531,11 @@ cdd_c_abstract_struct_to_json(const cdd_c_abstract_struct_t *astruct,
   size_t i;
 
   if (!astruct || !out_json)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   root_val = json_value_init_object();
   if (!root_val)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   root_obj = json_value_get_object(root_val);
 
   for (i = 0; i < astruct->count; ++i) {
@@ -566,9 +564,9 @@ cdd_c_abstract_struct_to_json(const cdd_c_abstract_struct_t *astruct,
   *out_json = json_serialize_to_string(root_val);
   json_value_free(root_val);
   if (!*out_json)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t
@@ -579,18 +577,18 @@ cdd_c_abstract_struct_from_json(const char *json,
   size_t count, i;
 
   if (!json || !out_astruct)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   cdd_c_abstract_struct_init(out_astruct);
 
   root_val = json_parse_string(json);
   if (!root_val)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   if (json_value_get_type(root_val) != JSONObject) {
     json_value_free(root_val);
     cdd_c_abstract_struct_free(out_astruct);
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   root_obj = json_value_get_object(root_val);
@@ -629,15 +627,15 @@ cdd_c_abstract_struct_from_json(const char *json,
       break;
     }
 
-    if (cdd_c_abstract_set(out_astruct, key, &variant) != 0) {
+    if (cdd_c_abstract_set(out_astruct, key, &variant) != C_ORM_OK) {
       json_value_free(root_val);
       cdd_c_abstract_struct_free(out_astruct);
-      return EINVAL;
+      return C_ORM_ERROR_VALIDATION;
     }
   }
 
   json_value_free(root_val);
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
@@ -646,10 +644,10 @@ c_orm_error_t cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
                                      size_t n_cols) {
   size_t i;
   if (!out_astruct || !row_data || !cols)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
-  if (cdd_c_abstract_struct_init_with_capacity(out_astruct, n_cols) != 0)
-    return EINVAL;
+  if (cdd_c_abstract_struct_init_with_capacity(out_astruct, n_cols) != C_ORM_OK)
+    return C_ORM_ERROR_VALIDATION;
 
   for (i = 0; i < n_cols; ++i) {
     cdd_c_variant_t variant;
@@ -682,13 +680,13 @@ c_orm_error_t cdd_c_abstract_hydrate(cdd_c_abstract_struct_t *out_astruct,
       }
     }
 
-    if (cdd_c_abstract_set(out_astruct, col->name, &variant) != 0) {
+    if (cdd_c_abstract_set(out_astruct, col->name, &variant) != C_ORM_OK) {
       cdd_c_abstract_struct_free(out_astruct);
-      return EINVAL;
+      return C_ORM_ERROR_VALIDATION;
     }
   }
 
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t
@@ -698,7 +696,7 @@ cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
   sqlite3_stmt *s = (sqlite3_stmt *)stmt;
   int i, n_cols;
   if (!out_astruct || !s)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   cdd_c_abstract_struct_init(out_astruct);
 
@@ -736,17 +734,17 @@ cdd_c_abstract_hydrate_sqlite3(cdd_c_abstract_struct_t *out_astruct,
       break;
     }
 
-    if (cdd_c_abstract_set(out_astruct, col_name, &variant) != 0) {
+    if (cdd_c_abstract_set(out_astruct, col_name, &variant) != C_ORM_OK) {
       cdd_c_abstract_struct_free(out_astruct);
-      return EINVAL;
+      return C_ORM_ERROR_VALIDATION;
     }
   }
 
-  return 0;
+  return C_ORM_OK;
 #else
   (void)out_astruct;
   (void)stmt;
-  return EINVAL;
+  return C_ORM_ERROR_VALIDATION;
 #endif
 }
 c_orm_error_t cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
@@ -755,7 +753,7 @@ c_orm_error_t cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
   PGresult *pq_res = (PGresult *)res;
   int i, n_cols;
   if (!out_astruct || !pq_res)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   cdd_c_abstract_struct_init(out_astruct);
 
@@ -786,14 +784,14 @@ c_orm_error_t cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
             PQunescapeBytea((const unsigned char *)val_str, &len);
         variant.type = CDD_C_VARIANT_TYPE_BLOB;
         if (unescaped) {
-          int set_res;
+          c_orm_error_t set_res;
           variant.value.b_val.data = unescaped;
           variant.value.b_val.size = len;
           set_res = cdd_c_abstract_set(out_astruct, col_name, &variant);
           PQfreemem(unescaped);
-          if (set_res != 0) {
+          if (set_res != C_ORM_OK) {
             cdd_c_abstract_struct_free(out_astruct);
-            return EINVAL;
+            return C_ORM_ERROR_VALIDATION;
           }
           continue;
         } else {
@@ -806,18 +804,18 @@ c_orm_error_t cdd_c_abstract_hydrate_libpq(cdd_c_abstract_struct_t *out_astruct,
       }
     }
 
-    if (cdd_c_abstract_set(out_astruct, col_name, &variant) != 0) {
+    if (cdd_c_abstract_set(out_astruct, col_name, &variant) != C_ORM_OK) {
       cdd_c_abstract_struct_free(out_astruct);
-      return EINVAL;
+      return C_ORM_ERROR_VALIDATION;
     }
   }
 
-  return 0;
+  return C_ORM_OK;
 #else
   (void)out_astruct;
   (void)res;
   (void)row_index;
-  return EINVAL;
+  return C_ORM_ERROR_VALIDATION;
 #endif
 }
 c_orm_error_t cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
@@ -828,7 +826,7 @@ c_orm_error_t cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
   MYSQL_FIELD *mysql_fields = (MYSQL_FIELD *)fields;
   unsigned int i;
   if (!out_astruct || !mysql_row || !mysql_fields)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   cdd_c_abstract_struct_init(out_astruct);
 
@@ -874,19 +872,19 @@ c_orm_error_t cdd_c_abstract_hydrate_mysql(cdd_c_abstract_struct_t *out_astruct,
       }
     }
 
-    if (cdd_c_abstract_set(out_astruct, col_name, &variant) != 0) {
+    if (cdd_c_abstract_set(out_astruct, col_name, &variant) != C_ORM_OK) {
       cdd_c_abstract_struct_free(out_astruct);
-      return EINVAL;
+      return C_ORM_ERROR_VALIDATION;
     }
   }
 
-  return 0;
+  return C_ORM_OK;
 #else
   (void)out_astruct;
   (void)row;
   (void)fields;
   (void)num_fields;
-  return EINVAL;
+  return C_ORM_ERROR_VALIDATION;
 #endif
 }
 c_orm_error_t cdd_c_meta_offsetof(const struct cdd_c_meta *meta,
@@ -894,15 +892,15 @@ c_orm_error_t cdd_c_meta_offsetof(const struct cdd_c_meta *meta,
   size_t i;
   const cdd_c_meta_t *cmeta = (const cdd_c_meta_t *)meta;
   if (!meta || !field || !out_offset)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   for (i = 0; i < cmeta->num_props; ++i) {
     if (strcmp(cmeta->props[i].name, field) == 0) {
       *out_offset = cmeta->props[i].offset;
-      return 0;
+      return C_ORM_OK;
     }
   }
-  return EINVAL;
+  return C_ORM_ERROR_VALIDATION;
 }
 
 c_orm_error_t cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
@@ -911,7 +909,7 @@ c_orm_error_t cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
   size_t i;
   const cdd_c_meta_t *meta = (const cdd_c_meta_t *)struct_meta;
   if (!out_astruct || !in_struct || !meta)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   cdd_c_abstract_struct_init(out_astruct);
 
@@ -944,13 +942,13 @@ c_orm_error_t cdd_c_specific_to_abstract(cdd_c_abstract_struct_t *out_astruct,
       }
     }
 
-    if (cdd_c_abstract_set(out_astruct, prop->name, &val) != 0) {
+    if (cdd_c_abstract_set(out_astruct, prop->name, &val) != C_ORM_OK) {
       cdd_c_abstract_struct_free(out_astruct);
-      return EINVAL;
+      return C_ORM_ERROR_VALIDATION;
     }
   }
 
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t cdd_c_abstract_to_specific(
@@ -959,19 +957,19 @@ c_orm_error_t cdd_c_abstract_to_specific(
   size_t i;
   const cdd_c_meta_t *meta = (const cdd_c_meta_t *)struct_meta;
   if (!out_struct || !in_astruct || !meta)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   if (strict_mapping && in_astruct->count != meta->num_props) {
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   for (i = 0; i < meta->num_props; ++i) {
     const cdd_c_prop_meta_t *prop = &meta->props[i];
     cdd_c_variant_t *val = NULL;
 
-    if (cdd_c_abstract_get(in_astruct, prop->name, &val) != 0) {
+    if (cdd_c_abstract_get(in_astruct, prop->name, &val) != C_ORM_OK) {
       if (strict_mapping)
-        return EINVAL;
+        return C_ORM_ERROR_VALIDATION;
       continue; /* Partial mapping allowed */
     }
 
@@ -982,13 +980,13 @@ c_orm_error_t cdd_c_abstract_to_specific(
           memcpy((char *)out_struct + prop->offset, &_v, sizeof(int));
         }
       } else if (strict_mapping)
-        return EINVAL;
+        return C_ORM_ERROR_VALIDATION;
     } else if (strcmp(prop->type, "C_ORM_TYPE_INT64") == 0) {
       if (val->type == CDD_C_VARIANT_TYPE_INT) {
         memcpy((char *)out_struct + prop->offset, &val->value.i_val,
                sizeof(c_orm_int64_t));
       } else if (strict_mapping)
-        return EINVAL;
+        return C_ORM_ERROR_VALIDATION;
     } else if (strcmp(prop->type, "C_ORM_TYPE_FLOAT") == 0) {
       if (val->type == CDD_C_VARIANT_TYPE_FLOAT) {
         {
@@ -996,13 +994,13 @@ c_orm_error_t cdd_c_abstract_to_specific(
           memcpy((char *)out_struct + prop->offset, &_v, sizeof(float));
         }
       } else if (strict_mapping)
-        return EINVAL;
+        return C_ORM_ERROR_VALIDATION;
     } else if (strcmp(prop->type, "C_ORM_TYPE_DOUBLE") == 0) {
       if (val->type == CDD_C_VARIANT_TYPE_FLOAT) {
         memcpy((char *)out_struct + prop->offset, &val->value.f_val,
                sizeof(double));
       } else if (strict_mapping)
-        return EINVAL;
+        return C_ORM_ERROR_VALIDATION;
     } else if (strcmp(prop->type, "C_ORM_TYPE_STRING") == 0) {
       if (val->type == CDD_C_VARIANT_TYPE_STRING) {
         if (prop->length > 0) {
@@ -1017,11 +1015,11 @@ c_orm_error_t cdd_c_abstract_to_specific(
           }
         }
       } else if (strict_mapping)
-        return EINVAL;
+        return C_ORM_ERROR_VALIDATION;
     }
   }
 
-  return 0;
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t
@@ -1033,11 +1031,11 @@ cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
   char query[512];
 
   if (!db || !table_name || !out_schema)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   C_ORM_SPRINTF(query, sizeof(query), "PRAGMA table_info('%s')", table_name);
   if (sqlite3_prepare_v2(sql_db, query, -1, &stmt, NULL) != SQLITE_OK) {
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -1065,12 +1063,12 @@ cdd_c_inspect_schema_sqlite3(void *db, const char *table_name,
     cdd_c_abstract_struct_array_append(out_schema, &col_def);
   }
   sqlite3_finalize(stmt);
-  return 0;
+  return C_ORM_OK;
 #else
   (void)db;
   (void)table_name;
   (void)out_schema;
-  return EINVAL;
+  return C_ORM_ERROR_VALIDATION;
 #endif
 }
 
@@ -1084,7 +1082,7 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
   int i, num_rows;
 
   if (!conn || !table_name || !out_schema)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   C_ORM_SPRINTF(query, sizeof(query),
                 "SELECT column_name, data_type, is_nullable FROM "
@@ -1093,7 +1091,7 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
   res = PQexec(pq_conn, query);
   if (PQresultStatus(res) != PGRES_TUPLES_OK) {
     PQclear(res);
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   num_rows = PQntuples(res);
@@ -1124,12 +1122,12 @@ cdd_c_inspect_schema_libpq(void *conn, const char *table_name,
     cdd_c_abstract_struct_array_append(out_schema, &col_def);
   }
   PQclear(res);
-  return 0;
+  return C_ORM_OK;
 #else
   (void)conn;
   (void)table_name;
   (void)out_schema;
-  return EINVAL;
+  return C_ORM_ERROR_VALIDATION;
 #endif
 }
 
@@ -1143,16 +1141,16 @@ cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
   char query[512];
 
   if (!conn || !table_name || !out_schema)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   C_ORM_SPRINTF(query, sizeof(query), "SHOW COLUMNS FROM `%s`", table_name);
   if (mysql_query(mysql_conn, query)) {
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   res = mysql_store_result(mysql_conn);
   if (!res) {
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   while ((row = mysql_fetch_row(res))) {
@@ -1184,14 +1182,11 @@ cdd_c_inspect_schema_mysql(void *conn, const char *table_name,
     cdd_c_abstract_struct_array_append(out_schema, &col_def);
   }
   mysql_free_result(res);
-  return 0;
+  return C_ORM_OK;
 #else
   (void)conn;
   (void)table_name;
   (void)out_schema;
-  return EINVAL;
+  return C_ORM_ERROR_VALIDATION;
 #endif
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

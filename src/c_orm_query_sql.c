@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_query_sql.c
  * @brief Dialect Translation & Execution implementation.
@@ -772,6 +770,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
   LOG_DEBUG("c_orm_query_fetch_all: exit");
   return err;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

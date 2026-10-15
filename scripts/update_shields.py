@@ -60,6 +60,8 @@ def run_gcovr(cov_dir):
             "-r",
             "..",
             ".",
+            "--exclude-unreachable-branches",
+            "--exclude-throw-branches",
             "--gcov-ignore-parse-errors=all",
             "-e",
             ".*_deps.*",

@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_sqlite.c
  * @brief SQLite3 driver implementation for c-orm.
@@ -33,14 +31,6 @@ __declspec(dllimport) int __stdcall QueryPerformanceFrequency(LARGE_INTEGER *lpF
 #include <sqlite3.h>
 #endif
 /* clang-format on */
-
-#ifdef C_ORM_ENABLE_SQLITE
-#if defined(_MSC_VER)
-#endif
-#endif
-
-#ifdef C_ORM_ENABLE_SQLITE
-#endif
 
 #ifdef C_ORM_ENABLE_SQLITE
 
@@ -213,8 +203,6 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
     db->log_cb(sql, db->log_user_data);
   }
 
-  printf("sqlite_prepare: before malloc query\n");
-
   query = (c_orm_query_t *)C_ORM_MALLOC(sizeof(c_orm_query_t));
   if (query)
     memset(query, 0, sizeof(c_orm_query_t));
@@ -223,8 +211,6 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
     rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
-
-  printf("sqlite_prepare: before malloc data\n");
 
   q_data = (struct sqlite_query_data *)C_ORM_MALLOC(
       sizeof(struct sqlite_query_data));
@@ -237,22 +223,12 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
     return (c_orm_error_t)rc;
   }
 
-  printf("sqlite_prepare: before prepare_v2\n");
-
   rc = (c_orm_error_t)sqlite3_prepare_v2(db_data->db, sql, -1, &q_data->stmt,
                                          NULL);
-  printf("DEBUG: sqlite_prepare allocated stmt %p for sql %s\n",
-         (void *)q_data->stmt, sql);
 
   if (rc != SQLITE_OK) {
-    printf("sqlite_prepare: prepare failed, setting error\n");
-
     set_error(db, NULL);
-    printf("sqlite_prepare: freeing data\n");
-
     C_ORM_FREE(q_data);
-    printf("sqlite_prepare: freeing query\n");
-
     C_ORM_FREE(query);
     LOG_DEBUG("sqlite_prepare: prepare failed");
     rc = C_ORM_ERROR_SQL;
@@ -280,23 +256,16 @@ static c_orm_error_t sqlite_bind_int32(c_orm_query_t *query, int index,
                                        int32_t val) {
   c_orm_error_t rc;
   LOG_DEBUG("sqlite_bind_int32: entry");
-  printf("sqlite_bind_int32: start index=%d val=%d\n", index, val);
 
   if (!query || !query->data || !query->data->stmt) {
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
-  printf("sqlite_bind_int32: calling sqlite3_bind_int\n");
 
   rc = (c_orm_error_t)sqlite3_bind_int(query->data->stmt, index, val);
-  printf("sqlite_bind_int32: rc=%d\n", rc);
 
   if (rc != SQLITE_OK) {
-    printf("sqlite_bind_int32: failed, calling set_error\n");
-
     set_error(query->data->db, NULL);
-    printf("sqlite_bind_int32: set_error returned\n");
-
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
@@ -325,11 +294,7 @@ static c_orm_error_t sqlite_bind_int64(c_orm_query_t *query, int index,
   }
   rc = (c_orm_error_t)sqlite3_bind_int64(query->data->stmt, index, val);
   if (rc != SQLITE_OK) {
-    printf("sqlite_bind_int64: failed, calling set_error\n");
-
     set_error(query->data->db, NULL);
-    printf("sqlite_bind_int64: set_error returned\n");
-
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
@@ -503,9 +468,6 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
   }
 
   rc = (c_orm_error_t)sqlite3_step(query->data->stmt);
-  printf("SQLITE STEP RC: %d, CHANGES: %d\n", rc,
-         sqlite3_changes(
-             ((struct sqlite_db_data *)query->data->db->driver_data)->db));
 
   if (query->data->db->slow_query_threshold_ms > 0) {
 #if defined(_WIN32) || defined(_WIN64)
@@ -755,9 +717,6 @@ static c_orm_error_t sqlite_finalize(c_orm_query_t *query) {
   }
   if (query->data) {
     if (query->data->stmt) {
-      printf("DEBUG: sqlite_finalize freeing stmt %p\n",
-             (void *)query->data->stmt);
-
       sqlite3_finalize(query->data->stmt);
     }
     C_ORM_FREE(query->data);
@@ -1232,10 +1191,4 @@ C_ORM_EXPORT c_orm_error_t c_orm_sqlite_blob_close(void *blob_handle) {
   return (c_orm_error_t)rc;
 }
 
-#endif
-
-#if defined(_MSC_VER)
-#endif
-
-#if defined(__clang__) || defined(__GNUC__)
 #endif

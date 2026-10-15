@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_migrations.c
  * @brief Implementation of database migrations for c-orm.
@@ -71,6 +69,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
     return C_ORM_ERROR_VALIDATION;
   }
 
+#ifdef C_ORM_TEST_ALLOCATOR
   if (strcmp(dir_path, "real_migrations_cli") == 0) {
     *out_count = 1;
     *out_migrations = (c_orm_migration_t *)malloc(sizeof(c_orm_migration_t));
@@ -108,6 +107,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
     *out_migrations = NULL;
     return C_ORM_OK;
   }
+#endif /* C_ORM_TEST_ALLOCATOR */
   *out_migrations = NULL;
   *out_count = 0;
 
@@ -120,14 +120,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
  * @brief Frees an array of migrations.
  * @param migrations The array of migrations to free.
  * @param count The number of migrations in the array.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_migration_free_array(c_orm_migration_t *migrations,
-                                             size_t count) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_migration_free_array(c_orm_migration_t *migrations, size_t count) {
   size_t i;
   LOG_DEBUG("c_orm_migration_free_array: entered");
   if (!migrations) {
     LOG_DEBUG("c_orm_migration_free_array: null migrations, exiting");
-    return;
+    return C_ORM_OK;
   }
   for (i = 0; i < count; i++) {
     if (migrations[i].up_sql) {
@@ -139,6 +140,7 @@ C_ORM_EXPORT void c_orm_migration_free_array(c_orm_migration_t *migrations,
   }
   C_ORM_FREE(migrations);
   LOG_DEBUG("c_orm_migration_free_array: exiting");
+  return C_ORM_OK;
 }
 
 /**
@@ -627,13 +629,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
 /**
  * @brief Frees a table schema.
  * @param schema The schema to free.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_migration_free_table_schema(cdd_c_meta_t *schema) {
+C_ORM_EXPORT c_orm_error_t
+c_orm_migration_free_table_schema(cdd_c_meta_t *schema) {
   size_t i;
   LOG_DEBUG("c_orm_migration_free_table_schema: entered");
   if (!schema) {
     LOG_DEBUG("c_orm_migration_free_table_schema: null schema, exiting");
-    return;
+    return C_ORM_OK;
   }
   if (schema->name) {
     C_ORM_FREE((void *)schema->name);
@@ -651,6 +655,7 @@ C_ORM_EXPORT void c_orm_migration_free_table_schema(cdd_c_meta_t *schema) {
   }
   C_ORM_FREE(schema);
   LOG_DEBUG("c_orm_migration_free_table_schema: exiting");
+  return C_ORM_OK;
 }
 
 /**
@@ -959,6 +964,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_unlock(c_orm_db_t *db) {
   LOG_DEBUG("c_orm_migration_unlock: exiting");
   return rc;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

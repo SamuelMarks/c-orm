@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_cdd_c_ir_oom.h
  * @brief OOM failure simulation tests for CDD C IR operations.
@@ -194,5 +192,3 @@ TEST test_cdd_c_ir_oom(void) {
 }
 
 #endif /* TEST_CDD_C_IR_OOM_H */
-#if defined(__clang__) || defined(__GNUC__)
-#endif

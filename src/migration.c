@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file migration.c
  * @brief Implementation of SQL migration file parser.
@@ -12,7 +10,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 
 #include "c_str_span.h"
 #include "cfs/cfs.h"
@@ -21,16 +18,21 @@
 #include "c_orm_meta.h"
 /* clang-format on */
 
+#ifdef C_ORM_TEST_ALLOCATOR
+/** @brief Mock hook to simulate migration_statements_init failure. */
+C_ORM_EXPORT int c_orm_mock_migration_statements_init_fail = 0;
+#endif /* C_ORM_TEST_ALLOCATOR */
+
 /**
  * @brief Executes the migration statements init operation.
  * @param out The structure to zero.
  * @return C_ORM_OK on success, or error code on failure.
  */
-C_ORM_EXPORT int c_orm_mock_migration_statements_init_fail = 0;
-
 c_orm_error_t migration_statements_init(struct MigrationStatements *out) {
+#ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_migration_statements_init_fail)
     return C_ORM_ERROR_UNKNOWN;
+#endif
   if (out) {
 
     out->up_statement = NULL;
@@ -102,7 +104,7 @@ c_orm_error_t parse_migration_file(const char *filepath,
 
   cdd_rc = read_to_file(filepath, "rb", &file_data, &file_size);
   if (cdd_rc != 0) {
-    return (c_orm_error_t)cdd_rc;
+    return C_ORM_ERROR_NOT_FOUND;
   }
 
   if (file_size == 0) {
@@ -165,6 +167,3 @@ c_orm_error_t parse_migration_file(const char *filepath,
   C_ORM_FREE(file_data);
   return C_ORM_OK;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

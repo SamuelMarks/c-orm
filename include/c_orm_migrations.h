@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_migrations.h
  * @brief Schema migration system for c-orm.
@@ -105,9 +103,10 @@ c_orm_migration_load_dir(const char *dir_path,
  *
  * @param migrations The array to free.
  * @param count The number of migrations.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_migration_free_array(c_orm_migration_t *migrations,
-                                             size_t count);
+C_ORM_EXPORT c_orm_error_t
+c_orm_migration_free_array(c_orm_migration_t *migrations, size_t count);
 
 /**
  * @brief Apply all pending migrations.
@@ -193,14 +192,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
  * @brief Free a fetched table schema.
  *
  * @param schema Pointer to schema structure to release.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_migration_free_table_schema(cdd_c_meta_t *schema);
+C_ORM_EXPORT c_orm_error_t
+c_orm_migration_free_table_schema(cdd_c_meta_t *schema);
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 #endif /* C_ORM_MIGRATIONS_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

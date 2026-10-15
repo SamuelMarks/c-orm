@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_mysql.c
  * @brief MySQL/MariaDB driver implementation for c-orm.
@@ -13,23 +11,183 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef C_ORM_ENABLE_MYSQL
+#ifdef C_ORM_MYSQL_DYNAMIC
+#if defined(_WIN32)
+__declspec(dllimport) void *__stdcall LoadLibraryA(const char *lpLibFileName);
+__declspec(dllimport) void *__stdcall GetProcAddress(void *hModule,
+                                                     const char *lpProcName);
+#else
+#include <dlfcn.h>
+#endif
+typedef struct st_mysql MYSQL;
+typedef struct st_mysql_stmt MYSQL_STMT;
+typedef struct st_mysql_res MYSQL_RES;
+typedef char my_bool;
+enum enum_field_types {
+  MYSQL_TYPE_DECIMAL,
+  MYSQL_TYPE_TINY,
+  MYSQL_TYPE_SHORT,
+  MYSQL_TYPE_LONG,
+  MYSQL_TYPE_FLOAT,
+  MYSQL_TYPE_DOUBLE,
+  MYSQL_TYPE_NULL,
+  MYSQL_TYPE_TIMESTAMP,
+  MYSQL_TYPE_LONGLONG,
+  MYSQL_TYPE_INT24,
+  MYSQL_TYPE_DATE,
+  MYSQL_TYPE_TIME,
+  MYSQL_TYPE_DATETIME,
+  MYSQL_TYPE_YEAR,
+  MYSQL_TYPE_NEWDATE,
+  MYSQL_TYPE_VARCHAR,
+  MYSQL_TYPE_BIT,
+  MYSQL_TYPE_NEWDECIMAL = 246,
+  MYSQL_TYPE_ENUM = 247,
+  MYSQL_TYPE_SET = 248,
+  MYSQL_TYPE_TINY_BLOB = 249,
+  MYSQL_TYPE_MEDIUM_BLOB = 250,
+  MYSQL_TYPE_LONG_BLOB = 251,
+  MYSQL_TYPE_BLOB = 252,
+  MYSQL_TYPE_VAR_STRING = 253,
+  MYSQL_TYPE_STRING = 254,
+  MYSQL_TYPE_GEOMETRY = 255
+};
+typedef struct st_mysql_bind {
+  unsigned long *length;
+  my_bool *is_null;
+  void *buffer;
+  my_bool *error;
+  unsigned char *row_ptr;
+  void (*store_param_func)(void *net, struct st_mysql_bind *param);
+  void (*fetch_result)(struct st_mysql_bind *, void *, unsigned char **row);
+  void (*skip_result)(struct st_mysql_bind *, void *, unsigned char **row);
+  unsigned long buffer_length;
+  unsigned long offset;
+  unsigned long length_value;
+  unsigned int param_number;
+  unsigned int pack_length;
+  enum enum_field_types buffer_type;
+  my_bool error_value;
+  my_bool is_unsigned;
+  my_bool long_data_used;
+  my_bool is_null_value;
+  void *extension;
+} MYSQL_BIND;
+#define MYSQL_NO_DATA 100
+#define MYSQL_DATA_TRUNCATED 101
+#else
 #include <mysql.h>
+#endif
 #endif
 /* clang-format on */
 
 #ifdef C_ORM_ENABLE_MYSQL
 
-#if defined(_MSC_VER)
-#define C_ORM_INT64_FORMAT "%I64d"
-#define C_ORM_INT64_CAST __int64
-#elif defined(__x86_64__) || defined(__aarch64__) ||                           \
-    (defined(__APPLE__) && defined(__MACH__))
-#define C_ORM_INT64_FORMAT "%ld"
-#define C_ORM_INT64_CAST long
+#ifdef C_ORM_MYSQL_DYNAMIC
+static MYSQL *(*dyn_mysql_init)(MYSQL *mysql);
+static MYSQL *(*dyn_mysql_real_connect)(MYSQL *mysql, const char *host,
+                                        const char *user, const char *passwd,
+                                        const char *db, unsigned int port,
+                                        const char *unix_socket,
+                                        unsigned long clientflag);
+static void (*dyn_mysql_close)(MYSQL *sock);
+static const char *(*dyn_mysql_error)(MYSQL *mysql);
+static unsigned long long (*dyn_mysql_insert_id)(MYSQL *mysql);
+static MYSQL_STMT *(*dyn_mysql_stmt_init)(MYSQL *mysql);
+static int (*dyn_mysql_stmt_prepare)(MYSQL_STMT *stmt, const char *query,
+                                     unsigned long length);
+static unsigned long (*dyn_mysql_stmt_param_count)(MYSQL_STMT *stmt);
+static my_bool (*dyn_mysql_stmt_bind_param)(MYSQL_STMT *stmt, MYSQL_BIND *bnd);
+static int (*dyn_mysql_stmt_execute)(MYSQL_STMT *stmt);
+static MYSQL_RES *(*dyn_mysql_stmt_result_metadata)(MYSQL_STMT *stmt);
+static unsigned int (*dyn_mysql_num_fields)(MYSQL_RES *res);
+static void (*dyn_mysql_free_result)(MYSQL_RES *result);
+static my_bool (*dyn_mysql_stmt_bind_result)(MYSQL_STMT *stmt, MYSQL_BIND *bnd);
+static int (*dyn_mysql_stmt_store_result)(MYSQL_STMT *stmt);
+static int (*dyn_mysql_stmt_fetch)(MYSQL_STMT *stmt);
+static int (*dyn_mysql_stmt_fetch_column)(MYSQL_STMT *stmt, MYSQL_BIND *bind,
+                                          unsigned int column,
+                                          unsigned long offset);
+static my_bool (*dyn_mysql_stmt_close)(MYSQL_STMT *stmt);
+static my_bool (*dyn_mysql_stmt_free_result)(MYSQL_STMT *stmt);
+static const char *(*dyn_mysql_stmt_error)(MYSQL_STMT *stmt);
+
+/**
+ * @brief Dynamically loads libmariadb/libmysqlclient symbols at runtime.
+ * @return C_ORM_OK on success, C_ORM_ERROR_CONNECTION on failure.
+ */
+static c_orm_error_t c_orm_load_libmysql(void) {
+  static int loaded = 0;
+  void *h;
+  if (loaded)
+    return C_ORM_OK;
+#if defined(_WIN32)
+  h = LoadLibraryA("libmariadb.dll");
+  if (!h)
+    h = LoadLibraryA("libmysql.dll");
+#elif defined(__APPLE__)
+  h = dlopen("libmariadb.dylib", RTLD_LAZY);
+  if (!h)
+    h = dlopen("libmysqlclient.dylib", RTLD_LAZY);
 #else
-#define C_ORM_INT64_FORMAT "%lld"
-#define C_ORM_INT64_CAST long long
+  h = dlopen("libmariadb.so", RTLD_LAZY);
+  if (!h)
+    h = dlopen("libmysqlclient.so", RTLD_LAZY);
 #endif
+  if (!h)
+    return C_ORM_ERROR_CONNECTION;
+#if defined(_WIN32)
+#define MY_SYM(name) *(void **)(&dyn_##name) = GetProcAddress(h, #name)
+#else
+#define MY_SYM(name) *(void **)(&dyn_##name) = dlsym(h, #name)
+#endif
+  MY_SYM(mysql_init);
+  MY_SYM(mysql_real_connect);
+  MY_SYM(mysql_close);
+  MY_SYM(mysql_error);
+  MY_SYM(mysql_insert_id);
+  MY_SYM(mysql_stmt_init);
+  MY_SYM(mysql_stmt_prepare);
+  MY_SYM(mysql_stmt_param_count);
+  MY_SYM(mysql_stmt_bind_param);
+  MY_SYM(mysql_stmt_execute);
+  MY_SYM(mysql_stmt_result_metadata);
+  MY_SYM(mysql_num_fields);
+  MY_SYM(mysql_free_result);
+  MY_SYM(mysql_stmt_bind_result);
+  MY_SYM(mysql_stmt_store_result);
+  MY_SYM(mysql_stmt_fetch);
+  MY_SYM(mysql_stmt_fetch_column);
+  MY_SYM(mysql_stmt_close);
+  MY_SYM(mysql_stmt_free_result);
+  MY_SYM(mysql_stmt_error);
+#undef MY_SYM
+  if (!dyn_mysql_init || !dyn_mysql_real_connect || !dyn_mysql_close)
+    return C_ORM_ERROR_CONNECTION;
+  loaded = 1;
+  return C_ORM_OK;
+}
+#define mysql_init dyn_mysql_init
+#define mysql_real_connect dyn_mysql_real_connect
+#define mysql_close dyn_mysql_close
+#define mysql_error dyn_mysql_error
+#define mysql_insert_id dyn_mysql_insert_id
+#define mysql_stmt_init dyn_mysql_stmt_init
+#define mysql_stmt_prepare dyn_mysql_stmt_prepare
+#define mysql_stmt_param_count dyn_mysql_stmt_param_count
+#define mysql_stmt_bind_param dyn_mysql_stmt_bind_param
+#define mysql_stmt_execute dyn_mysql_stmt_execute
+#define mysql_stmt_result_metadata dyn_mysql_stmt_result_metadata
+#define mysql_num_fields dyn_mysql_num_fields
+#define mysql_free_result dyn_mysql_free_result
+#define mysql_stmt_bind_result dyn_mysql_stmt_bind_result
+#define mysql_stmt_store_result dyn_mysql_stmt_store_result
+#define mysql_stmt_fetch dyn_mysql_stmt_fetch
+#define mysql_stmt_fetch_column dyn_mysql_stmt_fetch_column
+#define mysql_stmt_close dyn_mysql_stmt_close
+#define mysql_stmt_free_result dyn_mysql_stmt_free_result
+#define mysql_stmt_error dyn_mysql_stmt_error
+#endif /* C_ORM_MYSQL_DYNAMIC */
 
 /**
  * @brief Internal data for MySQL connection.
@@ -62,8 +220,9 @@ struct mysql_query_data {
  * @brief Sets the last error message on the database context.
  * @param db The database connection.
  * @param msg The error message to set.
+ * @return C_ORM_OK on success.
  */
-static void set_error(c_orm_db_t *db, const char *msg) {
+static c_orm_error_t set_error(c_orm_db_t *db, const char *msg) {
   LOG_DEBUG("set_error: entered");
   if (db && db->driver_data) {
     struct mysql_db_data *data = (struct mysql_db_data *)db->driver_data;
@@ -85,6 +244,7 @@ static void set_error(c_orm_db_t *db, const char *msg) {
     }
   }
   LOG_DEBUG("set_error: exiting");
+  return C_ORM_OK;
 }
 
 /**
@@ -105,6 +265,13 @@ static c_orm_error_t mysql_drv_connect(const char *url, c_orm_db_t **out_db) {
     rc = C_ORM_ERROR_MEMORY;
     return (c_orm_error_t)rc;
   }
+
+#ifdef C_ORM_MYSQL_DYNAMIC
+  rc = c_orm_load_libmysql();
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+#endif
 
   db = (c_orm_db_t *)calloc(1, sizeof(c_orm_db_t));
   if (!db) {
@@ -135,17 +302,81 @@ static c_orm_error_t mysql_drv_connect(const char *url, c_orm_db_t **out_db) {
     return rc;
   }
 
-  /* Note: A robust implementation would parse `url`. For now, we do a real
-     connection attempt and strictly return errors if it fails, dropping the
-     "ignored for stub" behavior. */
-  if (!mysql_real_connect(data->conn, "127.0.0.1", "root", "", "test", 0, NULL,
-                          0)) {
-    LOG_DEBUG("mysql_drv_connect: connection failed");
-    mysql_close(data->conn);
-    C_ORM_FREE(data);
-    C_ORM_FREE(db);
-    rc = C_ORM_ERROR_CONNECTION;
-    return rc;
+  {
+    char host[128] = "127.0.0.1";
+    char user[64] = "root";
+    char pass[64] = "";
+    char dbname[64] = "test";
+    unsigned int port = 0;
+    const char *p = url;
+    if (strncmp(p, "mysql://", 8) == 0) {
+      const char *at;
+      const char *slash;
+      p += 8;
+      at = strchr(p, '@');
+      if (at) {
+        const char *colon = strchr(p, ':');
+        if (colon && colon < at) {
+          size_t ulen = (size_t)(colon - p);
+          size_t plen = (size_t)(at - colon - 1);
+          if (ulen >= sizeof(user))
+            ulen = sizeof(user) - 1;
+          if (plen >= sizeof(pass))
+            plen = sizeof(pass) - 1;
+          memcpy(user, p, ulen);
+          user[ulen] = '\0';
+          memcpy(pass, colon + 1, plen);
+          pass[plen] = '\0';
+        } else {
+          size_t ulen = (size_t)(at - p);
+          if (ulen >= sizeof(user))
+            ulen = sizeof(user) - 1;
+          memcpy(user, p, ulen);
+          user[ulen] = '\0';
+        }
+        p = at + 1;
+      }
+      slash = strchr(p, '/');
+      if (slash) {
+        const char *colon = strchr(p, ':');
+        size_t dlen = strlen(slash + 1);
+        if (colon && colon < slash) {
+          size_t hlen = (size_t)(colon - p);
+          if (hlen >= sizeof(host))
+            hlen = sizeof(host) - 1;
+          memcpy(host, p, hlen);
+          host[hlen] = '\0';
+          port = (unsigned int)atoi(colon + 1);
+        } else if (slash > p) {
+          size_t hlen = (size_t)(slash - p);
+          if (hlen >= sizeof(host))
+            hlen = sizeof(host) - 1;
+          memcpy(host, p, hlen);
+          host[hlen] = '\0';
+        }
+        if (dlen > 0) {
+          if (dlen >= sizeof(dbname))
+            dlen = sizeof(dbname) - 1;
+          memcpy(dbname, slash + 1, dlen);
+          dbname[dlen] = '\0';
+        }
+      } else if (*p) {
+        size_t hlen = strlen(p);
+        if (hlen >= sizeof(host))
+          hlen = sizeof(host) - 1;
+        memcpy(host, p, hlen);
+        host[hlen] = '\0';
+      }
+    }
+    if (!mysql_real_connect(data->conn, host, user, pass, dbname, port, NULL,
+                            0)) {
+      LOG_DEBUG("mysql_drv_connect: connection failed");
+      mysql_close(data->conn);
+      C_ORM_FREE(data);
+      C_ORM_FREE(db);
+      rc = C_ORM_ERROR_CONNECTION;
+      return rc;
+    }
   }
 
   if (c_orm_mysql_get_vtable(&db->vtable) != 0) {
@@ -574,16 +805,10 @@ static c_orm_error_t init_result_binds(struct mysql_query_data *q_data) {
     }
 
     for (i = 0; i < q_data->result_col_count; i++) {
-      q_data->result_buffers[i] =
-          (char *)C_ORM_MALLOC(8192); /* 8K per column */
-      if (!q_data->result_buffers[i]) {
-        LOG_DEBUG("init_result_binds: OOM");
-        rc = C_ORM_ERROR_MEMORY;
-        return (c_orm_error_t)rc;
-      }
+      q_data->result_buffers[i] = NULL;
       q_data->result_binds[i].buffer_type = MYSQL_TYPE_STRING;
-      q_data->result_binds[i].buffer = q_data->result_buffers[i];
-      q_data->result_binds[i].buffer_length = 8192;
+      q_data->result_binds[i].buffer = NULL;
+      q_data->result_binds[i].buffer_length = 0;
       q_data->result_binds[i].is_null = &q_data->result_is_null[i];
       q_data->result_binds[i].length = &q_data->result_length[i];
     }
@@ -663,6 +888,32 @@ static c_orm_error_t mysql_drv_step(c_orm_query_t *query, int *out_has_row) {
 
   rc = mysql_stmt_fetch(q_data->stmt);
   if (rc == 0 || rc == MYSQL_DATA_TRUNCATED) {
+    int col_i;
+    for (col_i = 0; col_i < q_data->result_col_count; col_i++) {
+      if (q_data->result_buffers[col_i]) {
+        C_ORM_FREE(q_data->result_buffers[col_i]);
+        q_data->result_buffers[col_i] = NULL;
+      }
+      if (!q_data->result_is_null[col_i]) {
+        unsigned long len = q_data->result_length[col_i];
+        q_data->result_buffers[col_i] = (char *)C_ORM_MALLOC(len + 1);
+        if (!q_data->result_buffers[col_i]) {
+          LOG_DEBUG("mysql_drv_step: OOM allocating column buffer");
+          return C_ORM_ERROR_MEMORY;
+        }
+        q_data->result_binds[col_i].buffer = q_data->result_buffers[col_i];
+        q_data->result_binds[col_i].buffer_length = len + 1;
+        if (mysql_stmt_fetch_column(q_data->stmt, &q_data->result_binds[col_i],
+                                    (unsigned int)col_i, 0) != 0) {
+          LOG_DEBUG("mysql_drv_step: fetch_column error");
+          set_error(q_data->db, mysql_stmt_error(q_data->stmt));
+          return C_ORM_ERROR_STEP;
+        }
+        q_data->result_buffers[col_i][len] = '\0';
+        q_data->result_binds[col_i].buffer = NULL;
+        q_data->result_binds[col_i].buffer_length = 0;
+      }
+    }
     LOG_DEBUG("mysql_drv_step: row fetched");
     *out_has_row = 1;
     rc = C_ORM_OK;
@@ -1113,7 +1364,4 @@ C_ORM_EXPORT c_orm_error_t c_orm_mysql_connect(const char *url,
   return (c_orm_error_t)rc;
 }
 
-#endif
-
-#if defined(__clang__) || defined(__GNUC__)
 #endif

@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file parson.h
  * @brief Lightweight C JSON library.
@@ -34,13 +32,6 @@
 #ifndef parson_parson_h
 #define parson_parson_h
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-#if 0
-} /* unconfuse xcode */
-#endif
-
 #define PARSON_VERSION_MAJOR 1
 #define PARSON_VERSION_MINOR 5
 #define PARSON_VERSION_PATCH 3
@@ -50,6 +41,13 @@ extern "C" {
 /* clang-format off */
 #include <stddef.h> /* size_t */
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+#if 0
+} /* unconfuse xcode */
+#endif
 
 /* Types and enums */
 typedef struct json_object_t JSON_Object;
@@ -1033,7 +1031,4 @@ int json_boolean(const JSON_Value *value);
 
 /** @} */
 
-#endif
-
-#if defined(__clang__) || defined(__GNUC__)
 #endif

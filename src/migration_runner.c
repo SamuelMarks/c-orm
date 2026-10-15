@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file migration_runner.c
  * @brief Implementation of database migrations logic using libpq.
@@ -14,7 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
+#include <time.h>
 
 #if !defined(__EMSCRIPTEN__) && defined(USE_LIBPQ_LINKED)
 #include <libpq-fe.h>
@@ -35,7 +33,14 @@
 #else
 #include <dlfcn.h>
 #endif
+#endif /* USE_LIBPQ_DYNAMIC */
+#endif
+/* clang-format on */
 
+#if !defined(__EMSCRIPTEN__) &&                                                \
+    (defined(USE_LIBPQ_LINKED) || defined(USE_LIBPQ_DYNAMIC))
+
+#if defined(USE_LIBPQ_DYNAMIC)
 typedef struct pg_conn PGconn;
 typedef struct pg_result PGresult;
 
@@ -122,9 +127,8 @@ static c_orm_error_t load_libpq(void) {
   do {                                                                         \
     c_orm_error_t _libpq_rc = load_libpq();                                    \
     if (_libpq_rc != C_ORM_OK) {                                               \
-      fprintf(                                                                 \
-          stderr,                                                              \
-          "Error: PostgreSQL dynamic library (libpq) not found at runtime.\n");\
+      fprintf(stderr, "Error: PostgreSQL dynamic library (libpq) not found "   \
+                      "at runtime.\n");                                        \
       return _libpq_rc;                                                        \
     }                                                                          \
   } while (0)
@@ -199,8 +203,8 @@ static int collect_migration_cb(const char *path, void *user_data) {
   }
 
   rc = get_basename(path, &basename);
-  if (rc != 0 || !basename) {
-    return rc ? rc : ENOMEM;
+  if (rc != C_ORM_OK || !basename) {
+    return rc ? (int)rc : (int)C_ORM_ERROR_MEMORY;
   }
 
   /* Extract version: remove .sql extension */
@@ -212,7 +216,7 @@ static int collect_migration_cb(const char *path, void *user_data) {
         list->files, new_cap * sizeof(struct MigrationFile));
     if (!new_arr) {
       free(basename);
-      return ENOMEM;
+      return (int)C_ORM_ERROR_MEMORY;
     }
     list->files = new_arr;
     list->capacity = new_cap;
@@ -220,7 +224,7 @@ static int collect_migration_cb(const char *path, void *user_data) {
 
   if (c_cdd_strdup(path, &list->files[list->count].filepath) != 0) {
     free(basename);
-    return ENOMEM;
+    return (int)C_ORM_ERROR_MEMORY;
   }
   list->files[list->count].version = basename;
   list->count++;
@@ -340,18 +344,18 @@ C_ORM_EXPORT c_orm_error_t apply_migration(const char *filepath) {
   C_ORM_GETENV(db_url, sizeof(db_url), "DATABASE_URL");
   if (db_url[0] == '\0') {
     fprintf(stderr, "Error: DATABASE_URL environment variable is not set.\n");
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   rc = parse_migration_file(filepath, &stmts);
-  if (rc != 0) {
+  if (rc != C_ORM_OK) {
     fprintf(stderr, "Error: failed to parse migration file '%s'\n", filepath);
     return rc;
   }
 
   if (!stmts.up_statement) {
     migration_statements_free(&stmts);
-    return 0; /* Nothing to do */
+    return C_ORM_OK; /* Nothing to do */
   }
 
   conn = PQconnectdb(db_url);
@@ -360,7 +364,7 @@ C_ORM_EXPORT c_orm_error_t apply_migration(const char *filepath) {
             PQerrorMessage(conn));
     PQfinish(conn);
     migration_statements_free(&stmts);
-    return ECONNREFUSED;
+    return C_ORM_ERROR_CONNECTION;
   }
 
   res = PQexec(conn, stmts.up_statement);
@@ -370,14 +374,14 @@ C_ORM_EXPORT c_orm_error_t apply_migration(const char *filepath) {
     PQclear(res);
     PQfinish(conn);
     migration_statements_free(&stmts);
-    return EIO;
+    return C_ORM_ERROR_SQL;
   }
 
   PQclear(res);
   PQfinish(conn);
   migration_statements_free(&stmts);
 
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -393,18 +397,18 @@ C_ORM_EXPORT c_orm_error_t rollback_migration(const char *filepath) {
   C_ORM_GETENV(db_url, sizeof(db_url), "DATABASE_URL");
   if (db_url[0] == '\0') {
     fprintf(stderr, "Error: DATABASE_URL environment variable is not set.\n");
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   rc = parse_migration_file(filepath, &stmts);
-  if (rc != 0) {
+  if (rc != C_ORM_OK) {
     fprintf(stderr, "Error: failed to parse migration file '%s'\n", filepath);
     return rc;
   }
 
   if (!stmts.down_statement) {
     migration_statements_free(&stmts);
-    return 0; /* Nothing to do */
+    return C_ORM_OK; /* Nothing to do */
   }
 
   conn = PQconnectdb(db_url);
@@ -413,7 +417,7 @@ C_ORM_EXPORT c_orm_error_t rollback_migration(const char *filepath) {
             PQerrorMessage(conn));
     PQfinish(conn);
     migration_statements_free(&stmts);
-    return ECONNREFUSED;
+    return C_ORM_ERROR_CONNECTION;
   }
 
   res = PQexec(conn, stmts.down_statement);
@@ -423,14 +427,14 @@ C_ORM_EXPORT c_orm_error_t rollback_migration(const char *filepath) {
     PQclear(res);
     PQfinish(conn);
     migration_statements_free(&stmts);
-    return EIO;
+    return C_ORM_ERROR_SQL;
   }
 
   PQclear(res);
   PQfinish(conn);
   migration_statements_free(&stmts);
 
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -448,7 +452,7 @@ C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
   C_ORM_GETENV(db_url, sizeof(db_url), "DATABASE_URL");
   if (db_url[0] == '\0') {
     fprintf(stderr, "Error: DATABASE_URL environment variable is not set.\n");
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   conn = PQconnectdb(db_url);
@@ -456,17 +460,17 @@ C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
     fprintf(stderr, "Connection to database failed: %s\n",
             PQerrorMessage(conn));
     PQfinish(conn);
-    return ECONNREFUSED;
+    return C_ORM_ERROR_CONNECTION;
   }
 
   rc = ensure_schema_migrations_table(conn);
-  if (rc != 0) {
+  if (rc != C_ORM_OK) {
     PQfinish(conn);
     return rc;
   }
 
   rc = get_applied_migrations(conn, &applied_versions, &applied_count);
-  if (rc != 0) {
+  if (rc != C_ORM_OK) {
     PQfinish(conn);
     return rc;
   }
@@ -475,8 +479,9 @@ C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
   list.count = 0;
   list.capacity = 0;
 
-  rc = walk_directory(migrations_dir, collect_migration_cb, &list);
-  if (rc != 0) {
+  rc = (c_orm_error_t)walk_directory(migrations_dir, collect_migration_cb,
+                                     &list);
+  if (rc != C_ORM_OK) {
     fprintf(stderr, "Error reading migrations directory.\n");
     for (i = 0; i < applied_count; i++) {
       free(applied_versions[i]);
@@ -508,7 +513,7 @@ C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
       printf("Applying migration: %s\n", list.files[i].version);
 
       rc = parse_migration_file(list.files[i].filepath, &stmts);
-      if (rc != 0) {
+      if (rc != C_ORM_OK) {
         fprintf(stderr, "Failed to parse migration file '%s'\n",
                 list.files[i].filepath);
         break;
@@ -521,7 +526,7 @@ C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
           fprintf(stderr, "Migration UP failed: %s\n", PQerrorMessage(conn));
           PQclear(res);
           migration_statements_free(&stmts);
-          rc = EIO;
+          rc = C_ORM_ERROR_SQL;
           break;
         }
         PQclear(res);
@@ -536,7 +541,7 @@ C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
         fprintf(stderr, "Failed to record migration: %s\n",
                 PQerrorMessage(conn));
         PQclear(res);
-        rc = EIO;
+        rc = C_ORM_ERROR_SQL;
         break;
       }
       PQclear(res);
@@ -579,7 +584,7 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
   C_ORM_GETENV(db_url, sizeof(db_url), "DATABASE_URL");
   if (db_url[0] == '\0') {
     fprintf(stderr, "Error: DATABASE_URL environment variable is not set.\n");
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   conn = PQconnectdb(db_url);
@@ -587,11 +592,11 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
     fprintf(stderr, "Connection to database failed: %s\n",
             PQerrorMessage(conn));
     PQfinish(conn);
-    return ECONNREFUSED;
+    return C_ORM_ERROR_CONNECTION;
   }
 
   rc = ensure_schema_migrations_table(conn);
-  if (rc != 0) {
+  if (rc != C_ORM_OK) {
     PQfinish(conn);
     return rc;
   }
@@ -604,31 +609,32 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
             PQerrorMessage(conn));
     PQclear(res);
     PQfinish(conn);
-    return EIO;
+    return C_ORM_ERROR_SQL;
   }
 
   if (PQntuples(res) == 0) {
     printf("No migrations to rollback.\n");
     PQclear(res);
     PQfinish(conn);
-    return 0;
+    return C_ORM_OK;
   }
 
   last_version = NULL;
-  rc = c_cdd_strdup(PQgetvalue(res, 0, 0), &last_version);
+  rc = (c_orm_error_t)c_cdd_strdup(PQgetvalue(res, 0, 0), &last_version);
   PQclear(res);
 
-  if (rc != 0) {
+  if (rc != C_ORM_OK) {
     PQfinish(conn);
-    return rc;
+    return C_ORM_ERROR_MEMORY;
   }
 
   list.files = NULL;
   list.count = 0;
   list.capacity = 0;
 
-  rc = walk_directory(migrations_dir, collect_migration_cb, &list);
-  if (rc != 0) {
+  rc = (c_orm_error_t)walk_directory(migrations_dir, collect_migration_cb,
+                                     &list);
+  if (rc != C_ORM_OK) {
     fprintf(stderr, "Error reading migrations directory.\n");
     free(last_version);
     PQfinish(conn);
@@ -638,7 +644,8 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
   target_filepath = NULL;
   for (i = 0; i < list.count; i++) {
     if (strcmp(list.files[i].version, last_version) == 0) {
-      rc = c_cdd_strdup(list.files[i].filepath, &target_filepath);
+      rc =
+          (c_orm_error_t)c_cdd_strdup(list.files[i].filepath, &target_filepath);
       break;
     }
   }
@@ -651,7 +658,7 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
     free(list.files);
   }
 
-  if (!target_filepath || rc != 0) {
+  if (!target_filepath || rc != C_ORM_OK) {
     fprintf(stderr,
             "Error: Migration file for version '%s' not found in directory.\n",
             last_version);
@@ -660,7 +667,7 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
       free(target_filepath);
     }
     PQfinish(conn);
-    return ENOENT;
+    return C_ORM_ERROR_NOT_FOUND;
   }
 
   printf("Rolling back migration: %s\n", last_version);
@@ -668,7 +675,7 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
   {
     struct MigrationStatements stmts;
     rc = parse_migration_file(target_filepath, &stmts);
-    if (rc != 0) {
+    if (rc != C_ORM_OK) {
       fprintf(stderr, "Failed to parse migration file '%s'\n", target_filepath);
       free(target_filepath);
       free(last_version);
@@ -686,7 +693,7 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
         free(target_filepath);
         free(last_version);
         PQfinish(conn);
-        return EIO;
+        return C_ORM_ERROR_SQL;
       }
       PQclear(res);
     }
@@ -706,7 +713,7 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
       free(target_filepath);
       free(last_version);
       PQfinish(conn);
-      return EIO;
+      return C_ORM_ERROR_SQL;
     }
     PQclear(res);
   }
@@ -715,10 +722,8 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
   free(last_version);
   PQfinish(conn);
 
-  return 0;
+  return C_ORM_OK;
 }
-#include <time.h>
-/* clang-format on */
 
 /**
  * @brief Executes the create migration file operation.
@@ -736,18 +741,18 @@ C_ORM_EXPORT c_orm_error_t create_migration_file(const char *migrations_dir,
   int i;
 
   if (!migrations_dir || !name) {
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   t = time(NULL);
   tm_info = localtime(&t);
   if (!tm_info) {
-    return EINVAL;
+    return C_ORM_ERROR_UNKNOWN;
   }
   strftime(timestamp, sizeof(timestamp), "%Y%m%d%H%M%S", tm_info);
 
   if (c_cdd_strdup(name, &safe_name) != 0) {
-    return ENOMEM;
+    return C_ORM_ERROR_MEMORY;
   }
 
   for (i = 0; safe_name[i]; i++) {
@@ -761,7 +766,7 @@ C_ORM_EXPORT c_orm_error_t create_migration_file(const char *migrations_dir,
   filepath = (char *)malloc(filepath_len);
   if (!filepath) {
     free(safe_name);
-    return ENOMEM;
+    return C_ORM_ERROR_MEMORY;
   }
 
   C_ORM_SPRINTF(filepath, filepath_len, "%s%c%s_%s.sql", migrations_dir,
@@ -772,12 +777,13 @@ C_ORM_EXPORT c_orm_error_t create_migration_file(const char *migrations_dir,
                  "-- DOWN\n"
                  "-- Add down migration statements here\n";
 
-  rc = fs_write_to_file(filepath, template_str);
+  rc = (c_orm_error_t)fs_write_to_file(filepath, template_str);
 
-  if (rc == 0) {
+  if (rc == C_ORM_OK) {
     printf("Created migration file: %s\n", filepath);
   } else {
     fprintf(stderr, "Failed to create migration file: %s\n", filepath);
+    rc = C_ORM_ERROR_UNKNOWN;
   }
 
   free(safe_name);
@@ -797,7 +803,7 @@ C_ORM_EXPORT c_orm_error_t reset_database(const char *migrations_dir) {
   C_ORM_GETENV(db_url, sizeof(db_url), "DATABASE_URL");
   if (db_url[0] == '\0') {
     fprintf(stderr, "Error: DATABASE_URL environment variable is not set.\n");
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   conn = PQconnectdb(db_url);
@@ -805,7 +811,7 @@ C_ORM_EXPORT c_orm_error_t reset_database(const char *migrations_dir) {
     fprintf(stderr, "Connection to database failed: %s\n",
             PQerrorMessage(conn));
     PQfinish(conn);
-    return ECONNREFUSED;
+    return C_ORM_ERROR_CONNECTION;
   }
 
   res = PQexec(conn, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
@@ -814,7 +820,7 @@ C_ORM_EXPORT c_orm_error_t reset_database(const char *migrations_dir) {
             PQerrorMessage(conn));
     PQclear(res);
     PQfinish(conn);
-    return EIO;
+    return C_ORM_ERROR_SQL;
   }
   PQclear(res);
 
@@ -833,16 +839,16 @@ C_ORM_EXPORT c_orm_error_t dump_schema(const char *out_filepath) {
   char db_url[1024];
   char *cmd;
   size_t cmd_len;
-  c_orm_error_t rc;
+  int sys_rc;
 
   if (!out_filepath) {
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   C_ORM_GETENV(db_url, sizeof(db_url), "DATABASE_URL");
   if (db_url[0] == '\0') {
     fprintf(stderr, "Error: DATABASE_URL environment variable is not set.\n");
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   /* Note: Assumes pg_dump is in PATH */
@@ -850,22 +856,22 @@ C_ORM_EXPORT c_orm_error_t dump_schema(const char *out_filepath) {
             strlen(out_filepath) + 1;
   cmd = (char *)malloc(cmd_len);
   if (!cmd) {
-    return ENOMEM;
+    return C_ORM_ERROR_MEMORY;
   }
 
   C_ORM_SPRINTF(cmd, cmd_len, "pg_dump -s -O -x \"%s\" > \"%s\"", db_url,
                 out_filepath);
 
-  rc = system(cmd);
-  if (rc == 0) {
+  sys_rc = system(cmd);
+  if (sys_rc == 0) {
     printf("Schema dumped successfully to %s\n", out_filepath);
   } else {
-    fprintf(stderr, "Failed to dump schema (exit code %d).\n", rc);
+    fprintf(stderr, "Failed to dump schema (exit code %d).\n", sys_rc);
     fprintf(stderr, "Ensure 'pg_dump' is installed and in your PATH.\n");
   }
 
   free(cmd);
-  return rc != 0 ? EIO : 0;
+  return sys_rc != 0 ? C_ORM_ERROR_UNKNOWN : C_ORM_OK;
 }
 /**
  * @brief Executes the setup test database operation.
@@ -879,13 +885,13 @@ C_ORM_EXPORT c_orm_error_t setup_test_database(const char *db_name,
   PGresult *res;
 
   if (!db_name || !migrations_dir) {
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   C_ORM_GETENV(db_url, sizeof(db_url), "DATABASE_URL");
   if (db_url[0] == '\0') {
     fprintf(stderr, "Error: DATABASE_URL environment variable is not set.\n");
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   conn = PQconnectdb(db_url);
@@ -893,14 +899,14 @@ C_ORM_EXPORT c_orm_error_t setup_test_database(const char *db_name,
     fprintf(stderr, "Connection to administrative database failed: %s\n",
             PQerrorMessage(conn));
     PQfinish(conn);
-    return ECONNREFUSED;
+    return C_ORM_ERROR_CONNECTION;
   }
 
   query_len = strlen("CREATE DATABASE \"\"") + strlen(db_name) + 1;
   create_db_query = (char *)malloc(query_len);
   if (!create_db_query) {
     PQfinish(conn);
-    return ENOMEM;
+    return C_ORM_ERROR_MEMORY;
   }
 
   C_ORM_SPRINTF(create_db_query, query_len, "CREATE DATABASE \"%s\"", db_name);
@@ -914,7 +920,7 @@ C_ORM_EXPORT c_orm_error_t setup_test_database(const char *db_name,
       PQclear(res);
       free(create_db_query);
       PQfinish(conn);
-      return EIO;
+      return C_ORM_ERROR_SQL;
     }
   }
   PQclear(res);
@@ -922,7 +928,7 @@ C_ORM_EXPORT c_orm_error_t setup_test_database(const char *db_name,
   PQfinish(conn);
 
   printf("Test database '%s' created (if it didn't exist).\n", db_name);
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -937,26 +943,26 @@ C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath) {
   c_orm_error_t rc;
 
   if (!seed_filepath) {
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   C_ORM_GETENV(db_url, sizeof(db_url), "DATABASE_URL");
   if (db_url[0] == '\0') {
     fprintf(stderr, "Error: DATABASE_URL environment variable is not set.\n");
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
 
-  rc = read_to_file(seed_filepath, "rb", &file_data, &file_size);
-  if (rc != 0) {
+  rc = (c_orm_error_t)read_to_file(seed_filepath, "rb", &file_data, &file_size);
+  if (rc != C_ORM_OK) {
     fprintf(stderr, "Error reading seed file '%s'\n", seed_filepath);
-    return rc;
+    return C_ORM_ERROR_NOT_FOUND;
   }
 
   if (file_size == 0 || !file_data) {
     if (file_data) {
       free(file_data);
     }
-    return 0;
+    return C_ORM_OK;
   }
 
   conn = PQconnectdb(db_url);
@@ -965,7 +971,7 @@ C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath) {
             PQerrorMessage(conn));
     free(file_data);
     PQfinish(conn);
-    return ECONNREFUSED;
+    return C_ORM_ERROR_CONNECTION;
   }
 
   res = PQexec(conn, file_data);
@@ -975,7 +981,7 @@ C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath) {
     PQclear(res);
     free(file_data);
     PQfinish(conn);
-    return EIO;
+    return C_ORM_ERROR_SQL;
   }
 
   PQclear(res);
@@ -983,7 +989,7 @@ C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath) {
   PQfinish(conn);
 
   printf("Database seeded successfully from '%s'.\n", seed_filepath);
-  return 0;
+  return C_ORM_OK;
 }
 #else  /* !(!defined(__EMSCRIPTEN__) && (defined(USE_LIBPQ_LINKED) ||          \
           defined(USE_LIBPQ_DYNAMIC))) */
@@ -1087,6 +1093,3 @@ C_ORM_EXPORT c_orm_error_t seed_database(const char *seed_filepath) {
 }
 #endif /* !(!defined(__EMSCRIPTEN__) && (defined(USE_LIBPQ_LINKED) ||          \
           defined(USE_LIBPQ_DYNAMIC))) */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

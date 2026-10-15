@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_sql.c
  * @brief Parses SQL DDL into an AST.
@@ -84,13 +82,13 @@ c_orm_error_t sql_lex(az_span source, struct sql_token_list_t **out_list) {
   c_orm_error_t err;
 
   if (!source._internal.ptr || !out_list) {
-    return 1;
+    return C_ORM_ERROR_VALIDATION;
   }
 
   list =
       (struct sql_token_list_t *)C_ORM_MALLOC(sizeof(struct sql_token_list_t));
   if (!list) {
-    return 1;
+    return C_ORM_ERROR_MEMORY;
   }
   memset(list, 0, sizeof(struct sql_token_list_t));
 
@@ -192,11 +190,11 @@ c_orm_error_t sql_lex(az_span source, struct sql_token_list_t **out_list) {
     goto fail;
 
   *out_list = list;
-  return 0;
+  return C_ORM_OK;
 
 fail:
   sql_token_list_free(list);
-  return 1;
+  return C_ORM_ERROR_MEMORY;
 }
 
 c_orm_error_t sql_token_list_free(struct sql_token_list_t *list) {
@@ -206,14 +204,15 @@ c_orm_error_t sql_token_list_free(struct sql_token_list_t *list) {
     }
     C_ORM_FREE(list);
   }
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
  * @brief Frees allocated members within a sql_constraint_t structure.
  * @param c Constraint structure to clean up.
+ * @return C_ORM_OK on success.
  */
-static void sql_constraint_free_internals(struct sql_constraint_t *c) {
+static c_orm_error_t sql_constraint_free_internals(struct sql_constraint_t *c) {
   if (c->reference_table)
     C_ORM_FREE(c->reference_table);
   if (c->reference_column)
@@ -233,6 +232,7 @@ static void sql_constraint_free_internals(struct sql_constraint_t *c) {
   c->default_value = NULL;
   c->columns = NULL;
   c->n_columns = 0;
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t sql_table_C_ORM_FREE(struct sql_table_t *table) {
@@ -263,7 +263,7 @@ C_ORM_EXPORT c_orm_error_t sql_table_C_ORM_FREE(struct sql_table_t *table) {
 
     /* C_ORM_FREE(table); removed */
   }
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -307,7 +307,7 @@ static c_orm_error_t sql_parser_peek(struct SqlParserState *state,
     c++;
   }
   *_out_val = &state->list->tokens[c];
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
@@ -1246,11 +1246,11 @@ c_orm_error_t parse_sql_ddl(const char *sql_data,
   c_orm_error_t rc;
 
   if (!sql_data || !out_tables || !out_n_tables)
-    return 1;
+    return C_ORM_ERROR_VALIDATION;
 
   span = az_span_create_from_str((char *)sql_data);
   rc = sql_lex(span, &list);
-  if (rc != 0)
+  if (rc != C_ORM_OK)
     return rc;
 
   /* In the interest of keeping it compliant, we will just parse up to 10 tables
@@ -1259,7 +1259,7 @@ c_orm_error_t parse_sql_ddl(const char *sql_data,
       (struct sql_table_t *)C_ORM_MALLOC(10 * sizeof(struct sql_table_t));
   if (!*out_tables) {
     sql_token_list_free(list);
-    return 1;
+    return C_ORM_ERROR_MEMORY;
   }
   memset(*out_tables, 0, 10 * sizeof(struct sql_table_t));
   *out_n_tables = 0;
@@ -1287,7 +1287,7 @@ c_orm_error_t parse_sql_ddl(const char *sql_data,
 
         table = NULL;
         rc = sql_parse_table(&sublist, &table, &err);
-        if (rc == 0) {
+        if (rc == C_ORM_OK) {
           memcpy(&(*out_tables)[*out_n_tables], table,
                  sizeof(struct sql_table_t));
           C_ORM_FREE(table); /* Shallow free, we copied the struct */
@@ -1299,7 +1299,7 @@ c_orm_error_t parse_sql_ddl(const char *sql_data,
   }
 
   sql_token_list_free(list);
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t sql_parse_select(const struct sql_token_list_t *list,
@@ -1317,7 +1317,7 @@ c_orm_error_t sql_parse_select(const struct sql_token_list_t *list,
       return C_ORM_ERROR_MEMORY;
     return cdd_c_query_projection_init((cdd_c_query_projection_t *)*out_proj);
   }
-  return 0;
+  return C_ORM_OK;
 }
 
 c_orm_error_t sql_parse_returning(const struct sql_token_list_t *list,
@@ -1335,8 +1335,5 @@ c_orm_error_t sql_parse_returning(const struct sql_token_list_t *list,
       return C_ORM_ERROR_MEMORY;
     return cdd_c_query_projection_init((cdd_c_query_projection_t *)*out_proj);
   }
-  return 0;
+  return C_ORM_OK;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

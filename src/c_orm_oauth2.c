@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_oauth2.c
  * @brief Implementation of OAuth 2.0 and User schemas support.
@@ -13,6 +11,7 @@
 #include "c_orm_postgres.h"
 #include "c_orm_mysql.h"
 #include "c_orm_log.h"
+#include "parson.h"
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -41,144 +40,26 @@ __declspec(dllimport) void * __stdcall LocalFree(void *hMem);
 /* clang-format on */
 
 /**
- * @brief Internal JSON field structure for token parsing.
+ * @brief Duplicates a JSON string field into a newly allocated buffer.
+ * @param obj The JSON object.
+ * @param key The key name to look up.
+ * @param out_str Output pointer receiving the duplicated string.
+ * @return C_ORM_OK on success.
  */
-typedef struct {
-  /** @brief Key name to look for in JSON. */
-  const char *key;
-  /** @brief Output pointer to receive allocated string value. */
-  char **str_out;
-  /** @brief Output pointer to receive integer value. */
-  int32_t *int_out;
-} json_field_t;
-
-/**
- * @brief Parses a flat JSON string into an array of fields.
- * @param json The JSON string to parse.
- * @param fields The array of fields to populate.
- * @param num_fields The number of fields in the array.
- */
-static void parse_flat_json(const char *json, json_field_t *fields,
-                            size_t num_fields) {
-  const char *p = json;
-  int escaping = 0;
-  char current_key[256];
-  size_t key_len = 0;
-  int expecting_val = 0;
-
-  LOG_DEBUG("parse_flat_json: entered");
-  current_key[0] = '\0';
-
-  while (*p) {
-    if (escaping) {
-      escaping = 0;
-      p++;
-      continue;
-    }
-    if (*p == '\\') {
-      escaping = 1;
-      p++;
-      continue;
-    }
-
-    if (*p == '"') {
-      if (!expecting_val) {
-        /* Start of key */
-        p++;
-        key_len = 0;
-        while (*p && *p != '"' && key_len < sizeof(current_key) - 1) {
-          if (*p == '\\') {
-            p++;
-            if (!*p) {
-              break;
-            }
-          }
-          current_key[key_len++] = *p++;
-        }
-        current_key[key_len] = '\0';
-      } else {
-        /* Start of string value */
-        p++;
-        {
-          const char *val_start = p;
-          size_t val_len = 0;
-          char *val_str;
-          while (*p && *p != '"') {
-            if (*p == '\\') {
-              p++;
-              if (!*p) {
-                break;
-              }
-            }
-            val_len++;
-            p++;
-          }
-          val_str = (char *)C_ORM_MALLOC(val_len + 1);
-          if (val_str) {
-            const char *v = val_start;
-            size_t i = 0;
-            while (v < p) {
-              if (*v == '\\') {
-                v++;
-                if (v >= p) {
-                  break;
-                }
-              }
-              val_str[i++] = *v++;
-            }
-            val_str[i] = '\0';
-
-            {
-              size_t f;
-              for (f = 0; f < num_fields; ++f) {
-                if (strcmp(fields[f].key, current_key) == 0 &&
-                    fields[f].str_out) {
-                  *fields[f].str_out = val_str;
-                  val_str = NULL;
-                  break;
-                }
-              }
-            }
-            if (val_str) {
-              C_ORM_FREE(val_str);
-            }
-          } else {
-            LOG_DEBUG("parse_flat_json: OOM");
-          }
-          expecting_val = 0;
-          current_key[0] = '\0';
-        }
-      }
+static c_orm_error_t copy_json_string_field(const JSON_Object *obj,
+                                            const char *key, char **out_str) {
+  const char *val = json_object_get_string(obj, key);
+  if (val) {
+    size_t len = strlen(val);
+    char *copy = (char *)C_ORM_MALLOC(len + 1);
+    if (copy) {
+      memcpy(copy, val, len + 1);
+      *out_str = copy;
     } else {
-      if (*p == ':') {
-        expecting_val = 1;
-      } else if (*p == ',' || *p == '}') {
-        expecting_val = 0;
-        current_key[0] = '\0';
-      } else if (expecting_val && (*p == '-' || (*p >= '0' && *p <= '9'))) {
-        /* Start of number */
-        int32_t val = (int32_t)atoi(p);
-        size_t f;
-        for (f = 0; f < num_fields; ++f) {
-          if (strcmp(fields[f].key, current_key) == 0 && fields[f].int_out) {
-            *fields[f].int_out = val;
-            break;
-          }
-        }
-        while (*p && (*p == '-' || (*p >= '0' && *p <= '9'))) {
-          p++;
-        }
-        expecting_val = 0;
-        current_key[0] = '\0';
-        continue; /* already advanced p */
-      }
+      LOG_DEBUG("copy_json_string_field: OOM");
     }
-    if (!*p) {
-      break;
-    }
-    p++;
   }
-  LOG_DEBUG("parse_flat_json: exiting");
+  return C_ORM_OK;
 }
 
 /**
@@ -215,7 +96,7 @@ c_orm_oauth2_is_token_valid(const c_orm_oauth2_token_t *token,
  */
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_token_parse_json(
     const char *json, c_orm_oauth2_token_t *out_token) {
-  json_field_t fields[4];
+  JSON_Value *root_val;
 
   LOG_DEBUG("c_orm_oauth2_token_parse_json: entered");
 
@@ -230,23 +111,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_token_parse_json(
   out_token->expires_in = 0;
   out_token->created_at = 0;
 
-  fields[0].key = "access_token";
-  fields[0].str_out = &out_token->access_token;
-  fields[0].int_out = NULL;
-
-  fields[1].key = "refresh_token";
-  fields[1].str_out = &out_token->refresh_token;
-  fields[1].int_out = NULL;
-
-  fields[2].key = "token_type";
-  fields[2].str_out = &out_token->token_type;
-  fields[2].int_out = NULL;
-
-  fields[3].key = "expires_in";
-  fields[3].str_out = NULL;
-  fields[3].int_out = &out_token->expires_in;
-
-  parse_flat_json(json, fields, 4);
+  root_val = json_parse_string(json);
+  if (root_val) {
+    JSON_Object *obj = json_value_get_object(root_val);
+    if (obj) {
+      copy_json_string_field(obj, "access_token", &out_token->access_token);
+      copy_json_string_field(obj, "refresh_token", &out_token->refresh_token);
+      copy_json_string_field(obj, "token_type", &out_token->token_type);
+      if (json_object_has_value_of_type(obj, "expires_in", JSONNumber)) {
+        out_token->expires_in =
+            (int32_t)json_object_get_number(obj, "expires_in");
+      }
+    }
+    json_value_free(root_val);
+  }
 
   LOG_DEBUG("c_orm_oauth2_token_parse_json: exiting");
   return C_ORM_OK;
@@ -1370,6 +1248,3 @@ c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
   LOG_DEBUG("c_orm_oauth2_cleanup_expired_tokens: exiting");
   return C_ORM_OK;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

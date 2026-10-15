@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file migration.h
  * @brief Parser and representation for SQL migration files.
@@ -10,14 +8,14 @@
 #ifndef C_CDD_MIGRATION_H
 #define C_CDD_MIGRATION_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_orm_db.h"
 #include <stddef.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Representation of a parsed SQL migration file.
@@ -63,6 +61,3 @@ parse_migration_file(const char *filepath, struct MigrationStatements *out);
 #endif /* __cplusplus */
 
 #endif /* C_CDD_MIGRATION_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

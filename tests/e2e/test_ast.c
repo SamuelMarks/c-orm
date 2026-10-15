@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_ast.c
  * @brief Unit tests for C-ORM AST generation, fluent chaining, and depth
@@ -15,8 +13,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#undef RUN_TEST
+#define RUN_TEST(TEST)                                                         \
+  do {                                                                         \
+    int should = 0;                                                            \
+    enum greatest_test_res res;                                                \
+    greatest_test_pre(#TEST, &should);                                         \
+    res = TEST();                                                              \
+    greatest_test_post(res);                                                   \
+  } while ((void)0, 0)
 /* clang-format on */
 
 /**
@@ -24,77 +29,31 @@
  * escaping.
  * @return GREATEST test result.
  */
-
-#ifndef COVERAGE_MACRO_HACK_APPLIED
-#define COVERAGE_MACRO_HACK_APPLIED
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    (void)(cond);                                                              \
-    greatest_info.assertions++;                                                \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    greatest_test_pre(#TEST, &should);                                         \
-    TEST();                                                                    \
-    greatest_test_post(GREATEST_TEST_RES_PASS);                                \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    (void)(res);                                                               \
-  } while ((void)0, 0)
-#endif
-
 TEST test_c_orm_ast_fluent(void) {
   c_orm_query_t *q = NULL;
   c_orm_query_t *q_clone = NULL;
   c_orm_error_t err;
+  c_orm_ast_node_t *n1 = NULL;
+  c_orm_ast_node_t *n2 = NULL;
+  c_orm_ast_node_t *n3 = NULL;
 
   err = c_orm_query_new(&q);
   ASSERT_EQ_FMT(0, err, "%d");
   ASSERT(q != NULL);
 
   /* Test fluent API chaining and macros */
-  q->select_(q, "id, name, email")
-      ->from(q, "users")
-      ->order_by(q, "created_at", 1)
-      ->limit(q, 10)
-      ->offset(q, 20);
+  q->select_(q, "id, name, email");
+  q->from(q, "users");
+  q->order_by(q, "created_at", 1);
+  q->limit(q, 10);
+  q->offset(q, 20);
 
-  C_ORM_WHERE(C_ORM_EQ_NUM("id", "1"));
-  C_ORM_AND_WHERE(C_ORM_GT_NUM("age", "18"));
-  C_ORM_OR_WHERE(C_ORM_EQ("status", "active"));
+  C_ORM_EQ_NUM("id", "1", &n1);
+  C_ORM_WHERE(n1);
+  C_ORM_GT_NUM("age", "18", &n2);
+  C_ORM_AND_WHERE(n2);
+  C_ORM_EQ("status", "active", &n3);
+  C_ORM_OR_WHERE(n3);
 
   ASSERT_EQ_FMT(0, q->error, "%d");
 
@@ -130,9 +89,10 @@ TEST test_c_orm_ast_fluent(void) {
 
   /* Test literal escaping */
   {
-    c_orm_ast_node_t *lit = q->lit(q, "user's name", 1);
+    c_orm_ast_node_t *lit = NULL;
+    q->lit(q, "user\x27s name", 1, &lit);
     ASSERT(lit != NULL);
-    ASSERT_STR_EQ("user''s name", ((c_orm_ast_literal_t *)lit)->value);
+    ASSERT_STR_EQ("user\x27\x27s name", ((c_orm_ast_literal_t *)lit)->value);
   }
 
   c_orm_query_free(q);
@@ -149,15 +109,17 @@ TEST test_c_orm_ast_to_sql(void) {
   char *sql = NULL;
   c_orm_query_params_t params;
   c_orm_error_t err;
+  c_orm_ast_node_t *eq_n = NULL;
 
   err = c_orm_query_new(&q);
   ASSERT_EQ_FMT(0, err, "%d");
 
-  q->select_(q, "id, name")
-      ->from(q, "users")
-      ->where(q, q->eq(q, "status", "active", 1))
-      ->order_by(q, "id", 0)
-      ->limit(q, 10);
+  q->select_(q, "id, name");
+  q->from(q, "users");
+  q->eq(q, "status", "active", 1, &eq_n);
+  q->where(q, eq_n);
+  q->order_by(q, "id", 0);
+  q->limit(q, 10);
 
   c_orm_query_params_init(&params);
   err = c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &params);
@@ -184,14 +146,18 @@ TEST test_c_orm_ast_to_sql_postgres(void) {
   char *sql = NULL;
   c_orm_query_params_t params;
   c_orm_error_t err;
+  c_orm_ast_node_t *eq_n = NULL;
+  c_orm_ast_node_t *gt_n = NULL;
 
   err = c_orm_query_new(&q);
   ASSERT_EQ_FMT(0, err, "%d");
 
-  q->select_(q, "*")
-      ->from(q, "orders")
-      ->where(q, q->eq(q, "user_id", "42", 0))
-      ->and_where(q, q->gt(q, "amount", "100", 0));
+  q->select_(q, "*");
+  q->from(q, "orders");
+  q->eq(q, "user_id", "42", 0, &eq_n);
+  q->where(q, eq_n);
+  q->gt(q, "amount", "100", 0, &gt_n);
+  q->and_where(q, gt_n);
 
   c_orm_query_params_init(&params);
   err = c_orm_query_to_sql(q, C_ORM_DIALECT_POSTGRES, &sql, &params);
@@ -224,10 +190,13 @@ TEST test_c_orm_ast_depth_limit(void) {
   err = c_orm_query_new(&q);
   ASSERT_EQ_FMT(0, err, "%d");
 
-  q->select_(q, "*")->from(q, "users");
+  q->select_(q, "*");
+  q->from(q, "users");
 
   for (i = 0; i < 110; i++) {
-    q->and_where(q, q->eq(q, "id", "1", 0));
+    c_orm_ast_node_t *eq_n = NULL;
+    q->eq(q, "id", "1", 0, &eq_n);
+    q->and_where(q, eq_n);
   }
 
   c_orm_query_params_init(&params);
@@ -254,19 +223,8 @@ TEST test_c_orm_ast_depth_limit(void) {
  * @param ast_suite Suite runner function name.
  */
 SUITE(ast_suite) {
-  static int recursed = 0;
   RUN_TEST(test_c_orm_ast_fluent);
   RUN_TEST(test_c_orm_ast_to_sql);
   RUN_TEST(test_c_orm_ast_to_sql_postgres);
   RUN_TEST(test_c_orm_ast_depth_limit);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    ast_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

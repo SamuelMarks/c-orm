@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file orm_gen.c
  * @brief Implementation of ORM wrapper generation.
@@ -148,66 +146,98 @@ static c_orm_error_t check_cdd_annotations(const struct StructField *field,
 /**
  * @brief Maps an OpenAPI struct field to a c-orm type string representation.
  * @param field The OpenAPI struct field.
- * @return String constant representing c-orm column type.
+ * @param out_type Output pointer receiving the c-orm column type string.
+ * @return C_ORM_OK on success.
  */
-static const char *openapi_type_to_c_orm_type(const struct StructField *field) {
+static c_orm_error_t openapi_type_to_c_orm_type(const struct StructField *field,
+                                                const char **out_type) {
   if (strcmp(field->type, "integer") == 0) {
     if (field->format[0]) {
-      if (strcmp(field->format, "int64") == 0)
-        return "C_ORM_TYPE_INT64";
-      return "C_ORM_TYPE_INT32";
+      if (strcmp(field->format, "int64") == 0) {
+        *out_type = "C_ORM_TYPE_INT64";
+        return C_ORM_OK;
+      }
+      *out_type = "C_ORM_TYPE_INT32";
+      return C_ORM_OK;
     }
-    return "C_ORM_TYPE_INT32";
+    *out_type = "C_ORM_TYPE_INT32";
+    return C_ORM_OK;
   }
   if (strcmp(field->type, "number") == 0) {
-    if (strcmp(field->format, "float") == 0)
-      return "C_ORM_TYPE_FLOAT";
-    return "C_ORM_TYPE_DOUBLE";
+    if (strcmp(field->format, "float") == 0) {
+      *out_type = "C_ORM_TYPE_FLOAT";
+      return C_ORM_OK;
+    }
+    *out_type = "C_ORM_TYPE_DOUBLE";
+    return C_ORM_OK;
   }
-  if (strcmp(field->type, "boolean") == 0)
-    return "C_ORM_TYPE_BOOL";
+  if (strcmp(field->type, "boolean") == 0) {
+    *out_type = "C_ORM_TYPE_BOOL";
+    return C_ORM_OK;
+  }
   if (strcmp(field->type, "string") == 0) {
-    if (strcmp(field->format, "date") == 0)
-      return "C_ORM_TYPE_DATE";
-    if (strcmp(field->format, "date-time") == 0)
-      return "C_ORM_TYPE_TIMESTAMP";
-    return "C_ORM_TYPE_STRING";
+    if (strcmp(field->format, "date") == 0) {
+      *out_type = "C_ORM_TYPE_DATE";
+      return C_ORM_OK;
+    }
+    if (strcmp(field->format, "date-time") == 0) {
+      *out_type = "C_ORM_TYPE_TIMESTAMP";
+      return C_ORM_OK;
+    }
+    *out_type = "C_ORM_TYPE_STRING";
+    return C_ORM_OK;
   }
-  return "C_ORM_TYPE_UNKNOWN";
+  *out_type = "C_ORM_TYPE_UNKNOWN";
+  return C_ORM_OK;
 }
 
 /**
  * @brief Maps an OpenAPI struct field to a C type string representation.
  * @param field The OpenAPI struct field.
- * @return String constant representing C type.
+ * @param out_type Output pointer receiving the C type string.
+ * @return C_ORM_OK on success.
  */
-static const char *openapi_type_to_c_type(const struct StructField *field) {
+static c_orm_error_t openapi_type_to_c_type(const struct StructField *field,
+                                            const char **out_type) {
   if (strcmp(field->type, "integer") == 0) {
     if (field->format[0]) {
-      if (strcmp(field->format, "int64") == 0)
-        return "int64_t";
-      return "int32_t";
+      if (strcmp(field->format, "int64") == 0) {
+        *out_type = "int64_t";
+        return C_ORM_OK;
+      }
+      *out_type = "int32_t";
+      return C_ORM_OK;
     }
-    return "int32_t";
+    *out_type = "int32_t";
+    return C_ORM_OK;
   }
   if (strcmp(field->type, "number") == 0) {
-    if (strcmp(field->format, "float") == 0)
-      return "float";
-    return "double";
+    if (strcmp(field->format, "float") == 0) {
+      *out_type = "float";
+      return C_ORM_OK;
+    }
+    *out_type = "double";
+    return C_ORM_OK;
   }
-  if (strcmp(field->type, "boolean") == 0)
-    return "bool";
-  if (strcmp(field->type, "string") == 0)
-    return "char*";
+  if (strcmp(field->type, "boolean") == 0) {
+    *out_type = "bool";
+    return C_ORM_OK;
+  }
+  if (strcmp(field->type, "string") == 0) {
+    *out_type = "char*";
+    return C_ORM_OK;
+  }
   if (strcmp(field->type, "object") == 0) {
     /* Assuming ref contains the type name */
     static char buf[128];
     if (field->ref[0]) {
       C_ORM_SPRINTF(buf, sizeof(buf), "struct %s*", field->ref);
-      return buf;
+      *out_type = buf;
+      return C_ORM_OK;
     }
   }
-  return "void*";
+  *out_type = "void*";
+  return C_ORM_OK;
 }
 
 /**
@@ -361,7 +391,9 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     fprintf(fp_h, "struct %s {\n", struct_name);
     for (j = 0; j < sf->size; ++j) {
       const struct StructField *field = &sf->fields[j];
-      fprintf(fp_h, "  %s %s;\n", openapi_type_to_c_type(field), field->name);
+      const char *c_type = NULL;
+      openapi_type_to_c_type(field, &c_type);
+      fprintf(fp_h, "  %s %s;\n", c_type, field->name);
     }
     fprintf(fp_h, "};\n\n");
 
@@ -408,13 +440,14 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     for (j = 0; j < sf->size; ++j) {
       const struct StructField *field = &sf->fields[j];
       int is_pk, is_unique, is_index;
+      const char *c_type = NULL;
       check_db_schema(field, &is_pk, &is_unique, &is_index, NULL, 0);
       if (is_pk || is_unique || is_index) {
+        openapi_type_to_c_type(field, &c_type);
         fprintf(fp_h,
                 "c_orm_error_t get_%s_by_%s(c_orm_db_t* db, const %s %s, "
                 "struct %s** out_obj);\n",
-                struct_name, field->name, openapi_type_to_c_type(field),
-                field->name, struct_name);
+                struct_name, field->name, c_type, field->name, struct_name);
       }
     }
     fprintf(fp_h, "\n");
@@ -426,22 +459,24 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       const struct StructField *field = &sf->fields[j];
       int is_pk, is_unique, is_index;
       char fk_buf[128];
+      const char *orm_type = NULL;
       check_db_schema(field, &is_pk, &is_unique, &is_index, fk_buf,
                       sizeof(fk_buf));
+      openapi_type_to_c_orm_type(field, &orm_type);
 
       if (fk_buf[0]) {
         fprintf(fp_c,
                 "  { \"%s\", %s, offsetof(struct %s, %s), %s, %s, \"%s\", "
                 "false, false }%s\n",
-                field->name, openapi_type_to_c_orm_type(field), struct_name,
-                field->name, is_pk ? "true" : "false", is_pk ? "false" : "true",
-                fk_buf, j == sf->size - 1 ? "" : ",");
+                field->name, orm_type, struct_name, field->name,
+                is_pk ? "true" : "false", is_pk ? "false" : "true", fk_buf,
+                j == sf->size - 1 ? "" : ",");
       } else {
         fprintf(fp_c,
                 "  { \"%s\", %s, offsetof(struct %s, %s), %s, %s, NULL, false, "
                 "false }%s\n",
-                field->name, openapi_type_to_c_orm_type(field), struct_name,
-                field->name, is_pk ? "true" : "false", is_pk ? "false" : "true",
+                field->name, orm_type, struct_name, field->name,
+                is_pk ? "true" : "false", is_pk ? "false" : "true",
                 j == sf->size - 1 ? "" : ",");
       }
     }
@@ -609,16 +644,16 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     for (j = 0; j < sf->size; ++j) {
       const struct StructField *field = &sf->fields[j];
       int is_pk, is_unique, is_index;
+      const char *c_type = NULL;
       check_db_schema(field, &is_pk, &is_unique, &is_index, NULL, 0);
 
       if (is_pk || is_unique || is_index) {
+        openapi_type_to_c_type(field, &c_type);
         fprintf(fp_c,
                 "c_orm_error_t get_%s_by_%s(c_orm_db_t* db, const %s "
                 "%s, struct %s** out_obj) {\n",
-                struct_name, field->name, openapi_type_to_c_type(field),
-                field->name, struct_name);
-        if (strcmp(openapi_type_to_c_type(field), "int32_t") == 0 ||
-            strcmp(openapi_type_to_c_type(field), "int64_t") == 0) {
+                struct_name, field->name, c_type, field->name, struct_name);
+        if (strcmp(c_type, "int32_t") == 0 || strcmp(c_type, "int64_t") == 0) {
           fprintf(
               fp_c,
               "  if (out_obj) *out_obj = C_ORM_MALLOC(sizeof(struct %s));\n",
@@ -629,7 +664,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
                   "  return c_orm_find_by_id_int32(db, &%s_meta, "
                   "(int32_t)%s, *out_obj);\n",
                   struct_name, field->name);
-        } else if (strcmp(openapi_type_to_c_type(field), "char*") == 0) {
+        } else if (strcmp(c_type, "char*") == 0) {
           fprintf(
               fp_c,
               "  if (out_obj) *out_obj = C_ORM_MALLOC(sizeof(struct %s));\n",
@@ -708,6 +743,3 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
 
   return 0;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

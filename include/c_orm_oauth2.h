@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_oauth2.h
  * @brief OAuth 2.0 and User schema definitions for c-orm.
@@ -317,6 +315,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db);
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_OAUTH2_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

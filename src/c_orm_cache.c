@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_cache.c
  * @brief Implementation of statement caching for c-orm.
@@ -379,6 +377,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
   return rc;
 }
 
+#ifdef C_ORM_TEST_ALLOCATOR
 /**
  * @brief Flag to simulate cached finalize failure.
  */
@@ -388,6 +387,7 @@ C_ORM_EXPORT int c_orm_mock_finalize_cached_fail = 0;
  * @brief Countdown counter to simulate cached finalize failure.
  */
 C_ORM_EXPORT int c_orm_mock_finalize_cached_countdown = -1;
+#endif /* C_ORM_TEST_ALLOCATOR */
 
 /**
  * @brief Finalizes a cached statement, releasing it back to the cache pool.
@@ -410,6 +410,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
     return rc;
   }
 
+#ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_finalize_cached_fail) {
     LOG_DEBUG("c_orm_finalize_cached: mock failure");
     rc = C_ORM_ERROR_UNKNOWN;
@@ -425,6 +426,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
     }
     c_orm_mock_finalize_cached_countdown--;
   }
+#endif
 
   if (!db->stmt_cache) {
     rc = db->vtable->finalize(query);
@@ -461,6 +463,3 @@ C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
   LOG_DEBUG("c_orm_finalize_cached: direct finalize exit");
   return rc;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

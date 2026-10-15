@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_sql_to_c.c
  * @brief Emits C structures and array containers from SQL DDL AST.
@@ -110,7 +108,7 @@ c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   }
   default: {
     *_out_val = "void *";
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
   }
 }
@@ -151,7 +149,6 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   c_orm_error_t rc;
 
   if (!fp || !table) {
-    printf("NAME NULL!\n");
     return C_ORM_ERROR_MEMORY;
   }
 
@@ -272,7 +269,6 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   (void)header_name;
 
   if (!fp || !table) {
-    printf("NAME NULL!\n");
     return C_ORM_ERROR_MEMORY;
   }
 
@@ -1436,6 +1432,3 @@ c_orm_error_t sql_to_c_projection_polymorphic_struct_emit(
 
   return C_ORM_OK;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file blog.c
  * @brief Demonstrates using the specific struct mapping API in c-orm.
@@ -179,6 +177,3 @@ int main(void) {
 
   return 0;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

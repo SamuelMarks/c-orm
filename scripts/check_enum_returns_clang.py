@@ -35,11 +35,6 @@ def is_test_function(name: str) -> bool:
         return False
     return (
         name == "main"
-        or name == "openapi_type_to_c_orm_type"
-        or name == "openapi_type_to_c_type"
-        or name.endswith("_impl")
-        or name == "c_orm_ast_clone_node"
-        or name == "c_orm_escape_literal"
         or name.lower().startswith("test_")
         or name.startswith("TEST")
     )
@@ -103,84 +98,6 @@ def is_memory_management_function(name: str) -> bool:
     return False
 
 
-def is_type_mapper(name: str) -> bool:
-    """Checks if a function name implies type mapping or emission.
-
-    Args:
-        name (str): The name of the function to check.
-
-    Returns:
-        bool: True if it's a type mapper/emitter function, False otherwise.
-    """
-    if not name:
-        return False
-    return (
-        (name.startswith("map_") and name.endswith("_type"))
-        or name.startswith("get_")
-        or name.endswith("ify_name")
-        or name == "to_camel_case"
-        or name == "snake_case_name"
-        or name == "capitalize_first"
-        or name == "emit_type"
-        or name.startswith("emit_csharp")
-        or name.startswith("emit_rust")
-    )
-
-
-def is_finder(name: str) -> bool:
-    """Checks if a function is a finder function.
-
-    Args:
-        name (str): The name of the function to check.
-
-    Returns:
-        bool: True if it's a finder function, False otherwise.
-    """
-    if not name:
-        return False
-    return name.startswith("find_")
-
-
-def is_evaluator(name: str) -> bool:
-    """Checks if a function is an evaluator or parser.
-
-    Args:
-        name (str): The name of the function to check.
-
-    Returns:
-        bool: True if it's an evaluator, False otherwise.
-    """
-    if name.startswith("emit_"):
-        return True
-    if not name:
-        return False
-    return (
-        name.startswith("parse_")
-        or name.startswith("make_")
-        or name == "promote"
-        or name == "next_tok"
-    )
-
-
-def is_string_modifier(name: str) -> bool:
-    """Checks if a function name implies string modification.
-
-    Args:
-        name (str): The name of the function to check.
-
-    Returns:
-        bool: True if it's a string modifier, False otherwise.
-    """
-    if not name:
-        return False
-    return (
-        name.startswith("c_cdd_str_")
-        or name.startswith("c_orm_str")
-        or "sprintf" in name
-        or "trim" in name
-    )
-
-
 def is_logger(name: str) -> bool:
     """Checks if a function name implies logging.
 
@@ -193,68 +110,6 @@ def is_logger(name: str) -> bool:
     if not name:
         return False
     return "log" in name.lower()
-
-
-def is_strdup(name: str) -> bool:
-    """Checks if a function name is strdup.
-
-    Args:
-        name (str): The name of the function to check.
-
-    Returns:
-        bool: True if it's strdup, False otherwise.
-    """
-    if not name:
-        return False
-    return name == "strdup"
-
-
-def is_predicate(name: str) -> bool:
-    """Checks if a function name implies a predicate (returns boolean).
-
-    Args:
-        name (str): The name of the function to check.
-
-    Returns:
-        bool: True if it's a predicate function, False otherwise.
-    """
-    if not name:
-        return False
-    return (
-        name.startswith("is_")
-        or name.startswith("has_")
-        or name.startswith("tree_has_")
-    )
-
-
-def is_string_pooler(name: str) -> bool:
-    """Checks if a function name implies string pooling.
-
-    Args:
-        name (str): The name of the function to check.
-
-    Returns:
-        bool: True if it's a string pooler function, False otherwise.
-    """
-    if not name:
-        return False
-    return "pool_string" in name
-
-
-def is_type_infer(name: str) -> bool:
-    """Checks if a function name implies type inference.
-
-    Args:
-        name (str): The name of the function to check.
-
-    Returns:
-        bool: True if it's a type inference function, False otherwise.
-    """
-    if "infer" in name.lower():
-        return True
-    if not name:
-        return False
-    return name.startswith("cdd_infer_type")
 
 
 def should_exclude(
@@ -458,25 +313,7 @@ def check_file(
                     TypeKind.POINTER,
                 ) and is_memory_management_function(cursor.spelling):
                     continue
-                if is_type_mapper(cursor.spelling):
-                    continue
-                if is_finder(cursor.spelling):
-                    continue
-                if is_evaluator(cursor.spelling):
-                    continue
-                if is_string_modifier(cursor.spelling):
-                    continue
-                if cursor.spelling.startswith("write_"):
-                    continue
                 if is_logger(cursor.spelling):
-                    continue
-                if is_strdup(cursor.spelling):
-                    continue
-                if is_predicate(cursor.spelling):
-                    continue
-                if is_string_pooler(cursor.spelling):
-                    continue
-                if is_type_infer(cursor.spelling):
                     continue
 
                 # Check for exception: test functions

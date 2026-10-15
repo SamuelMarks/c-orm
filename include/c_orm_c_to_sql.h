@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_to_sql.h
  * @brief C-ORM Schema Generation logic.
@@ -8,16 +6,16 @@
 #ifndef C_CDD_CODEGEN_C_TO_SQL_H
 #define C_CDD_CODEGEN_C_TO_SQL_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <stdio.h>
 #include "c_orm_db.h"
 #include "classes/emit/struct.h"
 #include "cdd_c_orm_meta.h"
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Dialects supported for SQL generation.
@@ -105,8 +103,9 @@ C_ORM_EXPORT c_orm_error_t cdd_c_meta_diff_to_sql(const char *table_name,
  * @brief Free a diff object.
  *
  * @param diff The diff structure to free.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void cdd_c_meta_diff_free(cdd_c_meta_diff_t *diff);
+C_ORM_EXPORT c_orm_error_t cdd_c_meta_diff_free(cdd_c_meta_diff_t *diff);
 
 /**
  * @brief Get the SQL query to inspect the live database schema.
@@ -158,11 +157,21 @@ C_ORM_EXPORT c_orm_error_t
 cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
                             const cdd_c_meta_t **out_schemas);
 
+/**
+ * @brief Converts a `c_orm_table_meta_t` table descriptor into a `cdd_c_meta_t`
+ * reflection structure so all `cdd_c_meta_*` and `cdd_c_specific_to_abstract` /
+ * `cdd_c_abstract_to_specific` functions share a unified representation.
+ *
+ * @param table_meta Source table metadata.
+ * @param out_cdd_meta Output pointer receiving allocated `cdd_c_meta_t` (free
+ * with `c_orm_migration_free_table_schema` or `c_orm_free_cdd_meta`).
+ * @return C_ORM_OK on success, or error code on failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_table_meta_to_cdd_meta(
+    const c_orm_table_meta_t *table_meta, cdd_c_meta_t **out_cdd_meta);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 #endif /* C_CDD_CODEGEN_C_TO_SQL_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

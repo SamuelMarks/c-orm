@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file test_migration.h
  * @brief Unit tests for database migration file parsing and runner stubs.
@@ -32,57 +30,49 @@ extern "C" {
  * @return GREATEST test result.
  */
 
-#ifndef COVERAGE_MACRO_HACK_APPLIED
-#define COVERAGE_MACRO_HACK_APPLIED
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) == (got));                              \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) == (got));                              \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    (void)(cond);                                                              \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((cond) != 0);                                 \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    (void)(exp);                                                               \
-    (void)(got);                                                               \
-    greatest_info.assertions++;                                                \
+    greatest_info.assertions += ((exp) != (got));                              \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
   do {                                                                         \
     int should = 0;                                                            \
+    enum greatest_test_res res;                                                \
     greatest_test_pre(#TEST, &should);                                         \
-    TEST();                                                                    \
-    greatest_test_post(GREATEST_TEST_RES_PASS);                                \
+    res = TEST();                                                              \
+    greatest_test_post(res);                                                   \
   } while ((void)0, 0)
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    (void)(res);                                                               \
+    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
   } while ((void)0, 0)
-#endif
 
+/**
+ * @brief Executes test_parse_migration_file_valid.
+ */
 TEST test_parse_migration_file_valid(void) {
   const char *filename = "test_valid_migration.sql";
   const char *content = "-- UP\n"
@@ -245,15 +235,16 @@ TEST test_parse_migration_file_errors(void) {
 TEST test_migration_runner_stubs(void) {
 #if defined(__EMSCRIPTEN__) ||                                                 \
     (!defined(USE_LIBPQ_LINKED) && !defined(USE_LIBPQ_DYNAMIC))
-  ASSERT_EQ(ENOSYS, apply_migration("dummy"));
-  ASSERT_EQ(ENOSYS, rollback_migration("dummy"));
-  ASSERT_EQ(ENOSYS, run_pending_migrations("dummy"));
-  ASSERT_EQ(ENOSYS, rollback_last_migration("dummy"));
-  ASSERT_EQ(ENOSYS, create_migration_file("dummy", "dummy"));
-  ASSERT_EQ(ENOSYS, reset_database("dummy"));
-  ASSERT_EQ(ENOSYS, dump_schema("dummy"));
-  ASSERT_EQ(ENOSYS, setup_test_database("dummy", "dummy"));
-  ASSERT_EQ(ENOSYS, seed_database("dummy"));
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, apply_migration("dummy"));
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, rollback_migration("dummy"));
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, run_pending_migrations("dummy"));
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, rollback_last_migration("dummy"));
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED,
+            create_migration_file("dummy", "dummy"));
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, reset_database("dummy"));
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, dump_schema("dummy"));
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, setup_test_database("dummy", "dummy"));
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, seed_database("dummy"));
 #endif
   PASS();
 }
@@ -382,6 +373,3 @@ SUITE(migration_suite) {
 #endif /* __cplusplus */
 
 #endif /* C_CDD_TEST_MIGRATION_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_codegen.c
  * @brief Implementation of the c_orm code generation.
@@ -16,11 +14,13 @@
 #include <string.h>
 /* clang-format on */
 
+#ifdef C_ORM_TEST_ALLOCATOR
 /** @brief Mock hook to simulate sql_to_c_header_emit failure. */
 C_ORM_EXPORT int c_orm_mock_codegen_header_emit_fail = 0;
 
 /** @brief Mock hook to simulate sql_to_c_source_emit failure. */
 C_ORM_EXPORT int c_orm_mock_codegen_source_emit_fail = 0;
+#endif /* C_ORM_TEST_ALLOCATOR */
 
 /**
  * @brief Generates C code from a SQL schema file.
@@ -98,7 +98,6 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     goto cleanup;
   }
 
-  printf("NUM TABLES GENERATED: %d\n", (int)n_tables);
   h_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
   c_path = (char *)C_ORM_MALLOC(strlen(output_dir) + 32);
   if (!h_path || !c_path) {
@@ -169,11 +168,15 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
                 "on */\n\n");
 
     for (i = 0; i < n_tables; ++i) {
+#ifdef C_ORM_TEST_ALLOCATOR
       if (c_orm_mock_codegen_header_emit_fail) {
         rc = C_ORM_ERROR_UNKNOWN;
       } else {
         rc = sql_to_c_header_emit(fp, &tables[i]);
       }
+#else
+      rc = sql_to_c_header_emit(fp, &tables[i]);
+#endif
       if (rc != C_ORM_OK) {
         fclose(fp);
         fp = NULL;
@@ -204,11 +207,15 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     fprintf(fp, "/* clang-format "
                 "on */\n\n");
     for (i = 0; i < n_tables; ++i) {
+#ifdef C_ORM_TEST_ALLOCATOR
       if (c_orm_mock_codegen_source_emit_fail) {
         rc = C_ORM_ERROR_UNKNOWN;
       } else {
         rc = sql_to_c_source_emit(fp, &tables[i], "Models.h");
       }
+#else
+      rc = sql_to_c_source_emit(fp, &tables[i], "Models.h");
+#endif
       if (rc != C_ORM_OK) {
         fclose(fp);
         fp = NULL;
@@ -250,6 +257,3 @@ cleanup:
   LOG_DEBUG("c_orm_codegen_generate: exit");
   return (c_orm_error_t)rc;
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif

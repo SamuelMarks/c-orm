@@ -1,5 +1,3 @@
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 /**
  * @file c_orm_ast.h
  * @brief Dynamic SQL Query Abstract Syntax Tree (AST).
@@ -539,8 +537,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_strdup(c_orm_arena_t *arena,
 /**
  * @brief Free all memory in the arena and the arena itself.
  * @param arena The arena.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_arena_free(c_orm_arena_t *arena);
+C_ORM_EXPORT c_orm_error_t c_orm_arena_free(c_orm_arena_t *arena);
 
 /* Forward declaration */
 #ifndef C_ORM_QUERY_T_DEFINED
@@ -601,21 +600,21 @@ struct c_orm_query {
 
   /* Fluent methods */
   /** @brief Sets SELECT projection columns. */
-  c_orm_query_t *(*select_)(c_orm_query_t *q, const char *columns);
+  c_orm_error_t (*select_)(c_orm_query_t *q, const char *columns);
   /** @brief Sets FROM table source. */
-  c_orm_query_t *(*from)(c_orm_query_t *q, const char *table);
+  c_orm_error_t (*from)(c_orm_query_t *q, const char *table);
   /** @brief Adds root WHERE condition. */
-  c_orm_query_t *(*where)(c_orm_query_t *q, c_orm_ast_node_t *condition);
+  c_orm_error_t (*where)(c_orm_query_t *q, c_orm_ast_node_t *condition);
   /** @brief Adds condition with AND. */
-  c_orm_query_t *(*and_where)(c_orm_query_t *q, c_orm_ast_node_t *condition);
+  c_orm_error_t (*and_where)(c_orm_query_t *q, c_orm_ast_node_t *condition);
   /** @brief Adds condition with OR. */
-  c_orm_query_t *(*or_where)(c_orm_query_t *q, c_orm_ast_node_t *condition);
+  c_orm_error_t (*or_where)(c_orm_query_t *q, c_orm_ast_node_t *condition);
   /** @brief Adds ORDER BY clause. */
-  c_orm_query_t *(*order_by)(c_orm_query_t *q, const char *column, int is_desc);
+  c_orm_error_t (*order_by)(c_orm_query_t *q, const char *column, int is_desc);
   /** @brief Adds LIMIT clause. */
-  c_orm_query_t *(*limit)(c_orm_query_t *q, size_t n);
+  c_orm_error_t (*limit)(c_orm_query_t *q, size_t n);
   /** @brief Adds OFFSET clause. */
-  c_orm_query_t *(*offset)(c_orm_query_t *q, size_t n);
+  c_orm_error_t (*offset)(c_orm_query_t *q, size_t n);
 
   /* Query Cloning */
   /** @brief Clones query builder instance. */
@@ -623,83 +622,89 @@ struct c_orm_query {
 
   /* Advanced Query Features (Phase 3) */
   /** @brief Adds JOIN clause. */
-  c_orm_query_t *(*join)(c_orm_query_t *q, const char *table,
-                         const char *type_str, c_orm_ast_node_t *on_condition);
+  c_orm_error_t (*join)(c_orm_query_t *q, const char *table,
+                        const char *type_str, c_orm_ast_node_t *on_condition);
   /** @brief Adds LEFT JOIN clause. */
-  c_orm_query_t *(*left_join)(c_orm_query_t *q, const char *table,
-                              c_orm_ast_node_t *on_condition);
+  c_orm_error_t (*left_join)(c_orm_query_t *q, const char *table,
+                             c_orm_ast_node_t *on_condition);
   /** @brief Adds RIGHT JOIN clause. */
-  c_orm_query_t *(*right_join)(c_orm_query_t *q, const char *table,
-                               c_orm_ast_node_t *on_condition);
+  c_orm_error_t (*right_join)(c_orm_query_t *q, const char *table,
+                              c_orm_ast_node_t *on_condition);
   /** @brief Adds GROUP BY clause. */
-  c_orm_query_t *(*group_by)(c_orm_query_t *q, const char *columns);
+  c_orm_error_t (*group_by)(c_orm_query_t *q, const char *columns);
   /** @brief Adds HAVING condition. */
-  c_orm_query_t *(*having)(c_orm_query_t *q, c_orm_ast_node_t *condition);
+  c_orm_error_t (*having)(c_orm_query_t *q, c_orm_ast_node_t *condition);
   /** @brief Adds WITH (CTE) clause. */
-  c_orm_query_t *(*with)(c_orm_query_t *q, const char *alias,
-                         c_orm_query_t *subquery);
+  c_orm_error_t (*with)(c_orm_query_t *q, const char *alias,
+                        c_orm_query_t *subquery);
   /** @brief Adds UNION clause. */
-  c_orm_query_t *(*union_)(c_orm_query_t *q, c_orm_query_t *other, int is_all);
+  c_orm_error_t (*union_)(c_orm_query_t *q, c_orm_query_t *other, int is_all);
   /** @brief Enables DISTINCT modifier. */
-  c_orm_query_t *(*distinct)(c_orm_query_t *q);
+  c_orm_error_t (*distinct)(c_orm_query_t *q);
   /** @brief Sets FROM table with alias. */
-  c_orm_query_t *(*from_alias)(c_orm_query_t *q, const char *table,
-                               const char *alias);
+  c_orm_error_t (*from_alias)(c_orm_query_t *q, const char *table,
+                              const char *alias);
   /** @brief Eagerly loads specified relationship. */
-  c_orm_query_t *(*eager_load)(c_orm_query_t *q, const c_orm_table_meta_t *meta,
-                               const char *relation_name);
+  c_orm_error_t (*eager_load)(c_orm_query_t *q, const c_orm_table_meta_t *meta,
+                              const char *relation_name);
 
   /* AST Node Builders */
   /** @brief Wraps expression in parentheses. */
-  c_orm_ast_node_t *(*group)(c_orm_query_t *q, c_orm_ast_node_t *expr);
+  c_orm_error_t (*group)(c_orm_query_t *q, c_orm_ast_node_t *expr,
+                         c_orm_ast_node_t **out_node);
   /** @brief Constructs subquery AST node. */
-  c_orm_ast_node_t *(*subquery)(c_orm_query_t *q, c_orm_query_t *subq,
-                                const char *alias);
+  c_orm_error_t (*subquery)(c_orm_query_t *q, c_orm_query_t *subq,
+                            const char *alias, c_orm_ast_node_t **out_node);
   /** @brief Constructs SQL function AST node. */
-  c_orm_ast_node_t *(*func)(c_orm_query_t *q, const char *name,
-                            const char *args, const char *alias);
+  c_orm_error_t (*func)(c_orm_query_t *q, const char *name, const char *args,
+                        const char *alias, c_orm_ast_node_t **out_node);
   /** @brief Constructs CAST AST node. */
-  c_orm_ast_node_t *(*cast_)(c_orm_query_t *q, const char *col,
-                             const char *type);
+  c_orm_error_t (*cast_)(c_orm_query_t *q, const char *col, const char *type,
+                         c_orm_ast_node_t **out_node);
   /** @brief Constructs IS NULL AST node. */
-  c_orm_ast_node_t *(*is_null)(c_orm_query_t *q, const char *col, int is_not);
+  c_orm_error_t (*is_null)(c_orm_query_t *q, const char *col, int is_not,
+                           c_orm_ast_node_t **out_node);
   /** @brief Constructs BETWEEN AST node. */
-  c_orm_ast_node_t *(*between)(c_orm_query_t *q, const char *col,
-                               const char *low, const char *high,
-                               int is_string);
+  c_orm_error_t (*between)(c_orm_query_t *q, const char *col, const char *low,
+                           const char *high, int is_string,
+                           c_orm_ast_node_t **out_node);
   /** @brief Constructs EXISTS AST node. */
-  c_orm_ast_node_t *(*exists)(c_orm_query_t *q, c_orm_query_t *subq,
-                              int is_not);
+  c_orm_error_t (*exists)(c_orm_query_t *q, c_orm_query_t *subq, int is_not,
+                          c_orm_ast_node_t **out_node);
   /** @brief Constructs WINDOW function AST node. */
-  c_orm_ast_node_t *(*window)(c_orm_query_t *q, const char *func_name,
-                              const char *partition_by, const char *order_by,
-                              const char *alias);
+  c_orm_error_t (*window)(c_orm_query_t *q, const char *func_name,
+                          const char *partition_by, const char *order_by,
+                          const char *alias, c_orm_ast_node_t **out_node);
   /** @brief Constructs RAW SQL AST node. */
-  c_orm_ast_node_t *(*raw)(c_orm_query_t *q, const char *sql);
+  c_orm_error_t (*raw)(c_orm_query_t *q, const char *sql,
+                       c_orm_ast_node_t **out_node);
   /** @brief Constructs equality operator AST node. */
-  c_orm_ast_node_t *(*eq)(c_orm_query_t *q, const char *col, const char *val,
-                          int is_string);
+  c_orm_error_t (*eq)(c_orm_query_t *q, const char *col, const char *val,
+                      int is_string, c_orm_ast_node_t **out_node);
   /** @brief Constructs inequality operator AST node. */
-  c_orm_ast_node_t *(*neq)(c_orm_query_t *q, const char *col, const char *val,
-                           int is_string);
+  c_orm_error_t (*neq)(c_orm_query_t *q, const char *col, const char *val,
+                       int is_string, c_orm_ast_node_t **out_node);
   /** @brief Constructs greater-than operator AST node. */
-  c_orm_ast_node_t *(*gt)(c_orm_query_t *q, const char *col, const char *val,
-                          int is_string);
+  c_orm_error_t (*gt)(c_orm_query_t *q, const char *col, const char *val,
+                      int is_string, c_orm_ast_node_t **out_node);
   /** @brief Constructs less-than operator AST node. */
-  c_orm_ast_node_t *(*lt)(c_orm_query_t *q, const char *col, const char *val,
-                          int is_string);
+  c_orm_error_t (*lt)(c_orm_query_t *q, const char *col, const char *val,
+                      int is_string, c_orm_ast_node_t **out_node);
   /** @brief Constructs LIKE operator AST node. */
-  c_orm_ast_node_t *(*like)(c_orm_query_t *q, const char *col, const char *val);
+  c_orm_error_t (*like)(c_orm_query_t *q, const char *col, const char *val,
+                        c_orm_ast_node_t **out_node);
   /** @brief Constructs IN operator AST node. */
-  c_orm_ast_node_t *(*in)(c_orm_query_t *q, const char *col,
-                          const char *val_list);
+  c_orm_error_t (*in)(c_orm_query_t *q, const char *col, const char *val_list,
+                      c_orm_ast_node_t **out_node);
   /** @brief Constructs binary operator AST node. */
-  c_orm_ast_node_t *(*op)(c_orm_query_t *q, const char *op,
-                          c_orm_ast_node_t *left, c_orm_ast_node_t *right);
+  c_orm_error_t (*op)(c_orm_query_t *q, const char *op, c_orm_ast_node_t *left,
+                      c_orm_ast_node_t *right, c_orm_ast_node_t **out_node);
   /** @brief Constructs literal value AST node. */
-  c_orm_ast_node_t *(*lit)(c_orm_query_t *q, const char *val, int is_string);
+  c_orm_error_t (*lit)(c_orm_query_t *q, const char *val, int is_string,
+                       c_orm_ast_node_t **out_node);
   /** @brief Constructs column reference AST node. */
-  c_orm_ast_node_t *(*col)(c_orm_query_t *q, const char *name);
+  c_orm_error_t (*col)(c_orm_query_t *q, const char *name,
+                       c_orm_ast_node_t **out_node);
 };
 
 /**
@@ -712,8 +717,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_new(c_orm_query_t **out_query);
 /**
  * @brief Free a query builder.
  * @param query Query builder.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_query_free(c_orm_query_t *query);
+C_ORM_EXPORT c_orm_error_t c_orm_query_free(c_orm_query_t *query);
 
 /*
  * Macro wrappers for fluent API.
@@ -722,38 +728,38 @@ C_ORM_EXPORT void c_orm_query_free(c_orm_query_t *query);
 #define C_ORM_WHERE(cond) q->where(q, (cond))
 #define C_ORM_AND_WHERE(cond) q->and_where(q, (cond))
 #define C_ORM_OR_WHERE(cond) q->or_where(q, (cond))
-#define C_ORM_EQ(col, val) q->eq(q, (col), (val), 1)
-#define C_ORM_EQ_NUM(col, val) q->eq(q, (col), (val), 0)
-#define C_ORM_NEQ(col, val) q->neq(q, (col), (val), 1)
-#define C_ORM_NEQ_NUM(col, val) q->neq(q, (col), (val), 0)
-#define C_ORM_GT(col, val) q->gt(q, (col), (val), 1)
-#define C_ORM_GT_NUM(col, val) q->gt(q, (col), (val), 0)
-#define C_ORM_LT(col, val) q->lt(q, (col), (val), 1)
-#define C_ORM_LT_NUM(col, val) q->lt(q, (col), (val), 0)
-#define C_ORM_LIKE(col, val) q->like(q, (col), (val))
-#define C_ORM_IN(col, val_list) q->in(q, (col), (val_list))
-#define C_ORM_RAW(sql) q->raw(q, (sql))
-#define C_ORM_IS_NULL(col) q->is_null(q, (col), 0)
-#define C_ORM_IS_NOT_NULL(col) q->is_null(q, (col), 1)
-#define C_ORM_BETWEEN(col, low, high, is_string)                               \
-  q->between(q, (col), (low), (high), (is_string))
-#define C_ORM_EXISTS(subq) q->exists(q, (subq), 0)
-#define C_ORM_NOT_EXISTS(subq) q->exists(q, (subq), 1)
+#define C_ORM_EQ(col, val, out) q->eq(q, (col), (val), 1, (out))
+#define C_ORM_EQ_NUM(col, val, out) q->eq(q, (col), (val), 0, (out))
+#define C_ORM_NEQ(col, val, out) q->neq(q, (col), (val), 1, (out))
+#define C_ORM_NEQ_NUM(col, val, out) q->neq(q, (col), (val), 0, (out))
+#define C_ORM_GT(col, val, out) q->gt(q, (col), (val), 1, (out))
+#define C_ORM_GT_NUM(col, val, out) q->gt(q, (col), (val), 0, (out))
+#define C_ORM_LT(col, val, out) q->lt(q, (col), (val), 1, (out))
+#define C_ORM_LT_NUM(col, val, out) q->lt(q, (col), (val), 0, (out))
+#define C_ORM_LIKE(col, val, out) q->like(q, (col), (val), (out))
+#define C_ORM_IN(col, val_list, out) q->in(q, (col), (val_list), (out))
+#define C_ORM_RAW(sql, out) q->raw(q, (sql), (out))
+#define C_ORM_IS_NULL(col, out) q->is_null(q, (col), 0, (out))
+#define C_ORM_IS_NOT_NULL(col, out) q->is_null(q, (col), 1, (out))
+#define C_ORM_BETWEEN(col, low, high, is_string, out)                          \
+  q->between(q, (col), (low), (high), (is_string), (out))
+#define C_ORM_EXISTS(subq, out) q->exists(q, (subq), 0, (out))
+#define C_ORM_NOT_EXISTS(subq, out) q->exists(q, (subq), 1, (out))
 
-#define C_ORM_COUNT(col, alias) q->func(q, "COUNT", (col), (alias))
-#define C_ORM_SUM(col, alias) q->func(q, "SUM", (col), (alias))
-#define C_ORM_AVG(col, alias) q->func(q, "AVG", (col), (alias))
-#define C_ORM_CONCAT(args, alias) q->func(q, "CONCAT", (args), (alias))
-#define C_ORM_SUBSTR(args, alias) q->func(q, "SUBSTR", (args), (alias))
-#define C_ORM_NOW(alias) q->func(q, "NOW", "", (alias))
-#define C_ORM_DATE_ADD(args, alias) q->func(q, "DATE_ADD", (args), (alias))
+#define C_ORM_COUNT(col, alias, out) q->func(q, "COUNT", (col), (alias), (out))
+#define C_ORM_SUM(col, alias, out) q->func(q, "SUM", (col), (alias), (out))
+#define C_ORM_AVG(col, alias, out) q->func(q, "AVG", (col), (alias), (out))
+#define C_ORM_CONCAT(args, alias, out)                                         \
+  q->func(q, "CONCAT", (args), (alias), (out))
+#define C_ORM_SUBSTR(args, alias, out)                                         \
+  q->func(q, "SUBSTR", (args), (alias), (out))
+#define C_ORM_NOW(alias, out) q->func(q, "NOW", "", (alias), (out))
+#define C_ORM_DATE_ADD(args, alias, out)                                       \
+  q->func(q, "DATE_ADD", (args), (alias), (out))
 
-#define C_ORM_CAST(col, type) q->cast_(q, (col), (type))
+#define C_ORM_CAST(col, type, out) q->cast_(q, (col), (type), (out))
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 #endif /* C_ORM_AST_H */
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif
