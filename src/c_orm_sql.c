@@ -1248,7 +1248,7 @@ c_orm_error_t parse_sql_ddl(const char *sql_data,
   if (!sql_data || !out_tables || !out_n_tables)
     return C_ORM_ERROR_VALIDATION;
 
-  span = az_span_create_from_str((char *)sql_data);
+  span = az_span_create_from_str(sql_data);
   rc = sql_lex(span, &list);
   if (rc != C_ORM_OK)
     return rc;

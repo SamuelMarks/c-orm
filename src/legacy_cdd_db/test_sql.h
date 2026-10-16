@@ -68,7 +68,7 @@ extern "C" {
 TEST test_sql_lexer_basic(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255));";
-  az_span span = az_span_create_from_str((char *)sql);
+  az_span span = az_span_create_from_str(sql);
   struct sql_token_list_t *list = NULL;
   c_orm_error_t err;
 
@@ -99,7 +99,7 @@ TEST test_sql_lexer_basic(void) {
  */
 TEST test_sql_lexer_types(void) {
   const char *sql = "id BIGINT, is_active BOOLEAN DEFAULT true";
-  az_span span = az_span_create_from_str((char *)sql);
+  az_span span = az_span_create_from_str(sql);
   struct sql_token_list_t *list = NULL;
   c_orm_error_t err;
 
@@ -119,7 +119,7 @@ TEST test_sql_parser_basic(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
       "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true);";
-  az_span span = az_span_create_from_str((char *)sql);
+  az_span span = az_span_create_from_str(sql);
   struct sql_token_list_t *list = NULL;
   struct sql_table_t *table = NULL;
   struct sql_parse_error_t err_info;
@@ -173,7 +173,7 @@ TEST test_sql_parser_basic(void) {
  */
 TEST test_sql_lexer_strings_unknown(void) {
   const char *sql = "DEFAULT 'some_string' ^ ~";
-  az_span span = az_span_create_from_str((char *)sql);
+  az_span span = az_span_create_from_str(sql);
   struct sql_token_list_t *list = NULL;
   c_orm_error_t err;
   int has_str = 0;
@@ -206,7 +206,7 @@ TEST test_sql_lexer_strings_unknown(void) {
 
   /* also unclosed string */
   sql = "'unclosed";
-  span = az_span_create_from_str((char *)sql);
+  span = az_span_create_from_str(sql);
   err = sql_lex(span, &list);
   ASSERT_EQ(0, err);
   sql_token_list_free(list);
@@ -232,14 +232,14 @@ TEST test_sql_parser_foreign_keys_defaults(void) {
   size_t i;
   c_orm_error_t err;
 
-  err = sql_lex(az_span_create_from_str((char *)sql), &list);
+  err = sql_lex(az_span_create_from_str(sql), &list);
   ASSERT_EQ(0, err);
 
   err = parse_sql_ddl(sql, &tables, &n_tables);
   ASSERT_EQ(0, err);
 
   /* Add a test for parser error (e.g. invalid syntax) */
-  err = sql_lex(az_span_create_from_str((char *)sql_err), &list_err);
+  err = sql_lex(az_span_create_from_str(sql_err), &list_err);
   ASSERT_EQ(0, err);
 
   err = parse_sql_ddl(sql_err, &tables_err, &n_tables_err);

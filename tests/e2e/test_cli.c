@@ -189,7 +189,7 @@ TEST test_cli_help(void) {
   int argc;
 
   argc = 2;
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
   PASS();
 }
@@ -204,7 +204,7 @@ TEST test_cli_no_args(void) {
   int argc;
 
   argc = 1;
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
   PASS();
 }
@@ -230,14 +230,14 @@ TEST test_cli_init(void) {
 #endif
   (void)sys_rc;
 
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_OK, rc);
 
   /* call again to hit the already exists branch */
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_OK, rc);
 
-  rc = (c_orm_error_t)c_orm_cli_main(3, (char **)argv_dir_no_arg);
+  rc = (c_orm_error_t)c_orm_cli_main(3, (char **)(size_t)argv_dir_no_arg);
   ASSERT_EQ(C_ORM_OK, rc);
 
   PASS();
@@ -260,23 +260,23 @@ TEST test_cli_create(void) {
   int argc;
 
   argc = 2;
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   /* ensure test_migrations_dir_cli exists */
-  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)argv_init);
+  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)(size_t)argv_init);
   ASSERT_EQ(C_ORM_OK, rc);
 
   argc = 5;
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv2);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv2);
   ASSERT_EQ(C_ORM_OK, rc);
 
   /* simulate missing dir to hit fopen failure */
   argc = 5;
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv3);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv3);
   ASSERT_EQ(C_ORM_OK, rc);
 
-  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)argv_multi);
+  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)(size_t)argv_multi);
   ASSERT_EQ(C_ORM_OK, rc);
 
   PASS();
@@ -292,7 +292,7 @@ TEST test_cli_generate(void) {
   int argc;
 
   argc = 2;
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, rc);
   PASS();
 }
@@ -326,44 +326,44 @@ TEST test_cli_migrate(void) {
   /* unset env so db is missing */
   C_ORM_UNSETENV("C_ORM_DB_URL");
 
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   C_ORM_SETENV("C_ORM_DB_URL", "test_cli.db");
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_OK, rc);
   C_ORM_UNSETENV("C_ORM_DB_URL");
 
   argc = 6;
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv2);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv2);
   ASSERT_EQ(C_ORM_OK, rc);
 
   /* connection error */
-  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)argv3);
+  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)(size_t)argv3);
   ASSERT(rc != C_ORM_OK);
 
   /* empty dir */
-  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv4);
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)(size_t)argv4);
   ASSERT_EQ(C_ORM_OK, rc);
 
   /* no db argument */
-  rc = (c_orm_error_t)c_orm_cli_main(3, (char **)argv_db_no_arg);
+  rc = (c_orm_error_t)c_orm_cli_main(3, (char **)(size_t)argv_db_no_arg);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   /* status failure */
   mock_get_applied_fail = 1;
-  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)argv5);
+  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)(size_t)argv5);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
   mock_get_applied_fail = 0;
 
   /* bad dir load failure */
-  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv6);
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)(size_t)argv6);
   ASSERT_EQ(C_ORM_OK, rc);
 
   {
     const char *argv7[] = {"c-orm-cli",   "migrate", "--db",
                            "test_cli.db", "--dir",   "missing_dir"};
-    rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv7);
+    rc = (c_orm_error_t)c_orm_cli_main(6, (char **)(size_t)argv7);
     ASSERT_EQ(C_ORM_OK, rc);
   }
 
@@ -399,35 +399,36 @@ TEST test_cli_rollback(void) {
 #endif
 
   C_ORM_UNSETENV("C_ORM_DB_URL");
-  rc = (c_orm_error_t)c_orm_cli_main(2, (char **)argv);
+  rc = (c_orm_error_t)c_orm_cli_main(2, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   /* Set up db */
-  c_orm_cli_main(6, (char **)argv_up);
+  c_orm_cli_main(6, (char **)(size_t)argv_up);
 
   /* Rollback success */
-  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv_rollback);
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)(size_t)argv_rollback);
   ASSERT_EQ(C_ORM_OK, rc);
 
   /* Rollback empty dir */
-  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv_rollback_empty);
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)(size_t)argv_rollback_empty);
   ASSERT_EQ(C_ORM_OK, rc);
 
   /* Rollback missing dir (load failure) */
-  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv_rollback_missing);
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)(size_t)argv_rollback_missing);
   ASSERT_EQ(C_ORM_OK, rc);
 
   /* Rollback fail due to mock */
   mock_rollback_fail = 1;
-  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv_rollback);
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)(size_t)argv_rollback);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
   mock_rollback_fail = 0;
 
   /* Rollback db error */
 #ifdef _WIN32
-  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv_rollback_bad_db_win);
+  rc = (c_orm_error_t)c_orm_cli_main(6,
+                                     (char **)(size_t)argv_rollback_bad_db_win);
 #else
-  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)argv_rollback_bad_db);
+  rc = (c_orm_error_t)c_orm_cli_main(6, (char **)(size_t)argv_rollback_bad_db);
 #endif
   ASSERT(rc != C_ORM_OK);
 
@@ -456,7 +457,7 @@ TEST test_cli_status(void) {
   sdb = NULL;
   C_ORM_UNSETENV("C_ORM_DB_URL");
 
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   s_rc = sqlite3_open("test_cli.db", &sdb);
@@ -469,15 +470,15 @@ TEST test_cli_status(void) {
   ASSERT_EQ(SQLITE_OK, s_rc);
   sqlite3_close(sdb);
 
-  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)argv2);
+  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)(size_t)argv2);
   ASSERT_EQ(C_ORM_OK, rc);
 
   mock_get_applied_fail = 1;
-  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)argv2);
+  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)(size_t)argv2);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
   mock_get_applied_fail = 0;
 
-  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)argv3);
+  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)(size_t)argv3);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   PASS();
@@ -504,7 +505,7 @@ TEST test_cli_unknown(void) {
   int argc;
 
   argc = 2;
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)argv);
+  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
   PASS();
 }
@@ -536,13 +537,13 @@ TEST test_cli_sql2c(void) {
   fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
   fclose(f);
 
-  rc = (c_orm_error_t)c_orm_cli_main(2, (char **)argv1);
+  rc = (c_orm_error_t)c_orm_cli_main(2, (char **)(size_t)argv1);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
-  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)argv2);
+  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)(size_t)argv2);
   ASSERT_EQ(C_ORM_OK, rc);
 
-  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)argv3);
+  rc = (c_orm_error_t)c_orm_cli_main(4, (char **)(size_t)argv3);
   ASSERT(rc != C_ORM_OK);
   PASS();
 }

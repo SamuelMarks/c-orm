@@ -34,8 +34,8 @@ typedef struct cdd_c_meta {
   size_t size;                    /**< Total size in bytes */
   size_t num_props;               /**< Number of properties in the struct */
   const cdd_c_prop_meta_t *props; /**< Pointer to the properties array */
-  void *driver_ctx; /**< Phase 4: Identity Map and Generic Driver Context
-                       Extensions */
+  const void *driver_ctx; /**< Phase 4: Identity Map and Generic Driver Context
+                             Extensions */
 } cdd_c_meta_t;
 
 #ifdef __cplusplus

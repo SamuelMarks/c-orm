@@ -107,9 +107,12 @@ TEST test_arena_coverage(void) {
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
   /* Test OOM in arena_strdup */
-  malloc_fail_countdown = 0;
-  rc = c_orm_arena_strdup(arena, "fail", (const char **)&ptr);
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  {
+    const char *str_oom = NULL;
+    malloc_fail_countdown = 0;
+    rc = c_orm_arena_strdup(arena, "fail", &str_oom);
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  }
 
   c_orm_arena_free(arena);
 

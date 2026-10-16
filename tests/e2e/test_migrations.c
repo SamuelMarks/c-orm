@@ -381,8 +381,8 @@ TEST test_migration_init(void) {
   ASSERT_EQ(C_ORM_OK, err);
 
   /* Test raw execute failure */
-  orig_vt = *(c_orm_driver_vtable_t *)db->vtable;
-  mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
+  orig_vt = *db->vtable;
+  mock_vt = *db->vtable;
   orig_prep = mock_vt.prepare;
   mock_vt.prepare = my_mig_prep;
   orig_finalize = mock_vt.finalize;
@@ -702,8 +702,8 @@ TEST test_migrate_all_failure_branches(void) {
 
   memset(&opts, 0, sizeof(opts));
 
-  orig_vt = *(c_orm_driver_vtable_t *)db->vtable;
-  mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
+  orig_vt = *db->vtable;
+  mock_vt = *db->vtable;
   orig_prep = mock_vt.prepare;
   mock_vt.prepare = my_mig_prep;
   orig_step = mock_vt.step;
@@ -955,8 +955,8 @@ TEST test_migrate_rollback_failure_branches(void) {
   err = c_orm_migrate_all(db, &mig, 1, &opts);
   ASSERT_EQ(C_ORM_OK, err);
 
-  orig_vt = *(c_orm_driver_vtable_t *)db->vtable;
-  mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
+  orig_vt = *db->vtable;
+  mock_vt = *db->vtable;
   orig_prep = mock_vt.prepare;
   mock_vt.prepare = my_mig_prep;
   orig_step = mock_vt.step;
@@ -1140,8 +1140,8 @@ TEST test_fetch_table_schema_failure_branches(void) {
           "c6 INT, c7 INT, c8 INT, c9 INT, c10 INT, c11 INT, c12 INT);");
   ASSERT_EQ(C_ORM_OK, err);
 
-  orig_vt = *(c_orm_driver_vtable_t *)db->vtable;
-  mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
+  orig_vt = *db->vtable;
+  mock_vt = *db->vtable;
   orig_prep = mock_vt.prepare;
   mock_vt.prepare = my_mig_prep;
   orig_step = mock_vt.step;
@@ -1292,8 +1292,8 @@ TEST test_get_applied_failure_branches(void) {
     ASSERT_EQ(C_ORM_OK, err);
   }
 
-  orig_vt = *(c_orm_driver_vtable_t *)db->vtable;
-  mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
+  orig_vt = *db->vtable;
+  mock_vt = *db->vtable;
   orig_prep = mock_vt.prepare;
   mock_vt.prepare = my_mig_prep;
   orig_step = mock_vt.step;

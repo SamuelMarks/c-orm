@@ -263,7 +263,7 @@ TEST test_inline_macros_crud(void) {
 
   printf("DEBUG: is_view=%d, query_insert=%p\n",
          (int)InlineUserView_meta.is_view,
-         (void *)(void *)InlineUserView_meta.query_insert);
+         (const void *)InlineUserView_meta.query_insert);
   fflush(stdout);
 
   err = c_orm_insert(db, &InlineUserView_meta, &u);

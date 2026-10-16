@@ -79,7 +79,7 @@ TEST test_sql_to_c_header_emit(void) {
   FILE *fp;
   c_orm_error_t rc;
 
-  span = az_span_create_from_str((char *)sql);
+  span = az_span_create_from_str(sql);
   list = NULL;
   table = NULL;
   fp = NULL;
@@ -131,7 +131,7 @@ TEST test_sql_to_c_source_emit(void) {
   FILE *fp;
   c_orm_error_t rc;
 
-  span = az_span_create_from_str((char *)sql);
+  span = az_span_create_from_str(sql);
   list = NULL;
   table = NULL;
   fp = NULL;
@@ -154,8 +154,8 @@ TEST test_sql_to_c_source_emit(void) {
   fclose(fp);
 
   ASSERT(strstr(buf, "c_orm_error_t Users_Array_init(") != NULL);
-  ASSERT(strstr(buf, "void Users_free(") != NULL);
-  ASSERT(strstr(buf, "void Users_Array_free(") != NULL);
+  ASSERT(strstr(buf, "c_orm_error_t Users_free(") != NULL);
+  ASSERT(strstr(buf, "c_orm_error_t Users_Array_free(") != NULL);
   ASSERT(strstr(buf, "c_orm_error_t Users_deepcopy(") != NULL);
   ASSERT(strstr(buf, "c_orm_error_t Users_Array_deepcopy(") != NULL);
 

@@ -35,9 +35,9 @@ c_orm_error_t Users_Array_init(struct Users_Array *arr,
   return C_ORM_OK;
 }
 
-void Users_free(struct Users *item) {
+c_orm_error_t Users_free(struct Users *item) {
   if (!item)
-    return;
+    return C_ORM_OK;
   if (item->username) {
     c_orm_system_free(item->username);
     item->username = NULL;
@@ -62,21 +62,24 @@ void Users_free(struct Users *item) {
     c_orm_system_free(item->created_at);
     item->created_at = NULL;
   }
+  return C_ORM_OK;
 }
 
-void Users_Array_free(struct Users_Array *arr) {
+c_orm_error_t Users_Array_free(struct Users_Array *arr) {
   size_t i;
+  c_orm_error_t rc = C_ORM_OK;
   if (!arr)
-    return;
+    return C_ORM_OK;
   if (arr->data) {
     for (i = 0; i < arr->length; ++i) {
-      Users_free(&arr->data[i]);
+      rc = Users_free(&arr->data[i]);
     }
     c_orm_system_free(arr->data);
     arr->data = NULL;
   }
   arr->length = 0;
   arr->capacity = 0;
+  return rc;
 }
 
 c_orm_error_t Users_deepcopy(const struct Users *src, struct Users *dest) {
@@ -92,7 +95,7 @@ c_orm_error_t Users_deepcopy(const struct Users *src, struct Users *dest) {
 #if defined(_MSC_VER)
     strcpy_s(dest->username, strlen(src->username) + 1, src->username);
 #else
-    C_ORM_STRCPY(dest->username, sizeof(dest->username), src->username);
+    C_ORM_STRCPY(dest->username, strlen(src->username) + 1, src->username);
 #endif
   } else {
     dest->username = NULL;
@@ -106,7 +109,7 @@ c_orm_error_t Users_deepcopy(const struct Users *src, struct Users *dest) {
 #if defined(_MSC_VER)
     strcpy_s(dest->email, strlen(src->email) + 1, src->email);
 #else
-    C_ORM_STRCPY(dest->email, sizeof(dest->email), src->email);
+    C_ORM_STRCPY(dest->email, strlen(src->email) + 1, src->email);
 #endif
   } else {
     dest->email = NULL;
@@ -148,7 +151,8 @@ c_orm_error_t Users_deepcopy(const struct Users *src, struct Users *dest) {
 #if defined(_MSC_VER)
     strcpy_s(dest->created_at, strlen(src->created_at) + 1, src->created_at);
 #else
-    C_ORM_STRCPY(dest->created_at, sizeof(dest->created_at), src->created_at);
+    C_ORM_STRCPY(dest->created_at, strlen(src->created_at) + 1,
+                 src->created_at);
 #endif
   } else {
     dest->created_at = NULL;
@@ -264,9 +268,9 @@ c_orm_error_t Posts_Array_init(struct Posts_Array *arr,
   return C_ORM_OK;
 }
 
-void Posts_free(struct Posts *item) {
+c_orm_error_t Posts_free(struct Posts *item) {
   if (!item)
-    return;
+    return C_ORM_OK;
   if (item->title) {
     c_orm_system_free(item->title);
     item->title = NULL;
@@ -283,21 +287,24 @@ void Posts_free(struct Posts *item) {
     c_orm_system_free(item->published_date);
     item->published_date = NULL;
   }
+  return C_ORM_OK;
 }
 
-void Posts_Array_free(struct Posts_Array *arr) {
+c_orm_error_t Posts_Array_free(struct Posts_Array *arr) {
   size_t i;
+  c_orm_error_t rc = C_ORM_OK;
   if (!arr)
-    return;
+    return C_ORM_OK;
   if (arr->data) {
     for (i = 0; i < arr->length; ++i) {
-      Posts_free(&arr->data[i]);
+      rc = Posts_free(&arr->data[i]);
     }
     c_orm_system_free(arr->data);
     arr->data = NULL;
   }
   arr->length = 0;
   arr->capacity = 0;
+  return rc;
 }
 
 c_orm_error_t Posts_deepcopy(const struct Posts *src, struct Posts *dest) {
@@ -314,7 +321,7 @@ c_orm_error_t Posts_deepcopy(const struct Posts *src, struct Posts *dest) {
 #if defined(_MSC_VER)
     strcpy_s(dest->title, strlen(src->title) + 1, src->title);
 #else
-    C_ORM_STRCPY(dest->title, sizeof(dest->title), src->title);
+    C_ORM_STRCPY(dest->title, strlen(src->title) + 1, src->title);
 #endif
   } else {
     dest->title = NULL;
@@ -328,7 +335,7 @@ c_orm_error_t Posts_deepcopy(const struct Posts *src, struct Posts *dest) {
 #if defined(_MSC_VER)
     strcpy_s(dest->content, strlen(src->content) + 1, src->content);
 #else
-    C_ORM_STRCPY(dest->content, sizeof(dest->content), src->content);
+    C_ORM_STRCPY(dest->content, strlen(src->content) + 1, src->content);
 #endif
   } else {
     dest->content = NULL;
@@ -353,7 +360,7 @@ c_orm_error_t Posts_deepcopy(const struct Posts *src, struct Posts *dest) {
     strcpy_s(dest->published_date, strlen(src->published_date) + 1,
              src->published_date);
 #else
-    C_ORM_STRCPY(dest->published_date, sizeof(dest->published_date),
+    C_ORM_STRCPY(dest->published_date, strlen(src->published_date) + 1,
                  src->published_date);
 #endif
   } else {
@@ -466,9 +473,9 @@ c_orm_error_t Oauth2_tokens_Array_init(struct Oauth2_tokens_Array *arr,
   return C_ORM_OK;
 }
 
-void Oauth2_tokens_free(struct Oauth2_tokens *item) {
+c_orm_error_t Oauth2_tokens_free(struct Oauth2_tokens *item) {
   if (!item)
-    return;
+    return C_ORM_OK;
   if (item->access_token) {
     c_orm_system_free(item->access_token);
     item->access_token = NULL;
@@ -489,21 +496,24 @@ void Oauth2_tokens_free(struct Oauth2_tokens *item) {
     c_orm_system_free(item->created_at);
     item->created_at = NULL;
   }
+  return C_ORM_OK;
 }
 
-void Oauth2_tokens_Array_free(struct Oauth2_tokens_Array *arr) {
+c_orm_error_t Oauth2_tokens_Array_free(struct Oauth2_tokens_Array *arr) {
   size_t i;
+  c_orm_error_t rc = C_ORM_OK;
   if (!arr)
-    return;
+    return C_ORM_OK;
   if (arr->data) {
     for (i = 0; i < arr->length; ++i) {
-      Oauth2_tokens_free(&arr->data[i]);
+      rc = Oauth2_tokens_free(&arr->data[i]);
     }
     c_orm_system_free(arr->data);
     arr->data = NULL;
   }
   arr->length = 0;
   arr->capacity = 0;
+  return rc;
 }
 
 c_orm_error_t Oauth2_tokens_deepcopy(const struct Oauth2_tokens *src,
@@ -520,7 +530,7 @@ c_orm_error_t Oauth2_tokens_deepcopy(const struct Oauth2_tokens *src,
     strcpy_s(dest->access_token, strlen(src->access_token) + 1,
              src->access_token);
 #else
-    C_ORM_STRCPY(dest->access_token, sizeof(dest->access_token),
+    C_ORM_STRCPY(dest->access_token, strlen(src->access_token) + 1,
                  src->access_token);
 #endif
   } else {
@@ -536,7 +546,7 @@ c_orm_error_t Oauth2_tokens_deepcopy(const struct Oauth2_tokens *src,
     strcpy_s(dest->refresh_token, strlen(src->refresh_token) + 1,
              src->refresh_token);
 #else
-    C_ORM_STRCPY(dest->refresh_token, sizeof(dest->refresh_token),
+    C_ORM_STRCPY(dest->refresh_token, strlen(src->refresh_token) + 1,
                  src->refresh_token);
 #endif
   } else {
@@ -551,7 +561,8 @@ c_orm_error_t Oauth2_tokens_deepcopy(const struct Oauth2_tokens *src,
 #if defined(_MSC_VER)
     strcpy_s(dest->token_type, strlen(src->token_type) + 1, src->token_type);
 #else
-    C_ORM_STRCPY(dest->token_type, sizeof(dest->token_type), src->token_type);
+    C_ORM_STRCPY(dest->token_type, strlen(src->token_type) + 1,
+                 src->token_type);
 #endif
   } else {
     dest->token_type = NULL;

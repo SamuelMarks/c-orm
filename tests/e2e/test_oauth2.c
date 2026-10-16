@@ -411,7 +411,7 @@ TEST test_oauth2_init(void) {
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
+  mock_vt = *db->vtable;
   orig_prep = mock_vt.prepare;
   mock_vt.prepare = my_oauth2_prep;
   orig_step = mock_vt.step;
@@ -545,7 +545,7 @@ TEST test_oauth2_client(void) {
   ASSERT_EQ(1, is_valid);
 
   fail_sql = 5; /* trigger error in c_orm_find_one_by_string */
-  mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
+  mock_vt = *db->vtable;
   mock_vt.prepare = my_oauth2_prep;
   mock_vt.step = my_oauth2_step;
   db->vtable = &mock_vt;
@@ -651,7 +651,7 @@ TEST test_oauth2_auth_code(void) {
   }
 
   /* fail sql branches */
-  mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
+  mock_vt = *db->vtable;
   mock_vt.prepare = my_oauth2_prep;
   mock_vt.step = my_oauth2_step;
   db->vtable = &mock_vt;
@@ -751,7 +751,7 @@ TEST test_oauth2_token(void) {
   }
 
   /* fail sql branches */
-  mock_vt = *(c_orm_driver_vtable_t *)db->vtable;
+  mock_vt = *db->vtable;
   mock_vt.prepare = my_oauth2_prep;
   mock_vt.step = my_oauth2_step;
   db->vtable = &mock_vt;

@@ -447,6 +447,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
   int has_row;
   size_t cap = 10;
   cdd_c_meta_t *meta;
+  char *meta_name;
+  cdd_c_prop_meta_t *props_arr;
 
   LOG_DEBUG("c_orm_migration_fetch_table_schema: entered");
 
@@ -479,8 +481,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
     return rc;
   }
 
-  meta->name = (char *)C_ORM_MALLOC(strlen(table_name) + 1);
-  if (!meta->name) {
+  meta_name = (char *)C_ORM_MALLOC(strlen(table_name) + 1);
+  if (!meta_name) {
     LOG_DEBUG("c_orm_migration_fetch_table_schema: OOM");
     C_ORM_FREE(meta);
     {
@@ -492,16 +494,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
     rc = C_ORM_ERROR_MEMORY;
     return rc;
   }
-  C_ORM_STRCPY((char *)meta->name, strlen(table_name) + 1, table_name);
+  C_ORM_STRCPY(meta_name, strlen(table_name) + 1, table_name);
+  meta->name = meta_name;
   meta->size = 0;
   meta->num_props = 0;
   meta->driver_ctx = NULL;
-  meta->props =
+  props_arr =
       (cdd_c_prop_meta_t *)C_ORM_MALLOC(sizeof(cdd_c_prop_meta_t) * cap);
+  meta->props = props_arr;
 
-  if (!meta->props) {
+  if (!props_arr) {
     LOG_DEBUG("c_orm_migration_fetch_table_schema: OOM");
-    C_ORM_FREE((void *)meta->name);
+    C_ORM_FREE(meta_name);
     C_ORM_FREE(meta);
     {
       c_orm_error_t _fin = c_orm_finalize_cached(db, q);
@@ -517,6 +521,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
     const char *col_name = NULL;
     const char *col_type = NULL;
     cdd_c_prop_meta_t *prop;
+    char *pname;
+    char *ptype;
 
     rc = db->vtable->step(q, &has_row);
     if (rc != C_ORM_OK) {
@@ -561,7 +567,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
       cdd_c_prop_meta_t *new_props;
       cap *= 2;
       new_props = (cdd_c_prop_meta_t *)C_ORM_REALLOC(
-          (void *)meta->props, sizeof(cdd_c_prop_meta_t) * cap);
+          props_arr, sizeof(cdd_c_prop_meta_t) * cap);
       if (!new_props) {
         LOG_DEBUG("c_orm_migration_fetch_table_schema: OOM during realloc");
         c_orm_migration_free_table_schema(meta);
@@ -574,14 +580,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
         rc = C_ORM_ERROR_MEMORY;
         return rc;
       }
-      meta->props = new_props;
+      props_arr = new_props;
+      meta->props = props_arr;
     }
 
-    prop = (cdd_c_prop_meta_t *)&meta->props[meta->num_props++];
+    prop = &props_arr[meta->num_props++];
     memset(prop, 0, sizeof(cdd_c_prop_meta_t));
 
-    prop->name = (char *)C_ORM_MALLOC(strlen(col_name) + 1);
-    if (!prop->name) {
+    pname = (char *)C_ORM_MALLOC(strlen(col_name) + 1);
+    if (!pname) {
       LOG_DEBUG("c_orm_migration_fetch_table_schema: OOM");
       c_orm_migration_free_table_schema(meta);
       {
@@ -593,10 +600,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
       rc = C_ORM_ERROR_MEMORY;
       return rc;
     }
-    C_ORM_STRCPY((char *)prop->name, strlen(col_name) + 1, col_name);
+    C_ORM_STRCPY(pname, strlen(col_name) + 1, col_name);
+    prop->name = pname;
 
-    prop->type = (char *)C_ORM_MALLOC(strlen(col_type) + 1);
-    if (!prop->type) {
+    ptype = (char *)C_ORM_MALLOC(strlen(col_type) + 1);
+    if (!ptype) {
       LOG_DEBUG("c_orm_migration_fetch_table_schema: OOM");
       c_orm_migration_free_table_schema(meta);
       {
@@ -608,7 +616,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
       rc = C_ORM_ERROR_MEMORY;
       return rc;
     }
-    C_ORM_STRCPY((char *)prop->type, strlen(col_type) + 1, col_type);
+    C_ORM_STRCPY(ptype, strlen(col_type) + 1, col_type);
+    prop->type = ptype;
     prop->offset = 0;
   }
 
@@ -640,18 +649,18 @@ c_orm_migration_free_table_schema(cdd_c_meta_t *schema) {
     return C_ORM_OK;
   }
   if (schema->name) {
-    C_ORM_FREE((void *)schema->name);
+    C_ORM_FREE((void *)(size_t)schema->name);
   }
   if (schema->props) {
     for (i = 0; i < schema->num_props; i++) {
       if (schema->props[i].name) {
-        C_ORM_FREE((void *)schema->props[i].name);
+        C_ORM_FREE((void *)(size_t)schema->props[i].name);
       }
       if (schema->props[i].type) {
-        C_ORM_FREE((void *)schema->props[i].type);
+        C_ORM_FREE((void *)(size_t)schema->props[i].type);
       }
     }
-    C_ORM_FREE((void *)schema->props);
+    C_ORM_FREE((void *)(size_t)schema->props);
   }
   C_ORM_FREE(schema);
   LOG_DEBUG("c_orm_migration_free_table_schema: exiting");

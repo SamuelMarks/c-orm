@@ -56,6 +56,10 @@ typedef unsigned char bool;
 #include <stddef.h>
 /* clang-format on */
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /**
  * @file users.h
  * @brief Auto-generated C structs for SQL table users.
@@ -63,10 +67,6 @@ typedef unsigned char bool;
 
 #ifndef C_ORM_MODEL_USERS_H
 #define C_ORM_MODEL_USERS_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 
 /**
  * @brief Represents a single row of the users table.
@@ -112,14 +112,16 @@ c_orm_error_t Users_Array_init(struct Users_Array *arr,
 /**
  * @brief Free resources inside a single Users struct.
  * @param item Pointer to struct.
+ * @return 0 on success.
  */
-void Users_free(struct Users *item);
+c_orm_error_t Users_free(struct Users *item);
 
 /**
  * @brief Free resources of a Users_Array.
  * @param arr Pointer to array.
+ * @return 0 on success.
  */
-void Users_Array_free(struct Users_Array *arr);
+c_orm_error_t Users_Array_free(struct Users_Array *arr);
 
 /**
  * @brief Deep copy a Users row.
@@ -138,10 +140,6 @@ c_orm_error_t Users_deepcopy(const struct Users *src, struct Users *dest);
 c_orm_error_t Users_Array_deepcopy(const struct Users_Array *src,
                                    struct Users_Array *dest);
 
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
 extern const c_orm_table_meta_t Users_meta;
 
 #endif /* C_ORM_MODEL_USERS_H */
@@ -152,10 +150,6 @@ extern const c_orm_table_meta_t Users_meta;
 
 #ifndef C_ORM_MODEL_POSTS_H
 #define C_ORM_MODEL_POSTS_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 
 /**
  * @brief Represents a single row of the posts table.
@@ -199,14 +193,16 @@ c_orm_error_t Posts_Array_init(struct Posts_Array *arr,
 /**
  * @brief Free resources inside a single Posts struct.
  * @param item Pointer to struct.
+ * @return 0 on success.
  */
-void Posts_free(struct Posts *item);
+c_orm_error_t Posts_free(struct Posts *item);
 
 /**
  * @brief Free resources of a Posts_Array.
  * @param arr Pointer to array.
+ * @return 0 on success.
  */
-void Posts_Array_free(struct Posts_Array *arr);
+c_orm_error_t Posts_Array_free(struct Posts_Array *arr);
 
 /**
  * @brief Deep copy a Posts row.
@@ -225,10 +221,6 @@ c_orm_error_t Posts_deepcopy(const struct Posts *src, struct Posts *dest);
 c_orm_error_t Posts_Array_deepcopy(const struct Posts_Array *src,
                                    struct Posts_Array *dest);
 
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
 extern const c_orm_table_meta_t Posts_meta;
 
 #endif /* C_ORM_MODEL_POSTS_H */
@@ -239,10 +231,6 @@ extern const c_orm_table_meta_t Posts_meta;
 
 #ifndef C_ORM_MODEL_OAUTH2_TOKENS_H
 #define C_ORM_MODEL_OAUTH2_TOKENS_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 
 /**
  * @brief Represents a single row of the oauth2_tokens table.
@@ -284,14 +272,16 @@ c_orm_error_t Oauth2_tokens_Array_init(struct Oauth2_tokens_Array *arr,
 /**
  * @brief Free resources inside a single Oauth2_tokens struct.
  * @param item Pointer to struct.
+ * @return 0 on success.
  */
-void Oauth2_tokens_free(struct Oauth2_tokens *item);
+c_orm_error_t Oauth2_tokens_free(struct Oauth2_tokens *item);
 
 /**
  * @brief Free resources of a Oauth2_tokens_Array.
  * @param arr Pointer to array.
+ * @return 0 on success.
  */
-void Oauth2_tokens_Array_free(struct Oauth2_tokens_Array *arr);
+c_orm_error_t Oauth2_tokens_Array_free(struct Oauth2_tokens_Array *arr);
 
 /**
  * @brief Deep copy a Oauth2_tokens row.
@@ -312,11 +302,12 @@ c_orm_error_t
 Oauth2_tokens_Array_deepcopy(const struct Oauth2_tokens_Array *src,
                              struct Oauth2_tokens_Array *dest);
 
+extern const c_orm_table_meta_t Oauth2_tokens_meta;
+
+#endif /* C_ORM_MODEL_OAUTH2_TOKENS_H */
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
-extern const c_orm_table_meta_t Oauth2_tokens_meta;
-
-#endif /* C_ORM_MODEL_OAUTH2_TOKENS_H */
 #endif

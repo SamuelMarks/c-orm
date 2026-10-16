@@ -924,7 +924,7 @@ TEST test_c_to_sql_additional_branches(void) {
     ASSERT_STR_EQ("C_ORM_TYPE_DOUBLE", cmeta->props[3].type);
     ASSERT_STR_EQ("C_ORM_TYPE_INT32", cmeta->props[4].type);
     ASSERT_STR_EQ("C_ORM_TYPE_STRING", cmeta->props[5].type);
-    C_ORM_FREE((void *)cmeta->props);
+    C_ORM_FREE((void *)(size_t)cmeta->props);
     C_ORM_FREE(cmeta);
     cmeta = NULL;
 

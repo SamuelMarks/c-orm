@@ -6174,10 +6174,13 @@ TEST test_api_helpers_full_coverage(void) {
   g_mock_err_stage = 0;
 
   /* Exercise mock_deep_get_blob with g_deep_fail_get == 3 and i != 11 */
-  g_deep_fail_get = 3;
-  rc = mock_deep_get_blob(NULL, 10, (const void **)&out_data, &out_size);
-  ASSERT_EQ(C_ORM_OK, rc);
-  g_deep_fail_get = -1;
+  {
+    const void *const_out_data = NULL;
+    g_deep_fail_get = 3;
+    rc = mock_deep_get_blob(NULL, 10, &const_out_data, &out_size);
+    ASSERT_EQ(C_ORM_OK, rc);
+    g_deep_fail_get = -1;
+  }
 
   out_data = NULL;
   out_size = 0;

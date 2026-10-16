@@ -220,16 +220,17 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
 
   fprintf(fp,
           "/**\n * @brief Free resources inside a single %s struct.\n * @param "
-          "item Pointer to struct.\n */\n",
+          "item Pointer to struct.\n * @return 0 on success.\n */\n",
           struct_name);
-  fprintf(fp, "void %s_free(struct %s *item);\n\n", struct_name, struct_name);
+  fprintf(fp, "c_orm_error_t %s_free(struct %s *item);\n\n", struct_name,
+          struct_name);
 
   fprintf(fp,
           "/**\n * @brief Free resources of a %s_Array.\n * @param arr Pointer "
-          "to array.\n */\n",
+          "to array.\n * @return 0 on success.\n */\n",
           struct_name);
-  fprintf(fp, "void %s_Array_free(struct %s_Array *arr);\n\n", struct_name,
-          struct_name);
+  fprintf(fp, "c_orm_error_t %s_Array_free(struct %s_Array *arr);\n\n",
+          struct_name, struct_name);
 
   fprintf(fp,
           "/**\n * @brief Deep copy a %s row.\n * @param src Source struct.\n "
@@ -300,8 +301,9 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "}\n\n");
 
   /* Free */
-  fprintf(fp, "void %s_free(struct %s *item) {\n", struct_name, struct_name);
-  fprintf(fp, "  if (!item) return;\n");
+  fprintf(fp, "c_orm_error_t %s_free(struct %s *item) {\n", struct_name,
+          struct_name);
+  fprintf(fp, "  if (!item) return C_ORM_OK;\n");
   for (i = 0; i < table->n_columns; ++i) {
     const struct sql_column_t *col = &table->columns[i];
     c_orm_error_t is_str = sql_type_is_string(col->type);
@@ -321,13 +323,14 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
               col->name, col->name, col->name);
     }
   }
+  fprintf(fp, "  return C_ORM_OK;\n");
   fprintf(fp, "}\n\n");
 
   /* Array Free */
-  fprintf(fp, "void %s_Array_free(struct %s_Array *arr) {\n", struct_name,
-          struct_name);
+  fprintf(fp, "c_orm_error_t %s_Array_free(struct %s_Array *arr) {\n",
+          struct_name, struct_name);
   fprintf(fp, "  size_t i;\n");
-  fprintf(fp, "  if (!arr) return;\n");
+  fprintf(fp, "  if (!arr) return C_ORM_OK;\n");
   fprintf(fp, "  if (arr->data) {\n");
   fprintf(fp, "    for (i = 0; i < arr->length; ++i) {\n");
   fprintf(fp, "      %s_free(&arr->data[i]);\n", struct_name);
@@ -337,6 +340,7 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "  }\n");
   fprintf(fp, "  arr->length = 0;\n");
   fprintf(fp, "  arr->capacity = 0;\n");
+  fprintf(fp, "  return C_ORM_OK;\n");
   fprintf(fp, "}\n\n");
 
   /* Deepcopy */

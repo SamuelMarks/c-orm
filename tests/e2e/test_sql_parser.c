@@ -226,7 +226,7 @@ TEST test_sql_lex_oom(void) {
   for (s = 0; sqls[s] != NULL; s++) {
     for (i = 0; i < 5; i++) {
       list = NULL;
-      span = az_span_create_from_str((char *)sqls[s]);
+      span = az_span_create_from_str(sqls[s]);
       oom_active = 1;
       oom_countdown = i;
       rc = sql_lex(span, &list);

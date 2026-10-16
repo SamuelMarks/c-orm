@@ -118,7 +118,7 @@ TEST test_sql_lexer_basic(void) {
   struct sql_token_list_t *list;
   c_orm_error_t rc;
 
-  span = az_span_create_from_str((char *)sql);
+  span = az_span_create_from_str(sql);
   list = NULL;
   rc = sql_lex(span, &list);
   ASSERT_EQ(C_ORM_OK, rc);
@@ -151,7 +151,7 @@ TEST test_sql_lexer_types(void) {
   struct sql_token_list_t *list;
   c_orm_error_t rc;
 
-  span = az_span_create_from_str((char *)sql);
+  span = az_span_create_from_str(sql);
   list = NULL;
   rc = sql_lex(span, &list);
   ASSERT_EQ(C_ORM_OK, rc);
@@ -175,7 +175,7 @@ TEST test_sql_parser_basic(void) {
   struct sql_parse_error_t err_info;
   c_orm_error_t rc;
 
-  span = az_span_create_from_str((char *)sql);
+  span = az_span_create_from_str(sql);
   list = NULL;
   table = NULL;
   rc = sql_lex(span, &list);
@@ -210,7 +210,7 @@ TEST test_sql_lexer_strings_unknown(void) {
   has_unknown = 0;
   list = NULL;
 
-  span = az_span_create_from_str((char *)sql);
+  span = az_span_create_from_str(sql);
   rc = sql_lex(span, &list);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(list != NULL);
@@ -231,7 +231,7 @@ TEST test_sql_lexer_strings_unknown(void) {
 
   /* unclosed string */
   sql = "'unclosed";
-  span = az_span_create_from_str((char *)sql);
+  span = az_span_create_from_str(sql);
   rc = sql_lex(span, &list);
   ASSERT_EQ(C_ORM_OK, rc);
   sql_token_list_free(list);
@@ -308,7 +308,7 @@ TEST test_sql_parser_errors(void) {
   c_orm_error_t rc;
 
   for (i = 0; err_sqls[i] != NULL; ++i) {
-    span = az_span_create_from_str((char *)err_sqls[i]);
+    span = az_span_create_from_str(err_sqls[i]);
     list = NULL;
     table = NULL;
 
@@ -364,7 +364,7 @@ TEST test_sql_parser_step_failures(void) {
 
   for (s = 0; sqls[s] != NULL; ++s) {
     for (i = 0; i < 300; ++i) {
-      span = az_span_create_from_str((char *)sqls[s]);
+      span = az_span_create_from_str(sqls[s]);
       list = NULL;
       table = NULL;
 
@@ -401,7 +401,7 @@ TEST test_sql_parser_constraints_capacity(void) {
   c_orm_error_t rc;
   int i;
 
-  span = az_span_create_from_str((char *)sql);
+  span = az_span_create_from_str(sql);
   list = NULL;
   table = NULL;
 

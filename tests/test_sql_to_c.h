@@ -72,7 +72,7 @@ TEST test_sql_to_c_header_emit(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
       "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true);";
-  az_span span = az_span_create_from_str((char *)sql);
+  az_span span = az_span_create_from_str(sql);
   struct sql_token_list_t *list = NULL;
   struct sql_table_t *table = NULL;
   struct sql_parse_error_t err_info;
@@ -118,7 +118,7 @@ TEST test_sql_to_c_source_emit(void) {
   const char *sql =
       "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
       "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true);";
-  az_span span = az_span_create_from_str((char *)sql);
+  az_span span = az_span_create_from_str(sql);
   struct sql_token_list_t *list = NULL;
   struct sql_table_t *table = NULL;
   struct sql_parse_error_t err_info;
@@ -144,8 +144,8 @@ TEST test_sql_to_c_source_emit(void) {
   fclose(fp);
 
   ASSERT(strstr(buf, "c_orm_error_t Users_Array_init(") != NULL);
-  ASSERT(strstr(buf, "void Users_free(") != NULL);
-  ASSERT(strstr(buf, "void Users_Array_free(") != NULL);
+  ASSERT(strstr(buf, "c_orm_error_t Users_free(") != NULL);
+  ASSERT(strstr(buf, "c_orm_error_t Users_Array_free(") != NULL);
   ASSERT(strstr(buf, "c_orm_error_t Users_deepcopy(") != NULL);
   ASSERT(strstr(buf, "c_orm_error_t Users_Array_deepcopy(") != NULL);
 

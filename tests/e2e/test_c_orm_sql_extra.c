@@ -155,7 +155,7 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
 
   /* Baseline pass */
   g_malloc_fail = 0;
-  span = az_span_create_from_str((char *)sqls[0]);
+  span = az_span_create_from_str(sqls[0]);
   rc = sql_lex(span, &list);
   ASSERT_EQ(C_ORM_OK, rc);
   rc = sql_parse_table(list, &table, &err_info);
@@ -182,7 +182,7 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
       g_malloc_count = 0;
       g_malloc_fail = 1;
 
-      span = az_span_create_from_str((char *)sqls[sql_idx]);
+      span = az_span_create_from_str(sqls[sql_idx]);
       rc = sql_lex(span, &list);
       g_malloc_fail = 0;
       if (rc == C_ORM_OK) {
@@ -382,7 +382,7 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
   /* Baseline pass */
   c_orm_parser_set_fail(-1);
   g_malloc_fail = 0;
-  span = az_span_create_from_str((char *)sqls[0]);
+  span = az_span_create_from_str(sqls[0]);
   rc = sql_lex(span, &list);
   ASSERT_EQ(C_ORM_OK, rc);
   rc = sql_parse_table(list, &ast, &err_info);
@@ -398,7 +398,7 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
     for (i = 0; i <= 75; i++) {
       list = NULL;
       ast = NULL;
-      span = az_span_create_from_str((char *)sqls[sql_idx]);
+      span = az_span_create_from_str(sqls[sql_idx]);
 
       g_malloc_fail = 0;
       rc = sql_lex(span, &list);

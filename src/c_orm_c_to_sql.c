@@ -502,7 +502,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_table_meta_to_cdd_meta(
   cm->name = table_meta->name;
   cm->size = table_meta->struct_size;
   cm->num_props = table_meta->num_columns;
-  cm->driver_ctx = (void *)table_meta;
+  cm->driver_ctx = table_meta;
 
   if (table_meta->num_columns > 0) {
     cdd_c_prop_meta_t *props = (cdd_c_prop_meta_t *)C_ORM_MALLOC(

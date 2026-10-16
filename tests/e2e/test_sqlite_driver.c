@@ -51,7 +51,7 @@ TEST test_c_orm_sqlite_blob_open_errors(void) {
  * @brief Executes test_c_orm_sqlite_blob_read_errors.
  */
 TEST test_c_orm_sqlite_blob_read_errors(void) {
-  char buf[10];
+  char buf[10] = {0};
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_sqlite_blob_read(NULL, buf, 10, 0));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_sqlite_blob_read(NULL, NULL, 10, 0));
   PASS();
@@ -61,7 +61,7 @@ TEST test_c_orm_sqlite_blob_read_errors(void) {
  * @brief Executes test_c_orm_sqlite_blob_write_errors.
  */
 TEST test_c_orm_sqlite_blob_write_errors(void) {
-  char buf[10];
+  char buf[10] = {0};
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_sqlite_blob_write(NULL, buf, 10, 0));
   PASS();
 }
@@ -392,9 +392,9 @@ TEST test_c_orm_sqlite_operations_errors(void) {
   ASSERT_EQ(C_ORM_OK, vtable->get_double(query, 3, &dbl));
   ASSERT_EQ(0.0, dbl);
   ASSERT_EQ(C_ORM_OK, vtable->get_string(query, 3, &str));
-  ASSERT_EQ(NULL, (void *)str);
+  ASSERT_EQ(NULL, str);
   ASSERT_EQ(C_ORM_OK, vtable->get_blob(query, 3, &blob, &size));
-  ASSERT_EQ(NULL, (void *)blob);
+  ASSERT_EQ(NULL, blob);
   ASSERT_EQ(0, size);
 
   ASSERT_EQ(C_ORM_OK, vtable->is_null(query, 3, &is_null));

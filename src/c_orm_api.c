@@ -848,32 +848,32 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_by_composite_key(
     const c_orm_column_meta_t *col = &meta->columns[i];
     if (col->type == C_ORM_TYPE_INT32) {
       int32_t val;
-      memcpy(&val, (char *)in_struct + col->offset, sizeof(val));
+      memcpy(&val, (const char *)in_struct + col->offset, sizeof(val));
       rc = db->vtable->bind_int32(query, bind_idx++, val);
     } else if (col->type == C_ORM_TYPE_BOOL) {
       /* Boolean is 1 byte typically, but casting via int32 pointer reads
        * garbage! */
-      int32_t val = *(uint8_t *)((char *)in_struct + col->offset);
+      int32_t val = *(const uint8_t *)((const char *)in_struct + col->offset);
       rc = db->vtable->bind_int32(query, bind_idx++, val);
     } else if (col->type == C_ORM_TYPE_INT64) {
       int64_t val;
-      memcpy(&val, (char *)in_struct + col->offset, sizeof(val));
+      memcpy(&val, (const char *)in_struct + col->offset, sizeof(val));
       rc = db->vtable->bind_int64(query, bind_idx++, val);
     } else if (col->type == C_ORM_TYPE_DOUBLE ||
                col->type == C_ORM_TYPE_FLOAT) {
       double val;
       if (col->type == C_ORM_TYPE_FLOAT) {
         float temp;
-        memcpy(&temp, (char *)in_struct + col->offset, sizeof(temp));
+        memcpy(&temp, (const char *)in_struct + col->offset, sizeof(temp));
         val = (double)temp;
       } else {
-        memcpy(&val, (char *)in_struct + col->offset, sizeof(val));
+        memcpy(&val, (const char *)in_struct + col->offset, sizeof(val));
       }
       rc = db->vtable->bind_double(query, bind_idx++, val);
     } else if (col->type == C_ORM_TYPE_STRING ||
                col->type == C_ORM_TYPE_TIMESTAMP) {
       char *val;
-      memcpy(&val, (char *)in_struct + col->offset, sizeof(val));
+      memcpy(&val, (const char *)in_struct + col->offset, sizeof(val));
       if (!val) {
         rc = db->vtable->bind_null(query, bind_idx++);
       } else {
@@ -2494,28 +2494,29 @@ static c_orm_error_t get_int_field(const c_orm_table_meta_t *meta,
   LOG_DEBUG("get_int_field: entry");
   for (i = 0; i < meta->num_columns; i++) {
     if (strcmp(meta->columns[i].name, field_name) == 0) {
-      void *field_ptr = (char *)struct_ptr + meta->columns[i].offset;
+      const void *field_ptr =
+          (const char *)struct_ptr + meta->columns[i].offset;
       if (meta->columns[i].type == C_ORM_TYPE_INT32) {
         if (meta->columns[i].is_nullable) {
-          if (!*(int32_t **)field_ptr) {
+          if (!*(const int32_t *const *)field_ptr) {
             rc = C_ORM_ERROR_NOT_FOUND;
             LOG_DEBUG("get_int_field: exit");
             return rc;
           }
-          *out_val = **(int32_t **)field_ptr;
+          *out_val = **(const int32_t *const *)field_ptr;
         } else {
-          *out_val = *(int32_t *)field_ptr;
+          *out_val = *(const int32_t *)field_ptr;
         }
       } else if (meta->columns[i].type == C_ORM_TYPE_INT64) {
         if (meta->columns[i].is_nullable) {
-          if (!*(int64_t **)field_ptr) {
+          if (!*(const int64_t *const *)field_ptr) {
             rc = C_ORM_ERROR_NOT_FOUND;
             LOG_DEBUG("get_int_field: exit");
             return rc;
           }
-          *out_val = **(int64_t **)field_ptr;
+          *out_val = **(const int64_t *const *)field_ptr;
         } else {
-          *out_val = *(int64_t *)field_ptr;
+          *out_val = *(const int64_t *)field_ptr;
         }
       } else {
         {
@@ -2566,7 +2567,7 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
     if (col->type == C_ORM_TYPE_STRING || col->type == C_ORM_TYPE_DATE ||
         col->type == C_ORM_TYPE_TIMESTAMP || col->type == C_ORM_TYPE_ENUM ||
         col->type == C_ORM_TYPE_SET || col->type == C_ORM_TYPE_JSON) {
-      const char *str_val = *(const char **)field_ptr;
+      const char *str_val = *(const char *const *)field_ptr;
       char tz_buffer[64];
 
       /* Step 168: UUID Auto-generation for empty string primary keys */
@@ -2575,7 +2576,7 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
         char *new_uuid = (char *)C_ORM_MALLOC(37);
         if (new_uuid) {
           c_orm_uuid_v4(new_uuid);
-          *(char **)field_ptr = new_uuid;
+          *(char **)(size_t)field_ptr = new_uuid;
           str_val = new_uuid;
         }
       }
@@ -2690,7 +2691,7 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
 
     if (col->is_nullable) {
       /* Pointer type for primitives */
-      const void *ptr_val = *(const void **)field_ptr;
+      const void *ptr_val = *(const void *const *)field_ptr;
       if (!ptr_val) {
         rc = db->vtable->bind_null(query, (*bind_idx)++);
         if (rc != C_ORM_OK) {
@@ -3007,7 +3008,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
           (const char *)in_array + ((i + j) * meta->struct_size);
 
       if (meta->hooks[C_ORM_HOOK_BEFORE_SAVE]) {
-        rc = meta->hooks[C_ORM_HOOK_BEFORE_SAVE]((void *)current_struct, db);
+        rc = meta->hooks[C_ORM_HOOK_BEFORE_SAVE]((void *)(size_t)current_struct,
+                                                 db);
         if (rc != C_ORM_OK) {
           fin_rc = db->vtable->finalize(query);
           c_orm_transaction_rollback(db);
@@ -3016,7 +3018,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
         }
       }
       if (meta->hooks[C_ORM_HOOK_BEFORE_INSERT]) {
-        rc = meta->hooks[C_ORM_HOOK_BEFORE_INSERT]((void *)current_struct, db);
+        rc = meta->hooks[C_ORM_HOOK_BEFORE_INSERT](
+            (void *)(size_t)current_struct, db);
         if (rc != C_ORM_OK) {
           fin_rc = db->vtable->finalize(query);
           c_orm_transaction_rollback(db);
@@ -3051,7 +3054,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
       const void *current_struct =
           (const char *)in_array + ((i + j) * meta->struct_size);
       if (meta->hooks[C_ORM_HOOK_AFTER_INSERT]) {
-        rc = meta->hooks[C_ORM_HOOK_AFTER_INSERT]((void *)current_struct, db);
+        rc = meta->hooks[C_ORM_HOOK_AFTER_INSERT](
+            (void *)(size_t)current_struct, db);
         if (rc != C_ORM_OK) {
           c_orm_transaction_rollback(db);
           {
@@ -3061,7 +3065,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_batch_ext(
         }
       }
       if (meta->hooks[C_ORM_HOOK_AFTER_SAVE]) {
-        rc = meta->hooks[C_ORM_HOOK_AFTER_SAVE]((void *)current_struct, db);
+        rc = meta->hooks[C_ORM_HOOK_AFTER_SAVE]((void *)(size_t)current_struct,
+                                                db);
         if (rc != C_ORM_OK) {
           c_orm_transaction_rollback(db);
           {
@@ -3306,14 +3311,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
   }
 
   if (meta->hooks[C_ORM_HOOK_BEFORE_SAVE]) {
-    rc = meta->hooks[C_ORM_HOOK_BEFORE_SAVE]((void *)in_struct, db);
+    rc = meta->hooks[C_ORM_HOOK_BEFORE_SAVE]((void *)(size_t)in_struct, db);
     if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_insert: exit");
       return rc;
     }
   }
   if (meta->hooks[C_ORM_HOOK_BEFORE_INSERT]) {
-    rc = meta->hooks[C_ORM_HOOK_BEFORE_INSERT]((void *)in_struct, db);
+    rc = meta->hooks[C_ORM_HOOK_BEFORE_INSERT]((void *)(size_t)in_struct, db);
     if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_insert: exit");
       return rc;
@@ -3324,10 +3329,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
   for (i = 0; i < meta->num_relations; i++) {
     const c_orm_relation_meta_t *rel = &meta->relations[i];
     if (rel->target_meta && rel->type == C_ORM_RELATION_BELONGS_TO) {
-      void *context_ptr = (char *)in_struct + rel->struct_offset;
-      void *target_data_ptr =
-          (char *)context_ptr + (rel->data_offset - rel->struct_offset);
-      void *nested_ptr = *(void **)target_data_ptr;
+      const void *context_ptr = (const char *)in_struct + rel->struct_offset;
+      const void *target_data_ptr =
+          (const char *)context_ptr + (rel->data_offset - rel->struct_offset);
+      void *nested_ptr = *(void *const *)target_data_ptr;
       if (nested_ptr) {
         rc = c_orm_insert(db, rel->target_meta, nested_ptr);
         if (rc == C_ORM_OK) {
@@ -3337,7 +3342,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
             lid_err = db->vtable->get_last_insert_rowid(db, &new_id);
           }
           if (lid_err == C_ORM_OK && new_id > 0) {
-            set_int_field(meta, (void *)in_struct, rel->local_key, new_id);
+            set_int_field(meta, (void *)(size_t)in_struct, rel->local_key,
+                          new_id);
             /* Also populate the nested struct's PK so it reflects reality */
             set_int_field(rel->target_meta, nested_ptr, rel->foreign_key,
                           new_id);
@@ -3345,7 +3351,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
             get_int_field(rel->target_meta, nested_ptr, rel->foreign_key,
                           &new_id);
             if (new_id > 0) {
-              set_int_field(meta, (void *)in_struct, rel->local_key, new_id);
+              set_int_field(meta, (void *)(size_t)in_struct, rel->local_key,
+                            new_id);
             }
           }
         } else {
@@ -3445,10 +3452,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
   for (i = 0; i < meta->num_relations; i++) {
     const c_orm_relation_meta_t *rel = &meta->relations[i];
     if (rel->target_meta && rel->type == C_ORM_RELATION_ONE_TO_ONE) {
-      void *context_ptr = (char *)in_struct + rel->struct_offset;
-      void *target_data_ptr =
-          (char *)context_ptr + (rel->data_offset - rel->struct_offset);
-      void *nested_ptr = *(void **)target_data_ptr;
+      const void *context_ptr = (const char *)in_struct + rel->struct_offset;
+      const void *target_data_ptr =
+          (const char *)context_ptr + (rel->data_offset - rel->struct_offset);
+      void *nested_ptr = *(void *const *)target_data_ptr;
       if (nested_ptr) {
         int64_t parent_id = 0;
         if (db->vtable->get_last_insert_rowid &&
@@ -3474,14 +3481,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
   }
 
   if (meta->hooks[C_ORM_HOOK_AFTER_INSERT]) {
-    rc = meta->hooks[C_ORM_HOOK_AFTER_INSERT]((void *)in_struct, db);
+    rc = meta->hooks[C_ORM_HOOK_AFTER_INSERT]((void *)(size_t)in_struct, db);
     if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_insert: exit");
       return rc;
     }
   }
   if (meta->hooks[C_ORM_HOOK_AFTER_SAVE]) {
-    rc = meta->hooks[C_ORM_HOOK_AFTER_SAVE]((void *)in_struct, db);
+    rc = meta->hooks[C_ORM_HOOK_AFTER_SAVE]((void *)(size_t)in_struct, db);
     if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_insert: exit");
       return rc;
@@ -3537,10 +3544,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
   for (i = 0; i < meta->num_relations; i++) {
     const c_orm_relation_meta_t *rel = &meta->relations[i];
     if (rel->target_meta && rel->type == C_ORM_RELATION_BELONGS_TO) {
-      void *context_ptr = (char *)in_struct + rel->struct_offset;
-      void *target_data_ptr =
-          (char *)context_ptr + (rel->data_offset - rel->struct_offset);
-      void *nested_ptr = *(void **)target_data_ptr;
+      const void *context_ptr = (const char *)in_struct + rel->struct_offset;
+      const void *target_data_ptr =
+          (const char *)context_ptr + (rel->data_offset - rel->struct_offset);
+      void *nested_ptr = *(void *const *)target_data_ptr;
       if (nested_ptr && rel->on_update == C_ORM_CASCADE_UPDATE) {
         rc = c_orm_save(db, rel->target_meta, nested_ptr);
         if (rc != C_ORM_OK) {
@@ -3640,7 +3647,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
         break;
       }
       case C_ORM_TYPE_STRING: {
-        const char *pk_str = *(const char **)field_ptr;
+        const char *pk_str = *(const char *const *)field_ptr;
         rc = db->vtable->bind_string(query, bind_idx, pk_str);
         if (rc != C_ORM_OK) {
           c_orm_error_t fin_rc = c_orm_finalize_cached(db, query);
@@ -3720,7 +3727,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_save(c_orm_db_t *db,
         if (val != 0)
           is_pk_set = 1;
       } else if (meta->columns[i].type == C_ORM_TYPE_STRING) {
-        const char *val = *(const char **)field_ptr;
+        const char *val = *(const char *const *)field_ptr;
         if (val && val[0] != '\0')
           is_pk_set = 1;
       } else {
@@ -3904,7 +3911,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
       int bind_idx = (int)(j + 1);
 
       if (meta->hooks[C_ORM_HOOK_BEFORE_DELETE]) {
-        rc = meta->hooks[C_ORM_HOOK_BEFORE_DELETE]((void *)current_struct, db);
+        rc = meta->hooks[C_ORM_HOOK_BEFORE_DELETE](
+            (void *)(size_t)current_struct, db);
         if (rc != C_ORM_OK) {
           fin_rc = db->vtable->finalize(query);
           c_orm_transaction_rollback(db);
@@ -3917,8 +3925,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
         rc = db->vtable->bind_int32(query, bind_idx,
                                     *(const int32_t *)field_ptr);
       } else if (pk_col->type == C_ORM_TYPE_STRING) {
-        rc =
-            db->vtable->bind_string(query, bind_idx, *(const char **)field_ptr);
+        rc = db->vtable->bind_string(query, bind_idx,
+                                     *(const char *const *)field_ptr);
       } else if (pk_col->type == C_ORM_TYPE_INT64) {
         rc = db->vtable->bind_int64(query, bind_idx,
                                     *(const int64_t *)field_ptr);
@@ -3951,7 +3959,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
       const void *current_struct =
           (const char *)in_array + ((i + j) * meta->struct_size);
       if (meta->hooks[C_ORM_HOOK_AFTER_DELETE]) {
-        rc = meta->hooks[C_ORM_HOOK_AFTER_DELETE]((void *)current_struct, db);
+        rc = meta->hooks[C_ORM_HOOK_AFTER_DELETE](
+            (void *)(size_t)current_struct, db);
         if (rc != C_ORM_OK) {
           c_orm_transaction_rollback(db);
           {
@@ -4209,7 +4218,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
                                       *(const int32_t *)pk_ptr);
         } else if (pk_col->type == C_ORM_TYPE_STRING) {
           rc = db->vtable->bind_string(query, bind_idx++,
-                                       *(const char **)pk_ptr);
+                                       *(const char *const *)pk_ptr);
         } else if (pk_col->type == C_ORM_TYPE_INT64) {
           rc = db->vtable->bind_int64(query, bind_idx++,
                                       *(const int64_t *)pk_ptr);
@@ -4243,7 +4252,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
         rc =
             db->vtable->bind_int32(query, bind_idx++, *(const int32_t *)pk_ptr);
       } else if (pk_col->type == C_ORM_TYPE_STRING) {
-        rc = db->vtable->bind_string(query, bind_idx++, *(const char **)pk_ptr);
+        rc = db->vtable->bind_string(query, bind_idx++,
+                                     *(const char *const *)pk_ptr);
       } else if (pk_col->type == C_ORM_TYPE_INT64) {
         rc =
             db->vtable->bind_int64(query, bind_idx++, *(const int64_t *)pk_ptr);
@@ -4271,7 +4281,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
       const void *current_struct =
           (const char *)in_array + ((i + j) * meta->struct_size);
       if (meta->hooks[C_ORM_HOOK_AFTER_UPDATE]) {
-        rc = meta->hooks[C_ORM_HOOK_AFTER_UPDATE]((void *)current_struct, db);
+        rc = meta->hooks[C_ORM_HOOK_AFTER_UPDATE](
+            (void *)(size_t)current_struct, db);
         if (rc != C_ORM_OK) {
           c_orm_transaction_rollback(db);
           {
@@ -4281,7 +4292,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_batch(c_orm_db_t *db,
         }
       }
       if (meta->hooks[C_ORM_HOOK_AFTER_SAVE]) {
-        rc = meta->hooks[C_ORM_HOOK_AFTER_SAVE]((void *)current_struct, db);
+        rc = meta->hooks[C_ORM_HOOK_AFTER_SAVE]((void *)(size_t)current_struct,
+                                                db);
         if (rc != C_ORM_OK) {
           c_orm_transaction_rollback(db);
           {
@@ -4348,7 +4360,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
   }
 
   if (meta->hooks[C_ORM_HOOK_BEFORE_DELETE]) {
-    rc = meta->hooks[C_ORM_HOOK_BEFORE_DELETE]((void *)in_struct, db);
+    rc = meta->hooks[C_ORM_HOOK_BEFORE_DELETE]((void *)(size_t)in_struct, db);
     if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_delete: exit");
       return rc;
@@ -4393,7 +4405,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
                                      *(const int32_t *)field_ptr);
               break;
             case C_ORM_TYPE_STRING:
-              db->vtable->bind_string(casc_query, 1, *(const char **)field_ptr);
+              db->vtable->bind_string(casc_query, 1,
+                                      *(const char *const *)field_ptr);
               break;
             case C_ORM_TYPE_INT64:
               db->vtable->bind_int64(casc_query, 1,
@@ -4437,7 +4450,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
                                      *(const int32_t *)field_ptr);
               break;
             case C_ORM_TYPE_STRING:
-              db->vtable->bind_string(casc_query, 1, *(const char **)field_ptr);
+              db->vtable->bind_string(casc_query, 1,
+                                      *(const char *const *)field_ptr);
               break;
             case C_ORM_TYPE_INT64:
               db->vtable->bind_int64(casc_query, 1,
@@ -4463,7 +4477,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
             db->vtable->bind_int32(casc_query, 1, *(const int32_t *)field_ptr);
             break;
           case C_ORM_TYPE_STRING:
-            db->vtable->bind_string(casc_query, 1, *(const char **)field_ptr);
+            db->vtable->bind_string(casc_query, 1,
+                                    *(const char *const *)field_ptr);
             break;
           case C_ORM_TYPE_INT64:
             db->vtable->bind_int64(casc_query, 1, *(const int64_t *)field_ptr);
@@ -4494,7 +4509,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
         int32_t pk_val = *(const int32_t *)field_ptr;
         rc = db->vtable->bind_int32(query, bind_idx, pk_val);
       } else if (meta->columns[i].type == C_ORM_TYPE_STRING) {
-        const char *pk_val = *(const char **)field_ptr;
+        const char *pk_val = *(const char *const *)field_ptr;
         rc = db->vtable->bind_string(query, bind_idx, pk_val);
       } else if (meta->columns[i].type == C_ORM_TYPE_INT64) {
         int64_t pk_val = *(const int64_t *)field_ptr;
@@ -4540,7 +4555,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete(c_orm_db_t *db,
     return rc;
 
   if (meta->hooks[C_ORM_HOOK_AFTER_DELETE]) {
-    rc = meta->hooks[C_ORM_HOOK_AFTER_DELETE]((void *)in_struct, db);
+    rc = meta->hooks[C_ORM_HOOK_AFTER_DELETE]((void *)(size_t)in_struct, db);
     if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_delete: exit");
       return rc;
@@ -5305,10 +5320,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_validate(const c_orm_table_meta_t *meta,
           if (!meta->columns[j].is_nullable) {
             /* It is required. Check if the foreign key value is 0 */
             int64_t fk_val = 0;
-            void *rel_ptr = (char *)obj + rel->struct_offset;
-            void *target_data_ptr =
-                (char *)rel_ptr + (rel->data_offset - rel->struct_offset);
-            void *data = *(void **)target_data_ptr;
+            const void *rel_ptr = (const char *)obj + rel->struct_offset;
+            const void *target_data_ptr =
+                (const char *)rel_ptr + (rel->data_offset - rel->struct_offset);
+            const void *data = *(const void *const *)target_data_ptr;
 
             rc = get_int_field(meta, obj, rel->foreign_key, &fk_val);
             if (rc != C_ORM_OK || fk_val == 0) {
@@ -5862,7 +5877,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_deep_free(const struct cdd_c_meta *meta,
       void *ptr_loc;
       memcpy(&ptr_loc, (char *)obj + prop->offset, sizeof(ptr_loc));
       if (ptr_loc) {
-        c_orm_free(ptr_loc);
+        C_ORM_FREE(ptr_loc);
         ptr_loc = NULL;
       }
     }
@@ -5904,12 +5919,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_deep_copy(const struct cdd_c_meta *meta,
     if (prop->type && strstr(prop->type, "*")) {
       void *src_ptr_loc;
       void *dest_ptr_loc = NULL;
-      memcpy(&src_ptr_loc, (char *)src + prop->offset, sizeof(src_ptr_loc));
+      memcpy(&src_ptr_loc, (const char *)src + prop->offset,
+             sizeof(src_ptr_loc));
       memcpy(&dest_ptr_loc, (char *)dest + prop->offset, sizeof(dest_ptr_loc));
       if (src_ptr_loc) {
         if (strstr(prop->type, "char")) {
           char *dup =
-              (char *)c_orm_malloc(strlen((const char *)src_ptr_loc) + 1);
+              (char *)C_ORM_MALLOC(strlen((const char *)src_ptr_loc) + 1);
           if (!dup) {
             rc = C_ORM_ERROR_MEMORY;
             return rc;
@@ -7344,7 +7360,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
         c_orm_error_t _bind_rc = C_ORM_OK;
         if (meta->columns[j].type == C_ORM_TYPE_STRING) {
           _bind_rc = db->vtable->bind_string(query, bind_idx,
-                                             *(const char **)field_ptr);
+                                             *(const char *const *)field_ptr);
         } else if (meta->columns[j].type == C_ORM_TYPE_INT32) {
           _bind_rc = db->vtable->bind_int32(query, bind_idx,
                                             *(const int32_t *)field_ptr);
@@ -7378,7 +7394,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_partial(c_orm_db_t *db,
         return rc;
       }
     } else if (pk_col->type == C_ORM_TYPE_STRING) {
-      rc = db->vtable->bind_string(query, bind_idx, *(const char **)pk_ptr);
+      rc = db->vtable->bind_string(query, bind_idx,
+                                   *(const char *const *)pk_ptr);
       if (rc != C_ORM_OK) {
         c_orm_error_t fin_rc = c_orm_finalize_cached(db, query);
         if (fin_rc != C_ORM_OK)
