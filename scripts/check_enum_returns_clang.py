@@ -313,7 +313,7 @@ def check_file(
                     TypeKind.POINTER,
                 ) and is_memory_management_function(cursor.spelling):
                     continue
-                if is_logger(cursor.spelling):
+                if canon_type.kind == TypeKind.VOID and is_logger(cursor.spelling):
                     continue
 
                 # Check for exception: test functions

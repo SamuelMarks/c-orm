@@ -124,14 +124,16 @@ typedef struct {
 /**
  * @brief Frees a single mem_cell_t and its owned buffers.
  * @param cell Cell pointer to free.
+ * @return C_ORM_OK on success.
  */
-static void free_mem_cell(mem_cell_t *cell) {
+static c_orm_error_t free_mem_cell(mem_cell_t *cell) {
   if (!cell) {
-    return;
+    return C_ORM_OK;
   }
   C_ORM_FREE(cell->s);
   C_ORM_FREE(cell->blob);
   C_ORM_FREE(cell);
+  return C_ORM_OK;
 }
 
 /**

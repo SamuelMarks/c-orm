@@ -149,8 +149,10 @@ TEST test_c_orm_sqlite_blob_close_errors(void) {
  */
 TEST test_c_orm_sqlite_connect_errors(void) {
   c_orm_db_t *db = NULL;
+#ifdef C_ORM_ENABLE_SQLITE
   const char *str;
   void *orig_driver_data = NULL;
+#endif
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_sqlite_connect(NULL, &db));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_sqlite_connect(":memory:", NULL));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_sqlite_connect(NULL, NULL));
@@ -201,6 +203,7 @@ TEST test_c_orm_sqlite_connect_errors(void) {
  * @brief Executes test_c_orm_sqlite_operations_errors.
  */
 TEST test_c_orm_sqlite_operations_errors(void) {
+#ifdef C_ORM_ENABLE_SQLITE
   const c_orm_driver_vtable_t *vtable = NULL;
   c_orm_db_t *db = NULL;
   c_orm_query_t *query = NULL;
@@ -215,7 +218,6 @@ TEST test_c_orm_sqlite_operations_errors(void) {
   int is_null;
   int col_count = 0;
 
-#ifdef C_ORM_ENABLE_SQLITE
   ASSERT_EQ(C_ORM_OK, c_orm_sqlite_get_vtable(&vtable));
 
   ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect(":memory:", &db));

@@ -74,12 +74,14 @@ static c_orm_error_t cdd_c_realloc(void *ptr, size_t size, void **out_ptr) {
 /**
  * @brief Frees memory with internal accounting.
  * @param ptr Pointer to buffer to free.
+ * @return C_ORM_OK on success.
  */
-static void cdd_c_free(void *ptr) {
+static c_orm_error_t cdd_c_free(void *ptr) {
   if (ptr) {
     cdd_c_memory_freed++; /* Just tracking calls for simple detection */
     C_ORM_FREE(ptr);
   }
+  return C_ORM_OK;
 }
 
 /**

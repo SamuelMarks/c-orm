@@ -29,15 +29,7 @@ extern "C" {
 #else
 #include <direct.h>
 #endif
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
 /* clang-format on */
-
-/**
- * @brief Forward declaration for test_oauth2_json_edge_cases.
- * @return GREATEST test result.
- */
 
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
@@ -328,13 +320,13 @@ TEST test_oauth2_crypto(void) {
 
   /* file open error */
   {
-#if defined(_MSC_VER)
+#if defined(_WIN32) || defined(_MSC_VER)
     _mkdir("c_orm_token.dat");
 #else
     mkdir("c_orm_token.dat", 0777);
 #endif
     c_orm_store_token_secure(&t);
-#if defined(_MSC_VER)
+#if defined(_WIN32) || defined(_MSC_VER)
     _rmdir("c_orm_token.dat");
 #else
     rmdir("c_orm_token.dat");
@@ -1541,9 +1533,6 @@ SUITE(oauth2_suite) {
     recursed = 0;
   }
 }
-
-#if defined(__clang__) || defined(__GNUC__)
-#endif
 
 #ifdef __cplusplus
 }

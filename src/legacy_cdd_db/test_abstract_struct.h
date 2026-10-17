@@ -1355,9 +1355,6 @@ SUITE(abstract_struct_suite) {
   }
 }
 
-#if defined(__clang__) || defined(__GNUC__)
-#endif
-
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

@@ -8701,11 +8701,13 @@ C_ORM_EXPORT /**
               * @brief Free system memory allocated by
               * c_orm_system_malloc/calloc/realloc.
               * @param ptr Pointer to allocated memory block to free.
+              * @return C_ORM_OK on success.
               */
-    void
+    c_orm_error_t
     c_orm_system_free(void *ptr) {
   if (ptr)
     C_ORM_FREE(ptr);
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT /**

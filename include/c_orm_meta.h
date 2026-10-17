@@ -465,8 +465,9 @@ typedef struct c_orm_identity_map {
  * @brief Free memory allocated by the c-orm library.
  *
  * @param ptr Pointer to the memory to free.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_system_free(void *ptr);
+C_ORM_EXPORT c_orm_error_t c_orm_system_free(void *ptr);
 
 /**
  * @brief Allocate system memory.

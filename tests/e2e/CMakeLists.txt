@@ -83,9 +83,6 @@ if(C_ORM_STRICT_OPTIONS)
     target_compile_options(e2e_models PRIVATE ${C_ORM_STRICT_OPTIONS})
 endif()
 
-if(MSVC)
-endif()
-
 if(EMSCRIPTEN)
     target_link_options(c_orm_e2e_tests PRIVATE -lidbfs.js "SHELL:-s EXIT_RUNTIME=1" "SHELL:-s USE_PTHREADS=1" "SHELL:-s STACK_SIZE=5MB" "SHELL:-s EMULATE_FUNCTION_POINTER_CASTS=1")
 endif()
