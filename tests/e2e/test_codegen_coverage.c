@@ -13,6 +13,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32) || defined(_MSC_VER)
+#include <direct.h>
+#define TEST_MKDIR(p) _mkdir(p)
+#define TEST_RMDIR(p) _rmdir(p)
+#else
+#include <sys/stat.h>
+#include <unistd.h>
+#define TEST_MKDIR(p) mkdir(p, 0777)
+#define TEST_RMDIR(p) rmdir(p)
+#endif
 
 /** @brief Counter decremented to trigger mock allocation failure. */
 static int mock_malloc_fail_count = -1;
@@ -109,11 +119,7 @@ TEST test_codegen_parse_fail(void) {
 
   rc = write_test_file("dummy.sql", "INVALID SQL SYNTAX;\n");
   ASSERT_EQ(C_ORM_OK, rc);
-#ifdef _WIN32
-  system("mkdir test_out 2>nul");
-#else
-  system("mkdir -p test_out 2>/dev/null");
-#endif
+  TEST_MKDIR("test_out");
   rc = c_orm_codegen_generate("dummy.sql", "test_out");
   ASSERT(rc != C_ORM_OK);
   PASS();
@@ -128,11 +134,7 @@ TEST test_codegen_fread_fail(void) {
 
   rc = write_test_file("empty_schema.sql", NULL);
   ASSERT_EQ(C_ORM_OK, rc);
-#ifdef _WIN32
-  system("mkdir test_out 2>nul");
-#else
-  system("mkdir -p test_out 2>/dev/null");
-#endif
+  TEST_MKDIR("test_out");
   rc = c_orm_codegen_generate("empty_schema.sql", "test_out");
   ASSERT(rc != C_ORM_OK);
   remove("empty_schema.sql");
@@ -169,19 +171,13 @@ TEST test_codegen_fopen_c_fail(void) {
 
   rc = write_test_file("dummy.sql", "CREATE TABLE t (id INT);\n");
   ASSERT_EQ(C_ORM_OK, rc);
-#ifdef _WIN32
-  system("mkdir test_conflict 2>nul");
-  system("mkdir test_conflict\\Models.c 2>nul");
-#else
-  system("mkdir -p test_conflict/Models.c 2>/dev/null");
-#endif
+  TEST_MKDIR("test_conflict");
+  TEST_MKDIR("test_conflict/Models.c");
   rc = c_orm_codegen_generate("dummy.sql", "test_conflict");
   ASSERT(rc != C_ORM_OK);
-#ifdef _WIN32
-  system("rmdir /S /Q test_conflict 2>nul");
-#else
-  system("rm -rf test_conflict 2>/dev/null");
-#endif
+  remove("test_conflict/Models.h");
+  TEST_RMDIR("test_conflict/Models.c");
+  TEST_RMDIR("test_conflict");
   PASS();
 }
 
@@ -199,11 +195,7 @@ TEST test_codegen_malloc_fail(void) {
   c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free);
   rc = write_test_file("dummy.sql", "CREATE TABLE t (id INT);\n");
   ASSERT_EQ(C_ORM_OK, rc);
-#ifdef _WIN32
-  system("mkdir test_out 2>nul");
-#else
-  system("mkdir -p test_out 2>/dev/null");
-#endif
+  TEST_MKDIR("test_out");
   mock_malloc_calls = 0;
   mock_malloc_fail_count = -1;
   rc = c_orm_codegen_generate("dummy.sql", "test_out");
@@ -213,11 +205,7 @@ TEST test_codegen_malloc_fail(void) {
   for (i = 1; i <= total_calls; i++) {
     mock_malloc_calls = 0;
     mock_malloc_fail_count = i;
-#ifdef _WIN32
-    system("mkdir test_out 2>nul");
-#else
-    system("mkdir -p test_out 2>/dev/null");
-#endif
+    TEST_MKDIR("test_out");
     rc = c_orm_codegen_generate("dummy.sql", "test_out");
     ASSERT(rc != C_ORM_OK);
   }
@@ -235,11 +223,7 @@ TEST test_codegen_emit_fail(void) {
 
   rc = write_test_file("dummy.sql", "CREATE TABLE t (id INT);\n");
   ASSERT_EQ(C_ORM_OK, rc);
-#ifdef _WIN32
-  system("mkdir test_out 2>nul");
-#else
-  system("mkdir -p test_out 2>/dev/null");
-#endif
+  TEST_MKDIR("test_out");
 
   c_orm_mock_codegen_header_emit_fail = 1;
   rc = c_orm_codegen_generate("dummy.sql", "test_out");
@@ -250,6 +234,11 @@ TEST test_codegen_emit_fail(void) {
   rc = c_orm_codegen_generate("dummy.sql", "test_out");
   ASSERT(rc != C_ORM_OK);
   c_orm_mock_codegen_source_emit_fail = 0;
+
+  remove("dummy.sql");
+  remove("test_out/Models.h");
+  remove("test_out/Models.c");
+  TEST_RMDIR("test_out");
 
   PASS();
 }

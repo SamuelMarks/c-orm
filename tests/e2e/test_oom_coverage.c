@@ -20,6 +20,13 @@ extern "C" {
 #include <string.h>
 #include "c_orm_codegen.h"
 #include "cdd_c_ir.h"
+#if defined(_WIN32) || defined(_MSC_VER)
+#include <direct.h>
+#define TEST_MKDIR(p) _mkdir(p)
+#else
+#include <sys/stat.h>
+#define TEST_MKDIR(p) mkdir(p, 0777)
+#endif
 /* clang-format on */
 
 /** @brief Counter decremented before triggering simulated OOM. */
@@ -156,11 +163,7 @@ static c_orm_error_t do_codegen(const char *schema_path) {
  */
 TEST test_codegen_oom(void) {
   int i;
-#ifdef _WIN32
-  system("mkdir test_out 2>nul");
-#else
-  system("mkdir -p test_out 2>/dev/null");
-#endif
+  TEST_MKDIR("test_out");
   for (i = 0; i < 3; i++) {
     oom_countdown = i;
     oom_active = 1;

@@ -768,8 +768,8 @@ sql_to_c_projection_struct_emit(FILE *fp, const cdd_c_query_projection_t *proj,
 
   /* Generate deep free decl */
 
-  fprintf(fp, "extern C_ORM_EXPORT void %s_free(%s *obj);\n\n", struct_name,
-          struct_name);
+  fprintf(fp, "extern C_ORM_EXPORT c_orm_error_t %s_free(%s *obj);\n\n",
+          struct_name, struct_name);
 
   return C_ORM_OK;
 }
@@ -789,23 +789,23 @@ sql_to_c_projection_free_emit(FILE *fp, const cdd_c_query_projection_t *proj,
   if (!fp || !proj || !struct_name)
     return C_ORM_ERROR_MEMORY;
 
-  fprintf(fp, "void %s_free(%s *obj) {\n", struct_name, struct_name);
+  fprintf(fp, "c_orm_error_t %s_free(%s *obj) {\n", struct_name, struct_name);
 
-  fprintf(fp, "    if (!obj) return;\n");
+  fprintf(fp, "    if (!obj) return C_ORM_OK;\n");
 
   for (i = 0; i < proj->n_fields; ++i) {
 
     const cdd_c_query_projection_field_t *field = &proj->fields[i];
 
     if (field->is_array) {
-      fprintf(fp, "    if (obj->%s) c_orm_system_c_orm_system_free(obj->%s);\n",
-              field->name, field->name);
+      fprintf(fp, "    if (obj->%s) c_orm_system_free(obj->%s);\n", field->name,
+              field->name);
     } else if (sql_type_is_string(field->type) && field->length == 0) {
       /* Only free if it's an unbounded pointer string */
       if (field->is_secure) {
         fprintf(fp,
                 "    if (obj->%s) { memset(obj->%s, 0, strlen(obj->%s)); "
-                "c_orm_system_c_orm_system_free(obj->%s); }\n",
+                "c_orm_system_free(obj->%s); }\n",
                 field->name, field->name, field->name, field->name);
       } else {
         fprintf(fp, "    if (obj->%s) c_orm_system_free(obj->%s);\n",
@@ -817,6 +817,7 @@ sql_to_c_projection_free_emit(FILE *fp, const cdd_c_query_projection_t *proj,
     }
   }
 
+  fprintf(fp, "    return C_ORM_OK;\n");
   fprintf(fp, "}\n\n");
 
   return C_ORM_OK;
@@ -1174,14 +1175,14 @@ c_orm_error_t sql_to_c_projection_nested_array_emit(
 
   /* Array Deep Free handler */
 
-  fprintf(fp, "extern C_ORM_EXPORT void %s_free(%s *arr);\n\n", array_name,
-          array_name);
+  fprintf(fp, "extern C_ORM_EXPORT c_orm_error_t %s_free(%s *arr);\n\n",
+          array_name, array_name);
 
-  fprintf(fp, "void %s_free(%s *arr) {\n", array_name, array_name);
+  fprintf(fp, "c_orm_error_t %s_free(%s *arr) {\n", array_name, array_name);
 
   fprintf(fp, "    size_t i;\n");
 
-  fprintf(fp, "    if (!arr || !arr->items) return;\n");
+  fprintf(fp, "    if (!arr || !arr->items) return C_ORM_OK;\n");
 
   fprintf(fp, "    for (i = 0; i < arr->count; ++i) {\n");
 
@@ -1196,6 +1197,8 @@ c_orm_error_t sql_to_c_projection_nested_array_emit(
   fprintf(fp, "    arr->count = 0;\n");
 
   fprintf(fp, "    arr->capacity = 0;\n");
+
+  fprintf(fp, "    return C_ORM_OK;\n");
 
   fprintf(fp, "}\n\n");
 
@@ -1351,8 +1354,8 @@ sql_to_c_projection_union_struct_emit(FILE *fp,
 
   /* Auto free */
 
-  fprintf(fp, "extern C_ORM_EXPORT void %s_free(%s *obj);\n\n", struct_name,
-          struct_name);
+  fprintf(fp, "extern C_ORM_EXPORT c_orm_error_t %s_free(%s *obj);\n\n",
+          struct_name, struct_name);
 
   return C_ORM_OK;
 }

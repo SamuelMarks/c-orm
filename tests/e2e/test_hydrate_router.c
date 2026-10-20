@@ -23,31 +23,31 @@ extern "C" {
  * @brief Mock hydrator callback returning success.
  * @param out_struct Pointer to output struct.
  * @param row Pointer to input row.
- * @return 0 on success, EINVAL on invalid arguments.
+ * @return C_ORM_OK on success, C_ORM_ERROR_VALIDATION on invalid arguments.
  */
 static c_orm_error_t mock_hydrator(void *out_struct,
                                    const cdd_c_abstract_struct_t *row) {
   if (out_struct == NULL) {
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
   if (row == NULL) {
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
   }
   *(int *)out_struct = 42;
-  return 0;
+  return C_ORM_OK;
 }
 
 /**
  * @brief Mock hydrator callback returning an error code.
  * @param out_struct Pointer to output struct.
  * @param row Pointer to input row.
- * @return EINVAL.
+ * @return C_ORM_ERROR_VALIDATION.
  */
 static c_orm_error_t mock_hydrator_err(void *out_struct,
                                        const cdd_c_abstract_struct_t *row) {
   (void)out_struct;
   (void)row;
-  return EINVAL;
+  return C_ORM_ERROR_VALIDATION;
 }
 
 /**
@@ -102,9 +102,9 @@ TEST test_mock_hydrator_null(void) {
   int x;
   c_orm_error_t rc;
   rc = mock_hydrator(&x, NULL);
-  ASSERT_EQ(EINVAL, rc);
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rc);
   rc = mock_hydrator(NULL, (void *)1);
-  ASSERT_EQ(EINVAL, rc);
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rc);
   PASS();
 }
 
@@ -219,7 +219,7 @@ TEST test_hydrate_router_dispatch(void) {
   ASSERT(strstr(err_msg, "Route not found") != NULL);
 
   /* Failing route */
-  ASSERT_EQ((c_orm_error_t)EINVAL,
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
             cdd_c_hydrate_router_dispatch(&router, 2, &row, &out_val));
   cdd_c_hydrate_router_get_last_error(&err_msg);
   ASSERT(err_msg != NULL);

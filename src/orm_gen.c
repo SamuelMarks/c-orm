@@ -256,7 +256,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
   char *model_h = NULL;
 
   if (!spec || !config || !config->filename_base)
-    return EINVAL;
+    return C_ORM_ERROR_VALIDATION;
 
   if (config->model_header) {
     size_t header_len = strlen(config->model_header);
@@ -273,31 +273,16 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
   }
 
   if (!model_h) {
-    LOG_DEBUG("ENOMEM: OOM\n");
-    return ENOMEM;
+    LOG_DEBUG("C_ORM_ERROR_MEMORY: OOM\n");
+    return C_ORM_ERROR_MEMORY;
   }
 
   C_ORM_SPRINTF(path_h, sizeof(path_h), "%s", model_h);
   C_ORM_SPRINTF(path_c, sizeof(path_c), "%.*s.c", (int)(strlen(model_h) - 2),
                 model_h);
 
-#if defined(_MSC_VER)
-  if (fopen_s(&fp_h, path_h, "w") != 0)
-    fp_h = NULL;
-  if (fopen_s(&fp_c, path_c, "w") != 0)
-    fp_c = NULL;
-#else
-#if defined(_MSC_VER)
-  fopen_s(&fp_h, path_h, "w");
-#else
   C_ORM_FOPEN(&fp_h, path_h, "w");
-#endif
-#if defined(_MSC_VER)
-  fopen_s(&fp_c, path_c, "w");
-#else
   C_ORM_FOPEN(&fp_c, path_c, "w");
-#endif
-#endif
 
   if (!fp_h || !fp_c) {
     C_ORM_FREE(model_h);
@@ -305,7 +290,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       fclose(fp_h);
     if (fp_c)
       fclose(fp_c);
-    return EIO;
+    return C_ORM_ERROR_UNKNOWN;
   }
 
   /* Header */

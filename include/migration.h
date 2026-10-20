@@ -50,8 +50,8 @@ migration_statements_free(struct MigrationStatements *out);
  *
  * @param[in] filepath The path to the .sql migration file.
  * @param[out] out The populated migration statements structure.
- * @return 0 on success, ENOMEM on allocation failure, or a standard I/O error
- * code.
+ * @return C_ORM_OK on success, C_ORM_ERROR_MEMORY on allocation failure, or an
+ * error code.
  */
 extern C_ORM_EXPORT c_orm_error_t
 parse_migration_file(const char *filepath, struct MigrationStatements *out);

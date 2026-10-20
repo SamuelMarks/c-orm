@@ -8,7 +8,7 @@
 #define GREATEST_USE_TIME 0
 #include <greatest.h>
 #include <string.h>
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
 #include <unistd.h>
 #include <sys/wait.h>
 #endif
@@ -60,7 +60,7 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
   unsigned char exp_buf[20];
   unsigned char got_buf[20];
   greatest_memory_cmp_env diff_env;
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
   pid_t pid;
   int status;
 #endif
@@ -313,7 +313,7 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
   fake_args[1] = "--";
   greatest_parse_options(2, fake_args);
 
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
   pid = fork();
   if (pid == 0) {
     char *h_args[3];

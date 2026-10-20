@@ -35,7 +35,7 @@
 #define CHECK_CALL(res) do { greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS); } while ((void)0, 0)
 
 #include <stdio.h>
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
 #include <unistd.h>
 #include <sys/wait.h>
 #endif
@@ -1381,7 +1381,7 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
   unsigned char exp_buf[20];
   unsigned char got_buf[20];
   greatest_memory_cmp_env diff_env;
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
   pid_t pid;
   int status;
 #endif
@@ -1634,7 +1634,7 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
   fake_args[1] = "--";
   greatest_parse_options(2, fake_args);
 
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
   pid = fork();
   if (pid == 0) {
     char *h_args[3];
@@ -1725,11 +1725,11 @@ extern void api_coverage_suite(void);
 extern void cache_coverage_suite(void);
 /** @brief CLI options test suite. */
 extern void cli_suite(void);
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
 /** @brief CLI execution test suite. */
 extern void cli_exec_suite(void);
 #endif
-/** @brief Database stubs test suite. */
+/** @brief Code generation coverage test suite. */
 extern void db_stubs_suite(void);
 /** @brief Inline macros test suite. */
 extern void inline_macros_suite(void);
@@ -1788,7 +1788,7 @@ static void run_all_suites(void) {
   RUN_SUITE(api_coverage_suite);
   RUN_SUITE(cache_coverage_suite);
   RUN_SUITE(cli_suite);
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
   RUN_SUITE(cli_exec_suite);
 #endif
   RUN_SUITE(db_stubs_suite);

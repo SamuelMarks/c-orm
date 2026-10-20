@@ -27,8 +27,8 @@ else()
         DEPENDS c-orm-cli "${CMAKE_CURRENT_SOURCE_DIR}/schema.sql"
         COMMENT "Generating C Models from schema.sql using c-orm-cli..."
     )
-    add_custom_target(generate_e2e_models DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c)
 endif()
+add_custom_target(generate_e2e_models DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Models.h ${CMAKE_CURRENT_BINARY_DIR}/Models.c)
 
     add_library(e2e_models STATIC "${CMAKE_CURRENT_SOURCE_DIR}/pregen/Models.c")
     set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/pregen/Models.c" PROPERTIES COMPILE_DEFINITIONS "")

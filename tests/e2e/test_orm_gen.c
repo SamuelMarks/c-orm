@@ -17,6 +17,16 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32) || defined(_MSC_VER)
+#include <direct.h>
+#define TEST_MKDIR(p) _mkdir(p)
+#define TEST_RMDIR(p) _rmdir(p)
+#else
+#include <sys/stat.h>
+#include <unistd.h>
+#define TEST_MKDIR(p) mkdir(p, 0777)
+#define TEST_RMDIR(p) rmdir(p)
+#endif
 
 #undef RUN_TEST
 #define RUN_TEST(TEST) \
@@ -215,28 +225,28 @@ TEST test_orm_gen_basic(void) {
   C_ORM_STRNCPY(fields[20].type, sizeof(fields[20].type), "string", 31);
   fields[20].schema_extra_json = "{\"x-db-schema\": {}}";
 
-  ASSERT_EQ(EINVAL, openapi_orm_generate(NULL, &config));
-  ASSERT_EQ(EINVAL, openapi_orm_generate(&spec, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, openapi_orm_generate(NULL, &config));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, openapi_orm_generate(&spec, NULL));
   config.filename_base = NULL;
-  ASSERT_EQ(EINVAL, openapi_orm_generate(&spec, &config));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, openapi_orm_generate(&spec, &config));
 
   config.filename_base = "test_gen";
   config.model_header = "invalid_dir/dev_null";
   rc_err = openapi_orm_generate(&spec, &config);
-  ASSERT_EQ_FMT(EIO, rc_err, "%d");
+  ASSERT_EQ_FMT(C_ORM_ERROR_UNKNOWN, rc_err, "%d");
 
   config.model_header = "invalid_dir/test2.h";
   rc_err = openapi_orm_generate(&spec, &config);
-  ASSERT_EQ_FMT(EIO, rc_err, "%d");
+  ASSERT_EQ_FMT(C_ORM_ERROR_UNKNOWN, rc_err, "%d");
 
   config.model_header = "invalid_dir/path/test.h";
   rc_err = openapi_orm_generate(&spec, &config);
-  ASSERT_EQ_FMT(EIO, rc_err, "%d");
+  ASSERT_EQ_FMT(C_ORM_ERROR_UNKNOWN, rc_err, "%d");
 
   config.model_header = NULL;
   config.filename_base = "invalid_dir/path/test";
   rc_err = openapi_orm_generate(&spec, &config);
-  ASSERT_EQ_FMT(EIO, rc_err, "%d");
+  ASSERT_EQ_FMT(C_ORM_ERROR_UNKNOWN, rc_err, "%d");
 
   config.model_header = NULL;
   config.filename_base = "test_gen";
@@ -245,11 +255,11 @@ TEST test_orm_gen_basic(void) {
   old_malloc = c_orm_malloc;
   c_orm_set_allocators(mock_malloc_oom, c_orm_realloc, c_orm_free);
   oom_countdown = 0;
-  ASSERT_EQ(ENOMEM, openapi_orm_generate(&spec, &config));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, openapi_orm_generate(&spec, &config));
 
   config.model_header = "test_gen_models.h";
   oom_countdown = 0;
-  ASSERT_EQ(ENOMEM, openapi_orm_generate(&spec, &config));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, openapi_orm_generate(&spec, &config));
 
   oom_countdown = 1;
   openapi_orm_generate(&spec, &config);
@@ -262,40 +272,31 @@ TEST test_orm_gen_basic(void) {
   ASSERT_EQ(0, openapi_orm_generate(&spec, &config));
 
 #ifndef __EMSCRIPTEN__
-#if defined(_WIN32)
-  system("mkdir test_conflict_c.c 2>nul");
-#else
-  system("mkdir -p test_conflict_c.c 2>/dev/null");
-#endif
+  TEST_MKDIR("test_conflict_c.c");
   config.model_header = "test_conflict_c.h";
   config.filename_base = "test_gen";
-  ASSERT_EQ_FMT(EIO, openapi_orm_generate(&spec, &config), "%d");
-#if defined(_WIN32)
-  system("rmdir /S /Q test_conflict_c.c 2>nul");
+  ASSERT_EQ_FMT(C_ORM_ERROR_UNKNOWN, openapi_orm_generate(&spec, &config),
+                "%d");
+  TEST_RMDIR("test_conflict_c.c");
   remove("test_conflict_c.h");
-#else
-  system("rm -rf test_conflict_c.c test_conflict_c.h 2>/dev/null");
-#endif
 
-#if defined(_WIN32)
-  system("mkdir test_conflict_h.h 2>nul");
-#else
-  system("mkdir -p test_conflict_h.h 2>/dev/null");
-#endif
+  TEST_MKDIR("test_conflict_h.h");
   config.model_header = "test_conflict_h.h";
   config.filename_base = "test_gen";
-  ASSERT_EQ_FMT(EIO, openapi_orm_generate(&spec, &config), "%d");
-#if defined(_WIN32)
-  system("rmdir /S /Q test_conflict_h.h 2>nul");
+  ASSERT_EQ_FMT(C_ORM_ERROR_UNKNOWN, openapi_orm_generate(&spec, &config),
+                "%d");
+  TEST_RMDIR("test_conflict_h.h");
   remove("test_conflict_h.c");
-#else
-  system("rm -rf test_conflict_h.h test_conflict_h.c 2>/dev/null");
-#endif
 #endif
 
   config.model_header = "test_gen_models.h";
   config.filename_base = "test_gen";
   ASSERT_EQ(0, openapi_orm_generate(&spec, &config));
+
+  remove("test_gen_models.h");
+  remove("test_gen_models.c");
+  remove("valid.h");
+  remove("valid.c");
 
   free(fields);
   free(no_pk_fields);

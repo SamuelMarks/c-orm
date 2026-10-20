@@ -20,6 +20,9 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 #include <setjmp.h>
+#if !defined(_WIN32) && !defined(_WIN64)
+#include <unistd.h>
+#endif
 #include "c_orm_migrations.h"
 
 /**
@@ -219,16 +222,15 @@ TEST test_cli_init(void) {
   const char *argv[] = {"c-orm-cli", "init", "--dir",
                         "test_migrations_dir_cli"};
   int argc;
-  int sys_rc;
 
   argc = 4;
-#ifdef _WIN32
-  sys_rc = system("rmdir /s /q test_migrations_dir_cli >nul 2>&1");
+  remove("test_migrations_dir_cli/my_mig.up.sql");
+  remove("test_migrations_dir_cli/my_mig.down.sql");
+#if defined(_WIN32) || defined(_WIN64)
+  _rmdir("test_migrations_dir_cli");
 #else
-  sys_rc = system("rm -rf test_migrations_dir_cli");
-  sys_rc = system("rm -rf ./test_migrations_dir_cli");
+  rmdir("test_migrations_dir_cli");
 #endif
-  (void)sys_rc;
 
   rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_OK, rc);
@@ -522,15 +524,9 @@ TEST test_cli_sql2c(void) {
   const char *argv2[] = {"c-orm-cli", "sql2c", "test_schema.sql", "test_out"};
   const char *argv3[] = {"c-orm-cli", "sql2c", "invalid_missing.sql",
                          "test_out"};
-  int sys_rc;
 
   f = NULL;
-#ifdef _WIN32
-  sys_rc = system("mkdir test_out >nul 2>&1");
-#else
-  sys_rc = system("mkdir -p test_out");
-#endif
-  (void)sys_rc;
+  MKDIR("test_out");
 
   C_ORM_FOPEN(&f, "test_schema.sql", "w");
   ASSERT(f != NULL);
@@ -545,6 +541,19 @@ TEST test_cli_sql2c(void) {
 
   rc = (c_orm_error_t)c_orm_cli_main(4, (char **)(size_t)argv3);
   ASSERT(rc != C_ORM_OK);
+
+  remove("test_schema.sql");
+  remove("test_out/Models.h");
+  remove("test_out/Models.c");
+  remove("test_migrations_dir_cli/my_mig.up.sql");
+  remove("test_migrations_dir_cli/my_mig.down.sql");
+#if defined(_WIN32) || defined(_WIN64)
+  _rmdir("test_out");
+  _rmdir("test_migrations_dir_cli");
+#else
+  rmdir("test_out");
+  rmdir("test_migrations_dir_cli");
+#endif
   PASS();
 }
 #endif
