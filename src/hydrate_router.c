@@ -101,9 +101,11 @@ cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
 
   if (router->count >= router->capacity) {
     new_cap = router->capacity == 0 ? 8 : router->capacity * 2;
-    new_routes = (cdd_c_hydrate_route_t *)C_ORM_REALLOC(
-        router->routes, new_cap * sizeof(cdd_c_hydrate_route_t));
-    if (!new_routes)
+    new_routes = NULL;
+    if (c_orm_system_realloc(router->routes,
+                             new_cap * sizeof(cdd_c_hydrate_route_t),
+                             (void **)&new_routes) != C_ORM_OK ||
+        !new_routes)
       return C_ORM_ERROR_UNKNOWN;
     router->routes = new_routes;
     router->capacity = new_cap;
@@ -167,12 +169,13 @@ c_orm_error_t cdd_c_hydrate_router_dispatch(
 }
 
 c_orm_error_t cdd_c_hydrate_router_free(cdd_c_hydrate_router_t *router) {
+  c_orm_error_t rc = C_ORM_OK;
   if (!router)
     return C_ORM_ERROR_UNKNOWN;
   if (router->routes)
-    C_ORM_FREE(router->routes);
+    rc = c_orm_system_free(router->routes);
   router->routes = NULL;
   router->count = 0;
   router->capacity = 0;
-  return C_ORM_OK;
+  return rc;
 }

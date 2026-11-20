@@ -19,7 +19,7 @@ extern "C" {
 #include <string.h>
 
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 /* clang-format on */
 
 /**
@@ -30,27 +30,51 @@ extern "C" {
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -64,7 +88,13 @@ extern "C" {
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do {                                                                       \
+      enum greatest_test_res _rc = (res);                                      \
+      greatest_info.assertions++;                                              \
+      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
+        return _rc;                                                            \
+      }                                                                        \
+    } while ((void)0, 0);                                                      \
   } while ((void)0, 0)
 
 /**
@@ -89,6 +119,13 @@ static enum greatest_test_res qb_exhaustive_oom_all(void);
  * @return GREATEST test result.
  */
 static enum greatest_test_res test_query_builder_append_error_branches(void);
+
+/**
+ * @brief Forward declaration for test_query_builder_db2_and_safe_crt_branches.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res
+test_query_builder_db2_and_safe_crt_branches(void);
 
 /**
  * @brief Tests query builder clause construction, validation, and error paths.
@@ -300,17 +337,82 @@ TEST test_query_builder_coverage(void) {
     char *sql = NULL;
     ASSERT_EQ(0, 0);
     ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_builder_compile(b, NULL));
-    C_ORM_FREE(sql);
+    (void)c_orm_system_free(sql);
   }
 
   c_orm_select_builder_free(b);
   c_orm_select_builder_free(NULL);
 
   /* Insert builder */
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, c_orm_insert_builder_init(NULL, &ib));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED,
-            c_orm_insert_builder_compile(NULL, NULL));
-  c_orm_insert_builder_free(NULL);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_insert_builder_init(NULL, &ib));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_insert_builder_init(&meta, NULL));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_insert_builder_compile(NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_insert_builder_set_dialect(NULL, 1));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_select_builder_set_dialect(NULL, 1));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_update_builder_set_dialect(NULL, 1));
+  ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_free(NULL));
+  {
+    char *ins_sql = NULL;
+    c_orm_column_meta_t ins_cols[3];
+    c_orm_table_meta_t ins_meta;
+
+    memset(ins_cols, 0, sizeof(ins_cols));
+    memset(&ins_meta, 0, sizeof(ins_meta));
+    ins_cols[0].name = "id";
+    ins_cols[1].name = "name";
+    ins_cols[2].name = "company_id";
+    ins_meta.name = "users";
+    ins_meta.columns = ins_cols;
+    ins_meta.num_columns = 3;
+
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_init(&meta, &ib));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_insert_builder_compile(ib, &ins_sql));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_free(ib));
+    ib = NULL;
+
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_init(&ins_meta, &ib));
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_insert_builder_compile(ib, NULL));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_compile(ib, &ins_sql));
+    ASSERT_STR_EQ("INSERT INTO users (id, name, company_id) VALUES (?, ?, ?)",
+                  ins_sql);
+    (void)c_orm_system_free(ins_sql);
+    ins_sql = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_dialect(ib, 1));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_compile(ib, &ins_sql));
+    ASSERT_STR_EQ(
+        "INSERT INTO users (id, name, company_id) VALUES ($1, $2, $3)",
+        ins_sql);
+    (void)c_orm_system_free(ins_sql);
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_free(ib));
+    ib = NULL;
+  }
+  {
+    char *pg_sql = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_init(&meta, &b));
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_set_dialect(b, 1));
+    ASSERT_EQ(C_ORM_OK, c_orm_select_where_eq(b, "id"));
+    ASSERT_EQ(C_ORM_OK, c_orm_select_where_in(b, "company_id", 2));
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_compile(b, &pg_sql));
+    ASSERT_STR_EQ(
+        "SELECT * FROM test_table WHERE id = $1 AND company_id IN ($2, $3)",
+        pg_sql);
+    (void)c_orm_system_free(pg_sql);
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_free(b));
+    b = NULL;
+  }
+  {
+    char *pg_upd = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_update_builder_init(&meta, &ub));
+    ASSERT_EQ(C_ORM_OK, c_orm_update_builder_set_dialect(ub, 1));
+    ASSERT_EQ(C_ORM_OK, c_orm_update_set(ub, "name"));
+    ASSERT_EQ(C_ORM_OK, c_orm_update_where_eq(ub, "id"));
+    ASSERT_EQ(C_ORM_OK, c_orm_update_builder_compile(ub, &pg_upd));
+    ASSERT_STR_EQ("UPDATE test_table SET name = $1 WHERE id = $2", pg_upd);
+    (void)c_orm_system_free(pg_upd);
+    ASSERT_EQ(C_ORM_OK, c_orm_update_builder_free(ub));
+    ub = NULL;
+  }
 
   /* Update builder */
   c_orm_update_builder_init(&meta, &ub);
@@ -337,7 +439,7 @@ TEST test_query_builder_coverage(void) {
     char *sql = NULL;
     ASSERT_EQ(C_ORM_OK, c_orm_update_builder_compile(ub, &sql));
     ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_update_builder_compile(ub, NULL));
-    C_ORM_FREE(sql);
+    (void)c_orm_system_free(sql);
   }
   c_orm_update_builder_free(ub);
   c_orm_update_builder_free(NULL);
@@ -353,52 +455,77 @@ static int oom_countdown = -1;
 static int oom_active = 0;
 
 /**
- * @brief Mock malloc returning NULL on triggered countdown.
+ * @brief Mock malloc returning error on triggered countdown.
  * @param size Size in bytes.
- * @return Allocated buffer or NULL on OOM.
+ * @param out_ptr Output pointer receiving allocated buffer.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on OOM.
  */
-static void *qb_mock_malloc(size_t size) {
+static c_orm_error_t qb_mock_malloc(size_t size, void **out_ptr) {
   if (oom_active) {
     if (oom_countdown == 0) {
       oom_countdown--;
-      return NULL;
+      if (out_ptr) {
+        *out_ptr = NULL;
+      }
+      return C_ORM_ERROR_MEMORY;
     }
     oom_countdown--;
   }
-  return malloc(size);
+  *out_ptr = malloc(size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /**
- * @brief Mock realloc returning NULL on triggered countdown.
+ * @brief Mock realloc returning error on triggered countdown.
  * @param ptr Existing buffer.
  * @param size New size in bytes.
- * @return Reallocated buffer or NULL on OOM.
+ * @param out_ptr Output pointer receiving reallocated buffer.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on OOM.
  */
-static void *qb_mock_realloc(void *ptr, size_t size) {
+static c_orm_error_t qb_mock_realloc(void *ptr, size_t size, void **out_ptr) {
   if (oom_active) {
     if (oom_countdown == 0) {
       oom_countdown--;
-      return NULL;
+      if (out_ptr) {
+        *out_ptr = NULL;
+      }
+      return C_ORM_ERROR_MEMORY;
     }
     oom_countdown--;
   }
-  return realloc(ptr, size);
+  *out_ptr = realloc(ptr, size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
+/** @brief Bitmask controlling which qb_mock_free calls return error. */
+static unsigned int qb_free_fail_mask = 0;
+/** @brief Invocation counter for qb_mock_free when qb_free_fail_mask != 0. */
+static unsigned int qb_free_call_idx = 0;
+
 /**
- * @brief Mock free wrapper.
+ * @brief Mock free wrapper with optional fault-injection bitmask.
  * @param ptr Buffer to free.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY when masked.
  */
-static void qb_mock_free(void *ptr) { free(ptr); }
+static c_orm_error_t qb_mock_free(void *ptr) {
+  free(ptr);
+  if (qb_free_fail_mask != 0) {
+    unsigned int idx = qb_free_call_idx++;
+    if (idx < 31 && (qb_free_fail_mask & (1u << idx)) != 0) {
+      return C_ORM_ERROR_MEMORY;
+    }
+  }
+  return C_ORM_OK;
+}
 
 /**
  * @brief Tests query builder out-of-memory error paths.
  * @return GREATEST test result.
  */
 TEST test_query_builder_oom(void) {
-  void *(*old_malloc)(size_t);
-  void *(*old_realloc)(void *, size_t);
-  void (*old_free)(void *);
+  c_orm_malloc_fn_t old_malloc;
+  c_orm_realloc_fn_t old_realloc;
+  c_orm_free_fn_t old_free;
   int i;
   c_orm_table_meta_t meta;
   c_orm_relation_meta_t rel;
@@ -409,11 +536,11 @@ TEST test_query_builder_oom(void) {
 
   /* Test direct mock allocators with oom_active = 0 */
   {
-    void *p;
+    void *p = NULL;
     oom_active = 0;
-    p = qb_mock_malloc(10);
-    p = qb_mock_realloc(p, 20);
-    qb_mock_free(p);
+    ASSERT_EQ(C_ORM_OK, qb_mock_malloc(10, &p));
+    ASSERT_EQ(C_ORM_OK, qb_mock_realloc(p, 20, &p));
+    ASSERT_EQ(C_ORM_OK, qb_mock_free(p));
   }
 
   memset(&meta, 0, sizeof(meta));
@@ -452,7 +579,7 @@ TEST test_query_builder_oom(void) {
       c_orm_select_offset(b, 20);
 
       c_orm_select_builder_compile(b, &sql);
-      C_ORM_FREE(sql);
+      (void)c_orm_system_free(sql);
       c_orm_select_builder_free(b);
     }
 
@@ -472,7 +599,7 @@ TEST test_query_builder_oom(void) {
       rel.type = C_ORM_RELATION_ONE_TO_MANY;
       c_orm_select_where_relation(b, "posts", "=");
       c_orm_select_builder_compile(b, &sql);
-      C_ORM_FREE(sql);
+      (void)c_orm_system_free(sql);
       c_orm_select_builder_free(b);
     }
     oom_active = 0;
@@ -494,7 +621,7 @@ TEST test_query_builder_oom(void) {
       c_orm_update_where_eq(ub, "id");
       c_orm_update_where_eq(ub, "id2");
       c_orm_update_builder_compile(ub, &sql);
-      C_ORM_FREE(sql);
+      (void)c_orm_system_free(sql);
       c_orm_update_builder_free(ub);
     }
 
@@ -539,12 +666,21 @@ TEST test_query_builder_oom(void) {
     c_orm_set_allocators(old_malloc, old_realloc, old_free);
   }
 
-  /* Insert init not implemented */
-  {
+  /* Insert builder OOM */
+  for (i = 0; i < 12; i++) {
     c_orm_insert_builder_t *ib = NULL;
-    ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED,
-              c_orm_insert_builder_init(&meta, &ib));
-    c_orm_insert_builder_free(ib);
+    char *ins_sql = NULL;
+    c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, qb_mock_free);
+    oom_countdown = i;
+    oom_active = 1;
+    if (c_orm_insert_builder_init(&meta, &ib) == C_ORM_OK) {
+      if (c_orm_insert_builder_compile(ib, &ins_sql) == C_ORM_OK && ins_sql) {
+        (void)c_orm_system_free(ins_sql);
+      }
+      (void)c_orm_insert_builder_free(ib);
+    }
+    oom_active = 0;
+    c_orm_set_allocators(old_malloc, old_realloc, old_free);
   }
 
   /* Exhaustive Realloc/Malloc OOM targeting append_where / IN / SET */
@@ -568,7 +704,7 @@ TEST test_query_builder_oom(void) {
       c_orm_select_where_ilike(b, "id8");
 
       c_orm_select_builder_compile(b, &sql);
-      C_ORM_FREE(sql);
+      (void)c_orm_system_free(sql);
       c_orm_select_builder_free(b);
     }
 
@@ -595,7 +731,7 @@ TEST test_query_builder_oom(void) {
       c_orm_select_offset(b, 20);
 
       c_orm_select_builder_compile(b, &sql);
-      C_ORM_FREE(sql);
+      (void)c_orm_system_free(sql);
 
       c_orm_select_builder_free(b);
     }
@@ -685,9 +821,9 @@ TEST test_query_builder_oom(void) {
  * @return GREATEST test result.
  */
 TEST qb_exhaustive_oom_all(void) {
-  void *(*old_malloc)(size_t);
-  void *(*old_realloc)(void *, size_t);
-  void (*old_free)(void *);
+  c_orm_malloc_fn_t old_malloc;
+  c_orm_realloc_fn_t old_realloc;
+  c_orm_free_fn_t old_free;
   int pad, oom, extra;
 
   old_malloc = c_orm_malloc;
@@ -926,9 +1062,9 @@ static void set_sb_room(struct test_qb_string_builder *sb, size_t room) {
  * @return GREATEST test result.
  */
 TEST test_query_builder_append_error_branches(void) {
-  void *(*old_malloc)(size_t);
-  void *(*old_realloc)(void *, size_t);
-  void (*old_free)(void *);
+  c_orm_malloc_fn_t old_malloc;
+  c_orm_realloc_fn_t old_realloc;
+  c_orm_free_fn_t old_free;
   c_orm_column_meta_t target_col;
   c_orm_table_meta_t target_meta;
   c_orm_relation_meta_t rel_arr[2];
@@ -1105,6 +1241,443 @@ TEST test_query_builder_append_error_branches(void) {
 }
 
 /**
+ * @brief Tests Db2/ODBC/MySQL/Postgres query builder dialects, MERGE INTO
+ * upserts, Safe CRT countdowns, and string builder failure branches.
+ * @return GREATEST test result.
+ */
+TEST test_query_builder_db2_and_safe_crt_branches(void) {
+  c_orm_malloc_fn_t old_malloc = c_orm_malloc;
+  c_orm_realloc_fn_t old_realloc = c_orm_realloc;
+  c_orm_free_fn_t old_free = c_orm_free;
+  c_orm_column_meta_t cols4[4];
+  c_orm_column_meta_t cols_nopk[1];
+  c_orm_column_meta_t cols_pkonly[2];
+  c_orm_column_meta_t cols_bad[2];
+  c_orm_table_meta_t meta4;
+  c_orm_table_meta_t meta_nopk;
+  c_orm_table_meta_t meta_pkonly;
+  c_orm_table_meta_t meta_bad;
+  c_orm_table_meta_t meta_null_name;
+  c_orm_table_meta_t meta_null_cols;
+  c_orm_relation_meta_t rel;
+  c_orm_table_meta_t rel_parent;
+  int step;
+
+  memset(cols4, 0, sizeof(cols4));
+  cols4[0].name = "id1";
+  cols4[0].is_pk = 1;
+  cols4[1].name = "id2";
+  cols4[1].is_pk = 1;
+  cols4[2].name = "name";
+  cols4[2].is_pk = 0;
+  cols4[3].name = "balance";
+  cols4[3].is_pk = 0;
+
+  memset(&meta4, 0, sizeof(meta4));
+  meta4.name = "S.ACCOUNTS";
+  meta4.columns = cols4;
+  meta4.num_columns = 4;
+
+  memset(cols_nopk, 0, sizeof(cols_nopk));
+  cols_nopk[0].name = "val";
+  cols_nopk[0].is_pk = 0;
+  memset(&meta_nopk, 0, sizeof(meta_nopk));
+  meta_nopk.name = "NOPK";
+  meta_nopk.columns = cols_nopk;
+  meta_nopk.num_columns = 1;
+
+  memset(cols_pkonly, 0, sizeof(cols_pkonly));
+  cols_pkonly[0].name = "k1";
+  cols_pkonly[0].is_pk = 1;
+  cols_pkonly[1].name = "k2";
+  cols_pkonly[1].is_pk = 1;
+  memset(&meta_pkonly, 0, sizeof(meta_pkonly));
+  meta_pkonly.name = "PKONLY";
+  meta_pkonly.columns = cols_pkonly;
+  meta_pkonly.num_columns = 2;
+
+  memset(cols_bad, 0, sizeof(cols_bad));
+  cols_bad[0].name = "\x01";
+  cols_bad[0].is_pk = 1;
+  cols_bad[1].name = "v";
+  cols_bad[1].is_pk = 0;
+  memset(&meta_bad, 0, sizeof(meta_bad));
+  meta_bad.name = "\x01";
+  meta_bad.columns = cols_bad;
+  meta_bad.num_columns = 2;
+
+  memset(&meta_null_name, 0, sizeof(meta_null_name));
+  meta_null_name.name = NULL;
+  meta_null_name.columns = cols4;
+  meta_null_name.num_columns = 1;
+
+  memset(&meta_null_cols, 0, sizeof(meta_null_cols));
+  meta_null_cols.name = "T";
+  meta_null_cols.columns = NULL;
+  meta_null_cols.num_columns = 1;
+
+  memset(&rel, 0, sizeof(rel));
+  rel.field_name = "items";
+  rel.target_meta = &meta4;
+  rel.type = C_ORM_RELATION_ONE_TO_MANY;
+  rel.local_key = "id1";
+  rel.foreign_key = "uid";
+  memset(&rel_parent, 0, sizeof(rel_parent));
+  rel_parent.name = "U";
+  rel_parent.columns = cols4;
+  rel_parent.num_columns = 1;
+  rel_parent.relations = &rel;
+  rel_parent.num_relations = 1;
+
+  c_orm_set_allocators(qb_mock_malloc, qb_mock_realloc, qb_mock_free);
+
+  /* 1. Dialect kind & upsert setters + NULL guards */
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_select_builder_set_dialect_kind(NULL, C_ORM_DIALECT_DB2));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_insert_builder_set_dialect_kind(NULL, C_ORM_DIALECT_DB2));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            c_orm_update_builder_set_dialect_kind(NULL, C_ORM_DIALECT_DB2));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_insert_builder_set_upsert(NULL, 1));
+
+  {
+    c_orm_select_builder_t *sb = NULL;
+    c_orm_update_builder_t *ub = NULL;
+    char *sql = NULL;
+
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_init(&meta4, &sb));
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_set_dialect(sb, 0));
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_set_dialect_kind(
+                            sb, C_ORM_DIALECT_POSTGRES));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_select_builder_set_dialect_kind(sb, C_ORM_DIALECT_DB2));
+
+    /* Compile DB2 without limit/offset */
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_compile(sb, &sql));
+    (void)c_orm_system_free(sql);
+
+    for (step = 0; step < 10; step++) {
+      c_orm_select_builder_t *sb_bw = NULL;
+      ASSERT_EQ(C_ORM_OK, c_orm_select_builder_init(&meta4, &sb_bw));
+      c_orm_mock_string_builder_append_countdown = step;
+      if (c_orm_select_where_between(sb_bw, "balance") == C_ORM_OK) {
+        c_orm_mock_string_builder_append_countdown = -1;
+        ASSERT_EQ(C_ORM_OK, c_orm_select_builder_free(sb_bw));
+        break;
+      }
+      c_orm_mock_string_builder_append_countdown = -1;
+      ASSERT_EQ(C_ORM_OK, c_orm_select_builder_free(sb_bw));
+    }
+
+    /* DB2 limit only + Safe CRT + OOM */
+    ASSERT_EQ(C_ORM_OK, c_orm_select_limit(sb, 5));
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_builder_compile(sb, &sql));
+    c_orm_mock_safe_crt_countdown = -1;
+    oom_countdown = 0;
+    oom_active = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_builder_compile(sb, &sql));
+    oom_active = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_compile(sb, &sql));
+    (void)c_orm_system_free(sql);
+
+    /* Add offset after limit -> DB2 limit + offset */
+    ASSERT_EQ(C_ORM_OK, c_orm_select_offset(sb, 10));
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_builder_compile(sb, &sql));
+    c_orm_mock_safe_crt_countdown = -1;
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_compile(sb, &sql));
+    (void)c_orm_system_free(sql);
+
+    /* Free error branches on select_builder_free */
+    qb_free_call_idx = 0;
+    qb_free_fail_mask = 4u; /* buffer=0, sb=1, builder=2 */
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_select_builder_free(sb));
+    qb_free_fail_mask = 0;
+
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_init(&meta4, &sb));
+    qb_free_call_idx = 0;
+    qb_free_fail_mask = 5u; /* both sb->buffer and builder fail */
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_select_builder_free(sb));
+    qb_free_fail_mask = 0;
+
+    /* ODBC offset-only + limit after offset + invalid sb on limit/offset */
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_init(&meta4, &sb));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_select_builder_set_dialect_kind(sb, C_ORM_DIALECT_ODBC));
+    ASSERT_EQ(C_ORM_OK, c_orm_select_offset(sb, 7));
+    ASSERT_EQ(C_ORM_OK, c_orm_select_offset(sb, 8));
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_builder_compile(sb, &sql));
+    c_orm_mock_safe_crt_countdown = -1;
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_compile(sb, &sql));
+    (void)c_orm_system_free(sql);
+    ASSERT_EQ(C_ORM_OK, c_orm_select_limit(sb, 3));
+    ASSERT_EQ(C_ORM_OK, c_orm_select_limit(sb, 4));
+    c_orm_mock_string_builder_get_fail = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_builder_compile(sb, &sql));
+    c_orm_mock_string_builder_get_fail = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_free(sb));
+
+    /* Safe CRT failures on select_builder_compile (SQLite), limit, offset,
+     * build_exists_query */
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_init(&rel_parent, &sb));
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_builder_compile(sb, &sql));
+    c_orm_mock_safe_crt_countdown = -1;
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_limit(sb, 1));
+    c_orm_mock_safe_crt_countdown = -1;
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_offset(sb, 1));
+    c_orm_mock_safe_crt_countdown = -1;
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_where_relation(sb, "items.id1", "="));
+    c_orm_mock_safe_crt_countdown = -1;
+    c_orm_mock_safe_crt_countdown = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_where_relation(sb, "items.id1", "="));
+    c_orm_mock_safe_crt_countdown = -1;
+
+    /* Invalidated sb->valid == 0 before limit and offset */
+    ((struct test_qb_select_builder *)sb)->sb->valid = 0;
+    (void)c_orm_select_limit(sb, 2);
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_free(sb));
+
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_init(&meta4, &sb));
+    ((struct test_qb_select_builder *)sb)->sb->valid = 0;
+    (void)c_orm_select_offset(sb, 2);
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_free(sb));
+
+    /* c_orm_select_aggregate: get_fail, Safe CRT countdown, string_builder_free
+     * fail */
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_init(&meta4, &sb));
+    c_orm_mock_string_builder_get_fail = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_aggregate(sb, "COUNT", "id1", "c"));
+    c_orm_mock_string_builder_get_fail = 0;
+
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_aggregate(sb, "COUNT", "id1", "c"));
+    c_orm_mock_safe_crt_countdown = -1;
+
+    qb_free_call_idx = 0;
+    qb_free_fail_mask = 1u;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_aggregate(sb, "COUNT", "id1", "c"));
+    qb_free_fail_mask = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_free(sb));
+
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_init(&meta4, &sb));
+    ASSERT_EQ(C_ORM_OK, c_orm_select_aggregate(sb, "COUNT", "id1", "c"));
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_aggregate(sb, "SUM", "balance", "s"));
+    c_orm_mock_safe_crt_countdown = -1;
+    c_orm_mock_safe_crt_countdown = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_aggregate(sb, "SUM", "balance", "s"));
+    c_orm_mock_safe_crt_countdown = -1;
+    qb_free_call_idx = 0;
+    qb_free_fail_mask = 1u;
+    ASSERT_NEQ(C_ORM_OK, c_orm_select_aggregate(sb, "SUM", "balance", "s"));
+    qb_free_fail_mask = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_select_builder_free(sb));
+
+    /* Update builder dialect_kind, get_fail, Safe CRT, free fail */
+    ASSERT_EQ(C_ORM_OK, c_orm_update_builder_init(&meta4, &ub));
+    ASSERT_EQ(C_ORM_OK, c_orm_update_builder_set_dialect(ub, 0));
+    ASSERT_EQ(C_ORM_OK, c_orm_update_builder_set_dialect_kind(
+                            ub, C_ORM_DIALECT_POSTGRES));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_update_builder_set_dialect_kind(ub, C_ORM_DIALECT_DB2));
+    c_orm_mock_string_builder_get_fail = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_update_builder_compile(ub, &sql));
+    c_orm_mock_string_builder_get_fail = 0;
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, c_orm_update_builder_compile(ub, &sql));
+    c_orm_mock_safe_crt_countdown = -1;
+    qb_free_call_idx = 0;
+    qb_free_fail_mask = 4u;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_update_builder_free(ub));
+    qb_free_fail_mask = 0;
+
+    ASSERT_EQ(C_ORM_OK, c_orm_update_builder_init(&meta4, &ub));
+    qb_free_call_idx = 0;
+    qb_free_fail_mask = 5u;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_update_builder_free(ub));
+    qb_free_fail_mask = 0;
+  }
+
+  /* 2. Insert builder compile: DB2/ODBC MERGE, MySQL ON DUPLICATE KEY, SQLite
+   * ON CONFLICT */
+  {
+    c_orm_insert_builder_t *ib = NULL;
+    char *sql = NULL;
+
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_init(&meta_null_name, &ib));
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_insert_builder_compile(ib, &sql));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_free(ib));
+
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_init(&meta_null_cols, &ib));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_insert_builder_compile(ib, &sql));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_free(ib));
+
+    /* DB2 MERGE with no PK -> C_ORM_ERROR_VALIDATION */
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_init(&meta_nopk, &ib));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_dialect(ib, 0));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_dialect_kind(
+                            ib, C_ORM_DIALECT_POSTGRES));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_insert_builder_set_dialect_kind(ib, C_ORM_DIALECT_DB2));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_upsert(ib, 0));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_upsert(ib, 1));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_insert_builder_compile(ib, &sql));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_free(ib));
+
+    /* DB2 MERGE with PK-only table */
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_init(&meta_pkonly, &ib));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_insert_builder_set_dialect_kind(ib, C_ORM_DIALECT_ODBC));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_upsert(ib, 1));
+    for (step = 0; step < 80; step++) {
+      c_orm_mock_string_builder_append_countdown = step;
+      sql = NULL;
+      if (c_orm_insert_builder_compile(ib, &sql) == C_ORM_OK) {
+        c_orm_mock_string_builder_append_countdown = -1;
+        (void)c_orm_system_free(sql);
+        break;
+      }
+      c_orm_mock_string_builder_append_countdown = -1;
+    }
+    /* SQLite ON CONFLICT DO NOTHING on PK-only table */
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_insert_builder_set_dialect_kind(ib, C_ORM_DIALECT_SQLITE));
+    for (step = 0; step < 30; step++) {
+      c_orm_mock_string_builder_append_countdown = step;
+      sql = NULL;
+      if (c_orm_insert_builder_compile(ib, &sql) == C_ORM_OK) {
+        c_orm_mock_string_builder_append_countdown = -1;
+        (void)c_orm_system_free(sql);
+        break;
+      }
+      c_orm_mock_string_builder_append_countdown = -1;
+    }
+    /* MySQL ON DUPLICATE KEY UPDATE on PK-only table */
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_insert_builder_set_dialect_kind(ib, C_ORM_DIALECT_MYSQL));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_compile(ib, &sql));
+    (void)c_orm_system_free(sql);
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_free(ib));
+
+    /* Full 4-column table (2 PK, 2 non-PK): sweep DB2 MERGE, DB2 INSERT, MySQL
+     * upsert, Postgres ON CONFLICT DO UPDATE */
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_init(&meta4, &ib));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_insert_builder_set_dialect_kind(ib, C_ORM_DIALECT_DB2));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_upsert(ib, 1));
+    for (step = 0; step < 140; step++) {
+      c_orm_mock_string_builder_append_countdown = step;
+      sql = NULL;
+      if (c_orm_insert_builder_compile(ib, &sql) == C_ORM_OK) {
+        c_orm_mock_string_builder_append_countdown = -1;
+        (void)c_orm_system_free(sql);
+        break;
+      }
+      c_orm_mock_string_builder_append_countdown = -1;
+    }
+
+    /* Non-upsert DB2 INSERT */
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_upsert(ib, 0));
+    for (step = 0; step < 40; step++) {
+      c_orm_mock_string_builder_append_countdown = step;
+      sql = NULL;
+      if (c_orm_insert_builder_compile(ib, &sql) == C_ORM_OK) {
+        c_orm_mock_string_builder_append_countdown = -1;
+        (void)c_orm_system_free(sql);
+        break;
+      }
+      c_orm_mock_string_builder_append_countdown = -1;
+    }
+
+    /* MySQL ON DUPLICATE KEY UPDATE */
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_insert_builder_set_dialect_kind(ib, C_ORM_DIALECT_MYSQL));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_upsert(ib, 1));
+    for (step = 0; step < 50; step++) {
+      c_orm_mock_string_builder_append_countdown = step;
+      sql = NULL;
+      if (c_orm_insert_builder_compile(ib, &sql) == C_ORM_OK) {
+        c_orm_mock_string_builder_append_countdown = -1;
+        (void)c_orm_system_free(sql);
+        break;
+      }
+      c_orm_mock_string_builder_append_countdown = -1;
+    }
+
+    /* Postgres ON CONFLICT DO UPDATE SET */
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_dialect_kind(
+                            ib, C_ORM_DIALECT_POSTGRES));
+    for (step = 0; step < 50; step++) {
+      c_orm_mock_string_builder_append_countdown = step;
+      sql = NULL;
+      if (c_orm_insert_builder_compile(ib, &sql) == C_ORM_OK) {
+        c_orm_mock_string_builder_append_countdown = -1;
+        (void)c_orm_system_free(sql);
+        break;
+      }
+      c_orm_mock_string_builder_append_countdown = -1;
+    }
+
+    /* string_builder_init OOM, get_fail, out_sql OOM, Safe CRT strcpy fail */
+    oom_countdown = 0;
+    oom_active = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_insert_builder_compile(ib, &sql));
+    oom_active = 0;
+
+    c_orm_mock_string_builder_get_fail = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_insert_builder_compile(ib, &sql));
+    c_orm_mock_string_builder_get_fail = 0;
+
+    for (step = 2; step < 12; step++) {
+      oom_countdown = step;
+      oom_active = 1;
+      sql = NULL;
+      if (c_orm_insert_builder_compile(ib, &sql) == C_ORM_OK) {
+        oom_active = 0;
+        (void)c_orm_system_free(sql);
+        break;
+      }
+      oom_active = 0;
+    }
+
+    for (step = 0; step < 6; step++) {
+      c_orm_mock_safe_crt_countdown = step;
+      sql = NULL;
+      if (c_orm_insert_builder_compile(ib, &sql) == C_ORM_OK) {
+        c_orm_mock_safe_crt_countdown = -1;
+        (void)c_orm_system_free(sql);
+        break;
+      }
+      c_orm_mock_safe_crt_countdown = -1;
+    }
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_free(ib));
+
+    /* Invalid control-char identifier failures in DB2 MERGE & DB2 INSERT */
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_init(&meta_bad, &ib));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_insert_builder_set_dialect_kind(ib, C_ORM_DIALECT_DB2));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_upsert(ib, 1));
+    ASSERT_NEQ(C_ORM_OK, c_orm_insert_builder_compile(ib, &sql));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_upsert(ib, 0));
+    ASSERT_NEQ(C_ORM_OK, c_orm_insert_builder_compile(ib, &sql));
+    meta_bad.name = "VALID_TBL";
+    ASSERT_NEQ(C_ORM_OK, c_orm_insert_builder_compile(ib, &sql));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_set_upsert(ib, 1));
+    ASSERT_NEQ(C_ORM_OK, c_orm_insert_builder_compile(ib, &sql));
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_builder_free(ib));
+  }
+
+  c_orm_set_allocators(old_malloc, old_realloc, old_free);
+  PASS();
+}
+
+/**
  * @brief Query builder coverage test suite runner.
  * @param query_builder_coverage_suite Suite runner function name.
  */
@@ -1114,6 +1687,7 @@ SUITE(query_builder_coverage_suite) {
   RUN_TEST(test_query_builder_oom);
   RUN_TEST(qb_exhaustive_oom_all);
   RUN_TEST(test_query_builder_append_error_branches);
+  RUN_TEST(test_query_builder_db2_and_safe_crt_branches);
   if (!recursed) {
     recursed = 1;
     greatest_set_test_filter("never_match_filter");

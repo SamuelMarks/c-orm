@@ -18,6 +18,14 @@
  * @var sb Dynamic string builder instance.
  * @var has_where Flag indicating whether WHERE clause was added.
  * @var has_order Flag indicating whether ORDER BY clause was added.
+ * @var is_postgres Flag indicating PostgreSQL `$N` placeholder mode.
+ * @var param_count Number of positional parameters emitted so far.
+ * @var dialect Target SQL dialect enum.
+ * @var has_limit Flag indicating whether LIMIT was added.
+ * @var limit_val Requested row limit value.
+ * @var has_offset Flag indicating whether OFFSET was added.
+ * @var offset_val Requested row offset value.
+ * @var base_sql_len Length of SQL prefix prior to trailing LIMIT/OFFSET.
  */
 struct c_orm_select_builder {
   /** @brief Table metadata pointer. */
@@ -28,6 +36,22 @@ struct c_orm_select_builder {
   int has_where;
   /** @brief Flag indicating whether ORDER BY clause was added. */
   int has_order;
+  /** @brief Flag indicating PostgreSQL `$N` placeholder mode. */
+  int is_postgres;
+  /** @brief Number of positional parameters emitted so far. */
+  size_t param_count;
+  /** @brief Target SQL dialect enum. */
+  c_orm_dialect_t dialect;
+  /** @brief Flag indicating whether LIMIT was added. */
+  int has_limit;
+  /** @brief Requested row limit value. */
+  size_t limit_val;
+  /** @brief Flag indicating whether OFFSET was added. */
+  int has_offset;
+  /** @brief Requested row offset value. */
+  size_t offset_val;
+  /** @brief Length of SQL prefix prior to trailing LIMIT/OFFSET. */
+  size_t base_sql_len;
 };
 
 C_ORM_EXPORT c_orm_error_t c_orm_select_builder_init(
@@ -41,8 +65,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_builder_init(
     return C_ORM_ERROR_UNKNOWN;
   }
 
-  b = (c_orm_select_builder_t *)C_ORM_MALLOC(sizeof(c_orm_select_builder_t));
-  if (!b) {
+  b = NULL;
+  if (c_orm_system_malloc(sizeof(c_orm_select_builder_t), (void **)&b) !=
+      C_ORM_OK) {
     LOG_DEBUG("c_orm_select_builder_init: OOM");
     return C_ORM_ERROR_UNKNOWN;
   }
@@ -50,24 +75,32 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_builder_init(
   rc = c_orm_string_builder_init(&b->sb);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_select_builder_init: string builder init failed");
-    C_ORM_FREE(b);
+    (void)c_orm_system_free(b);
     return rc;
   }
 
   b->meta = meta;
   b->has_where = 0;
   b->has_order = 0;
+  b->is_postgres = 0;
+  b->param_count = 0;
+  b->dialect = C_ORM_DIALECT_SQLITE;
+  b->has_limit = 0;
+  b->limit_val = 0;
+  b->has_offset = 0;
+  b->offset_val = 0;
+  b->base_sql_len = 0;
 
   rc = c_orm_string_builder_append(b->sb, "SELECT * FROM ");
   if (rc != C_ORM_OK) {
-    c_orm_string_builder_free(b->sb);
-    C_ORM_FREE(b);
+    (void)c_orm_string_builder_free(b->sb);
+    (void)c_orm_system_free(b);
     return rc;
   }
   rc = c_orm_string_builder_append(b->sb, meta->name);
   if (rc != C_ORM_OK) {
-    c_orm_string_builder_free(b->sb);
-    C_ORM_FREE(b);
+    (void)c_orm_string_builder_free(b->sb);
+    (void)c_orm_system_free(b);
     return rc;
   }
 
@@ -80,13 +113,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_builder_init(
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_select_builder_free(c_orm_select_builder_t *builder) {
+  c_orm_error_t rc = C_ORM_OK;
+  c_orm_error_t frc;
   LOG_DEBUG("c_orm_select_builder_free: entry");
   if (builder) {
-    c_orm_string_builder_free(builder->sb);
-    C_ORM_FREE(builder);
+    rc = c_orm_string_builder_free(builder->sb);
+    frc = c_orm_system_free(builder);
+    if (frc != C_ORM_OK && rc == C_ORM_OK) {
+      rc = frc;
+    }
   }
   LOG_DEBUG("c_orm_select_builder_free: exit");
-  return C_ORM_OK;
+  return rc;
 }
 
 C_ORM_EXPORT c_orm_error_t
@@ -104,11 +142,50 @@ c_orm_select_builder_compile(c_orm_select_builder_t *builder, char **out_sql) {
     LOG_DEBUG("c_orm_select_builder_compile: string get failed");
     return rc;
   }
+  if ((builder->dialect == C_ORM_DIALECT_DB2 ||
+       builder->dialect == C_ORM_DIALECT_ODBC) &&
+      (builder->has_limit || builder->has_offset)) {
+    char suffix[96];
+    size_t suffix_len;
+    size_t total_len;
+    if (builder->has_limit && builder->has_offset) {
+      rc = C_ORM_SPRINTF(suffix, sizeof(suffix),
+                         " OFFSET " C_ORM_FMT_SIZE_T
+                         " ROWS FETCH NEXT " C_ORM_FMT_SIZE_T " ROWS ONLY",
+                         C_ORM_CAST_SIZE_T(builder->offset_val),
+                         C_ORM_CAST_SIZE_T(builder->limit_val));
+    } else if (builder->has_limit) {
+      rc = C_ORM_SPRINTF(suffix, sizeof(suffix),
+                         " FETCH FIRST " C_ORM_FMT_SIZE_T " ROWS ONLY",
+                         C_ORM_CAST_SIZE_T(builder->limit_val));
+    } else {
+      rc = C_ORM_SPRINTF(suffix, sizeof(suffix),
+                         " OFFSET " C_ORM_FMT_SIZE_T " ROWS",
+                         C_ORM_CAST_SIZE_T(builder->offset_val));
+    }
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
+    suffix_len = strlen(suffix);
+    total_len = builder->base_sql_len + suffix_len;
+    *out_sql = NULL;
+    if (c_orm_system_malloc(total_len + 1, (void **)out_sql) != C_ORM_OK) {
+      return C_ORM_ERROR_UNKNOWN;
+    }
+    memcpy(*out_sql, sql_str, builder->base_sql_len);
+    memcpy(*out_sql + builder->base_sql_len, suffix, suffix_len + 1);
+    return C_ORM_OK;
+  }
   {
     size_t len = strlen(sql_str);
-    *out_sql = (char *)C_ORM_MALLOC(len + 1);
-    if (*out_sql) {
-      C_ORM_STRCPY(*out_sql, len + 1, sql_str);
+    *out_sql = NULL;
+    if (c_orm_system_malloc(len + 1, (void **)out_sql) == C_ORM_OK) {
+      rc = C_ORM_STRCPY(*out_sql, len + 1, sql_str);
+      if (rc != C_ORM_OK) {
+        (void)c_orm_system_free(*out_sql);
+        *out_sql = NULL;
+        return rc;
+      }
     } else {
       LOG_DEBUG("c_orm_select_builder_compile: OOM");
     }
@@ -120,14 +197,19 @@ c_orm_select_builder_compile(c_orm_select_builder_t *builder, char **out_sql) {
 }
 
 /**
- * @brief Appends a condition clause to the WHERE builder.
+ * @brief Appends a parameterized condition clause to the WHERE builder.
  * @param builder Select builder instance.
  * @param column Column name.
- * @param op Comparison operator string.
- * @return 0 on success, non-zero on error.
+ * @param op_prefix Comparison operator prefix (e.g. `" = "` or `" >
+ * CURRENT_TIMESTAMP"`).
+ * @param with_placeholder Non-zero if a positional parameter placeholder
+ * follows `op_prefix`.
+ * @return C_ORM_OK on success, non-zero on error.
  */
-static c_orm_error_t append_where(c_orm_select_builder_t *builder,
-                                  const char *column, const char *op) {
+static c_orm_error_t append_where_param(c_orm_select_builder_t *builder,
+                                        const char *column,
+                                        const char *op_prefix,
+                                        int with_placeholder) {
   c_orm_error_t rc;
   LOG_DEBUG("append_where: entry");
   if (!builder || !column) {
@@ -147,9 +229,16 @@ static c_orm_error_t append_where(c_orm_select_builder_t *builder,
   rc = c_orm_string_builder_append(builder->sb, column);
   if (rc != C_ORM_OK)
     return rc;
-  rc = c_orm_string_builder_append(builder->sb, op);
+  rc = c_orm_string_builder_append(builder->sb, op_prefix);
   if (rc != C_ORM_OK)
     return rc;
+  if (with_placeholder) {
+    builder->param_count++;
+    rc = c_orm_append_placeholder(builder->sb, builder->is_postgres,
+                                  builder->param_count);
+    if (rc != C_ORM_OK)
+      return rc;
+  }
 
   LOG_DEBUG("append_where: exit");
   return C_ORM_OK;
@@ -159,7 +248,7 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_eq(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
   LOG_DEBUG("c_orm_select_where_eq: entry");
-  rc = append_where(builder, column, " = ?");
+  rc = append_where_param(builder, column, " = ", 1);
   if (rc != C_ORM_OK)
     return rc;
   LOG_DEBUG("c_orm_select_where_eq: exit");
@@ -170,7 +259,7 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_neq(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
   LOG_DEBUG("c_orm_select_where_neq: entry");
-  rc = append_where(builder, column, " != ?");
+  rc = append_where_param(builder, column, " != ", 1);
   if (rc != C_ORM_OK)
     return rc;
   LOG_DEBUG("c_orm_select_where_neq: exit");
@@ -181,7 +270,7 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_lt(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
   LOG_DEBUG("c_orm_select_where_lt: entry");
-  rc = append_where(builder, column, " < ?");
+  rc = append_where_param(builder, column, " < ", 1);
   if (rc != C_ORM_OK)
     return rc;
   LOG_DEBUG("c_orm_select_where_lt: exit");
@@ -192,7 +281,7 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_gt(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
   LOG_DEBUG("c_orm_select_where_gt: entry");
-  rc = append_where(builder, column, " > ?");
+  rc = append_where_param(builder, column, " > ", 1);
   if (rc != C_ORM_OK)
     return rc;
   LOG_DEBUG("c_orm_select_where_gt: exit");
@@ -203,7 +292,7 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_lte(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
   LOG_DEBUG("c_orm_select_where_lte: entry");
-  rc = append_where(builder, column, " <= ?");
+  rc = append_where_param(builder, column, " <= ", 1);
   if (rc != C_ORM_OK)
     return rc;
   LOG_DEBUG("c_orm_select_where_lte: exit");
@@ -214,7 +303,7 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_gte(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
   LOG_DEBUG("c_orm_select_where_gte: entry");
-  rc = append_where(builder, column, " >= ?");
+  rc = append_where_param(builder, column, " >= ", 1);
   if (rc != C_ORM_OK)
     return rc;
   LOG_DEBUG("c_orm_select_where_gte: exit");
@@ -225,7 +314,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_gt_current_timestamp(
     c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
   LOG_DEBUG("c_orm_select_where_gt_current_timestamp: entry");
-  rc = append_where(builder, column, " > CURRENT_TIMESTAMP");
+  rc = append_where_param(builder, column, " > CURRENT_TIMESTAMP", 0);
   if (rc != C_ORM_OK)
     return rc;
   LOG_DEBUG("c_orm_select_where_gt_current_timestamp: exit");
@@ -236,7 +325,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_lt_current_timestamp(
     c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
   LOG_DEBUG("c_orm_select_where_lt_current_timestamp: entry");
-  rc = append_where(builder, column, " < CURRENT_TIMESTAMP");
+  rc = append_where_param(builder, column, " < CURRENT_TIMESTAMP", 0);
   if (rc != C_ORM_OK)
     return rc;
   LOG_DEBUG("c_orm_select_where_lt_current_timestamp: exit");
@@ -247,7 +336,7 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_like(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
   LOG_DEBUG("c_orm_select_where_like: entry");
-  rc = append_where(builder, column, " LIKE ?");
+  rc = append_where_param(builder, column, " LIKE ", 1);
   if (rc != C_ORM_OK)
     return rc;
   LOG_DEBUG("c_orm_select_where_like: exit");
@@ -281,7 +370,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_in(
   if (rc != C_ORM_OK)
     return rc;
   for (i = 0; i < count; ++i) {
-    rc = c_orm_string_builder_append(builder->sb, "?");
+    builder->param_count++;
+    rc = c_orm_append_placeholder(builder->sb, builder->is_postgres,
+                                  builder->param_count);
     if (rc != C_ORM_OK)
       return rc;
     if (i < count - 1) {
@@ -319,7 +410,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_where_between(
     c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
   LOG_DEBUG("c_orm_select_where_between: entry");
-  rc = append_where(builder, column, " BETWEEN ? AND ?");
+  rc = append_where_param(builder, column, " BETWEEN ", 1);
+  if (rc != C_ORM_OK)
+    return rc;
+  rc = c_orm_string_builder_append(builder->sb, " AND ");
+  if (rc != C_ORM_OK)
+    return rc;
+  builder->param_count++;
+  rc = c_orm_append_placeholder(builder->sb, builder->is_postgres,
+                                builder->param_count);
   if (rc != C_ORM_OK)
     return rc;
   LOG_DEBUG("c_orm_select_where_between: exit");
@@ -330,7 +429,7 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_select_where_ilike(c_orm_select_builder_t *builder, const char *column) {
   c_orm_error_t rc;
   LOG_DEBUG("c_orm_select_where_ilike: entry");
-  rc = append_where(builder, column, " ILIKE ?");
+  rc = append_where_param(builder, column, " ILIKE ", 1);
   if (rc != C_ORM_OK)
     return rc;
   LOG_DEBUG("c_orm_select_where_ilike: exit");
@@ -392,7 +491,9 @@ static c_orm_error_t build_exists_query(c_orm_string_builder_t *sb,
 
     if (len >= sizeof(rel_name))
       len = sizeof(rel_name) - 1;
-    C_ORM_STRNCPY(rel_name, sizeof(rel_name), path, len);
+    rc = C_ORM_STRNCPY(rel_name, sizeof(rel_name), path, len);
+    if (rc != C_ORM_OK)
+      return rc;
     rel_name[len] = '\0';
 
     for (i = 0; i < meta->num_relations; i++) {
@@ -414,7 +515,9 @@ static c_orm_error_t build_exists_query(c_orm_string_builder_t *sb,
       }
     }
 
-    C_ORM_SPRINTF(target_alias, sizeof(target_alias), "t%d", depth);
+    rc = C_ORM_SPRINTF(target_alias, sizeof(target_alias), "t%d", depth);
+    if (rc != C_ORM_OK)
+      return rc;
 
     rc = c_orm_string_builder_append(sb, "EXISTS (SELECT 1 FROM ");
     if (rc != C_ORM_OK)
@@ -635,26 +738,35 @@ c_orm_select_aggregate(c_orm_select_builder_t *builder, const char *func,
   from_pos = strstr(current_sql, select_star);
   if (from_pos == current_sql) {
     extra_len = strlen(func) + strlen(column) + strlen(alias) + 32;
-    new_sql = (char *)C_ORM_MALLOC(strlen(current_sql) + extra_len);
-    if (!new_sql) {
+    new_sql = NULL;
+    if (c_orm_system_malloc(strlen(current_sql) + extra_len,
+                            (void **)&new_sql) != C_ORM_OK) {
       LOG_DEBUG("c_orm_select_aggregate: OOM new_sql 1");
       return C_ORM_ERROR_UNKNOWN;
     }
 
-    C_ORM_SPRINTF(new_sql, strlen(current_sql) + extra_len,
-                  "SELECT %s(%s) AS %s FROM %s", func, column, alias,
-                  current_sql + 14);
+    rc = C_ORM_SPRINTF(new_sql, strlen(current_sql) + extra_len,
+                       "SELECT %s(%s) AS %s FROM %s", func, column, alias,
+                       current_sql + 14);
+    if (rc != C_ORM_OK) {
+      (void)c_orm_system_free(new_sql);
+      return rc;
+    }
 
-    c_orm_string_builder_free(builder->sb);
+    rc = c_orm_string_builder_free(builder->sb);
     builder->sb = NULL;
+    if (rc != C_ORM_OK) {
+      (void)c_orm_system_free(new_sql);
+      return rc;
+    }
     rc = c_orm_string_builder_init(&builder->sb);
     if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_select_aggregate: reinit fail 1");
-      C_ORM_FREE(new_sql);
+      (void)c_orm_system_free(new_sql);
       return rc;
     }
     rc = c_orm_string_builder_append(builder->sb, new_sql);
-    C_ORM_FREE(new_sql);
+    (void)c_orm_system_free(new_sql);
     if (rc != C_ORM_OK)
       return rc;
   } else {
@@ -665,30 +777,43 @@ c_orm_select_aggregate(c_orm_select_builder_t *builder, const char *func,
     } else {
       size_t prefix_len = (size_t)(from_pos - current_sql);
       extra_len = strlen(func) + strlen(column) + strlen(alias) + 32;
-      new_sql = (char *)C_ORM_MALLOC(strlen(current_sql) + extra_len);
-      if (!new_sql) {
+      new_sql = NULL;
+      if (c_orm_system_malloc(strlen(current_sql) + extra_len,
+                              (void **)&new_sql) != C_ORM_OK) {
         LOG_DEBUG("c_orm_select_aggregate: OOM new_sql 2");
         return C_ORM_ERROR_MEMORY;
       }
 
-      C_ORM_STRNCPY(new_sql, strlen(current_sql) + extra_len, current_sql,
-                    prefix_len);
+      rc = C_ORM_STRNCPY(new_sql, strlen(current_sql) + extra_len, current_sql,
+                         prefix_len);
+      if (rc != C_ORM_OK) {
+        (void)c_orm_system_free(new_sql);
+        return rc;
+      }
       new_sql[prefix_len] = '\0';
 
-      C_ORM_SPRINTF(new_sql + prefix_len,
-                    strlen(current_sql) + extra_len - prefix_len,
-                    ", %s(%s) AS %s%s", func, column, alias, from_pos);
+      rc = C_ORM_SPRINTF(new_sql + prefix_len,
+                         strlen(current_sql) + extra_len - prefix_len,
+                         ", %s(%s) AS %s%s", func, column, alias, from_pos);
+      if (rc != C_ORM_OK) {
+        (void)c_orm_system_free(new_sql);
+        return rc;
+      }
 
-      c_orm_string_builder_free(builder->sb);
+      rc = c_orm_string_builder_free(builder->sb);
       builder->sb = NULL;
+      if (rc != C_ORM_OK) {
+        (void)c_orm_system_free(new_sql);
+        return rc;
+      }
       rc = c_orm_string_builder_init(&builder->sb);
       if (rc != C_ORM_OK) {
         LOG_DEBUG("c_orm_select_aggregate: reinit fail 2");
-        C_ORM_FREE(new_sql);
+        (void)c_orm_system_free(new_sql);
         return rc;
       }
       rc = c_orm_string_builder_append(builder->sb, new_sql);
-      C_ORM_FREE(new_sql);
+      (void)c_orm_system_free(new_sql);
       if (rc != C_ORM_OK)
         return rc;
     }
@@ -740,17 +865,27 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_limit(c_orm_select_builder_t *builder,
                                               size_t limit) {
   c_orm_error_t rc;
   char buf[32];
+  size_t cur_len = 0;
 
   LOG_DEBUG("c_orm_select_limit: entry");
   if (!builder) {
     LOG_DEBUG("c_orm_select_limit: invalid args");
     return C_ORM_ERROR_UNKNOWN;
   }
-  C_ORM_SPRINTF(buf, sizeof(buf), " LIMIT " C_ORM_FMT_SIZE_T,
-                C_ORM_CAST_SIZE_T(limit));
+  if (!builder->has_limit && !builder->has_offset) {
+    if (c_orm_string_builder_len(builder->sb, &cur_len) == C_ORM_OK) {
+      builder->base_sql_len = cur_len;
+    }
+  }
+  rc = C_ORM_SPRINTF(buf, sizeof(buf), " LIMIT " C_ORM_FMT_SIZE_T,
+                     C_ORM_CAST_SIZE_T(limit));
+  if (rc != C_ORM_OK)
+    return rc;
   rc = c_orm_string_builder_append(builder->sb, buf);
   if (rc != C_ORM_OK)
     return rc;
+  builder->has_limit = 1;
+  builder->limit_val = limit;
 
   LOG_DEBUG("c_orm_select_limit: exit");
   rc = C_ORM_OK;
@@ -761,17 +896,27 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_offset(c_orm_select_builder_t *builder,
                                                size_t offset) {
   c_orm_error_t rc;
   char buf[32];
+  size_t cur_len = 0;
 
   LOG_DEBUG("c_orm_select_offset: entry");
   if (!builder) {
     LOG_DEBUG("c_orm_select_offset: invalid args");
     return C_ORM_ERROR_UNKNOWN;
   }
-  C_ORM_SPRINTF(buf, sizeof(buf), " OFFSET " C_ORM_FMT_SIZE_T,
-                C_ORM_CAST_SIZE_T(offset));
+  if (!builder->has_limit && !builder->has_offset) {
+    if (c_orm_string_builder_len(builder->sb, &cur_len) == C_ORM_OK) {
+      builder->base_sql_len = cur_len;
+    }
+  }
+  rc = C_ORM_SPRINTF(buf, sizeof(buf), " OFFSET " C_ORM_FMT_SIZE_T,
+                     C_ORM_CAST_SIZE_T(offset));
+  if (rc != C_ORM_OK)
+    return rc;
   rc = c_orm_string_builder_append(builder->sb, buf);
   if (rc != C_ORM_OK)
     return rc;
+  builder->has_offset = 1;
+  builder->offset_val = offset;
 
   LOG_DEBUG("c_orm_select_offset: exit");
   rc = C_ORM_OK;
@@ -781,30 +926,47 @@ C_ORM_EXPORT c_orm_error_t c_orm_select_offset(c_orm_select_builder_t *builder,
 /**
  * @brief Insert builder structure
  * @var meta Table metadata pointer.
- * @var sb Dynamic string builder instance.
+ * @var is_postgres Flag indicating PostgreSQL `$N` placeholder mode.
+ * @var dialect Target SQL dialect enum.
+ * @var is_upsert Non-zero to emit upsert (`MERGE INTO` / `ON CONFLICT`).
  */
 struct c_orm_insert_builder {
   /** @brief Table metadata pointer. */
   const c_orm_table_meta_t *meta;
-  /** @brief Dynamic string builder instance. */
-  c_orm_string_builder_t *sb;
+  /** @brief Flag indicating PostgreSQL `$N` placeholder mode. */
+  int is_postgres;
+  /** @brief Target SQL dialect enum. */
+  c_orm_dialect_t dialect;
+  /** @brief Non-zero to emit upsert (`MERGE INTO` / `ON CONFLICT`). */
+  int is_upsert;
 };
 
 C_ORM_EXPORT c_orm_error_t c_orm_insert_builder_init(
     const c_orm_table_meta_t *meta, c_orm_insert_builder_t **out_builder) {
-  c_orm_error_t rc;
+  c_orm_insert_builder_t *b = NULL;
   LOG_DEBUG("c_orm_insert_builder_init: entry");
-  (void)meta;
-  (void)out_builder;
+  if (!meta || !out_builder) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  if (c_orm_system_malloc(sizeof(c_orm_insert_builder_t), (void **)&b) !=
+      C_ORM_OK) {
+    return C_ORM_ERROR_MEMORY;
+  }
+  b->meta = meta;
+  b->is_postgres = 0;
+  b->dialect = C_ORM_DIALECT_SQLITE;
+  b->is_upsert = 0;
+  *out_builder = b;
   LOG_DEBUG("c_orm_insert_builder_init: exit");
-  rc = C_ORM_ERROR_NOT_IMPLEMENTED;
-  return rc;
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_insert_builder_free(c_orm_insert_builder_t *builder) {
   LOG_DEBUG("c_orm_insert_builder_free: entry");
-  (void)builder;
+  if (builder) {
+    return c_orm_system_free(builder);
+  }
   LOG_DEBUG("c_orm_insert_builder_free: exit");
   return C_ORM_OK;
 }
@@ -812,12 +974,339 @@ c_orm_insert_builder_free(c_orm_insert_builder_t *builder) {
 C_ORM_EXPORT c_orm_error_t
 c_orm_insert_builder_compile(c_orm_insert_builder_t *builder, char **out_sql) {
   c_orm_error_t rc;
+  c_orm_string_builder_t *sb = NULL;
+  const char *sql_str = NULL;
+  size_t i;
+  size_t len;
+  int quote_db2;
+
   LOG_DEBUG("c_orm_insert_builder_compile: entry");
-  (void)builder;
-  (void)out_sql;
+  if (!builder || !builder->meta->name || !out_sql) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  if (builder->meta->num_columns == 0 || !builder->meta->columns) {
+    return C_ORM_ERROR_VALIDATION;
+  }
+
+  rc = c_orm_string_builder_init(&sb);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+
+  quote_db2 = (builder->dialect == C_ORM_DIALECT_DB2 ||
+               builder->dialect == C_ORM_DIALECT_ODBC);
+
+  if (builder->is_upsert && quote_db2) {
+    size_t pk_count = 0;
+    size_t non_pk_count = 0;
+    size_t k = 0;
+
+    for (i = 0; i < builder->meta->num_columns; ++i) {
+      if (builder->meta->columns[i].is_pk) {
+        pk_count++;
+      } else {
+        non_pk_count++;
+      }
+    }
+    if (pk_count == 0) {
+      (void)c_orm_string_builder_free(sb);
+      return C_ORM_ERROR_VALIDATION;
+    }
+
+    if ((rc = c_orm_string_builder_append(sb, "MERGE INTO ")) != C_ORM_OK ||
+        (rc = c_orm_quote_qualified_identifier(sb, builder->meta->name, '"')) !=
+            C_ORM_OK ||
+        (rc = c_orm_string_builder_append(sb, " AS t USING (VALUES (")) !=
+            C_ORM_OK) {
+      (void)c_orm_string_builder_free(sb);
+      return rc;
+    }
+    for (i = 0; i < builder->meta->num_columns; ++i) {
+      if (i > 0 && (rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+        (void)c_orm_string_builder_free(sb);
+        return rc;
+      }
+      rc = c_orm_append_placeholder(sb, 0, i + 1);
+      if (rc != C_ORM_OK) {
+        (void)c_orm_string_builder_free(sb);
+        return rc;
+      }
+    }
+    if ((rc = c_orm_string_builder_append(sb, ")) AS s (")) != C_ORM_OK) {
+      (void)c_orm_string_builder_free(sb);
+      return rc;
+    }
+    for (i = 0; i < builder->meta->num_columns; ++i) {
+      if (i > 0 && (rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+        (void)c_orm_string_builder_free(sb);
+        return rc;
+      }
+      rc = c_orm_quote_identifier(sb, builder->meta->columns[i].name, '"');
+      if (rc != C_ORM_OK) {
+        (void)c_orm_string_builder_free(sb);
+        return rc;
+      }
+    }
+    if ((rc = c_orm_string_builder_append(sb, ") ON (")) != C_ORM_OK) {
+      (void)c_orm_string_builder_free(sb);
+      return rc;
+    }
+    k = 0;
+    for (i = 0; i < builder->meta->num_columns; ++i) {
+      if (builder->meta->columns[i].is_pk) {
+        if (k > 0 &&
+            (rc = c_orm_string_builder_append(sb, " AND ")) != C_ORM_OK) {
+          (void)c_orm_string_builder_free(sb);
+          return rc;
+        }
+        if ((rc = c_orm_string_builder_append(sb, "t.")) != C_ORM_OK ||
+            (rc = c_orm_quote_identifier(sb, builder->meta->columns[i].name,
+                                         '"')) != C_ORM_OK ||
+            (rc = c_orm_string_builder_append(sb, " = s.")) != C_ORM_OK ||
+            (rc = c_orm_quote_identifier(sb, builder->meta->columns[i].name,
+                                         '"')) != C_ORM_OK) {
+          (void)c_orm_string_builder_free(sb);
+          return rc;
+        }
+        k++;
+      }
+    }
+    if ((rc = c_orm_string_builder_append(sb, ")")) != C_ORM_OK) {
+      (void)c_orm_string_builder_free(sb);
+      return rc;
+    }
+    if (non_pk_count > 0) {
+      if ((rc = c_orm_string_builder_append(
+               sb, " WHEN MATCHED THEN UPDATE SET ")) != C_ORM_OK) {
+        (void)c_orm_string_builder_free(sb);
+        return rc;
+      }
+      k = 0;
+      for (i = 0; i < builder->meta->num_columns; ++i) {
+        if (!builder->meta->columns[i].is_pk) {
+          if (k > 0 &&
+              (rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+            (void)c_orm_string_builder_free(sb);
+            return rc;
+          }
+          if ((rc = c_orm_string_builder_append(sb, "t.")) != C_ORM_OK ||
+              (rc = c_orm_quote_identifier(sb, builder->meta->columns[i].name,
+                                           '"')) != C_ORM_OK ||
+              (rc = c_orm_string_builder_append(sb, " = s.")) != C_ORM_OK ||
+              (rc = c_orm_quote_identifier(sb, builder->meta->columns[i].name,
+                                           '"')) != C_ORM_OK) {
+            (void)c_orm_string_builder_free(sb);
+            return rc;
+          }
+          k++;
+        }
+      }
+    }
+    if ((rc = c_orm_string_builder_append(
+             sb, " WHEN NOT MATCHED THEN INSERT (")) != C_ORM_OK) {
+      (void)c_orm_string_builder_free(sb);
+      return rc;
+    }
+    for (i = 0; i < builder->meta->num_columns; ++i) {
+      if (i > 0 && (rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+        (void)c_orm_string_builder_free(sb);
+        return rc;
+      }
+      rc = c_orm_quote_identifier(sb, builder->meta->columns[i].name, '"');
+      if (rc != C_ORM_OK) {
+        (void)c_orm_string_builder_free(sb);
+        return rc;
+      }
+    }
+    if ((rc = c_orm_string_builder_append(sb, ") VALUES (")) != C_ORM_OK) {
+      (void)c_orm_string_builder_free(sb);
+      return rc;
+    }
+    for (i = 0; i < builder->meta->num_columns; ++i) {
+      if (i > 0 && (rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+        (void)c_orm_string_builder_free(sb);
+        return rc;
+      }
+      if ((rc = c_orm_string_builder_append(sb, "s.")) != C_ORM_OK ||
+          (rc = c_orm_quote_identifier(sb, builder->meta->columns[i].name,
+                                       '"')) != C_ORM_OK) {
+        (void)c_orm_string_builder_free(sb);
+        return rc;
+      }
+    }
+    if ((rc = c_orm_string_builder_append(sb, ")")) != C_ORM_OK) {
+      (void)c_orm_string_builder_free(sb);
+      return rc;
+    }
+  } else {
+    if ((rc = c_orm_string_builder_append(sb, "INSERT INTO ")) != C_ORM_OK) {
+      (void)c_orm_string_builder_free(sb);
+      return rc;
+    }
+    rc = quote_db2
+             ? c_orm_quote_qualified_identifier(sb, builder->meta->name, '"')
+             : c_orm_string_builder_append(sb, builder->meta->name);
+    if (rc != C_ORM_OK ||
+        (rc = c_orm_string_builder_append(sb, " (")) != C_ORM_OK) {
+      (void)c_orm_string_builder_free(sb);
+      return rc;
+    }
+
+    for (i = 0; i < builder->meta->num_columns; ++i) {
+      if (i > 0) {
+        rc = c_orm_string_builder_append(sb, ", ");
+        if (rc != C_ORM_OK) {
+          (void)c_orm_string_builder_free(sb);
+          return rc;
+        }
+      }
+      rc =
+          quote_db2
+              ? c_orm_quote_identifier(sb, builder->meta->columns[i].name, '"')
+              : c_orm_string_builder_append(sb, builder->meta->columns[i].name);
+      if (rc != C_ORM_OK) {
+        (void)c_orm_string_builder_free(sb);
+        return rc;
+      }
+    }
+
+    rc = c_orm_string_builder_append(sb, ") VALUES (");
+    if (rc != C_ORM_OK) {
+      (void)c_orm_string_builder_free(sb);
+      return rc;
+    }
+
+    for (i = 0; i < builder->meta->num_columns; ++i) {
+      if (i > 0) {
+        rc = c_orm_string_builder_append(sb, ", ");
+        if (rc != C_ORM_OK) {
+          (void)c_orm_string_builder_free(sb);
+          return rc;
+        }
+      }
+      rc = c_orm_append_placeholder(sb, builder->is_postgres, i + 1);
+      if (rc != C_ORM_OK) {
+        (void)c_orm_string_builder_free(sb);
+        return rc;
+      }
+    }
+
+    rc = c_orm_string_builder_append(sb, ")");
+    if (rc != C_ORM_OK) {
+      (void)c_orm_string_builder_free(sb);
+      return rc;
+    }
+
+    if (builder->is_upsert) {
+      size_t k = 0;
+      if (builder->dialect == C_ORM_DIALECT_MYSQL) {
+        if ((rc = c_orm_string_builder_append(
+                 sb, " ON DUPLICATE KEY UPDATE ")) != C_ORM_OK) {
+          (void)c_orm_string_builder_free(sb);
+          return rc;
+        }
+        for (i = 0; i < builder->meta->num_columns; ++i) {
+          if (!builder->meta->columns[i].is_pk) {
+            if (k > 0 &&
+                (rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+              (void)c_orm_string_builder_free(sb);
+              return rc;
+            }
+            if ((rc = c_orm_string_builder_append(
+                     sb, builder->meta->columns[i].name)) != C_ORM_OK ||
+                (rc = c_orm_string_builder_append(sb, " = VALUES(")) !=
+                    C_ORM_OK ||
+                (rc = c_orm_string_builder_append(
+                     sb, builder->meta->columns[i].name)) != C_ORM_OK ||
+                (rc = c_orm_string_builder_append(sb, ")")) != C_ORM_OK) {
+              (void)c_orm_string_builder_free(sb);
+              return rc;
+            }
+            k++;
+          }
+        }
+      } else {
+        size_t non_pk = 0;
+        if ((rc = c_orm_string_builder_append(sb, " ON CONFLICT (")) !=
+            C_ORM_OK) {
+          (void)c_orm_string_builder_free(sb);
+          return rc;
+        }
+        for (i = 0; i < builder->meta->num_columns; ++i) {
+          if (builder->meta->columns[i].is_pk) {
+            if (k > 0 &&
+                (rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+              (void)c_orm_string_builder_free(sb);
+              return rc;
+            }
+            if ((rc = c_orm_string_builder_append(
+                     sb, builder->meta->columns[i].name)) != C_ORM_OK) {
+              (void)c_orm_string_builder_free(sb);
+              return rc;
+            }
+            k++;
+          } else {
+            non_pk++;
+          }
+        }
+        if (non_pk == 0) {
+          if ((rc = c_orm_string_builder_append(sb, ") DO NOTHING")) !=
+              C_ORM_OK) {
+            (void)c_orm_string_builder_free(sb);
+            return rc;
+          }
+        } else {
+          if ((rc = c_orm_string_builder_append(sb, ") DO UPDATE SET ")) !=
+              C_ORM_OK) {
+            (void)c_orm_string_builder_free(sb);
+            return rc;
+          }
+          k = 0;
+          for (i = 0; i < builder->meta->num_columns; ++i) {
+            if (!builder->meta->columns[i].is_pk) {
+              if (k > 0 &&
+                  (rc = c_orm_string_builder_append(sb, ", ")) != C_ORM_OK) {
+                (void)c_orm_string_builder_free(sb);
+                return rc;
+              }
+              if ((rc = c_orm_string_builder_append(
+                       sb, builder->meta->columns[i].name)) != C_ORM_OK ||
+                  (rc = c_orm_string_builder_append(sb, " = EXCLUDED.")) !=
+                      C_ORM_OK ||
+                  (rc = c_orm_string_builder_append(
+                       sb, builder->meta->columns[i].name)) != C_ORM_OK) {
+                (void)c_orm_string_builder_free(sb);
+                return rc;
+              }
+              k++;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  rc = c_orm_string_builder_get(sb, &sql_str);
+  if (rc != C_ORM_OK) {
+    (void)c_orm_string_builder_free(sb);
+    return rc;
+  }
+
+  len = strlen(sql_str);
+  *out_sql = NULL;
+  if (c_orm_system_malloc(len + 1, (void **)out_sql) != C_ORM_OK) {
+    (void)c_orm_string_builder_free(sb);
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  rc = C_ORM_STRCPY(*out_sql, len + 1, sql_str);
+  (void)c_orm_string_builder_free(sb);
+  if (rc != C_ORM_OK) {
+    (void)c_orm_system_free(*out_sql);
+    *out_sql = NULL;
+    return rc;
+  }
   LOG_DEBUG("c_orm_insert_builder_compile: exit");
-  rc = C_ORM_ERROR_NOT_IMPLEMENTED;
-  return rc;
+  return C_ORM_OK;
 }
 
 /**
@@ -826,6 +1315,9 @@ c_orm_insert_builder_compile(c_orm_insert_builder_t *builder, char **out_sql) {
  * @var sb Dynamic string builder instance.
  * @var has_set Flag indicating whether SET clause was added.
  * @var has_where Flag indicating whether WHERE clause was added.
+ * @var is_postgres Flag indicating PostgreSQL `$N` placeholder mode.
+ * @var param_count Number of positional parameters emitted so far.
+ * @var dialect Target SQL dialect enum.
  */
 struct c_orm_update_builder {
   /** @brief Table metadata pointer. */
@@ -836,6 +1328,12 @@ struct c_orm_update_builder {
   int has_set;
   /** @brief Flag indicating whether WHERE clause was added. */
   int has_where;
+  /** @brief Flag indicating PostgreSQL `$N` placeholder mode. */
+  int is_postgres;
+  /** @brief Number of positional parameters emitted so far. */
+  size_t param_count;
+  /** @brief Target SQL dialect enum. */
+  c_orm_dialect_t dialect;
 };
 
 C_ORM_EXPORT c_orm_error_t c_orm_update_builder_init(
@@ -849,8 +1347,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_builder_init(
     return C_ORM_ERROR_UNKNOWN;
   }
 
-  b = (c_orm_update_builder_t *)C_ORM_MALLOC(sizeof(c_orm_update_builder_t));
-  if (!b) {
+  b = NULL;
+  if (c_orm_system_malloc(sizeof(c_orm_update_builder_t), (void **)&b) !=
+      C_ORM_OK) {
     LOG_DEBUG("c_orm_update_builder_init: OOM");
     return C_ORM_ERROR_UNKNOWN;
   }
@@ -858,30 +1357,33 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_builder_init(
   rc = c_orm_string_builder_init(&b->sb);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_update_builder_init: string builder init failed");
-    C_ORM_FREE(b);
+    (void)c_orm_system_free(b);
     return rc;
   }
 
   b->meta = meta;
   b->has_set = 0;
   b->has_where = 0;
+  b->is_postgres = 0;
+  b->param_count = 0;
+  b->dialect = C_ORM_DIALECT_SQLITE;
 
   rc = c_orm_string_builder_append(b->sb, "UPDATE ");
   if (rc != C_ORM_OK) {
-    c_orm_string_builder_free(b->sb);
-    C_ORM_FREE(b);
+    (void)c_orm_string_builder_free(b->sb);
+    (void)c_orm_system_free(b);
     return rc;
   }
   rc = c_orm_string_builder_append(b->sb, meta->name);
   if (rc != C_ORM_OK) {
-    c_orm_string_builder_free(b->sb);
-    C_ORM_FREE(b);
+    (void)c_orm_string_builder_free(b->sb);
+    (void)c_orm_system_free(b);
     return rc;
   }
   rc = c_orm_string_builder_append(b->sb, " SET ");
   if (rc != C_ORM_OK) {
-    c_orm_string_builder_free(b->sb);
-    C_ORM_FREE(b);
+    (void)c_orm_string_builder_free(b->sb);
+    (void)c_orm_system_free(b);
     return rc;
   }
 
@@ -894,13 +1396,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_builder_init(
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_update_builder_free(c_orm_update_builder_t *builder) {
+  c_orm_error_t rc = C_ORM_OK;
+  c_orm_error_t frc;
   LOG_DEBUG("c_orm_update_builder_free: entry");
   if (builder) {
-    c_orm_string_builder_free(builder->sb);
-    C_ORM_FREE(builder);
+    rc = c_orm_string_builder_free(builder->sb);
+    frc = c_orm_system_free(builder);
+    if (frc != C_ORM_OK && rc == C_ORM_OK) {
+      rc = frc;
+    }
   }
   LOG_DEBUG("c_orm_update_builder_free: exit");
-  return C_ORM_OK;
+  return rc;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_update_set(c_orm_update_builder_t *builder,
@@ -925,7 +1432,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_set(c_orm_update_builder_t *builder,
   rc = c_orm_string_builder_append(builder->sb, column);
   if (rc != C_ORM_OK)
     return rc;
-  rc = c_orm_string_builder_append(builder->sb, " = ?");
+  rc = c_orm_string_builder_append(builder->sb, " = ");
+  if (rc != C_ORM_OK)
+    return rc;
+  builder->param_count++;
+  rc = c_orm_append_placeholder(builder->sb, builder->is_postgres,
+                                builder->param_count);
   if (rc != C_ORM_OK)
     return rc;
   builder->has_set = 1;
@@ -957,7 +1469,12 @@ c_orm_update_where_eq(c_orm_update_builder_t *builder, const char *column) {
   rc = c_orm_string_builder_append(builder->sb, column);
   if (rc != C_ORM_OK)
     return rc;
-  rc = c_orm_string_builder_append(builder->sb, " = ?");
+  rc = c_orm_string_builder_append(builder->sb, " = ");
+  if (rc != C_ORM_OK)
+    return rc;
+  builder->param_count++;
+  rc = c_orm_append_placeholder(builder->sb, builder->is_postgres,
+                                builder->param_count);
   if (rc != C_ORM_OK)
     return rc;
 
@@ -983,9 +1500,14 @@ c_orm_update_builder_compile(c_orm_update_builder_t *builder, char **out_sql) {
   }
   {
     size_t len = strlen(sql_str);
-    *out_sql = (char *)C_ORM_MALLOC(len + 1);
-    if (*out_sql) {
-      C_ORM_STRCPY(*out_sql, len + 1, sql_str);
+    *out_sql = NULL;
+    if (c_orm_system_malloc(len + 1, (void **)out_sql) == C_ORM_OK) {
+      rc = C_ORM_STRCPY(*out_sql, len + 1, sql_str);
+      if (rc != C_ORM_OK) {
+        (void)c_orm_system_free(*out_sql);
+        *out_sql = NULL;
+        return rc;
+      }
     } else {
       LOG_DEBUG("c_orm_update_builder_compile: OOM");
     }
@@ -994,4 +1516,76 @@ c_orm_update_builder_compile(c_orm_update_builder_t *builder, char **out_sql) {
   LOG_DEBUG("c_orm_update_builder_compile: exit");
   rc = *out_sql ? C_ORM_OK : C_ORM_ERROR_UNKNOWN;
   return rc;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_select_builder_set_dialect(
+    c_orm_select_builder_t *builder, int is_postgres) {
+  if (!builder) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  builder->is_postgres = is_postgres ? 1 : 0;
+  builder->dialect =
+      is_postgres ? C_ORM_DIALECT_POSTGRES : C_ORM_DIALECT_SQLITE;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_insert_builder_set_dialect(
+    c_orm_insert_builder_t *builder, int is_postgres) {
+  if (!builder) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  builder->is_postgres = is_postgres ? 1 : 0;
+  builder->dialect =
+      is_postgres ? C_ORM_DIALECT_POSTGRES : C_ORM_DIALECT_SQLITE;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_update_builder_set_dialect(
+    c_orm_update_builder_t *builder, int is_postgres) {
+  if (!builder) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  builder->is_postgres = is_postgres ? 1 : 0;
+  builder->dialect =
+      is_postgres ? C_ORM_DIALECT_POSTGRES : C_ORM_DIALECT_SQLITE;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_select_builder_set_dialect_kind(
+    c_orm_select_builder_t *builder, c_orm_dialect_t dialect) {
+  if (!builder) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  builder->dialect = dialect;
+  builder->is_postgres = (dialect == C_ORM_DIALECT_POSTGRES) ? 1 : 0;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_insert_builder_set_dialect_kind(
+    c_orm_insert_builder_t *builder, c_orm_dialect_t dialect) {
+  if (!builder) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  builder->dialect = dialect;
+  builder->is_postgres = (dialect == C_ORM_DIALECT_POSTGRES) ? 1 : 0;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_update_builder_set_dialect_kind(
+    c_orm_update_builder_t *builder, c_orm_dialect_t dialect) {
+  if (!builder) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  builder->dialect = dialect;
+  builder->is_postgres = (dialect == C_ORM_DIALECT_POSTGRES) ? 1 : 0;
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_insert_builder_set_upsert(
+    c_orm_insert_builder_t *builder, int is_upsert) {
+  if (!builder) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  builder->is_upsert = is_upsert ? 1 : 0;
+  return C_ORM_OK;
 }

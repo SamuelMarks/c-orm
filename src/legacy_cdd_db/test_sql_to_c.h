@@ -1,208 +1,21 @@
 /**
  * @file test_sql_to_c.h
- * @brief Tests for SQL to C struct emission.
+ * @brief Forwarding header to canonical `tests/test_sql_to_c.h`.
  */
 
-#ifndef C_CDD_TEST_SQL_TO_C_H
-#define C_CDD_TEST_SQL_TO_C_H
+#ifndef LEGACY_CDD_DB_TEST_SQL_TO_C_H
+#define LEGACY_CDD_DB_TEST_SQL_TO_C_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include "c_orm_safe_crt.h"
-#include "c_orm_sql_to_c.h"
-#include <errno.h>
-#define GREATEST_USE_LONGJMP 0
-#include <greatest.h>
-#include <string.h>
-
+#include "../../tests/test_sql_to_c.h"
 /* clang-format on */
-
-/**
- * @brief Test emitting C header models from SQL schema.
- * @return GREATEST test result.
- */
-TEST test_sql_to_c_header_emit(void) {
-  const char *sql =
-      "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
-      "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true);";
-  az_span span = az_span_create_from_str(sql);
-  struct sql_token_list_t *list = NULL;
-  struct sql_table_t *table = NULL;
-  struct sql_parse_error_t err_info;
-  char buf[4096];
-  FILE *fp;
-  c_orm_error_t err;
-
-  err = sql_lex(span, &list);
-  ASSERT_EQ(0, err);
-
-  err = sql_parse_table(list, &table, &err_info);
-  ASSERT_EQ(0, err);
-
-  C_ORM_TMPFILE(&fp);
-  ASSERT(fp != NULL);
-
-  err = sql_to_c_header_emit(fp, table);
-  ASSERT_EQ(0, err);
-
-  rewind(fp);
-  memset(buf, 0, sizeof(buf));
-  fread(buf, 1, sizeof(buf) - 1, fp);
-  fclose(fp);
-
-  ASSERT(strstr(buf, "#ifndef C_ORM_MODEL_USERS_H") != NULL);
-  ASSERT(strstr(buf, "struct Users {") != NULL);
-  ASSERT(strstr(buf, "int32_t id;") != NULL);
-  ASSERT(strstr(buf, "char * name;") != NULL);
-  ASSERT(strstr(buf, "int64_t *role_id; /**< Nullable */") != NULL);
-  ASSERT(strstr(buf, "bool *is_active; /**< Nullable */") != NULL);
-  ASSERT(strstr(buf, "struct Users_Array {") != NULL);
-
-  sql_table_C_ORM_FREE(table);
-  sql_token_list_free(list);
-  PASS();
-}
-
-/**
- * @brief Test emitting C source code implementing model life-cycle methods.
- * @return GREATEST test result.
- */
-TEST test_sql_to_c_source_emit(void) {
-  const char *sql =
-      "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, "
-      "role_id BIGINT REFERENCES roles(id), is_active BOOLEAN DEFAULT true);";
-  az_span span = az_span_create_from_str(sql);
-  struct sql_token_list_t *list = NULL;
-  struct sql_table_t *table = NULL;
-  struct sql_parse_error_t err_info;
-  char buf[4096];
-  FILE *fp;
-  c_orm_error_t err;
-
-  err = sql_lex(span, &list);
-  ASSERT_EQ(0, err);
-
-  err = sql_parse_table(list, &table, &err_info);
-  ASSERT_EQ(0, err);
-
-  C_ORM_TMPFILE(&fp);
-  ASSERT(fp != NULL);
-
-  err = sql_to_c_source_emit(fp, table, "users.h");
-  ASSERT_EQ(0, err);
-
-  rewind(fp);
-  memset(buf, 0, sizeof(buf));
-  fread(buf, 1, sizeof(buf) - 1, fp);
-  fclose(fp);
-
-  ASSERT(strstr(buf, "c_orm_error_t Users_Array_init(") != NULL);
-  ASSERT(strstr(buf, "c_orm_error_t Users_free(") != NULL);
-  ASSERT(strstr(buf, "c_orm_error_t Users_Array_free(") != NULL);
-  ASSERT(strstr(buf, "c_orm_error_t Users_deepcopy(") != NULL);
-  ASSERT(strstr(buf, "c_orm_error_t Users_Array_deepcopy(") != NULL);
-
-  sql_table_C_ORM_FREE(table);
-  sql_token_list_free(list);
-  PASS();
-}
-
-/**
- * @brief Test SQL to C error branches with null arguments.
- * @return GREATEST test result.
- */
-TEST test_sql_to_c_errors(void) {
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit(NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_source_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_struct_emit(NULL, NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_free_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_meta_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_hydrate_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_dehydrate_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_nested_struct_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_nested_array_emit(NULL, NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_dirty_bitmask_emit(NULL, NULL, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_union_struct_emit(NULL, NULL, 0, NULL));
-  ASSERT_EQ(C_ORM_ERROR_MEMORY,
-            sql_to_c_projection_polymorphic_struct_emit(NULL, NULL, NULL));
-  PASS();
-}
-
-/**
- * @brief Test emitting projection structs, helpers, and serialization methods.
- * @return GREATEST test result.
- */
-TEST test_sql_to_c_projections(void) {
-  FILE *fp;
-  cdd_c_query_projection_t proj;
-  c_orm_uint64_t out_hash;
-
-  C_ORM_TMPFILE(&fp);
-  ASSERT(fp != NULL);
-  memset(&proj, 0, sizeof(proj));
-
-  proj.n_fields = 2;
-  proj.fields = calloc(2, sizeof(*proj.fields));
-  proj.fields[0].name = "id";
-  proj.fields[0].type = SQL_TYPE_INT;
-  proj.fields[0].is_array = 0;
-
-  proj.fields[1].name = "tags";
-  proj.fields[1].type = SQL_TYPE_VARCHAR;
-  proj.fields[1].is_array = 1;
-
-  ASSERT_EQ(0,
-            sql_to_c_projection_struct_emit(fp, &proj, "ProjTest", &out_hash));
-  ASSERT_EQ(0, sql_to_c_projection_free_emit(fp, &proj, "ProjTest"));
-  ASSERT_EQ(0, sql_to_c_projection_meta_emit(fp, &proj, "ProjTest"));
-  ASSERT_EQ(0, sql_to_c_projection_hydrate_emit(fp, &proj, "ProjTest"));
-  ASSERT_EQ(0, sql_to_c_projection_dehydrate_emit(fp, &proj, "ProjTest"));
-  ASSERT_EQ(0, sql_to_c_projection_nested_struct_emit(fp, &proj, "ProjTest"));
-  ASSERT_EQ(0, sql_to_c_projection_nested_array_emit(fp, &proj, "ProjTest",
-                                                     "ProjTestArray"));
-  ASSERT_EQ(0, sql_to_c_projection_dirty_bitmask_emit(fp, &proj, "ProjTest"));
-  ASSERT_EQ(0, sql_to_c_projection_union_struct_emit(fp, &proj, 1, "ProjTest"));
-  ASSERT_EQ(0,
-            sql_to_c_projection_polymorphic_struct_emit(fp, &proj, "ProjTest"));
-
-  free(proj.fields);
-  fclose(fp);
-  PASS();
-}
-
-/**
- * @brief Test suite runner for SQL to C code generation.
- * @param sql_to_c_suite Suite runner function name.
- */
-SUITE(sql_to_c_suite) {
-  static int recursed = 0;
-  RUN_TEST(test_sql_to_c_header_emit);
-  RUN_TEST(test_sql_to_c_source_emit);
-  RUN_TEST(test_sql_to_c_errors);
-  RUN_TEST(test_sql_to_c_projections);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    sql_to_c_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
-}
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
-#endif /* C_CDD_TEST_SQL_TO_C_H */
+#endif /* LEGACY_CDD_DB_TEST_SQL_TO_C_H */

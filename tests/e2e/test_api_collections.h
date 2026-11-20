@@ -24,27 +24,51 @@ extern "C" {
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -58,7 +82,13 @@ extern "C" {
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do {                                                                       \
+      enum greatest_test_res _rc = (res);                                      \
+      greatest_info.assertions++;                                              \
+      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
+        return _rc;                                                            \
+      }                                                                        \
+    } while ((void)0, 0);                                                      \
   } while ((void)0, 0)
 
 /**
@@ -201,9 +231,9 @@ TEST test_api_identity_map_and_generic_deep(void) {
   c_orm_db_t gdb;
   int32_t val1;
   int32_t val2;
-  void *(*orig_m)(size_t);
-  void *(*orig_r)(void *, size_t);
-  void (*orig_f)(void *);
+  c_orm_malloc_fn_t orig_m;
+  c_orm_realloc_fn_t orig_r;
+  c_orm_free_fn_t orig_f;
   c_orm_error_t rc;
 
   out_ptr = NULL;
@@ -314,9 +344,9 @@ TEST test_api_generic_and_scatter_gather_deep(void) {
   c_orm_db_t fail_db;
   void *out_arr;
   size_t out_cnt;
-  void *(*orig_m)(size_t);
-  void *(*orig_r)(void *, size_t);
-  void (*orig_f)(void *);
+  c_orm_malloc_fn_t orig_m;
+  c_orm_realloc_fn_t orig_r;
+  c_orm_free_fn_t orig_f;
   c_orm_error_t rc;
 
   sm = NULL;

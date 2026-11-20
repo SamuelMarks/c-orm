@@ -29,7 +29,8 @@ typedef enum CddCVariantType {
   CDD_C_VARIANT_TYPE_INT,
   CDD_C_VARIANT_TYPE_FLOAT,
   CDD_C_VARIANT_TYPE_STRING,
-  CDD_C_VARIANT_TYPE_BLOB
+  CDD_C_VARIANT_TYPE_BLOB,
+  CDD_C_VARIANT_TYPE_DECIMAL
 } CddCVariantType;
 
 /**
@@ -45,6 +46,7 @@ typedef struct CddCVariant {
    * @var i_val Integer variant value.
    * @var f_val Float variant value.
    * @var s_val String variant value.
+   * @var d_val Exact fixed-point decimal variant value.
    * @var b_val Blob variant value.
    */
   union {
@@ -54,6 +56,8 @@ typedef struct CddCVariant {
     double f_val;
     /** @brief String value. */
     char *s_val;
+    /** @brief Exact fixed-point decimal value. */
+    c_orm_decimal_t d_val;
     /**
      * @brief Blob data buffer and length.
      * @var data Raw blob bytes.
@@ -292,6 +296,29 @@ typedef struct CddCColumnMeta {
 } cdd_c_column_meta_t;
 
 /**
+ * @brief Converts `c_orm_table_meta_t` column definitions into an allocated
+ * `cdd_c_column_meta_t` array suitable for `cdd_c_abstract_hydrate`.
+ *
+ * @param table_meta Source table metadata.
+ * @param out_cols Output pointer receiving allocated `cdd_c_column_meta_t`
+ * array (free with `c_orm_free_column_meta`).
+ * @param out_n_cols Output pointer receiving column count.
+ * @return C_ORM_OK on success, or error code on invalid arguments or OOM.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_table_meta_to_column_meta(
+    const c_orm_table_meta_t *table_meta, cdd_c_column_meta_t **out_cols,
+    size_t *out_n_cols);
+
+/**
+ * @brief Frees a `cdd_c_column_meta_t` array allocated by
+ * `c_orm_table_meta_to_column_meta`.
+ *
+ * @param cols Column metadata array to free (safe on NULL).
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_free_column_meta(cdd_c_column_meta_t *cols);
+
+/**
  * @brief Provides a generic dynamic builder to hydrate abstract structs from
  * raw generic driver row queries.
  *
@@ -408,9 +435,10 @@ C_ORM_EXPORT c_orm_error_t cdd_c_meta_offsetof(const struct cdd_c_meta *meta,
  * @brief CDD_C_OFFSETOF macro
  * @param c_orm_meta meta
  * @param field field
+ * @param out_offset Pointer to size_t receiving the field offset
  */
-#define CDD_C_OFFSETOF(c_orm_meta, field)                                      \
-  cdd_c_meta_offsetof((c_orm_meta), (field))
+#define CDD_C_OFFSETOF(c_orm_meta, field, out_offset)                          \
+  cdd_c_meta_offsetof((c_orm_meta), (field), (out_offset))
 
 /**
  * @brief Converts a hydrated specific C struct back into a dynamic abstract
@@ -439,6 +467,33 @@ C_ORM_EXPORT c_orm_error_t cdd_c_specific_to_abstract(
 C_ORM_EXPORT c_orm_error_t cdd_c_abstract_to_specific(
     void *out_struct, const cdd_c_abstract_struct_t *in_astruct,
     const struct cdd_c_meta *struct_meta, int strict_mapping);
+
+/**
+ * @brief Inspects a live IBM Db2 table schema via `SYSCAT.COLUMNS` (LUW),
+ * falling back automatically to `SYSIBM.SYSCOLUMNS` (Db2 for z/OS) or ODBC
+ * `SQLColumns`.
+ *
+ * @param db Active Db2 `c_orm_db_t` connection.
+ * @param table_name Target table name to inspect.
+ * @param out_schema Output abstract struct array receiving column descriptors.
+ * @return C_ORM_OK on success, or error code on failure.
+ */
+C_ORM_EXPORT c_orm_error_t
+cdd_c_inspect_schema_db2(c_orm_db_t *db, const char *table_name,
+                         cdd_c_abstract_struct_array_t *out_schema);
+
+/**
+ * @brief Inspects a live Generic ODBC table schema via the `SQLColumns` catalog
+ * API.
+ *
+ * @param db Active ODBC `c_orm_db_t` connection.
+ * @param table_name Target table name to inspect.
+ * @param out_schema Output abstract struct array receiving column descriptors.
+ * @return C_ORM_OK on success, or error code on failure.
+ */
+C_ORM_EXPORT c_orm_error_t
+cdd_c_inspect_schema_odbc(c_orm_db_t *db, const char *table_name,
+                          cdd_c_abstract_struct_array_t *out_schema);
 
 #ifdef __cplusplus
 }

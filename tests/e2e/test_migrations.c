@@ -12,28 +12,40 @@ extern "C" {
 #include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_migrations.h"
+#include "c_orm_odbc.h"
+#include "c_orm_odbc_abi.h"
 #include "c_orm_sqlite.h"
 #include "c_orm_sql_to_c.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
 
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+#define ASSERT(cond) do { greatest_info.assertions++; if (!((cond) != 0)) { fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions++; if (strcmp((exp), (got)) != 0) { fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__, (exp), (got)); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions++; if (!((exp) != (got))) { fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST) do { int should = 0; enum greatest_test_res res; greatest_test_pre(#TEST, &should); res = TEST(); greatest_test_post(res); } while((void)0, 0)
 #undef CHECK_CALL
-#define CHECK_CALL(res) do { greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS); } while ((void)0, 0)
+#define CHECK_CALL(res) do { do { enum greatest_test_res _rc = (res); greatest_info.assertions++; if (_rc != GREATEST_TEST_RES_PASS) { return _rc; } } while ((void)0, 0); } while ((void)0, 0)
 
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32) || defined(_MSC_VER)
+#include <direct.h>
+#define MIG_MKDIR(p) _mkdir(p)
+#define MIG_RMDIR(p) _rmdir(p)
+#else
+#include <sys/stat.h>
+#include <unistd.h>
+#define MIG_MKDIR(p) mkdir(p, 0777)
+#define MIG_RMDIR(p) rmdir(p)
+#endif
 /* clang-format on */
 
 /**
@@ -110,43 +122,59 @@ static int oom_countdown = -1;
 static int oom_active = 0;
 
 /**
- * @brief Mock malloc callback returning NULL on countdown expiration.
+ * @brief Mock malloc callback returning error on countdown expiration.
  * @param size Allocation size in bytes.
- * @return Allocated block or NULL on OOM.
+ * @param out_ptr Output pointer receiving allocated block.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on OOM.
  */
-static void *m_mock_malloc(size_t size) {
+static c_orm_error_t m_mock_malloc(size_t size, void **out_ptr) {
   if (oom_active) {
     if (oom_countdown == 0) {
       oom_countdown--;
-      return NULL;
+      if (out_ptr) {
+        *out_ptr = NULL;
+      }
+      return C_ORM_ERROR_MEMORY;
     }
     oom_countdown--;
   }
-  return malloc(size);
+  *out_ptr = malloc(size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /**
- * @brief Mock realloc callback returning NULL on countdown expiration.
+ * @brief Mock realloc callback returning error on countdown expiration.
  * @param ptr Existing pointer.
  * @param size New allocation size in bytes.
- * @return Reallocated block or NULL on OOM.
+ * @param out_ptr Output pointer receiving reallocated block.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on OOM.
  */
-static void *m_mock_realloc(void *ptr, size_t size) {
+static c_orm_error_t m_mock_realloc(void *ptr, size_t size, void **out_ptr) {
   if (oom_active) {
     if (oom_countdown == 0) {
       oom_countdown--;
-      return NULL;
+      if (out_ptr) {
+        *out_ptr = NULL;
+      }
+      return C_ORM_ERROR_MEMORY;
     }
     oom_countdown--;
   }
-  return realloc(ptr, size);
+  *out_ptr = realloc(ptr, size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
+
+static int fail_free_active = 0;
 
 /**
  * @brief Mock free wrapper.
  * @param ptr Pointer to memory to free.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY when fail_free_active.
  */
-static void m_mock_free(void *ptr) { free(ptr); }
+static c_orm_error_t m_mock_free(void *ptr) {
+  free(ptr);
+  return fail_free_active ? C_ORM_ERROR_MEMORY : C_ORM_OK;
+}
 
 /** @brief Flag simulating table initialization failure. */
 static int fail_init = 0;
@@ -208,6 +236,11 @@ static c_orm_error_t (*orig_step)(c_orm_query_t *, int *);
 static c_orm_error_t (*orig_get_string)(c_orm_query_t *, int, const char **);
 /** @brief Saved original finalize function pointer. */
 static c_orm_error_t (*orig_finalize)(c_orm_query_t *);
+/** @brief Injects INSERT/DELETE finalize errors (1=step ok+fin err, 2=both
+ * err). */
+static int g_fail_ins_del_fin = 0;
+/** @brief Tracks active INSERT/DELETE migration bookkeeping statement. */
+static int g_in_ins_del_stmt = 0;
 
 /**
  * @brief Custom prepare callback injecting SQL failure simulations.
@@ -289,6 +322,11 @@ static c_orm_error_t my_mig_prep(c_orm_db_t *db_v, const char *sql,
   if (fail_release_rb && strstr(sql, "RELEASE SAVEPOINT c_orm_mig_step_rb")) {
     return C_ORM_ERROR_SQL;
   }
+  if (g_fail_ins_del_fin &&
+      (strstr(sql, "INSERT INTO _c_orm_migrations") != NULL ||
+       strstr(sql, "DELETE FROM _c_orm_migrations") != NULL)) {
+    g_in_ins_del_stmt = 1;
+  }
 
   return orig_prep(db_v, sql, out_query);
 }
@@ -303,6 +341,9 @@ static c_orm_error_t my_mig_step(c_orm_query_t *query, int *out_has_row) {
   if (query == (c_orm_query_t *)0x1234) {
     *out_has_row = 0;
     return C_ORM_OK;
+  }
+  if (g_in_ins_del_stmt && g_fail_ins_del_fin == 2) {
+    return C_ORM_ERROR_STEP;
   }
   if (fail_step) {
     return C_ORM_ERROR_SQL;
@@ -339,6 +380,11 @@ static c_orm_error_t my_mig_get_string(c_orm_query_t *query, int index,
 static c_orm_error_t my_mig_finalize(c_orm_query_t *query) {
   if (query == (c_orm_query_t *)0x1234) {
     return C_ORM_OK;
+  }
+  if (g_in_ins_del_stmt) {
+    g_in_ins_del_stmt = 0;
+    orig_finalize(query);
+    return C_ORM_ERROR_SQL;
   }
   if (fail_finalize) {
     return C_ORM_ERROR_SQL;
@@ -537,36 +583,78 @@ TEST test_migration_load_and_free_branches(void) {
   err = c_orm_migration_load_dir("path", &migs, NULL);
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, err);
 
+  /* Create real empty and populated migration directories on disk */
+  {
+    FILE *fp = NULL;
+    remove("test_migs_real_dir/001_first.up.sql");
+    remove("test_migs_real_dir/001_first.down.sql");
+    remove("test_migs_real_dir/002_second.sql");
+    remove("test_migs_real_dir/README.txt");
+#ifdef _WIN32
+    (void)system("mkdir test_migs_empty_dir 2>nul");
+    (void)system("mkdir test_migs_real_dir 2>nul");
+#else
+    (void)system("mkdir -p test_migs_empty_dir 2>/dev/null");
+    (void)system("mkdir -p test_migs_real_dir 2>/dev/null");
+#endif
+    C_ORM_FOPEN(&fp, "test_migs_real_dir/002_second.sql", "wb");
+    if (fp) {
+      fprintf(fp, "-- UP\nCREATE TABLE t2(id int);\n-- DOWN\nDROP TABLE t2;\n");
+      fclose(fp);
+    }
+    C_ORM_FOPEN(&fp, "test_migs_real_dir/001_first.up.sql", "wb");
+    if (fp) {
+      fprintf(fp, "CREATE TABLE t1(id int);\n");
+      fclose(fp);
+    }
+    C_ORM_FOPEN(&fp, "test_migs_real_dir/001_first.down.sql", "wb");
+    if (fp) {
+      fprintf(fp, "DROP TABLE t1;\n");
+      fclose(fp);
+    }
+    C_ORM_FOPEN(&fp, "test_migs_real_dir/README.txt", "wb");
+    if (fp) {
+      fprintf(fp, "ignored non-sql file\n");
+      fclose(fp);
+    }
+  }
+
   /* Load empty migrations */
-  err = c_orm_migration_load_dir("empty_migrations_cli", &migs, &count);
+  err = c_orm_migration_load_dir("test_migs_empty_dir", &migs, &count);
   ASSERT_EQ(C_ORM_OK, err);
   ASSERT_EQ(0, count);
   ASSERT_EQ(NULL, migs);
 
-  /* Load real migrations stub */
-  err = c_orm_migration_load_dir("real_migrations_cli", &migs, &count);
+  /* Load real migrations from disk and verify lexicographical sorting */
+  err = c_orm_migration_load_dir("test_migs_real_dir", &migs, &count);
   ASSERT_EQ(C_ORM_OK, err);
-  ASSERT_EQ(1, count);
+  ASSERT_EQ(2, count);
   ASSERT(migs != NULL);
+  ASSERT_STR_EQ("001", migs[0].version);
+  ASSERT_STR_EQ("first", migs[0].name);
+  ASSERT_STR_EQ("002", migs[1].version);
+  ASSERT_STR_EQ("second", migs[1].name);
   c_orm_migration_free_array(migs, count);
   migs = NULL;
 
   /* Load unknown directory */
   err = c_orm_migration_load_dir("unknown_directory_path", &migs, &count);
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  ASSERT_EQ(C_ORM_ERROR_NOT_FOUND, err);
 
   /* Free array branches */
   c_orm_migration_free_array(NULL, 0);
-  migs = (c_orm_migration_t *)malloc(sizeof(c_orm_migration_t));
-  memset(migs, 0, sizeof(c_orm_migration_t));
+  migs = NULL;
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_system_calloc(1, sizeof(c_orm_migration_t), (void **)&migs));
   /* No up_sql and no down_sql */
   c_orm_migration_free_array(migs, 1);
 
   /* Free table schema branches */
   c_orm_migration_free_table_schema(NULL);
 
-  schema = (cdd_c_meta_t *)malloc(sizeof(cdd_c_meta_t));
-  memset(schema, 0, sizeof(cdd_c_meta_t));
+  schema = NULL;
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_system_calloc(1, sizeof(cdd_c_meta_t), (void **)&schema));
   c_orm_migration_free_table_schema(schema);
 
   schema = (cdd_c_meta_t *)malloc(sizeof(cdd_c_meta_t));
@@ -1103,17 +1191,29 @@ TEST test_migrate_up_down_branches(void) {
 
   /* Load dir failure */
   err = c_orm_migrate_up(db, "unknown_dir", NULL);
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  ASSERT_EQ(C_ORM_ERROR_NOT_FOUND, err);
 
   err = c_orm_migrate_down(db, "unknown_dir", 1, NULL);
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  ASSERT_EQ(C_ORM_ERROR_NOT_FOUND, err);
 
-  /* Success with real_migrations_cli */
-  err = c_orm_migrate_up(db, "real_migrations_cli", NULL);
+  /* Success with test_migs_real_dir */
+  err = c_orm_migrate_up(db, "test_migs_real_dir", NULL);
   ASSERT_EQ(C_ORM_OK, err);
 
-  err = c_orm_migrate_down(db, "real_migrations_cli", 1, NULL);
+  err = c_orm_migrate_down(db, "test_migs_real_dir", 2, NULL);
   ASSERT_EQ(C_ORM_OK, err);
+
+  remove("test_migs_real_dir/001_first.up.sql");
+  remove("test_migs_real_dir/001_first.down.sql");
+  remove("test_migs_real_dir/002_second.sql");
+  remove("test_migs_real_dir/README.txt");
+#ifdef _WIN32
+  (void)system("rmdir test_migs_empty_dir 2>nul");
+  (void)system("rmdir test_migs_real_dir 2>nul");
+#else
+  (void)system("rmdir test_migs_empty_dir 2>/dev/null");
+  (void)system("rmdir test_migs_real_dir 2>/dev/null");
+#endif
 
   db->vtable->disconnect(db);
   PASS();
@@ -1442,15 +1542,1015 @@ TEST test_get_applied_failure_branches(void) {
   PASS();
 }
 
+static int g_mig_cat_mode = 0;
+static int g_mig_cat_row = 0;
+static int g_mig_cat_total = 2;
+static int g_mig_fail_op = 0;
+static int g_mig_dummy = 1;
+
+/**
+ * @brief Mock SQLAllocHandle for migration ODBC/Db2 tests.
+ * @param t Handle type.
+ * @param i Input parent handle.
+ * @param o Output handle pointer.
+ * @return C_ORM_SQL_SUCCESS.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_AllocHandle(
+    c_orm_sqlsmallint_t t, c_orm_sqlhandle_t i, c_orm_sqlhandle_t *o) {
+  (void)t;
+  (void)i;
+  *o = &g_mig_dummy;
+  return C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock SQLFreeHandle for migration ODBC/Db2 tests.
+ * @param t Handle type.
+ * @param h Handle to free.
+ * @return C_ORM_SQL_SUCCESS.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_FreeHandle(c_orm_sqlsmallint_t t,
+                                                          c_orm_sqlhandle_t h) {
+  (void)t;
+  (void)h;
+  return C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock SQLSetEnvAttr for migration ODBC/Db2 tests.
+ * @param h Environment handle.
+ * @param a Attribute ID.
+ * @param v Attribute value.
+ * @param l Attribute length.
+ * @return C_ORM_SQL_SUCCESS.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API
+MigOdbc_SetEnvAttr(c_orm_sqlhenv_t h, c_orm_sqlinteger_t a,
+                   c_orm_sqlpointer_t v, c_orm_sqlinteger_t l) {
+  (void)h;
+  (void)a;
+  (void)v;
+  (void)l;
+  return C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock SQLSetConnectAttr for migration ODBC/Db2 tests.
+ * @param h Connection handle.
+ * @param a Attribute ID.
+ * @param v Attribute value.
+ * @param l Attribute length.
+ * @return C_ORM_SQL_SUCCESS or C_ORM_SQL_ERROR.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API
+MigOdbc_SetConnectAttr(c_orm_sqlhdbc_t h, c_orm_sqlinteger_t a,
+                       c_orm_sqlpointer_t v, c_orm_sqlinteger_t l) {
+  (void)h;
+  (void)a;
+  (void)v;
+  (void)l;
+  return g_mig_fail_op == 10 ? C_ORM_SQL_ERROR : C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock SQLDriverConnect for migration ODBC/Db2 tests.
+ * @param h Connection handle.
+ * @param w Window handle.
+ * @param in Input connection string.
+ * @param l1 Input length.
+ * @param out Output buffer.
+ * @param cap Output capacity.
+ * @param l2 Output length pointer.
+ * @param d Driver completion mode.
+ * @return C_ORM_SQL_SUCCESS.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_DriverConnect(
+    c_orm_sqlhdbc_t h, c_orm_sqlhwnd_t w, c_orm_sqlchar_t *in,
+    c_orm_sqlsmallint_t l1, c_orm_sqlchar_t *out, c_orm_sqlsmallint_t cap,
+    c_orm_sqlsmallint_t *l2, c_orm_sqlusmallint_t d) {
+  (void)h;
+  (void)w;
+  (void)in;
+  (void)l1;
+  (void)out;
+  (void)cap;
+  (void)d;
+  if (l2) {
+    *l2 = 0;
+  }
+  return C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock SQLDisconnect for migration ODBC/Db2 tests.
+ * @param h Connection handle.
+ * @return C_ORM_SQL_SUCCESS.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_Disconnect(c_orm_sqlhdbc_t h) {
+  (void)h;
+  return C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock SQLEndTran for migration ODBC/Db2 tests.
+ * @param t Handle type.
+ * @param h Handle.
+ * @param c Commit or rollback completion code.
+ * @return C_ORM_SQL_SUCCESS or C_ORM_SQL_ERROR.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_EndTran(c_orm_sqlsmallint_t t,
+                                                       c_orm_sqlhandle_t h,
+                                                       c_orm_sqlsmallint_t c) {
+  (void)t;
+  (void)h;
+  return (g_mig_fail_op == 11 && c == C_ORM_SQL_COMMIT) ||
+                 (g_mig_fail_op == 12 && c == C_ORM_SQL_ROLLBACK)
+             ? C_ORM_SQL_ERROR
+             : C_ORM_SQL_SUCCESS;
+}
+static int g_mig_is_applied_q = 0;
+
+/**
+ * @brief Mock SQLPrepare for migration ODBC/Db2 tests.
+ * @param h Statement handle.
+ * @param s SQL text.
+ * @param l SQL length.
+ * @return C_ORM_SQL_SUCCESS or C_ORM_SQL_ERROR.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_Prepare(c_orm_sqlhstmt_t h,
+                                                       c_orm_sqlchar_t *s,
+                                                       c_orm_sqlinteger_t l) {
+  (void)h;
+  (void)l;
+  g_mig_is_applied_q =
+      (strstr((const char *)s, "SELECT version, name, hash") != NULL) ? 1 : 0;
+  if ((g_mig_fail_op == 12 || g_mig_fail_op == 13) &&
+      strstr((const char *)s, "LOCK TABLE") != NULL) {
+    return C_ORM_SQL_ERROR;
+  }
+  if (g_mig_fail_op == 14) {
+    return C_ORM_SQL_ERROR;
+  }
+  return C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock SQLExecute for migration ODBC/Db2 tests.
+ * @param h Statement handle.
+ * @return C_ORM_SQL_SUCCESS or C_ORM_SQL_ERROR.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_Execute(c_orm_sqlhstmt_t h) {
+  (void)h;
+  g_mig_cat_row = 0;
+  return g_mig_fail_op == 15 ? C_ORM_SQL_ERROR : C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock SQLBindParameter for migration ODBC/Db2 tests.
+ * @param h Statement handle.
+ * @param p 1-based parameter ordinal.
+ * @param io Input/output direction.
+ * @param vt C value type.
+ * @param pt SQL parameter type.
+ * @param cs Column size.
+ * @param dd Decimal digits.
+ * @param vp Value buffer pointer.
+ * @param bl Buffer length.
+ * @param ind Length/null indicator pointer.
+ * @return C_ORM_SQL_SUCCESS or C_ORM_SQL_ERROR.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_BindParameter(
+    c_orm_sqlhstmt_t h, c_orm_sqlusmallint_t p, c_orm_sqlsmallint_t io,
+    c_orm_sqlsmallint_t vt, c_orm_sqlsmallint_t pt, c_orm_sqlulen_t cs,
+    c_orm_sqlsmallint_t dd, c_orm_sqlpointer_t vp, c_orm_sqllen_t bl,
+    c_orm_sqllen_t *ind) {
+  (void)h;
+  (void)io;
+  (void)vt;
+  (void)pt;
+  (void)cs;
+  (void)dd;
+  (void)vp;
+  (void)bl;
+  (void)ind;
+  if ((g_mig_fail_op == 16 && p == 2) || (g_mig_fail_op == 17 && p == 3) ||
+      (g_mig_fail_op == 18 && p == 1)) {
+    return C_ORM_SQL_ERROR;
+  }
+  return C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock SQLNumResultCols for migration ODBC/Db2 tests.
+ * @param h Statement handle.
+ * @param c Output result column count.
+ * @return C_ORM_SQL_SUCCESS.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API
+MigOdbc_NumResultCols(c_orm_sqlhstmt_t h, c_orm_sqlsmallint_t *c) {
+  (void)h;
+  *c = (c_orm_sqlsmallint_t)(g_mig_is_applied_q ? 3 : 0);
+  return C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock SQLFetch for migration ODBC/Db2 tests.
+ * @param h Statement handle.
+ * @return C_ORM_SQL_SUCCESS or C_ORM_SQL_NO_DATA.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_Fetch(c_orm_sqlhstmt_t h) {
+  (void)h;
+  g_mig_cat_row++;
+  return g_mig_cat_row <= g_mig_cat_total ? C_ORM_SQL_SUCCESS
+                                          : C_ORM_SQL_NO_DATA;
+}
+
+/**
+ * @brief Mock SQLGetData for migration ODBC/Db2 tests.
+ * @param h Statement handle.
+ * @param col 1-based column ordinal.
+ * @param tt Target C type.
+ * @param vp Output value buffer.
+ * @param bl Buffer capacity.
+ * @param ind Output length/null indicator.
+ * @return C_ORM_SQL_SUCCESS.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_GetData(
+    c_orm_sqlhstmt_t h, c_orm_sqlusmallint_t col, c_orm_sqlsmallint_t tt,
+    c_orm_sqlpointer_t vp, c_orm_sqllen_t bl, c_orm_sqllen_t *ind) {
+  (void)h;
+  (void)tt;
+  if (g_mig_is_applied_q) {
+    const char *v = (col == 1) ? "001" : ((col == 2) ? "init" : "h");
+    (void)C_ORM_STRCPY((char *)vp, (size_t)bl, v);
+    *ind = (c_orm_sqllen_t)strlen(v);
+    return C_ORM_SQL_SUCCESS;
+  }
+  if (col == 4) {
+    char cn[32];
+    (void)C_ORM_SPRINTF(cn, sizeof(cn), "C_%d", g_mig_cat_row);
+    (void)C_ORM_STRCPY((char *)vp, (size_t)bl, cn);
+    *ind = (c_orm_sqllen_t)strlen(cn);
+  } else if (col == 6) {
+    (void)C_ORM_STRCPY((char *)vp, (size_t)bl, "INTEGER");
+    *ind = 7;
+  } else if (col == 7) {
+    *(c_orm_sqlinteger_t *)vp = 10;
+    *ind = 4;
+  } else if (col == 9) {
+    *(c_orm_sqlsmallint_t *)vp = 0;
+    *ind = 2;
+  } else if (col == 18) {
+    (void)C_ORM_STRCPY((char *)vp, (size_t)bl, "NO");
+    *ind = 2;
+  }
+  return C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock SQLFreeStmt for migration ODBC/Db2 tests.
+ * @param h Statement handle.
+ * @param o Free option.
+ * @return C_ORM_SQL_SUCCESS.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API
+MigOdbc_FreeStmt(c_orm_sqlhstmt_t h, c_orm_sqlusmallint_t o) {
+  (void)h;
+  (void)o;
+  return C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock SQLGetDiagRec for migration ODBC/Db2 tests.
+ * @param ht Handle type.
+ * @param h Handle.
+ * @param r 1-based record ordinal.
+ * @param st Output SQLSTATE buffer.
+ * @param ne Output native error code.
+ * @param m Output diagnostic message buffer.
+ * @param bl Buffer capacity.
+ * @param tl Output message length.
+ * @return C_ORM_SQL_NO_DATA.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_GetDiagRec(
+    c_orm_sqlsmallint_t ht, c_orm_sqlhandle_t h, c_orm_sqlsmallint_t r,
+    c_orm_sqlchar_t *st, c_orm_sqlinteger_t *ne, c_orm_sqlchar_t *m,
+    c_orm_sqlsmallint_t bl, c_orm_sqlsmallint_t *tl) {
+  (void)ht;
+  (void)h;
+  (void)r;
+  (void)st;
+  (void)ne;
+  (void)m;
+  (void)bl;
+  (void)tl;
+  return C_ORM_SQL_NO_DATA;
+}
+
+/**
+ * @brief Mock SQLColumns for migration ODBC/Db2 catalog introspection tests.
+ * @param h Statement handle.
+ * @param c1 Catalog name.
+ * @param l1 Catalog length.
+ * @param c2 Schema name.
+ * @param l2 Schema length.
+ * @param c3 Table name.
+ * @param l3 Table length.
+ * @param c4 Column filter.
+ * @param l4 Column filter length.
+ * @return C_ORM_SQL_SUCCESS or C_ORM_SQL_ERROR.
+ */
+static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_Columns(
+    c_orm_sqlhstmt_t h, c_orm_sqlchar_t *c1, c_orm_sqlsmallint_t l1,
+    c_orm_sqlchar_t *c2, c_orm_sqlsmallint_t l2, c_orm_sqlchar_t *c3,
+    c_orm_sqlsmallint_t l3, c_orm_sqlchar_t *c4, c_orm_sqlsmallint_t l4) {
+  (void)h;
+  (void)c1;
+  (void)l1;
+  (void)c2;
+  (void)l2;
+  (void)c3;
+  (void)l3;
+  (void)c4;
+  (void)l4;
+  if (g_mig_fail_op == 20) {
+    return C_ORM_SQL_ERROR;
+  }
+  g_mig_cat_row = 0;
+  return C_ORM_SQL_SUCCESS;
+}
+
+/**
+ * @brief Mock prepare vtable callback for Db2 migration schema tests.
+ * @param db Database handle.
+ * @param sql SQL query string.
+ * @param out_q Output prepared query handle.
+ * @return C_ORM_OK or C_ORM_ERROR_SQL.
+ */
+static c_orm_error_t mig_db2_prepare(c_orm_db_t *db, const char *sql,
+                                     c_orm_query_t **out_q) {
+  (void)db;
+  if (strstr(sql, "WHERE 1 = 0") != NULL) {
+    if (g_mig_cat_mode == 10) {
+      return C_ORM_ERROR_SQL;
+    }
+    g_mig_cat_row = (g_mig_cat_mode == 11) ? -99 : 0;
+    *out_q = (c_orm_query_t *)&g_mig_dummy;
+    return C_ORM_OK;
+  }
+  if (g_mig_cat_mode == 1 && strstr(sql, "SYSCAT.COLUMNS") != NULL) {
+    g_mig_cat_row = 0;
+    *out_q = (c_orm_query_t *)&g_mig_dummy;
+    return C_ORM_OK;
+  }
+  if (g_mig_cat_mode == 2 && strstr(sql, "SYSIBM.SYSCOLUMNS") != NULL) {
+    g_mig_cat_row = 0;
+    *out_q = (c_orm_query_t *)&g_mig_dummy;
+    return C_ORM_OK;
+  }
+  if (g_mig_cat_mode == 3) {
+    g_mig_cat_row = (strstr(sql, "SYSCAT") != NULL) ? -99 : 0;
+    *out_q = (c_orm_query_t *)&g_mig_dummy;
+    return C_ORM_OK;
+  }
+  if (g_mig_cat_mode == 4) {
+    g_mig_cat_row = -99;
+    *out_q = (c_orm_query_t *)&g_mig_dummy;
+    return C_ORM_OK;
+  }
+  if (g_mig_cat_mode == 5 && strstr(sql, "SYSIBM.SYSCOLUMNS") != NULL) {
+    g_mig_cat_row = -99;
+    *out_q = (c_orm_query_t *)&g_mig_dummy;
+    return C_ORM_OK;
+  }
+  return C_ORM_ERROR_SQL;
+}
+
+/**
+ * @brief Mock bind_string vtable callback for Db2 migration schema tests.
+ * @param q Query handle.
+ * @param idx 1-based parameter index.
+ * @param v String value.
+ * @return C_ORM_OK or C_ORM_ERROR_BIND.
+ */
+static c_orm_error_t mig_db2_bind_str(c_orm_query_t *q, int idx,
+                                      const char *v) {
+  (void)q;
+  (void)idx;
+  (void)v;
+  return g_mig_fail_op == 1 ? C_ORM_ERROR_BIND : C_ORM_OK;
+}
+
+/**
+ * @brief Mock step vtable callback for Db2 migration schema tests.
+ * @param q Query handle.
+ * @param out_has Output row availability flag.
+ * @return C_ORM_OK or C_ORM_ERROR_STEP.
+ */
+static c_orm_error_t mig_db2_step(c_orm_query_t *q, int *out_has) {
+  (void)q;
+  if (g_mig_cat_row == -99) {
+    return C_ORM_ERROR_STEP;
+  }
+  g_mig_cat_row++;
+  if ((g_mig_fail_op == 2 || g_mig_fail_op == 24) && g_mig_cat_row == 2) {
+    return C_ORM_ERROR_STEP;
+  }
+  *out_has = (g_mig_cat_row <= g_mig_cat_total) ? 1 : 0;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock get_string vtable callback for Db2 migration schema tests.
+ * @param q Query handle.
+ * @param idx 0-based column index.
+ * @param out Output string pointer.
+ * @return C_ORM_OK or C_ORM_ERROR_SQL.
+ */
+static c_orm_error_t mig_db2_get_str(c_orm_query_t *q, int idx,
+                                     const char **out) {
+  static char col_buf[32];
+  (void)q;
+  if (g_mig_fail_op == 3 || (g_mig_fail_op == 5 && idx == 1)) {
+    return C_ORM_ERROR_SQL;
+  }
+  if (idx == 0) {
+    (void)C_ORM_SPRINTF(col_buf, sizeof(col_buf), "COL_%d", g_mig_cat_row);
+    *out = col_buf;
+  } else {
+    *out = "DECIMAL";
+  }
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock finalize vtable callback for Db2 migration schema tests.
+ * @param q Query handle.
+ * @return C_ORM_OK or C_ORM_ERROR_SQL.
+ */
+static c_orm_error_t mig_db2_finalize(c_orm_query_t *q) {
+  (void)q;
+  return (g_mig_fail_op == 4 || g_mig_fail_op == 24) ? C_ORM_ERROR_SQL
+                                                     : C_ORM_OK;
+}
+
+/** @brief Exhaustive Db2, ODBC, load_dir, and free-error tests for
+ * `src/c_orm_migrations.c`. */
+TEST test_migrations_db2_odbc_and_dir_exhaustive(void) {
+  c_orm_odbc_api_t oapi;
+  c_orm_db_t *db2_db = NULL;
+  c_orm_db_t *odbc_db = NULL;
+  c_orm_driver_vtable_t dvt;
+  c_orm_db_t mock_db2;
+  cdd_c_meta_t *schema = NULL;
+  int step;
+
+  memset(&oapi, 0, sizeof(oapi));
+  oapi.SQLAllocHandle = MigOdbc_AllocHandle;
+  oapi.SQLFreeHandle = MigOdbc_FreeHandle;
+  oapi.SQLSetEnvAttr = MigOdbc_SetEnvAttr;
+  oapi.SQLSetConnectAttr = MigOdbc_SetConnectAttr;
+  oapi.SQLDriverConnect = MigOdbc_DriverConnect;
+  oapi.SQLDisconnect = MigOdbc_Disconnect;
+  oapi.SQLEndTran = MigOdbc_EndTran;
+  oapi.SQLPrepare = MigOdbc_Prepare;
+  oapi.SQLExecute = MigOdbc_Execute;
+  oapi.SQLBindParameter = MigOdbc_BindParameter;
+  oapi.SQLNumResultCols = MigOdbc_NumResultCols;
+  oapi.SQLFetch = MigOdbc_Fetch;
+  oapi.SQLGetData = MigOdbc_GetData;
+  oapi.SQLFreeStmt = MigOdbc_FreeStmt;
+  oapi.SQLGetDiagRec = MigOdbc_GetDiagRec;
+  oapi.SQLColumns = MigOdbc_Columns;
+
+  ASSERT_EQ(C_ORM_OK, c_orm_odbc_connect_raw(&oapi, "DSN=d", "db2", NULL, 0, 1,
+                                             0, &db2_db));
+  ASSERT_EQ(C_ORM_OK, c_orm_odbc_connect_raw(&oapi, "DSN=o", "odbc", NULL, 0, 1,
+                                             0, &odbc_db));
+
+  /* 1. Db2 & ODBC init_table, lock, unlock, migrate_all, rollback */
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_init_table(db2_db));
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_init_table(odbc_db));
+  g_mig_fail_op = 14; /* Prepare fails -> falls through to portable_ddl */
+  ASSERT_NEQ(C_ORM_OK, c_orm_migration_init_table(db2_db));
+  ASSERT_NEQ(C_ORM_OK, c_orm_migration_init_table(odbc_db));
+  g_mig_fail_op = 0;
+
+  /* Db2 lock/unlock success & failures */
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_migration_lock(NULL));
+  {
+    c_orm_db_t bad_db;
+    memset(&bad_db, 0, sizeof(bad_db));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_migration_init_table(&bad_db));
+  }
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_lock(db2_db));
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_unlock(db2_db));
+  g_mig_fail_op = 10; /* transaction_begin fails */
+  ASSERT_NEQ(C_ORM_OK, c_orm_migration_lock(db2_db));
+  ASSERT_NEQ(C_ORM_OK, c_orm_migration_lock(odbc_db));
+  g_mig_fail_op = 12; /* LOCK TABLE fails AND rollback fails */
+  ASSERT_NEQ(C_ORM_OK, c_orm_migration_lock(db2_db));
+  g_mig_fail_op = 13; /* LOCK TABLE fails, rollback succeeds */
+  ASSERT_NEQ(C_ORM_OK, c_orm_migration_lock(db2_db));
+  g_mig_fail_op = 14; /* init_table fails in lock */
+  ASSERT_NEQ(C_ORM_OK, c_orm_migration_lock(odbc_db));
+  ASSERT_NEQ(C_ORM_OK, c_orm_migration_lock(db2_db));
+  g_mig_fail_op = 0;
+
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_lock(odbc_db));
+  g_mig_fail_op = 11; /* commit fails in unlock */
+  ASSERT_NEQ(C_ORM_OK, c_orm_migration_unlock(odbc_db));
+  g_mig_fail_op = 0;
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_unlock(odbc_db));
+
+  /* Db2 migrate_all, rollback, NULL driver_name, NULL bind_string, & fin errs
+   */
+  {
+    c_orm_migration_t dm;
+    c_orm_migration_t *app = NULL;
+    size_t acnt = 0;
+    c_orm_db_t *sq_db = NULL;
+    c_orm_driver_vtable_t sq_orig_vt;
+    c_orm_driver_vtable_t sq_mock_vt;
+
+    memset(&dm, 0, sizeof(dm));
+    (void)C_ORM_STRCPY(dm.version, sizeof(dm.version), "001");
+    (void)C_ORM_STRCPY(dm.name, sizeof(dm.name), "init");
+    dm.up_sql = "CREATE TABLE T (ID INT)";
+    dm.down_sql = "DROP TABLE T";
+    g_mig_cat_total = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_migrate_all(db2_db, &dm, 1, NULL));
+
+    /* Empty up_sql and non-empty hash */
+    dm.up_sql = "";
+    (void)C_ORM_STRCPY(dm.hash, sizeof(dm.hash), "abcd1234");
+    ASSERT_EQ(C_ORM_OK, c_orm_migrate_all(db2_db, &dm, 1, NULL));
+    dm.up_sql = "CREATE TABLE T (ID INT)";
+
+    g_mig_fail_op = 16; /* bind_string(2) fails */
+    ASSERT_NEQ(C_ORM_OK, c_orm_migrate_all(db2_db, &dm, 1, NULL));
+    g_mig_fail_op = 17; /* bind_string(3) fails */
+    ASSERT_NEQ(C_ORM_OK, c_orm_migrate_all(db2_db, &dm, 1, NULL));
+    g_mig_fail_op = 18; /* bind_string(1) fails in INSERT & rollback DELETE */
+    ASSERT_NEQ(C_ORM_OK, c_orm_migrate_all(db2_db, &dm, 1, NULL));
+    g_mig_cat_total = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_migrate_rollback(db2_db, &dm, 1, 1, NULL));
+    g_mig_fail_op = 0;
+    dm.down_sql = NULL;
+    g_mig_cat_total = 1;
+    ASSERT_EQ(C_ORM_OK, c_orm_migrate_rollback(db2_db, &dm, 1, 1, NULL));
+    dm.down_sql = "";
+    g_mig_cat_total = 1;
+    ASSERT_EQ(C_ORM_OK, c_orm_migrate_rollback(db2_db, &dm, 1, 1, NULL));
+    g_mig_cat_total = 0;
+
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_get_applied(db2_db, &app, &acnt));
+    (void)c_orm_migration_free_array(app, acnt);
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_get_applied(odbc_db, &app, &acnt));
+    (void)c_orm_migration_free_array(app, acnt);
+
+    /* SQLite driver_name=NULL, bind_string=NULL, INSERT/DELETE finalize errs,
+     * and fetch_table_schema free_rc!=OK on finalize failure */
+    ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect(":memory:", &sq_db));
+    sq_orig_vt = *sq_db->vtable;
+    sq_db->driver_name = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_init_table(sq_db));
+    dm.up_sql = NULL;
+    dm.hash[0] = '\0';
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_migrate_all(sq_db, &dm, 1, NULL));
+    (void)c_orm_execute_raw(sq_db, "COMMIT");
+    dm.down_sql = NULL;
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_migrate_rollback(sq_db, &dm, 1, 1, NULL));
+    (void)c_orm_execute_raw(sq_db, "COMMIT");
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_get_applied(sq_db, &app, &acnt));
+    (void)c_orm_migration_free_array(app, acnt);
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_lock(sq_db));
+    (void)c_orm_execute_raw(sq_db, "COMMIT");
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_fetch_table_schema(
+                            sq_db, "_c_orm_migrations", &schema));
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_free_table_schema(schema));
+
+    sq_db->driver_name = "sqlite";
+    sq_mock_vt = sq_orig_vt;
+    orig_prep = sq_orig_vt.prepare;
+    orig_step = sq_orig_vt.step;
+    orig_finalize = sq_orig_vt.finalize;
+    sq_mock_vt.prepare = my_mig_prep;
+    sq_mock_vt.step = my_mig_step;
+    sq_mock_vt.finalize = my_mig_finalize;
+    sq_mock_vt.bind_string = NULL;
+    sq_db->vtable = &sq_mock_vt;
+    (void)c_orm_execute_raw(sq_db, "DROP TABLE _c_orm_migrations");
+    (void)c_orm_execute_raw(
+        sq_db,
+        "CREATE TABLE _c_orm_migrations (id INTEGER PRIMARY KEY, version TEXT, "
+        "name TEXT, hash TEXT, applied_at TEXT)");
+    dm.down_sql = "SELECT 1";
+    ASSERT_EQ(C_ORM_OK, c_orm_migrate_all(sq_db, &dm, 1, NULL));
+    sq_mock_vt.bind_string = sq_orig_vt.bind_string;
+    /* INSERT & DELETE finalize fails when step succeeds (1) & fails (2) */
+    (void)c_orm_execute_raw(sq_db, "DELETE FROM _c_orm_migrations");
+    dm.up_sql = NULL;
+    g_fail_ins_del_fin = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_migrate_all(sq_db, &dm, 1, NULL));
+    g_fail_ins_del_fin = 2;
+    ASSERT_NEQ(C_ORM_OK, c_orm_migrate_all(sq_db, &dm, 1, NULL));
+    g_fail_ins_del_fin = 0;
+    (void)c_orm_execute_raw(
+        sq_db,
+        "INSERT INTO _c_orm_migrations (version, name, hash) VALUES ('001', "
+        "'init', 'h')");
+    g_fail_ins_del_fin = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_migrate_rollback(sq_db, &dm, 1, 1, NULL));
+    (void)c_orm_execute_raw(
+        sq_db,
+        "INSERT INTO _c_orm_migrations (version, name, hash) VALUES ('001', "
+        "'init', 'h')");
+    g_fail_ins_del_fin = 2;
+    ASSERT_NEQ(C_ORM_OK, c_orm_migrate_rollback(sq_db, &dm, 1, 1, NULL));
+    g_fail_ins_del_fin = 0;
+
+    /* Targeted free_rc != OK on fetch_table_schema finalize failure & OOM */
+    sq_db->vtable = &sq_mock_vt;
+    fail_finalize = 1;
+    fail_free_active = 1;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_migration_fetch_table_schema(
+                                      sq_db, "_c_orm_migrations", &schema));
+    fail_finalize = 0;
+    fail_free_active = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_enable_statement_caching(sq_db, 16));
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_fetch_table_schema(
+                            sq_db, "_c_orm_migrations", &schema));
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_free_table_schema(schema));
+    fail_free_active = 1;
+    for (step = 0; step < 12; step++) {
+      oom_active = 1;
+      oom_countdown = step;
+      (void)c_orm_migration_fetch_table_schema(sq_db, "_c_orm_migrations",
+                                               &schema);
+      oom_active = 0;
+    }
+    fail_free_active = 0;
+    (void)c_orm_disable_statement_caching(sq_db);
+
+    /* Test bind_string = NULL in rollback */
+    (void)c_orm_execute_raw(
+        sq_db,
+        "INSERT INTO _c_orm_migrations (version, name, hash) VALUES ('001', "
+        "'init', 'h')");
+    sq_mock_vt.bind_string = NULL;
+    (void)c_orm_migrate_rollback(sq_db, &dm, 1, 1, NULL);
+    sq_db->vtable = &sq_orig_vt;
+    ASSERT_EQ(C_ORM_OK, sq_db->vtable->disconnect(sq_db));
+  }
+
+  /* 2. ODBC fetch_table_schema (0 cols, 2 cols, error, OOM) */
+  g_mig_fail_op = 20;
+  ASSERT_NEQ(C_ORM_OK,
+             c_orm_migration_fetch_table_schema(odbc_db, "T", &schema));
+  g_mig_fail_op = 0;
+  g_mig_cat_total = 0;
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_migration_fetch_table_schema(odbc_db, "T", &schema));
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_free_table_schema(schema));
+  g_mig_cat_total = 2;
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_migration_fetch_table_schema(odbc_db, "T", &schema));
+  ASSERT_EQ(2U, schema->num_props);
+  fail_free_active = 1;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_migration_free_table_schema(schema));
+  fail_free_active = 0;
+
+  for (step = 0; step < 20; step++) {
+    schema = NULL;
+    oom_active = 1;
+    oom_countdown = step;
+    if (c_orm_migration_fetch_table_schema(odbc_db, "T", &schema) == C_ORM_OK) {
+      oom_active = 0;
+      (void)c_orm_migration_free_table_schema(schema);
+      break;
+    }
+    oom_active = 0;
+  }
+
+  /* 3. Db2 mock vtable: init_table finalize/step, fetch_table_schema LUW, z/OS,
+   * >10 cols realloc, getter/step/finalize errors, and OOM sweep */
+  memset(&dvt, 0, sizeof(dvt));
+  dvt.prepare = mig_db2_prepare;
+  dvt.bind_string = mig_db2_bind_str;
+  dvt.step = mig_db2_step;
+  dvt.get_string = mig_db2_get_str;
+  dvt.finalize = mig_db2_finalize;
+  memset(&mock_db2, 0, sizeof(mock_db2));
+  mock_db2.vtable = &dvt;
+  mock_db2.driver_name = "db2";
+
+  g_mig_cat_mode = 1; /* probe step succeeds, finalize fails */
+  g_mig_fail_op = 4;
+  ASSERT_EQ(C_ORM_ERROR_SQL, c_orm_migration_init_table(&mock_db2));
+  g_mig_cat_mode = 11; /* probe step fails, finalize fails */
+  ASSERT_EQ(C_ORM_ERROR_SQL, c_orm_migration_init_table(&mock_db2));
+  g_mig_fail_op = 0;
+  /* probe step fails, finalize succeeds -> falls through to portable_ddl */
+  ASSERT_NEQ(C_ORM_OK, c_orm_migration_init_table(&mock_db2));
+
+  g_mig_cat_mode = 1; /* LUW >10 cols -> realloc */
+  g_mig_cat_total = 12;
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  ASSERT_EQ(12U, schema->num_props);
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_free_table_schema(schema));
+
+  /* LUW bind_string fails -> falls back */
+  g_mig_fail_op = 1;
+  ASSERT_NEQ(C_ORM_OK,
+             c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  g_mig_fail_op = 0;
+
+  g_mig_cat_mode = 2; /* z/OS */
+  g_mig_cat_total = 2;
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_free_table_schema(schema));
+
+  g_mig_cat_mode = 3; /* LUW step fails -> z/OS succeeds; + LUW fin error */
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_free_table_schema(schema));
+  g_mig_fail_op = 4;
+  ASSERT_EQ(C_ORM_ERROR_SQL,
+            c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  g_mig_fail_op = 0;
+
+  g_mig_cat_mode = 4; /* Both fail -> falls back to ODBC; + z/OS fin error */
+  ASSERT_NEQ(C_ORM_OK,
+             c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  g_mig_cat_mode = 5;
+  g_mig_fail_op = 4;
+  ASSERT_EQ(C_ORM_ERROR_SQL,
+            c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  g_mig_cat_mode = 2;
+  g_mig_fail_op = 1;
+  ASSERT_NEQ(C_ORM_OK,
+             c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  g_mig_fail_op = 4;
+  ASSERT_EQ(C_ORM_ERROR_SQL,
+            c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  g_mig_fail_op = 0;
+
+  /* Getter failure (col 0 and col 1), step failure (+fin fail), final fin fail
+   */
+  g_mig_cat_mode = 1;
+  g_mig_fail_op = 3;
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_free_table_schema(schema));
+  g_mig_fail_op = 5;
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_free_table_schema(schema));
+
+  g_mig_fail_op = 2;
+  ASSERT_EQ(C_ORM_ERROR_STEP,
+            c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  g_mig_fail_op = 24;
+  ASSERT_EQ(C_ORM_ERROR_SQL,
+            c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  g_mig_fail_op = 4;
+  ASSERT_EQ(C_ORM_ERROR_SQL,
+            c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema));
+  g_mig_fail_op = 0;
+
+  /* OOM sweep on Db2 fetch_table_schema (+ with finalize failing) */
+  g_mig_cat_total = 12;
+  for (step = 0; step < 35; step++) {
+    schema = NULL;
+    oom_active = 1;
+    oom_countdown = step;
+    if (c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema) ==
+        C_ORM_OK) {
+      oom_active = 0;
+      (void)c_orm_migration_free_table_schema(schema);
+      break;
+    }
+    oom_active = 0;
+  }
+  g_mig_fail_op = 4;
+  for (step = 0; step < 35; step++) {
+    schema = NULL;
+    oom_active = 1;
+    oom_countdown = step;
+    (void)c_orm_migration_fetch_table_schema(&mock_db2, "T", &schema);
+    oom_active = 0;
+  }
+  g_mig_fail_op = 0;
+
+  /* 4. Directory loader exhaustive edge cases & OOM + free_array fail */
+  {
+    const char *mdir = "test_migs_ex_dir";
+    FILE *fp = NULL;
+    c_orm_migration_t *migs = NULL;
+    size_t mcnt = 0;
+    char long_up1[260];
+    char long_up2[260];
+    char long_dn1[260];
+    char long_dn2[260];
+    char long_sq1[260];
+    char long_sq2[260];
+    char long_nousc[260];
+    int k;
+
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_migration_load_dir("", &migs, &mcnt));
+
+    /* Isolated .down.sql and .sql (up-only) slot-allocation OOM */
+    (void)MIG_MKDIR("test_migs_dn_oom");
+    (void)C_ORM_FOPEN(&fp, "test_migs_dn_oom/0_a.down.sql", "wb");
+    fputs("SELECT 1;", fp);
+    fclose(fp);
+    for (step = 0; step < 10; step++) {
+      migs = NULL;
+      mcnt = 0;
+      oom_active = 1;
+      oom_countdown = step;
+      if (c_orm_migration_load_dir("test_migs_dn_oom", &migs, &mcnt) ==
+          C_ORM_OK) {
+        oom_active = 0;
+        (void)c_orm_migration_free_array(migs, mcnt);
+        break;
+      }
+      oom_active = 0;
+    }
+    (void)remove("test_migs_dn_oom/0_a.down.sql");
+    (void)MIG_RMDIR("test_migs_dn_oom");
+
+    (void)MIG_MKDIR("test_migs_sq_oom");
+    (void)C_ORM_FOPEN(&fp, "test_migs_sq_oom/a.sql", "wb");
+    fputs("-- UP\nSELECT 1;\n", fp);
+    fclose(fp);
+    (void)C_ORM_FOPEN(&fp, "test_migs_sq_oom/ab.sql", "wb");
+    fputs("SELECT 2;\n", fp);
+    fclose(fp);
+    for (step = 0; step < 20; step++) {
+      migs = NULL;
+      mcnt = 0;
+      oom_active = 1;
+      oom_countdown = step;
+      if (c_orm_migration_load_dir("test_migs_sq_oom", &migs, &mcnt) ==
+          C_ORM_OK) {
+        oom_active = 0;
+        (void)c_orm_migration_free_array(migs, mcnt);
+        break;
+      }
+      oom_active = 0;
+    }
+    (void)remove("test_migs_sq_oom/a.sql");
+    (void)remove("test_migs_sq_oom/ab.sql");
+    (void)MIG_RMDIR("test_migs_sq_oom");
+
+    (void)MIG_MKDIR(mdir);
+
+    for (k = 0; k < 10; k++) {
+      char pbuf[128];
+      (void)C_ORM_SPRINTF(pbuf, sizeof(pbuf), "%s/%03d_m%d.up.sql", mdir, k, k);
+      (void)C_ORM_FOPEN(&fp, pbuf, "wb");
+      fputs("SELECT 1;", fp);
+      fclose(fp);
+    }
+    (void)C_ORM_FOPEN(&fp, "test_migs_ex_dir/_lead.up.sql", "wb");
+    fclose(fp);
+    (void)C_ORM_FOPEN(&fp, "test_migs_ex_dir/001_z.up.sql", "wb");
+    fputs("SELECT 2;", fp);
+    fclose(fp);
+    (void)C_ORM_FOPEN(&fp, "test_migs_ex_dir/000_m0.down.sql", "wb");
+    fputs("SELECT 0;", fp);
+    fclose(fp);
+    (void)C_ORM_FOPEN(&fp, "test_migs_ex_dir/000_m0.sql", "wb");
+    fputs("-- UP\nSELECT 10;\n-- DOWN\nSELECT 20;\n", fp);
+    fclose(fp);
+    (void)C_ORM_FOPEN(&fp, "test_migs_ex_dir/nounderscore.sql", "wb");
+    fputs("-- DOWN\nSELECT 30;\n", fp);
+    fclose(fp);
+
+    /* Build <255-byte filenames triggering vlen>=64, nlen>=128, no-underscore
+     * >=127, and deterministic slot collisions for .up.sql, .down.sql, .sql */
+    {
+      int pos = 0;
+      memcpy(long_up1, "test_migs_ex_dir/", 17);
+      pos = 17;
+      memset(long_up1 + pos, '9', 66);
+      pos += 66;
+      long_up1[pos++] = '_';
+      memset(long_up1 + pos, 'a', 130);
+      pos += 130;
+      memcpy(long_up2, long_up1, (size_t)pos);
+      memcpy(long_dn1, long_up1, (size_t)pos);
+      memcpy(long_dn2, long_up1, (size_t)pos);
+      memcpy(long_sq1, long_up1, (size_t)pos);
+      memcpy(long_sq2, long_up1, (size_t)pos);
+      long_sq1[17] = '8';
+      long_sq2[17] = '8';
+      memcpy(long_up1 + pos, "1.up.sql", 9);
+      memcpy(long_up2 + pos, "2.up.sql", 9);
+      memcpy(long_dn1 + pos, "1.down.sql", 11);
+      memcpy(long_dn2 + pos, "2.down.sql", 11);
+      memcpy(long_sq1 + pos, "1.sql", 6);
+      memcpy(long_sq2 + pos, "2.sql", 6);
+
+      memcpy(long_nousc, "test_migs_ex_dir/", 17);
+      memset(long_nousc + 17, 'b', 135);
+      memcpy(long_nousc + 17 + 135, ".up.sql", 8);
+
+      (void)C_ORM_FOPEN(&fp, long_up1, "wb");
+      fputs("SELECT 1;", fp);
+      fclose(fp);
+      (void)C_ORM_FOPEN(&fp, long_up2, "wb");
+      fputs("SELECT 2;", fp);
+      fclose(fp);
+      (void)C_ORM_FOPEN(&fp, long_dn1, "wb");
+      fputs("SELECT 3;", fp);
+      fclose(fp);
+      (void)C_ORM_FOPEN(&fp, long_dn2, "wb");
+      fputs("SELECT 4;", fp);
+      fclose(fp);
+      (void)C_ORM_FOPEN(&fp, long_sq1, "wb");
+      fputs("-- UP\nSELECT 5;\n-- DOWN\nSELECT 6;\n", fp);
+      fclose(fp);
+      (void)C_ORM_FOPEN(&fp, long_sq2, "wb");
+      fputs("-- UP\nSELECT 7;\n-- DOWN\nSELECT 8;\n", fp);
+      fclose(fp);
+      (void)C_ORM_FOPEN(&fp, long_nousc, "wb");
+      fclose(fp);
+    }
+
+#if !defined(_WIN32) && !defined(_MSC_VER)
+    if (geteuid() != 0) {
+      (void)chmod("test_migs_ex_dir/001_z.up.sql", 0);
+      ASSERT_EQ(C_ORM_ERROR_IO, c_orm_migration_load_dir(mdir, &migs, &mcnt));
+      (void)chmod("test_migs_ex_dir/001_z.up.sql", 0644);
+      (void)chmod("test_migs_ex_dir/000_m0.down.sql", 0);
+      ASSERT_EQ(C_ORM_ERROR_IO, c_orm_migration_load_dir(mdir, &migs, &mcnt));
+      (void)chmod("test_migs_ex_dir/000_m0.down.sql", 0644);
+      (void)chmod("test_migs_ex_dir/000_m0.sql", 0);
+      ASSERT_NEQ(C_ORM_OK, c_orm_migration_load_dir(mdir, &migs, &mcnt));
+      (void)chmod("test_migs_ex_dir/000_m0.sql", 0644);
+    }
+#endif
+
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_load_dir(mdir, &migs, &mcnt));
+    ASSERT(mcnt >= 12U);
+    fail_free_active = 1;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_migration_free_array(migs, mcnt));
+    fail_free_active = 0;
+
+    for (step = 0; step < 80; step++) {
+      migs = NULL;
+      mcnt = 0;
+      oom_active = 1;
+      oom_countdown = step;
+      if (c_orm_migration_load_dir(mdir, &migs, &mcnt) == C_ORM_OK) {
+        oom_active = 0;
+        (void)c_orm_migration_free_array(migs, mcnt);
+        break;
+      }
+      oom_active = 0;
+    }
+
+    for (k = 0; k < 10; k++) {
+      char pbuf[128];
+      (void)C_ORM_SPRINTF(pbuf, sizeof(pbuf), "%s/%03d_m%d.up.sql", mdir, k, k);
+      (void)remove(pbuf);
+    }
+    (void)remove("test_migs_ex_dir/_lead.up.sql");
+    (void)remove("test_migs_ex_dir/001_z.up.sql");
+    (void)remove("test_migs_ex_dir/000_m0.down.sql");
+    (void)remove("test_migs_ex_dir/000_m0.sql");
+    (void)remove("test_migs_ex_dir/nounderscore.sql");
+    (void)remove(long_up1);
+    (void)remove(long_up2);
+    (void)remove(long_dn1);
+    (void)remove(long_dn2);
+    (void)remove(long_sq1);
+    (void)remove(long_sq2);
+    (void)remove(long_nousc);
+    (void)MIG_RMDIR(mdir);
+  }
+
+  ASSERT_EQ(C_ORM_OK, db2_db->vtable->disconnect(db2_db));
+  ASSERT_EQ(C_ORM_OK, odbc_db->vtable->disconnect(odbc_db));
+  PASS();
+}
+
 /**
  * @brief Test suite registering migration framework test cases.
  * @param migrations_suite Suite runner function name.
  */
 SUITE(migrations_suite) {
   static int recursed = 0;
-  void *(*old_malloc)(size_t);
-  void *(*old_realloc)(void *, size_t);
-  void (*old_free)(void *);
+  c_orm_malloc_fn_t old_malloc;
+  c_orm_realloc_fn_t old_realloc;
+  c_orm_free_fn_t old_free;
 
   old_malloc = c_orm_malloc;
   old_realloc = c_orm_realloc;
@@ -1469,6 +2569,7 @@ SUITE(migrations_suite) {
   RUN_TEST(test_migrate_up_down_branches);
   RUN_TEST(test_fetch_table_schema_failure_branches);
   RUN_TEST(test_get_applied_failure_branches);
+  RUN_TEST(test_migrations_db2_odbc_and_dir_exhaustive);
 
   c_orm_set_allocators(old_malloc, old_realloc, old_free);
 

@@ -5,6 +5,7 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
 #include "c_orm_ast.h"
 #define GREATEST_USE_LONGJMP 0
@@ -30,8 +31,8 @@
  * @return GREATEST test result.
  */
 TEST test_c_orm_ast_fluent(void) {
-  c_orm_query_t *q = NULL;
-  c_orm_query_t *q_clone = NULL;
+  c_orm_ast_query_t *q = NULL;
+  c_orm_ast_query_t *q_clone = NULL;
   c_orm_error_t err;
   c_orm_ast_node_t *n1 = NULL;
   c_orm_ast_node_t *n2 = NULL;
@@ -105,7 +106,7 @@ TEST test_c_orm_ast_fluent(void) {
  * @return GREATEST test result.
  */
 TEST test_c_orm_ast_to_sql(void) {
-  c_orm_query_t *q = NULL;
+  c_orm_ast_query_t *q = NULL;
   char *sql = NULL;
   c_orm_query_params_t params;
   c_orm_error_t err;
@@ -131,7 +132,7 @@ TEST test_c_orm_ast_to_sql(void) {
   ASSERT_STR_EQ("active", params.params[0].value);
   ASSERT_EQ_FMT(1, params.params[0].is_string, "%d");
 
-  C_ORM_FREE(sql);
+  (void)c_orm_system_free(sql);
   c_orm_query_params_cleanup(&params);
   c_orm_query_free(q);
   PASS();
@@ -142,7 +143,7 @@ TEST test_c_orm_ast_to_sql(void) {
  * @return GREATEST test result.
  */
 TEST test_c_orm_ast_to_sql_postgres(void) {
-  c_orm_query_t *q = NULL;
+  c_orm_ast_query_t *q = NULL;
   char *sql = NULL;
   c_orm_query_params_t params;
   c_orm_error_t err;
@@ -169,7 +170,7 @@ TEST test_c_orm_ast_to_sql_postgres(void) {
   ASSERT_STR_EQ("100", params.params[1].value);
   ASSERT_EQ_FMT(0, params.params[1].is_string, "%d");
 
-  C_ORM_FREE(sql);
+  (void)c_orm_system_free(sql);
   c_orm_query_params_cleanup(&params);
   c_orm_query_free(q);
   PASS();
@@ -180,7 +181,7 @@ TEST test_c_orm_ast_to_sql_postgres(void) {
  * @return GREATEST test result.
  */
 TEST test_c_orm_ast_depth_limit(void) {
-  c_orm_query_t *q = NULL;
+  c_orm_ast_query_t *q = NULL;
   char *sql = NULL;
   c_orm_query_params_t params;
   c_orm_error_t err;
@@ -212,9 +213,81 @@ TEST test_c_orm_ast_depth_limit(void) {
   ASSERT_EQ_FMT(0, err, "%d");
 
   cdd_c_sql_parser_max_depth = old_depth;
-  C_ORM_FREE(sql);
+  (void)c_orm_system_free(sql);
   c_orm_query_params_cleanup(&params);
   c_orm_query_free(q);
+  PASS();
+}
+
+/**
+ * @brief Tests multiple CTEs, >32 JOINs, multiple GROUP BY, chained UNIONs,
+ * and multiple ORDER BY clauses via `c_orm_ast_query_new` /
+ * `c_orm_ast_query_free`.
+ * @return GREATEST test result.
+ */
+TEST test_c_orm_ast_multi_clauses(void) {
+  c_orm_ast_query_t *q = NULL;
+  c_orm_ast_query_t *cte1 = NULL;
+  c_orm_ast_query_t *cte2 = NULL;
+  c_orm_ast_query_t *u1 = NULL;
+  c_orm_ast_query_t *u2 = NULL;
+  c_orm_ast_node_t *on_cond = NULL;
+  char *sql = NULL;
+  c_orm_query_params_t params;
+  int j;
+
+  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_new(&q));
+  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_new(&cte1));
+  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_new(&cte2));
+  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_new(&u1));
+  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_new(&u2));
+
+  cte1->select_(cte1, "1 AS a");
+  cte2->select_(cte2, "2 AS b");
+  u1->select_(u1, "id");
+  u1->from(u1, "archived_users");
+  u2->select_(u2, "id");
+  u2->from(u2, "guest_users");
+
+  q->with(q, "c1", cte1);
+  q->with(q, "c2", cte2);
+  q->select_(q, "u.id");
+  q->from_alias(q, "users", "u");
+
+  for (j = 0; j < 36; ++j) {
+    char tbl[32];
+    C_ORM_SPRINTF(tbl, sizeof(tbl), "t%d", j);
+    q->raw(q, "1=1", &on_cond);
+    q->join(q, tbl, "INNER", on_cond);
+  }
+
+  q->group_by(q, "u.org_id");
+  q->group_by(q, "u.dept_id");
+  q->union_(q, u1, 0);
+  q->union_(q, u2, 1);
+  q->order_by(q, "u.id", 0);
+  q->order_by(q, "u.created_at", 1);
+
+  ASSERT_EQ(C_ORM_OK, c_orm_query_params_init(&params));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_query_to_sql(q, C_ORM_DIALECT_POSTGRES, &sql, &params));
+  ASSERT(strstr(sql, "WITH c1 AS (SELECT 1 AS a), c2 AS (SELECT 2 AS b) ") !=
+         NULL);
+  ASSERT(strstr(sql, "INNER JOIN t0 ON 1=1") != NULL);
+  ASSERT(strstr(sql, "INNER JOIN t35 ON 1=1") != NULL);
+  ASSERT(strstr(sql, "GROUP BY u.org_id, u.dept_id") != NULL);
+  ASSERT(strstr(sql,
+                "UNION SELECT id FROM archived_users UNION ALL SELECT id FROM "
+                "guest_users") != NULL);
+  ASSERT(strstr(sql, "ORDER BY u.id ASC, u.created_at DESC") != NULL);
+
+  (void)c_orm_system_free(sql);
+  c_orm_query_params_cleanup(&params);
+  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_free(u2));
+  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_free(u1));
+  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_free(cte2));
+  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_free(cte1));
+  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_free(q));
   PASS();
 }
 
@@ -227,4 +300,5 @@ SUITE(ast_suite) {
   RUN_TEST(test_c_orm_ast_to_sql);
   RUN_TEST(test_c_orm_ast_to_sql_postgres);
   RUN_TEST(test_c_orm_ast_depth_limit);
+  RUN_TEST(test_c_orm_ast_multi_clauses);
 }

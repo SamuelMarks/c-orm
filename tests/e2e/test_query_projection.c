@@ -29,27 +29,51 @@ extern "C" {
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -63,28 +87,43 @@ extern "C" {
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do {                                                                       \
+      enum greatest_test_res _rc = (res);                                      \
+      greatest_info.assertions++;                                              \
+      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
+        return _rc;                                                            \
+      }                                                                        \
+    } while ((void)0, 0);                                                      \
   } while ((void)0, 0)
 
 /**
  * @brief Executes mock_realloc_qp.
  * @param ptr Parameter ptr.
  * @param size Parameter size.
+ * @param out_ptr Output pointer receiving NULL.
+ * @return C_ORM_ERROR_MEMORY on failure.
  */
-static void *mock_realloc_qp(void *ptr, size_t size) {
+static c_orm_error_t mock_realloc_qp(void *ptr, size_t size, void **out_ptr) {
   (void)ptr;
   (void)size;
-  return NULL;
+  if (out_ptr) {
+    *out_ptr = NULL;
+  }
+  return C_ORM_ERROR_MEMORY;
 }
 
 /**
- * @brief Mock malloc callback returning NULL.
+ * @brief Mock malloc callback returning C_ORM_ERROR_MEMORY.
  * @param size Requested size.
- * @return NULL on failure.
+ * @param out_ptr Output pointer receiving NULL.
+ * @return C_ORM_ERROR_MEMORY on failure.
  */
-static void *mock_malloc_qp(size_t size) {
+static c_orm_error_t mock_malloc_qp(size_t size, void **out_ptr) {
   (void)size;
-  return NULL;
+  if (out_ptr) {
+    *out_ptr = NULL;
+  }
+  return C_ORM_ERROR_MEMORY;
 }
 
 /**
@@ -114,7 +153,7 @@ TEST test_query_projection_init_free(void) {
 TEST test_query_projection_add_field(void) {
   cdd_c_query_projection_t proj;
   cdd_c_query_projection_field_t field;
-  void *(*old_realloc)(void *, size_t);
+  c_orm_realloc_fn_t old_realloc;
 
   old_realloc = c_orm_realloc;
 
@@ -152,7 +191,7 @@ TEST test_query_projection_add_field(void) {
 TEST test_query_projection_duplicate_string_oom(void) {
   cdd_c_query_projection_t proj;
   cdd_c_query_projection_field_t field;
-  void *(*old_malloc)(size_t);
+  c_orm_malloc_fn_t old_malloc;
 
   old_malloc = c_orm_malloc;
 
@@ -201,16 +240,21 @@ TEST test_query_projection_duplicate_string_nulls(void) {
 static int alloc_count_qp = 0;
 
 /**
- * @brief Mock malloc returning memory on first call and NULL thereafter.
+ * @brief Mock malloc returning memory on first call and error thereafter.
  * @param size Requested size.
- * @return Pointer on first call, NULL on subsequent calls.
+ * @param out_ptr Output pointer receiving allocated address or NULL.
+ * @return C_ORM_OK on first call, C_ORM_ERROR_MEMORY on subsequent calls.
  */
-static void *mock_malloc_qp_second(size_t size) {
+static c_orm_error_t mock_malloc_qp_second(size_t size, void **out_ptr) {
   if (alloc_count_qp == 0) {
     alloc_count_qp++;
-    return malloc(size);
+    *out_ptr = malloc(size == 0 ? 1 : size);
+    return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
   }
-  return NULL;
+  if (out_ptr) {
+    *out_ptr = NULL;
+  }
+  return C_ORM_ERROR_MEMORY;
 }
 
 /**
@@ -239,7 +283,7 @@ TEST test_query_projection_add_field_cap_expansion(void) {
 TEST test_query_projection_duplicate_string_oom_original_name(void) {
   cdd_c_query_projection_t proj;
   cdd_c_query_projection_field_t field;
-  void *(*old_malloc)(size_t);
+  c_orm_malloc_fn_t old_malloc;
 
   old_malloc = c_orm_malloc;
 
@@ -261,6 +305,123 @@ TEST test_query_projection_duplicate_string_oom_original_name(void) {
   PASS();
 }
 
+/** @brief Bitmask controlling which mock_fail_free_qp calls return an error. */
+static unsigned int qp_free_fail_mask = 0;
+
+/** @brief Invocation index for mock_fail_free_qp. */
+static unsigned int qp_free_call_idx = 0;
+
+/**
+ * @brief Mock realloc returning C_ORM_OK with NULL *out_ptr to exercise
+ * defensive NULL check branch.
+ * @param ptr Existing pointer.
+ * @param size Requested size.
+ * @param out_ptr Output pointer receiving NULL.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t mock_ok_null_realloc_qp(void *ptr, size_t size,
+                                             void **out_ptr) {
+  (void)ptr;
+  (void)size;
+  *out_ptr = NULL;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock malloc returning C_ORM_OK with NULL *out_ptr to exercise
+ * defensive NULL check branch.
+ * @param size Requested size.
+ * @param out_ptr Output pointer receiving NULL.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t mock_ok_null_malloc_qp(size_t size, void **out_ptr) {
+  (void)size;
+  *out_ptr = NULL;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock free callback that frees memory while returning a simulated error
+ * on masked call indices.
+ * @param ptr Pointer to free.
+ * @return C_ORM_OK or C_ORM_ERROR_MEMORY when masked.
+ */
+static c_orm_error_t mock_fail_free_qp(void *ptr) {
+  unsigned int bit = 1U << qp_free_call_idx++;
+  free(ptr);
+  if ((qp_free_fail_mask & bit) != 0U) {
+    return C_ORM_ERROR_MEMORY;
+  }
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Tests defensive NULL-return allocators and free error propagation in
+ * query_projection.c.
+ * @return GREATEST test result.
+ */
+TEST test_query_projection_free_and_defensive_errors(void) {
+  cdd_c_query_projection_t proj;
+  cdd_c_query_projection_field_t field;
+  c_orm_malloc_fn_t saved_malloc = c_orm_malloc;
+  c_orm_realloc_fn_t saved_realloc = c_orm_realloc;
+  c_orm_free_fn_t saved_free = c_orm_free;
+  unsigned int bit_idx;
+
+  ASSERT_EQ(C_ORM_OK, cdd_c_query_projection_init(&proj));
+  memset(&field, 0, sizeof(field));
+  field.name = "f1";
+  field.original_name = "orig1";
+
+  /* Defensive NULL return on realloc */
+  c_orm_set_allocators(saved_malloc, mock_ok_null_realloc_qp, saved_free);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            cdd_c_query_projection_add_field(&proj, &field));
+
+  /* Defensive NULL return on malloc inside duplicate_string_qp */
+  c_orm_set_allocators(mock_ok_null_malloc_qp, saved_realloc, saved_free);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            cdd_c_query_projection_add_field(&proj, &field));
+  c_orm_set_allocators(saved_malloc, saved_realloc, saved_free);
+  ASSERT_EQ(C_ORM_OK, cdd_c_query_projection_free(&proj));
+
+  /* Exercise each individual free failure (rc == C_ORM_OK -> true) across a
+   * 2-field projection with source_table and target_name (7 free calls total:
+   * 0:f0.name, 1:f0.orig, 2:f1.name, 3:f1.orig, 4:fields, 5:source_table,
+   * 6:target_name) */
+  for (bit_idx = 0; bit_idx < 7U; ++bit_idx) {
+    ASSERT_EQ(C_ORM_OK, cdd_c_query_projection_init(&proj));
+    ASSERT_EQ(C_ORM_OK, cdd_c_query_projection_add_field(&proj, &field));
+    ASSERT_EQ(C_ORM_OK, cdd_c_query_projection_add_field(&proj, &field));
+    ASSERT_EQ(C_ORM_OK, c_orm_strdup("src_tbl", &proj.source_table));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_strdup("tgt_map", &proj.mapping_meta.target_name));
+
+    qp_free_call_idx = 0;
+    qp_free_fail_mask = (1U << bit_idx);
+    c_orm_set_allocators(saved_malloc, saved_realloc, mock_fail_free_qp);
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, cdd_c_query_projection_free(&proj));
+    c_orm_set_allocators(saved_malloc, saved_realloc, saved_free);
+  }
+
+  /* Exercise all frees failing simultaneously so (frc != C_ORM_OK && rc ==
+   * C_ORM_OK) evaluates (true && false) on every subsequent free */
+  ASSERT_EQ(C_ORM_OK, cdd_c_query_projection_init(&proj));
+  ASSERT_EQ(C_ORM_OK, cdd_c_query_projection_add_field(&proj, &field));
+  ASSERT_EQ(C_ORM_OK, cdd_c_query_projection_add_field(&proj, &field));
+  ASSERT_EQ(C_ORM_OK, c_orm_strdup("src_tbl", &proj.source_table));
+  ASSERT_EQ(C_ORM_OK, c_orm_strdup("tgt_map", &proj.mapping_meta.target_name));
+
+  qp_free_call_idx = 0;
+  qp_free_fail_mask = 0x7FU;
+  c_orm_set_allocators(saved_malloc, saved_realloc, mock_fail_free_qp);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, cdd_c_query_projection_free(&proj));
+  qp_free_fail_mask = 0;
+  c_orm_set_allocators(saved_malloc, saved_realloc, saved_free);
+
+  PASS();
+}
+
 /**
  * @brief Query projection test suite runner.
  * @param query_projection_suite Suite runner function name.
@@ -273,6 +434,7 @@ SUITE(query_projection_suite) {
   RUN_TEST(test_query_projection_duplicate_string_nulls);
   RUN_TEST(test_query_projection_duplicate_string_oom_original_name);
   RUN_TEST(test_query_projection_add_field_cap_expansion);
+  RUN_TEST(test_query_projection_free_and_defensive_errors);
   if (!recursed) {
     recursed = 1;
     greatest_set_test_filter("never_match_filter");

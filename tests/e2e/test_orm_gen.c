@@ -39,27 +39,32 @@ extern "C" {
   } while ((void)0, 0)
 
 #undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 /* clang-format on */
 
 /** @brief Counter decremented before triggering test malloc failure. */
 static int oom_countdown = -1;
 
 /**
- * @brief Mock malloc returning NULL when countdown expires.
+ * @brief Mock malloc returning error when countdown expires.
  * @param size Requested allocation size.
- * @return Allocated memory or NULL on failure.
+ * @param out_ptr Output pointer receiving allocated memory or NULL.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
  */
-static void *mock_malloc_oom(size_t size) {
+static c_orm_error_t mock_malloc_oom(size_t size, void **out_ptr) {
   if (oom_countdown == 0) {
     oom_countdown--;
-    return NULL;
+    if (out_ptr) {
+      *out_ptr = NULL;
+    }
+    return C_ORM_ERROR_MEMORY;
   }
   oom_countdown--;
-  return malloc(size);
+  *out_ptr = malloc(size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /**
@@ -73,7 +78,7 @@ TEST test_orm_gen_basic(void) {
   struct StructField *fields;
   struct StructField *no_pk_fields;
   struct StructField *big_pk_fields;
-  void *(*old_malloc)(size_t);
+  c_orm_malloc_fn_t old_malloc;
   c_orm_error_t rc_err;
   char huge_desc[300];
 
@@ -138,7 +143,7 @@ TEST test_orm_gen_basic(void) {
   C_ORM_STRNCPY(fields[3].name, sizeof(fields[3].name), "org_id", 63);
   C_ORM_STRNCPY(fields[3].type, sizeof(fields[3].type), "integer", 31);
   C_ORM_STRNCPY(fields[3].description, sizeof(fields[3].description),
-                "[FK=Org]", 255);
+                "[FK=Org] [INDEX]", 255);
 
   C_ORM_STRNCPY(fields[4].name, sizeof(fields[4].name), "score", 63);
   C_ORM_STRNCPY(fields[4].type, sizeof(fields[4].type), "number", 31);

@@ -16,7 +16,7 @@ extern "C" {
 #include "c_orm_sql.h"
 #include "c_orm_sqlite.h"
 #include "cdd_c_orm_meta.h"
-#include "parson.h"
+#include "c_cdd/json_dom.h"
 #include <errno.h>
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
@@ -28,27 +28,51 @@ extern "C" {
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -62,7 +86,13 @@ extern "C" {
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do {                                                                       \
+      enum greatest_test_res _rc = (res);                                      \
+      greatest_info.assertions++;                                              \
+      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
+        return _rc;                                                            \
+      }                                                                        \
+    } while ((void)0, 0);                                                      \
   } while ((void)0, 0)
 
 /**
@@ -211,7 +241,7 @@ TEST test_abstract_struct_json_roundtrip(void) {
 
   cdd_c_abstract_print(&astruct_in);
 
-  json_free_serialized_string(json_str);
+  ASSERT_EQ(CDD_C_SUCCESS, json_free_serialized_string(json_str));
   ASSERT_EQ(0, cdd_c_abstract_struct_free(&astruct_out));
   ASSERT_EQ(0, cdd_c_abstract_struct_free(&astruct_in));
   PASS();
@@ -232,13 +262,13 @@ TEST test_abstract_hydrate(void) {
   cdd_c_variant_t *out_val;
 
   cols[0].name = "id";
-  cols[0].inferred_type = 4; /* SQL_TYPE_INT */
+  cols[0].inferred_type = SQL_TYPE_INT;
 
   cols[1].name = "ratio";
-  cols[1].inferred_type = 8; /* SQL_TYPE_FLOAT */
+  cols[1].inferred_type = SQL_TYPE_FLOAT;
 
   cols[2].name = "greeting";
-  cols[2].inferred_type = 5; /* SQL_TYPE_VARCHAR */
+  cols[2].inferred_type = SQL_TYPE_VARCHAR;
 
   cols[3].name = "extra";
   cols[3].inferred_type = 999; /* Unknown -> BLOB */
@@ -364,7 +394,7 @@ TEST test_abstract_struct_conversion2(void) {
   ASSERT_EQ(0, cdd_c_specific_to_abstract(&astruct_out, &specific_in, &meta));
   ASSERT_EQ(3, astruct_out.count);
 
-  C_ORM_FREE(specific_out.dyn_str);
+  (void)c_orm_system_free(specific_out.dyn_str);
   cdd_c_abstract_struct_free(&astruct_in);
   cdd_c_abstract_struct_free(&astruct_out);
   PASS();
@@ -539,11 +569,11 @@ TEST test_mock_driver_specific_struct_hydration(void) {
 
   /* Setup mock database driver output row */
   cols[0].name = "id";
-  cols[0].inferred_type = 4; /* INT */
+  cols[0].inferred_type = SQL_TYPE_INT;
   cols[1].name = "ratio";
-  cols[1].inferred_type = 8; /* FLOAT */
+  cols[1].inferred_type = SQL_TYPE_FLOAT;
   cols[2].name = "greeting";
-  cols[2].inferred_type = 5; /* VARCHAR */
+  cols[2].inferred_type = SQL_TYPE_VARCHAR;
 
   row_data[0] = &mock_id;
   row_data[1] = &mock_ratio;
@@ -582,9 +612,9 @@ TEST test_mock_driver_abstract_struct_hydration(void) {
 
   /* Setup mock database driver output row */
   cols[0].name = "dynamic_id";
-  cols[0].inferred_type = 4; /* INT */
+  cols[0].inferred_type = SQL_TYPE_INT;
   cols[1].name = "dynamic_name";
-  cols[1].inferred_type = 5; /* VARCHAR */
+  cols[1].inferred_type = SQL_TYPE_VARCHAR;
 
   row_data[0] = &mock_id;
   row_data[1] = mock_name;
@@ -661,7 +691,7 @@ TEST test_abstract_struct_array(void) {
 
   ASSERT_EQ(0, cdd_c_abstract_struct_array_to_json(&arr, &json_out));
   ASSERT_NEQ(NULL, json_out);
-  json_free_serialized_string(json_out);
+  ASSERT_EQ(CDD_C_SUCCESS, json_free_serialized_string(json_out));
 
   ASSERT_EQ(0, cdd_c_abstract_struct_array_free(&arr));
 
@@ -726,9 +756,9 @@ TEST test_benchmark_hydration(void) {
 
   /* cdd_c_column_meta_t mapping for abstract hydration */
   cols[0].name = "greeting";
-  cols[0].inferred_type = 5; /* STRING */
+  cols[0].inferred_type = SQL_TYPE_VARCHAR;
   cols[1].name = "id";
-  cols[1].inferred_type = 4; /* INT */
+  cols[1].inferred_type = SQL_TYPE_INT;
 
   start = clock();
   for (i = 0; i < ITERATIONS; ++i) {
@@ -895,7 +925,7 @@ TEST test_abstract_struct_edge_types(void) {
   C_ORM_STRDUP("blobdata", (char **)&v.value.b_val.data);
   v.value.b_val.size = 8;
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct, "my_blob", &v));
-  C_ORM_FREE(v.value.b_val.data);
+  (void)c_orm_system_free(v.value.b_val.data);
 
   /* NULL */
   v.type = CDD_C_VARIANT_TYPE_NULL;
@@ -909,7 +939,7 @@ TEST test_abstract_struct_edge_types(void) {
   ASSERT_EQ(0, cdd_c_abstract_struct_deep_copy(&astruct2, &astruct));
 
   ASSERT_EQ(0, cdd_c_abstract_struct_to_json(&astruct2, &json_out));
-  json_free_serialized_string(json_out);
+  ASSERT_EQ(CDD_C_SUCCESS, json_free_serialized_string(json_out));
   cdd_c_abstract_print(&astruct2);
 
   cdd_c_abstract_struct_free(&astruct);
@@ -1201,20 +1231,20 @@ TEST test_hydrate_null(void) {
   int types[9];
   size_t i;
 
-  types[0] = 3;
-  types[1] = 14;
-  types[2] = 9;
-  types[3] = 10;
-  types[4] = 6;
-  types[5] = 7;
-  types[6] = 11;
-  types[7] = 12;
-  types[8] = 99;
+  types[0] = SQL_TYPE_INT;
+  types[1] = SQL_TYPE_BIGINT;
+  types[2] = SQL_TYPE_FLOAT;
+  types[3] = SQL_TYPE_DOUBLE;
+  types[4] = SQL_TYPE_VARCHAR;
+  types[5] = SQL_TYPE_TEXT;
+  types[6] = SQL_TYPE_DATE;
+  types[7] = SQL_TYPE_TIMESTAMP;
+  types[8] = SQL_TYPE_UNKNOWN;
 
   C_ORM_STRCPY(s_val, sizeof(s_val), "test");
 
   cols[0].name = "id";
-  cols[0].inferred_type = 4;
+  cols[0].inferred_type = SQL_TYPE_INT;
   row_data[0] = NULL;
 
   ASSERT_EQ(0, (int)cdd_c_abstract_hydrate(&astruct, row_data, cols, 1));
@@ -1223,9 +1253,9 @@ TEST test_hydrate_null(void) {
   for (i = 0; i < 9; i++) {
     cols[0].name = "col";
     cols[0].inferred_type = types[i];
-    if (types[i] == 3 || types[i] == 14) {
+    if (types[i] == SQL_TYPE_INT || types[i] == SQL_TYPE_BIGINT) {
       row_data[0] = &i_val;
-    } else if (types[i] == 9 || types[i] == 10) {
+    } else if (types[i] == SQL_TYPE_FLOAT || types[i] == SQL_TYPE_DOUBLE) {
       row_data[0] = &d_val;
     } else {
       row_data[0] = s_val;

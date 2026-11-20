@@ -8,6 +8,7 @@
 
 /* clang-format off */
 #include "c_orm_api.h"
+#include "c_orm_decimal.h"
 #include <stddef.h>
 /* clang-format on */
 
@@ -40,8 +41,33 @@ typedef enum {
   C_ORM_AST_NODE_CAST,
   C_ORM_AST_NODE_BETWEEN,
   C_ORM_AST_NODE_EXISTS,
-  C_ORM_AST_NODE_WINDOW
+  C_ORM_AST_NODE_WINDOW,
+  C_ORM_AST_NODE_INSERT,    /**< INSERT INTO target table node. */
+  C_ORM_AST_NODE_UPDATE,    /**< UPDATE target table node. */
+  C_ORM_AST_NODE_DELETE,    /**< DELETE FROM target table node. */
+  C_ORM_AST_NODE_ASSIGN,    /**< Column-value assignment node for INSERT/UPDATE.
+                             */
+  C_ORM_AST_NODE_RETURNING, /**< RETURNING / Db2 FINAL/OLD TABLE projection. */
+  C_ORM_AST_NODE_LOCK       /**< Db2 isolation / FOR FETCH ONLY lock clause. */
 } c_orm_ast_node_type_t;
+
+/**
+ * @brief Isolation and cursor read-only lock clauses for IBM Db2 queries.
+ */
+typedef enum c_orm_ast_lock_mode {
+  /** @brief No explicit lock or isolation clause. */
+  C_ORM_AST_LOCK_NONE = 0,
+  /** @brief Db2 Uncommitted Read (`WITH UR`). */
+  C_ORM_AST_LOCK_WITH_UR = 1,
+  /** @brief Db2 Cursor Stability (`WITH CS`). */
+  C_ORM_AST_LOCK_WITH_CS = 2,
+  /** @brief Db2 Read Stability (`WITH RS`). */
+  C_ORM_AST_LOCK_WITH_RS = 3,
+  /** @brief Db2 Repeatable Read (`WITH RR`). */
+  C_ORM_AST_LOCK_WITH_RR = 4,
+  /** @brief Db2 read-only cursor hint (`FOR FETCH ONLY`). */
+  C_ORM_AST_LOCK_FOR_FETCH_ONLY = 5
+} c_orm_ast_lock_mode_t;
 
 /**
  * @brief Base structure for all AST nodes.
@@ -184,6 +210,8 @@ typedef struct c_orm_ast_offset {
  * @var base Base node metadata.
  * @var value String representation of the literal value.
  * @var is_string Non-zero if value is quoted string.
+ * @var is_decimal Non-zero if literal carries an exact c_orm_decimal_t value.
+ * @var decimal_val Exact fixed-point decimal payload when is_decimal is set.
  */
 typedef struct c_orm_ast_literal {
   /** @brief Base node metadata. */
@@ -192,6 +220,10 @@ typedef struct c_orm_ast_literal {
   const char *value;
   /** @brief Non-zero if value is quoted string. */
   int is_string;
+  /** @brief Non-zero if literal carries an exact c_orm_decimal_t value. */
+  int is_decimal;
+  /** @brief Exact fixed-point decimal payload when is_decimal is set. */
+  c_orm_decimal_t decimal_val;
 } c_orm_ast_literal_t;
 
 /**
@@ -249,6 +281,11 @@ typedef struct c_orm_ast_group {
 } c_orm_ast_group_t;
 
 /**
+ * @brief Forward declaration of fluent AST query builder handle.
+ */
+typedef struct c_orm_ast_query c_orm_ast_query_t;
+
+/**
  * @brief Subquery AST Node
  * @var base Base node metadata.
  * @var query Nested subquery handle.
@@ -258,7 +295,7 @@ typedef struct c_orm_ast_subquery {
   /** @brief Base node metadata. */
   c_orm_ast_node_t base;
   /** @brief Nested subquery handle. */
-  struct c_orm_query *query;
+  struct c_orm_ast_query *query;
   /** @brief Optional subquery alias name. */
   const char *alias;
 } c_orm_ast_subquery_t;
@@ -275,7 +312,7 @@ typedef struct c_orm_ast_union {
   /** @brief Non-zero if UNION ALL. */
   int is_all;
   /** @brief Query handle to combine. */
-  struct c_orm_query *query;
+  struct c_orm_ast_query *query;
 } c_orm_ast_union_t;
 
 /**
@@ -290,7 +327,7 @@ typedef struct c_orm_ast_with {
   /** @brief CTE alias name. */
   const char *alias;
   /** @brief CTE definition query handle. */
-  struct c_orm_query *query;
+  struct c_orm_ast_query *query;
 } c_orm_ast_with_t;
 
 /**
@@ -357,7 +394,7 @@ typedef struct c_orm_ast_exists {
   /** @brief Base node metadata. */
   c_orm_ast_node_t base;
   /** @brief Subquery handle to test for existence. */
-  struct c_orm_query *query;
+  struct c_orm_ast_query *query;
   /** @brief Non-zero if NOT EXISTS. */
   int is_not;
 } c_orm_ast_exists_t;
@@ -383,6 +420,81 @@ typedef struct c_orm_ast_window {
   const char *alias;
 } c_orm_ast_window_t;
 
+/**
+ * @brief INSERT INTO AST Node.
+ * @var base Base node metadata.
+ * @var table Target table name.
+ */
+typedef struct c_orm_ast_insert {
+  /** @brief Base node metadata. */
+  c_orm_ast_node_t base;
+  /** @brief Target table name. */
+  const char *table;
+} c_orm_ast_insert_t;
+
+/**
+ * @brief UPDATE target table AST Node.
+ * @var base Base node metadata.
+ * @var table Target table name.
+ */
+typedef struct c_orm_ast_update {
+  /** @brief Base node metadata. */
+  c_orm_ast_node_t base;
+  /** @brief Target table name. */
+  const char *table;
+} c_orm_ast_update_t;
+
+/**
+ * @brief DELETE FROM target table AST Node.
+ * @var base Base node metadata.
+ * @var table Target table name.
+ */
+typedef struct c_orm_ast_delete {
+  /** @brief Base node metadata. */
+  c_orm_ast_node_t base;
+  /** @brief Target table name. */
+  const char *table;
+} c_orm_ast_delete_t;
+
+/**
+ * @brief Column-value assignment AST Node for INSERT / UPDATE statements.
+ * @var base Base node metadata.
+ * @var column Target column name.
+ * @var value_expr Assigned value expression AST node.
+ */
+typedef struct c_orm_ast_assign {
+  /** @brief Base node metadata. */
+  c_orm_ast_node_t base;
+  /** @brief Target column name. */
+  const char *column;
+  /** @brief Assigned value expression AST node. */
+  struct c_orm_ast_node *value_expr;
+} c_orm_ast_assign_t;
+
+/**
+ * @brief RETURNING / Db2 data-change-table-reference AST Node.
+ * @var base Base node metadata.
+ * @var columns Comma-separated returning column list (or `*`).
+ */
+typedef struct c_orm_ast_returning {
+  /** @brief Base node metadata. */
+  c_orm_ast_node_t base;
+  /** @brief Comma-separated returning column list (or `*`). */
+  const char *columns;
+} c_orm_ast_returning_t;
+
+/**
+ * @brief Db2 isolation / cursor read-only lock AST Node.
+ * @var base Base node metadata.
+ * @var mode Lock / isolation mode enum.
+ */
+typedef struct c_orm_ast_lock {
+  /** @brief Base node metadata. */
+  c_orm_ast_node_t base;
+  /** @brief Lock / isolation mode enum. */
+  c_orm_ast_lock_mode_t mode;
+} c_orm_ast_lock_t;
+
 /** @brief Global max recursion depth for the parser/renderer */
 C_ORM_EXPORT extern unsigned int cdd_c_sql_parser_max_depth;
 
@@ -392,24 +504,23 @@ C_ORM_EXPORT extern unsigned int cdd_c_sql_parser_max_depth;
 typedef struct c_orm_arena c_orm_arena_t;
 
 /**
- * @brief Dialect renderer type for SQL generation.
- */
-typedef enum {
-  C_ORM_DIALECT_SQLITE = 0,
-  C_ORM_DIALECT_POSTGRES,
-  C_ORM_DIALECT_MYSQL
-} c_orm_dialect_t;
-
-/**
  * @brief SQL query parameter.
  * @var value Bound parameter value string.
  * @var is_string Non-zero if parameter is string literal.
+ * @var param_type Explicit ORM parameter type (`C_ORM_TYPE_DECIMAL` or
+ * `C_ORM_TYPE_UNKNOWN`).
+ * @var decimal_val Exact decimal value when `param_type == C_ORM_TYPE_DECIMAL`.
  */
 typedef struct c_orm_query_param {
   /** @brief Bound parameter value string. */
   const char *value;
   /** @brief Non-zero if parameter is string literal. */
   int is_string;
+  /** @brief Explicit ORM parameter type (`C_ORM_TYPE_DECIMAL` or
+   * `C_ORM_TYPE_UNKNOWN`). */
+  c_orm_type_t param_type;
+  /** @brief Exact decimal value when `param_type == C_ORM_TYPE_DECIMAL`. */
+  c_orm_decimal_t decimal_val;
 } c_orm_query_param_t;
 
 /**
@@ -455,6 +566,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_params_add(c_orm_query_params_t *params,
                                                   int is_string);
 
 /**
+ * @brief Add an exact fixed-point `c_orm_decimal_t` parameter to the
+ * collection.
+ * @param params Pointer to parameter collection structure.
+ * @param dec Exact decimal value to bind via `C_ORM_TYPE_DECIMAL`.
+ * @param str_repr Optional arena-owned canonical string representation.
+ * @return C_ORM_OK on success, or error code on invalid args/OOM.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_query_params_add_decimal(
+    c_orm_query_params_t *params, const c_orm_decimal_t *dec,
+    const char *str_repr);
+
+/**
  * @brief Generate a raw SQL string and its ordered parameters from the AST.
  * @param q The query builder AST.
  * @param dialect The target dialect.
@@ -465,7 +588,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_params_add(c_orm_query_params_t *params,
  * respectively.
  * @return 0 on success.
  */
-C_ORM_EXPORT c_orm_error_t c_orm_query_to_sql(c_orm_query_t *q,
+C_ORM_EXPORT c_orm_error_t c_orm_query_to_sql(c_orm_ast_query_t *q,
                                               c_orm_dialect_t dialect,
                                               char **out_sql,
                                               c_orm_query_params_t *out_params);
@@ -478,7 +601,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_to_sql(c_orm_query_t *q,
  * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
-                                               c_orm_query_t *q);
+                                               c_orm_ast_query_t *q);
 
 /**
  * @brief Fetch a single mapped struct instance from an AST query.
@@ -489,7 +612,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
  * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
-                                                 c_orm_query_t *q,
+                                                 c_orm_ast_query_t *q,
                                                  const c_orm_table_meta_t *meta,
                                                  void *out_struct);
 
@@ -502,7 +625,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
  * @return C_ORM_OK on success.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
-                                                 c_orm_query_t *q,
+                                                 c_orm_ast_query_t *q,
                                                  const c_orm_table_meta_t *meta,
                                                  void *out_array);
 
@@ -541,14 +664,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_strdup(c_orm_arena_t *arena,
  */
 C_ORM_EXPORT c_orm_error_t c_orm_arena_free(c_orm_arena_t *arena);
 
-/* Forward declaration */
-#ifndef C_ORM_QUERY_T_DEFINED
-#define C_ORM_QUERY_T_DEFINED
-typedef struct c_orm_query c_orm_query_t;
-#endif
-
 /**
- * @brief Fluent Query builder interface.
+ * @brief Fluent AST Query builder interface.
  * @var arena Memory arena for query AST allocations.
  * @var ast_head Head node pointer of AST list.
  * @var error Error status flag.
@@ -589,8 +706,15 @@ typedef struct c_orm_query c_orm_query_t;
  * @var op Constructs binary operator AST node.
  * @var lit Constructs literal value AST node.
  * @var col Constructs column reference AST node.
+ * @var insert_into Sets INSERT INTO target table.
+ * @var update_table Sets UPDATE target table.
+ * @var delete_from Sets DELETE FROM target table.
+ * @var set_col Appends a column-value assignment for INSERT or UPDATE.
+ * @var returning Adds a RETURNING (or Db2 FINAL/OLD TABLE) projection clause.
+ * @var with_lock Adds a Db2 isolation or FOR FETCH ONLY lock clause.
+ * @var lit_decimal Constructs an exact fixed-point decimal literal AST node.
  */
-struct c_orm_query {
+struct c_orm_ast_query {
   /** @brief Memory arena for query AST allocations. */
   c_orm_arena_t *arena;
   /** @brief Head node pointer of AST list. */
@@ -600,126 +724,162 @@ struct c_orm_query {
 
   /* Fluent methods */
   /** @brief Sets SELECT projection columns. */
-  c_orm_error_t (*select_)(c_orm_query_t *q, const char *columns);
+  c_orm_error_t (*select_)(c_orm_ast_query_t *q, const char *columns);
   /** @brief Sets FROM table source. */
-  c_orm_error_t (*from)(c_orm_query_t *q, const char *table);
+  c_orm_error_t (*from)(c_orm_ast_query_t *q, const char *table);
   /** @brief Adds root WHERE condition. */
-  c_orm_error_t (*where)(c_orm_query_t *q, c_orm_ast_node_t *condition);
+  c_orm_error_t (*where)(c_orm_ast_query_t *q, c_orm_ast_node_t *condition);
   /** @brief Adds condition with AND. */
-  c_orm_error_t (*and_where)(c_orm_query_t *q, c_orm_ast_node_t *condition);
+  c_orm_error_t (*and_where)(c_orm_ast_query_t *q, c_orm_ast_node_t *condition);
   /** @brief Adds condition with OR. */
-  c_orm_error_t (*or_where)(c_orm_query_t *q, c_orm_ast_node_t *condition);
+  c_orm_error_t (*or_where)(c_orm_ast_query_t *q, c_orm_ast_node_t *condition);
   /** @brief Adds ORDER BY clause. */
-  c_orm_error_t (*order_by)(c_orm_query_t *q, const char *column, int is_desc);
+  c_orm_error_t (*order_by)(c_orm_ast_query_t *q, const char *column,
+                            int is_desc);
   /** @brief Adds LIMIT clause. */
-  c_orm_error_t (*limit)(c_orm_query_t *q, size_t n);
+  c_orm_error_t (*limit)(c_orm_ast_query_t *q, size_t n);
   /** @brief Adds OFFSET clause. */
-  c_orm_error_t (*offset)(c_orm_query_t *q, size_t n);
+  c_orm_error_t (*offset)(c_orm_ast_query_t *q, size_t n);
 
   /* Query Cloning */
   /** @brief Clones query builder instance. */
-  c_orm_error_t (*clone)(c_orm_query_t *q, c_orm_query_t **out_q);
+  c_orm_error_t (*clone)(c_orm_ast_query_t *q, c_orm_ast_query_t **out_q);
 
   /* Advanced Query Features (Phase 3) */
   /** @brief Adds JOIN clause. */
-  c_orm_error_t (*join)(c_orm_query_t *q, const char *table,
+  c_orm_error_t (*join)(c_orm_ast_query_t *q, const char *table,
                         const char *type_str, c_orm_ast_node_t *on_condition);
   /** @brief Adds LEFT JOIN clause. */
-  c_orm_error_t (*left_join)(c_orm_query_t *q, const char *table,
+  c_orm_error_t (*left_join)(c_orm_ast_query_t *q, const char *table,
                              c_orm_ast_node_t *on_condition);
   /** @brief Adds RIGHT JOIN clause. */
-  c_orm_error_t (*right_join)(c_orm_query_t *q, const char *table,
+  c_orm_error_t (*right_join)(c_orm_ast_query_t *q, const char *table,
                               c_orm_ast_node_t *on_condition);
   /** @brief Adds GROUP BY clause. */
-  c_orm_error_t (*group_by)(c_orm_query_t *q, const char *columns);
+  c_orm_error_t (*group_by)(c_orm_ast_query_t *q, const char *columns);
   /** @brief Adds HAVING condition. */
-  c_orm_error_t (*having)(c_orm_query_t *q, c_orm_ast_node_t *condition);
+  c_orm_error_t (*having)(c_orm_ast_query_t *q, c_orm_ast_node_t *condition);
   /** @brief Adds WITH (CTE) clause. */
-  c_orm_error_t (*with)(c_orm_query_t *q, const char *alias,
-                        c_orm_query_t *subquery);
+  c_orm_error_t (*with)(c_orm_ast_query_t *q, const char *alias,
+                        c_orm_ast_query_t *subquery);
   /** @brief Adds UNION clause. */
-  c_orm_error_t (*union_)(c_orm_query_t *q, c_orm_query_t *other, int is_all);
+  c_orm_error_t (*union_)(c_orm_ast_query_t *q, c_orm_ast_query_t *other,
+                          int is_all);
   /** @brief Enables DISTINCT modifier. */
-  c_orm_error_t (*distinct)(c_orm_query_t *q);
+  c_orm_error_t (*distinct)(c_orm_ast_query_t *q);
   /** @brief Sets FROM table with alias. */
-  c_orm_error_t (*from_alias)(c_orm_query_t *q, const char *table,
+  c_orm_error_t (*from_alias)(c_orm_ast_query_t *q, const char *table,
                               const char *alias);
   /** @brief Eagerly loads specified relationship. */
-  c_orm_error_t (*eager_load)(c_orm_query_t *q, const c_orm_table_meta_t *meta,
+  c_orm_error_t (*eager_load)(c_orm_ast_query_t *q,
+                              const c_orm_table_meta_t *meta,
                               const char *relation_name);
 
   /* AST Node Builders */
   /** @brief Wraps expression in parentheses. */
-  c_orm_error_t (*group)(c_orm_query_t *q, c_orm_ast_node_t *expr,
+  c_orm_error_t (*group)(c_orm_ast_query_t *q, c_orm_ast_node_t *expr,
                          c_orm_ast_node_t **out_node);
   /** @brief Constructs subquery AST node. */
-  c_orm_error_t (*subquery)(c_orm_query_t *q, c_orm_query_t *subq,
+  c_orm_error_t (*subquery)(c_orm_ast_query_t *q, c_orm_ast_query_t *subq,
                             const char *alias, c_orm_ast_node_t **out_node);
   /** @brief Constructs SQL function AST node. */
-  c_orm_error_t (*func)(c_orm_query_t *q, const char *name, const char *args,
-                        const char *alias, c_orm_ast_node_t **out_node);
+  c_orm_error_t (*func)(c_orm_ast_query_t *q, const char *name,
+                        const char *args, const char *alias,
+                        c_orm_ast_node_t **out_node);
   /** @brief Constructs CAST AST node. */
-  c_orm_error_t (*cast_)(c_orm_query_t *q, const char *col, const char *type,
-                         c_orm_ast_node_t **out_node);
+  c_orm_error_t (*cast_)(c_orm_ast_query_t *q, const char *col,
+                         const char *type, c_orm_ast_node_t **out_node);
   /** @brief Constructs IS NULL AST node. */
-  c_orm_error_t (*is_null)(c_orm_query_t *q, const char *col, int is_not,
+  c_orm_error_t (*is_null)(c_orm_ast_query_t *q, const char *col, int is_not,
                            c_orm_ast_node_t **out_node);
   /** @brief Constructs BETWEEN AST node. */
-  c_orm_error_t (*between)(c_orm_query_t *q, const char *col, const char *low,
-                           const char *high, int is_string,
+  c_orm_error_t (*between)(c_orm_ast_query_t *q, const char *col,
+                           const char *low, const char *high, int is_string,
                            c_orm_ast_node_t **out_node);
   /** @brief Constructs EXISTS AST node. */
-  c_orm_error_t (*exists)(c_orm_query_t *q, c_orm_query_t *subq, int is_not,
-                          c_orm_ast_node_t **out_node);
+  c_orm_error_t (*exists)(c_orm_ast_query_t *q, c_orm_ast_query_t *subq,
+                          int is_not, c_orm_ast_node_t **out_node);
   /** @brief Constructs WINDOW function AST node. */
-  c_orm_error_t (*window)(c_orm_query_t *q, const char *func_name,
+  c_orm_error_t (*window)(c_orm_ast_query_t *q, const char *func_name,
                           const char *partition_by, const char *order_by,
                           const char *alias, c_orm_ast_node_t **out_node);
   /** @brief Constructs RAW SQL AST node. */
-  c_orm_error_t (*raw)(c_orm_query_t *q, const char *sql,
+  c_orm_error_t (*raw)(c_orm_ast_query_t *q, const char *sql,
                        c_orm_ast_node_t **out_node);
   /** @brief Constructs equality operator AST node. */
-  c_orm_error_t (*eq)(c_orm_query_t *q, const char *col, const char *val,
+  c_orm_error_t (*eq)(c_orm_ast_query_t *q, const char *col, const char *val,
                       int is_string, c_orm_ast_node_t **out_node);
   /** @brief Constructs inequality operator AST node. */
-  c_orm_error_t (*neq)(c_orm_query_t *q, const char *col, const char *val,
+  c_orm_error_t (*neq)(c_orm_ast_query_t *q, const char *col, const char *val,
                        int is_string, c_orm_ast_node_t **out_node);
   /** @brief Constructs greater-than operator AST node. */
-  c_orm_error_t (*gt)(c_orm_query_t *q, const char *col, const char *val,
+  c_orm_error_t (*gt)(c_orm_ast_query_t *q, const char *col, const char *val,
                       int is_string, c_orm_ast_node_t **out_node);
   /** @brief Constructs less-than operator AST node. */
-  c_orm_error_t (*lt)(c_orm_query_t *q, const char *col, const char *val,
+  c_orm_error_t (*lt)(c_orm_ast_query_t *q, const char *col, const char *val,
                       int is_string, c_orm_ast_node_t **out_node);
   /** @brief Constructs LIKE operator AST node. */
-  c_orm_error_t (*like)(c_orm_query_t *q, const char *col, const char *val,
+  c_orm_error_t (*like)(c_orm_ast_query_t *q, const char *col, const char *val,
                         c_orm_ast_node_t **out_node);
   /** @brief Constructs IN operator AST node. */
-  c_orm_error_t (*in)(c_orm_query_t *q, const char *col, const char *val_list,
-                      c_orm_ast_node_t **out_node);
+  c_orm_error_t (*in)(c_orm_ast_query_t *q, const char *col,
+                      const char *val_list, c_orm_ast_node_t **out_node);
   /** @brief Constructs binary operator AST node. */
-  c_orm_error_t (*op)(c_orm_query_t *q, const char *op, c_orm_ast_node_t *left,
-                      c_orm_ast_node_t *right, c_orm_ast_node_t **out_node);
+  c_orm_error_t (*op)(c_orm_ast_query_t *q, const char *op,
+                      c_orm_ast_node_t *left, c_orm_ast_node_t *right,
+                      c_orm_ast_node_t **out_node);
   /** @brief Constructs literal value AST node. */
-  c_orm_error_t (*lit)(c_orm_query_t *q, const char *val, int is_string,
+  c_orm_error_t (*lit)(c_orm_ast_query_t *q, const char *val, int is_string,
                        c_orm_ast_node_t **out_node);
   /** @brief Constructs column reference AST node. */
-  c_orm_error_t (*col)(c_orm_query_t *q, const char *name,
+  c_orm_error_t (*col)(c_orm_ast_query_t *q, const char *name,
                        c_orm_ast_node_t **out_node);
+  /** @brief Sets INSERT INTO target table. */
+  c_orm_error_t (*insert_into)(c_orm_ast_query_t *q, const char *table);
+  /** @brief Sets UPDATE target table. */
+  c_orm_error_t (*update_table)(c_orm_ast_query_t *q, const char *table);
+  /** @brief Sets DELETE FROM target table. */
+  c_orm_error_t (*delete_from)(c_orm_ast_query_t *q, const char *table);
+  /** @brief Appends a column-value assignment for INSERT or UPDATE. */
+  c_orm_error_t (*set_col)(c_orm_ast_query_t *q, const char *column,
+                           c_orm_ast_node_t *value_expr);
+  /** @brief Adds a RETURNING (or Db2 FINAL/OLD TABLE) projection clause. */
+  c_orm_error_t (*returning)(c_orm_ast_query_t *q, const char *columns);
+  /** @brief Adds a Db2 isolation (`WITH UR`/`CS`/`RS`/`RR`) or `FOR FETCH ONLY`
+   * clause. */
+  c_orm_error_t (*with_lock)(c_orm_ast_query_t *q, c_orm_ast_lock_mode_t mode);
+  /** @brief Constructs an exact fixed-point decimal literal AST node. */
+  c_orm_error_t (*lit_decimal)(c_orm_ast_query_t *q, const c_orm_decimal_t *dec,
+                               c_orm_ast_node_t **out_node);
 };
+
+/**
+ * @brief Initialize a new AST query builder.
+ * @param out_query Output AST query builder.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_ast_query_new(c_orm_ast_query_t **out_query);
+
+/**
+ * @brief Free an AST query builder.
+ * @param query AST query builder.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_ast_query_free(c_orm_ast_query_t *query);
 
 /**
  * @brief Initialize a new query builder.
  * @param out_query Output query builder.
  * @return 0 on success.
  */
-C_ORM_EXPORT c_orm_error_t c_orm_query_new(c_orm_query_t **out_query);
+C_ORM_EXPORT c_orm_error_t c_orm_query_new(c_orm_ast_query_t **out_query);
 
 /**
  * @brief Free a query builder.
  * @param query Query builder.
  * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT c_orm_error_t c_orm_query_free(c_orm_query_t *query);
+C_ORM_EXPORT c_orm_error_t c_orm_query_free(c_orm_ast_query_t *query);
 
 /*
  * Macro wrappers for fluent API.

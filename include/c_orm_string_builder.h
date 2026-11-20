@@ -69,6 +69,57 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
 C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
     const c_orm_string_builder_t *builder, size_t *out_len);
 
+/**
+ * @brief Validate and append a quoted SQL identifier (`"ident"` or `` `ident`
+ * ``), rejecting empty strings or control characters and doubling embedded
+ * quotes.
+ *
+ * @param builder Destination string builder.
+ * @param ident Null-terminated SQL identifier string.
+ * @param quote_char Delimiter character (`'"'` or `'`'`).
+ * @return C_ORM_OK on success, C_ORM_ERROR_NULL_POINTER on NULL args,
+ * C_ORM_ERROR_VALIDATION on invalid identifier, or C_ORM_ERROR_MEMORY on OOM.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_quote_identifier(
+    c_orm_string_builder_t *builder, const char *ident, char quote_char);
+
+/**
+ * @brief Validate and append a possibly dot-qualified SQL identifier
+ * (`SCHEMA.TABLE` -> `"SCHEMA"."TABLE"`, `t.*` -> `"t".*`), doubling embedded
+ * quotes inside each identifier segment.
+ *
+ * @param builder Destination string builder.
+ * @param ident Null-terminated identifier or qualified identifier string.
+ * @param quote_char Delimiter character (`'"'` or `'`'`).
+ * @return C_ORM_OK on success, C_ORM_ERROR_NULL_POINTER on NULL args,
+ * C_ORM_ERROR_VALIDATION on invalid identifier, or C_ORM_ERROR_MEMORY on OOM.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_quote_qualified_identifier(
+    c_orm_string_builder_t *builder, const char *ident, char quote_char);
+
+/**
+ * @brief Appends a dialect-appropriate positional parameter placeholder (`?` or
+ * `$N`).
+ *
+ * @param builder Destination string builder.
+ * @param is_postgres Non-zero for PostgreSQL `$N` placeholders, 0 for `?`.
+ * @param param_index 1-based parameter index used when `is_postgres` is
+ * non-zero.
+ * @return C_ORM_OK on success, or an error enum on invalid index or OOM.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_append_placeholder(
+    c_orm_string_builder_t *builder, int is_postgres, size_t param_index);
+
+/**
+ * @brief Appends a single-quoted SQL string literal with `'` escaped as `''`.
+ *
+ * @param builder Destination string builder.
+ * @param str Input string literal content (must not be NULL).
+ * @return C_ORM_OK on success, or an error enum on NULL input or OOM.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_append_string_literal(c_orm_string_builder_t *builder, const char *str);
+
 #ifdef C_ORM_TEST_ALLOCATOR
 /**
  * @brief Countdown counter to simulate string builder append allocation

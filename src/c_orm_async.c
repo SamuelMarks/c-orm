@@ -39,9 +39,9 @@
 C_ORM_EXPORT c_orm_error_t c_orm_insert_async(c_orm_db_t *db,
                                               const c_orm_table_meta_t *meta,
                                               const void *in_struct,
-                                              void (*cb)(c_orm_error_t, void *),
-                                              void *ctx) {
+                                              c_orm_async_cb_t cb, void *ctx) {
   c_orm_error_t rc;
+  c_orm_error_t cb_rc;
 
   LOG_DEBUG("c_orm_insert_async: entry");
 
@@ -57,7 +57,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_async(c_orm_db_t *db,
   rc = c_orm_insert(db, meta, in_struct);
 
   if (cb) {
-    cb(rc, ctx);
+    cb_rc = cb(rc, ctx);
+    if (rc == C_ORM_OK && cb_rc != C_ORM_OK) {
+      rc = cb_rc;
+    }
   }
 
   LOG_DEBUG("c_orm_insert_async: exit");
@@ -76,12 +79,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_async(c_orm_db_t *db,
  * @param out_array Array to store the retrieved records.
  * @param cb Callback function to execute upon completion.
  * @param ctx User context pointer to pass to the callback.
- * @return C_ORM_OK on success, or error code propagated from `c_orm_find_all`.
+ * @return C_ORM_OK on success, or error code propagated from `c_orm_find_all`
+ * or `cb`.
  */
-C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(
-    c_orm_db_t *db, const c_orm_table_meta_t *meta, void *out_array,
-    void (*cb)(c_orm_error_t, void *), void *ctx) {
+C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(c_orm_db_t *db,
+                                                const c_orm_table_meta_t *meta,
+                                                void *out_array,
+                                                c_orm_async_cb_t cb,
+                                                void *ctx) {
   c_orm_error_t rc;
+  c_orm_error_t cb_rc;
 
   LOG_DEBUG("c_orm_find_all_async: entry");
 
@@ -94,7 +101,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(
   rc = c_orm_find_all(db, meta, out_array);
 
   if (cb) {
-    cb(rc, ctx);
+    cb_rc = cb(rc, ctx);
+    if (rc == C_ORM_OK && cb_rc != C_ORM_OK) {
+      rc = cb_rc;
+    }
   }
 
   LOG_DEBUG("c_orm_find_all_async: exit");

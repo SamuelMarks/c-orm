@@ -56,7 +56,6 @@ restored_*.txt
 greatest.h
 
 llm.txt
-skills.md
 .gemini/
 include/mysql.h
 include/libpq-fe.h
@@ -104,6 +103,7 @@ test_test_gen_models.c
 migrations/
 test_migrations_dir_cli/
 test_migrations_dir_init/
+test_cpy_out/
 test_out/
 test_conflict/
 

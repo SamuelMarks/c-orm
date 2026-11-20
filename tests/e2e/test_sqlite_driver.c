@@ -9,25 +9,27 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
+#include "c_orm_decimal.h"
 #include "c_orm_sqlite.h"
 #include "c_orm_api.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
 
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+#define ASSERT(cond) do { greatest_info.assertions++; if (!((cond) != 0)) { fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions++; if (strcmp((exp), (got)) != 0) { fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__, (exp), (got)); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions++; if (!((exp) != (got))) { fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST) do { int should = 0; enum greatest_test_res res; greatest_test_pre(#TEST, &should); res = TEST(); greatest_test_post(res); } while((void)0, 0)
 #undef CHECK_CALL
-#define CHECK_CALL(res) do { greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS); } while ((void)0, 0)
+#define CHECK_CALL(res) do { do { enum greatest_test_res _rc = (res); greatest_info.assertions++; if (_rc != GREATEST_TEST_RES_PASS) { return _rc; } } while ((void)0, 0); } while ((void)0, 0)
 
 #include <stdio.h>
 #include <string.h>
@@ -184,9 +186,9 @@ TEST test_c_orm_sqlite_connect_errors(void) {
 
   /* Test disconnect when driver_data is NULL by creating a dummy db */
   {
-    c_orm_db_t *db2;
-    db2 = (c_orm_db_t *)C_ORM_MALLOC(sizeof(c_orm_db_t));
-    memset(db2, 0, sizeof(c_orm_db_t));
+    c_orm_db_t *db2 = NULL;
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_system_calloc(1, sizeof(c_orm_db_t), (void **)&db2));
     db2->driver_data = NULL;
     db2->vtable = db->vtable;
     ASSERT_EQ(C_ORM_OK, db2->vtable->disconnect(db2)); /* Will free db2 */
@@ -325,7 +327,8 @@ TEST test_c_orm_sqlite_operations_errors(void) {
 
     /* Test finalize with NULL data to cover the branch */
     {
-      c_orm_query_t *dummy = (c_orm_query_t *)C_ORM_MALLOC(sizeof(void *));
+      c_orm_query_t *dummy = NULL;
+      ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(sizeof(void *), (void **)&dummy));
       *(void **)dummy = NULL;
       ASSERT_EQ(C_ORM_OK, vtable->finalize(dummy));
     }
@@ -380,9 +383,9 @@ TEST test_c_orm_sqlite_operations_errors(void) {
   ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH, vtable->get_int32(query, 0, &i32));
   ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH, vtable->get_int64(query, 0, &i64));
   ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH, vtable->get_double(query, 0, &dbl));
-  ASSERT_EQ(
-      C_ORM_ERROR_TYPE_MISMATCH,
-      vtable->get_double(query, 1, &dbl)); /* Try getting double from integer */
+  ASSERT_EQ(C_ORM_OK,
+            vtable->get_double(query, 1, &dbl)); /* Widens SQLITE_INTEGER 1 */
+  ASSERT_EQ(1.0, dbl);
   ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH, vtable->get_string(query, 1, &str));
   ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
             vtable->get_blob(query, 1, &blob, &size));
@@ -421,8 +424,7 @@ TEST test_sqlite_vtable(void) {
 #ifdef C_ORM_ENABLE_SQLITE
   ASSERT_EQ(C_ORM_OK, err);
   ASSERT(vtable != NULL);
-  ASSERT(vtable->connect ==
-         NULL); /* Connect is not part of vtable, it creates the db */
+  ASSERT(vtable->connect != NULL);
   ASSERT(vtable->disconnect != NULL);
   ASSERT(vtable->prepare != NULL);
   ASSERT(vtable->bind_int32 != NULL);
@@ -444,9 +446,7 @@ TEST test_sqlite_vtable(void) {
 
   /* Call get_vtable with NULL */
   err = c_orm_sqlite_get_vtable(NULL);
-  ASSERT_EQ(
-      C_ORM_OK,
-      err); /* It should just do nothing and return C_ORM_OK but out is NULL */
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, err);
 #else
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
   ASSERT(vtable == NULL);
@@ -458,13 +458,15 @@ TEST test_sqlite_vtable(void) {
 }
 
 /**
- * @brief Executes dummy_log_cb.
- * @param msg Parameter msg.
- * @param user_data Parameter user_data.
+ * @brief Dummy query log callback returning C_ORM_OK.
+ * @param msg Log message.
+ * @param user_data Opaque user data.
+ * @return C_ORM_OK.
  */
-static void dummy_log_cb(const char *msg, void *user_data) {
+static c_orm_error_t dummy_log_cb(const char *msg, void *user_data) {
   (void)msg;
   (void)user_data;
+  return C_ORM_OK;
 }
 
 /**
@@ -510,6 +512,198 @@ TEST test_c_orm_sqlite_slow_query(void) {
   PASS();
 }
 
+/** @brief Bitmask controlling which sqlite_test_free calls fail. */
+static unsigned int sqlite_free_fail_mask = 0;
+
+/** @brief Call index counter for sqlite_test_free when masked. */
+static unsigned int sqlite_free_call_idx = 0;
+
+/**
+ * @brief Mock free callback with optional masked error return.
+ * @param ptr Pointer to free.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY when masked.
+ */
+static c_orm_error_t sqlite_test_free(void *ptr) {
+  free(ptr);
+  if (sqlite_free_fail_mask != 0) {
+    unsigned int idx = sqlite_free_call_idx++;
+    if (idx < 31 && (sqlite_free_fail_mask & (1u << idx)) != 0) {
+      return C_ORM_ERROR_MEMORY;
+    }
+  }
+  return C_ORM_OK;
+}
+
+/** @brief Countdown for failing_log_cb. */
+static int g_log_fail_countdown = -1;
+
+/**
+ * @brief Log callback that fails when g_log_fail_countdown reaches 0.
+ * @param msg Log message.
+ * @param user_data Opaque user data.
+ * @return C_ORM_OK or C_ORM_ERROR_UNKNOWN.
+ */
+static c_orm_error_t failing_log_cb(const char *msg, void *user_data) {
+  (void)msg;
+  (void)user_data;
+  if (g_log_fail_countdown >= 0) {
+    if (g_log_fail_countdown == 0) {
+      g_log_fail_countdown = -1;
+      return C_ORM_ERROR_UNKNOWN;
+    }
+    g_log_fail_countdown--;
+  }
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Exercises SQLite decimal binding/extraction, log callback errors,
+ * slow-query Safe CRT failures, and disconnect/finalize free error paths.
+ * @return GREATEST test result.
+ */
+TEST test_c_orm_sqlite_decimal_and_error_branches(void) {
+#ifdef C_ORM_ENABLE_SQLITE
+  c_orm_malloc_fn_t old_m = c_orm_malloc;
+  c_orm_realloc_fn_t old_r = c_orm_realloc;
+  c_orm_free_fn_t old_f = c_orm_free;
+  c_orm_db_t *db = NULL;
+  c_orm_query_t *q = NULL;
+  c_orm_decimal_t dec_in;
+  c_orm_decimal_t dec_out;
+  c_orm_decimal_t bad_dec;
+  int has_row = 0;
+
+  ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("-98765.4321", &dec_in));
+  memset(&bad_dec, 0, sizeof(bad_dec));
+  bad_dec.precision = 0;
+
+  c_orm_set_allocators(old_m, old_r, sqlite_test_free);
+
+  /* 1. Prepare log_cb error + slow-query sprintf & log_cb errors */
+  ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect(":memory:", &db));
+  c_orm_set_log_callback(db, failing_log_cb, NULL);
+  g_log_fail_countdown = 0;
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, db->vtable->prepare(db, "SELECT 1", &q));
+
+  c_orm_set_slow_query_threshold(db, 1);
+  /* Prepare succeeds (countdown=1 -> 0), then step slow query log_cb fails */
+  g_log_fail_countdown = 1;
+  ASSERT_EQ(C_ORM_OK, db->vtable->prepare(
+                          db,
+                          "WITH RECURSIVE r(i) AS (VALUES(0) UNION ALL SELECT "
+                          "i+1 FROM r LIMIT 200000) SELECT MAX(i) FROM r;",
+                          &q));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, db->vtable->step(q, &has_row));
+  ASSERT_EQ(C_ORM_OK, db->vtable->finalize(q));
+
+  /* Slow query C_ORM_SPRINTF failure */
+  g_log_fail_countdown = -1;
+  ASSERT_EQ(C_ORM_OK, db->vtable->prepare(
+                          db,
+                          "WITH RECURSIVE r(i) AS (VALUES(0) UNION ALL SELECT "
+                          "i+1 FROM r LIMIT 200000) SELECT MAX(i) FROM r;",
+                          &q));
+  c_orm_mock_safe_crt_countdown = 0;
+  ASSERT_NEQ(C_ORM_OK, db->vtable->step(q, &has_row));
+  c_orm_mock_safe_crt_countdown = -1;
+  ASSERT_EQ(C_ORM_OK, db->vtable->finalize(q));
+  c_orm_set_slow_query_threshold(db, 0);
+  c_orm_set_log_callback(db, NULL, NULL);
+
+  /* 2. Decimal bind & get across NULL, INTEGER, BLOB, FLOAT, TEXT, and errors
+   */
+  ASSERT_EQ(C_ORM_OK,
+            db->vtable->prepare(db, "SELECT ?, ?, 42, X'DEADBEEF', 3.5", &q));
+  ASSERT_EQ(C_ORM_OK, db->vtable->bind_decimal(q, 1, NULL));
+  ASSERT_NEQ(C_ORM_OK, db->vtable->bind_decimal(q, 2, &bad_dec));
+  ASSERT_EQ(C_ORM_OK, db->vtable->bind_decimal(q, 2, &dec_in));
+  ASSERT_EQ(C_ORM_OK, db->vtable->step(q, &has_row));
+  ASSERT_EQ(1, has_row);
+
+  ASSERT_EQ(C_ORM_ERROR_NULL_POINTER, db->vtable->get_decimal(q, 0, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, db->vtable->get_decimal(NULL, 0, &dec_out));
+  {
+    void *fake_stmt_null_data[1];
+    void *fake_data_null_stmt[2];
+    void *fake_stmt_with_data[1];
+    fake_stmt_null_data[0] = NULL;
+    fake_data_null_stmt[0] = NULL;
+    fake_data_null_stmt[1] = NULL;
+    fake_stmt_with_data[0] = fake_data_null_stmt;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              db->vtable->get_decimal((c_orm_query_t *)fake_stmt_null_data, 0,
+                                      &dec_out));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              db->vtable->get_decimal((c_orm_query_t *)fake_stmt_with_data, 0,
+                                      &dec_out));
+  }
+  ASSERT_EQ(C_ORM_OK, db->vtable->get_decimal(q, 0, &dec_out));
+  ASSERT_EQ(C_ORM_OK, db->vtable->get_decimal(q, 1, &dec_out));
+  ASSERT_EQ(C_ORM_OK, db->vtable->get_decimal(q, 2, &dec_out));
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH, db->vtable->get_decimal(q, 3, &dec_out));
+  ASSERT_EQ(C_ORM_OK, db->vtable->get_decimal(q, 4, &dec_out));
+
+  /* finalize free error branches (mask=1: data fails; mask=2: query fails;
+   * mask=3: both fail) */
+  sqlite_free_call_idx = 0;
+  sqlite_free_fail_mask = 2u;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, db->vtable->finalize(q));
+  sqlite_free_fail_mask = 0;
+
+  ASSERT_EQ(C_ORM_OK, db->vtable->prepare(db, "SELECT 1", &q));
+  sqlite_free_call_idx = 0;
+  sqlite_free_fail_mask = 3u;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, db->vtable->finalize(q));
+  sqlite_free_fail_mask = 0;
+
+  /* 3. Disconnect error paths: caching disable failure + free(data)/free(db)
+   * failures */
+  ASSERT_EQ(C_ORM_OK, c_orm_enable_statement_caching(db, 4));
+  ASSERT_EQ(C_ORM_OK, c_orm_prepare_cached(db, "SELECT 1", &q));
+  ASSERT_EQ(C_ORM_OK, c_orm_finalize_cached(db, q));
+  /* In disable_statement_caching:
+   * idx 0 = sqlite_finalize(data), idx 1 = sqlite_finalize(query) -> fails!
+   * Then sqlite_disconnect continues and frees data & db */
+  sqlite_free_call_idx = 0;
+  sqlite_free_fail_mask = 2u;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, db->vtable->disconnect(db));
+  sqlite_free_fail_mask = 0;
+
+  ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect(":memory:", &db));
+  ASSERT_EQ(C_ORM_OK, c_orm_enable_statement_caching(db, 4));
+  ASSERT_EQ(C_ORM_OK, c_orm_prepare_cached(db, "SELECT 1", &q));
+  ASSERT_EQ(C_ORM_OK, c_orm_finalize_cached(db, q));
+  sqlite_free_call_idx = 0;
+  sqlite_free_fail_mask = 6u;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, db->vtable->disconnect(db));
+  sqlite_free_fail_mask = 0;
+
+  /* Disconnect where disable_statement_caching succeeds, free(data) fails */
+  ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect(":memory:", &db));
+  sqlite_free_call_idx = 0;
+  sqlite_free_fail_mask = 1u;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, db->vtable->disconnect(db));
+  sqlite_free_fail_mask = 0;
+
+  /* Disconnect where free(data) succeeds, free(db) fails */
+  ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect(":memory:", &db));
+  sqlite_free_call_idx = 0;
+  sqlite_free_fail_mask = 2u;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, db->vtable->disconnect(db));
+  sqlite_free_fail_mask = 0;
+
+  /* Disconnect where both free(data) and free(db) fail */
+  ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect(":memory:", &db));
+  sqlite_free_call_idx = 0;
+  sqlite_free_fail_mask = 3u;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, db->vtable->disconnect(db));
+  sqlite_free_fail_mask = 0;
+
+  c_orm_set_allocators(old_m, old_r, old_f);
+#endif
+  PASS();
+}
+
 /**
  * @brief Test suite runner for SQLite driver tests.
  * @param sqlite_driver_suite Suite runner function name.
@@ -520,6 +714,7 @@ SUITE(sqlite_driver_suite) {
   RUN_TEST(test_c_orm_sqlite_connect_errors);
   RUN_TEST(test_c_orm_sqlite_operations_errors);
   RUN_TEST(test_c_orm_sqlite_slow_query);
+  RUN_TEST(test_c_orm_sqlite_decimal_and_error_branches);
   RUN_TEST(test_c_orm_sqlite_blob_open_errors);
   RUN_TEST(test_c_orm_sqlite_blob_operations);
   RUN_TEST(test_c_orm_sqlite_blob_read_errors);

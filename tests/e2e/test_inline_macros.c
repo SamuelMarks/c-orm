@@ -10,6 +10,7 @@ extern "C" {
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_inline_macros.h"
+#include "c_orm_struct.h"
 #include "c_orm_sqlite.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
@@ -79,27 +80,51 @@ static const c_orm_table_meta_t SpatialModel_meta = C_ORM_DEFINE_MODEL(
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -113,7 +138,11 @@ static const c_orm_table_meta_t SpatialModel_meta = C_ORM_DEFINE_MODEL(
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    enum greatest_test_res _rc = (res);                                        \
+    greatest_info.assertions++;                                                \
+    if (_rc != GREATEST_TEST_RES_PASS) {                                       \
+      return _rc;                                                              \
+    }                                                                          \
   } while ((void)0, 0)
 
 /**
@@ -189,20 +218,20 @@ TEST test_spatial_crud(void) {
   printf("DEBUG: bad_meta update err=%d\n", err);
   ASSERT_EQ_FMT(C_ORM_ERROR_SQL, err, "%d");
 
-  C_ORM_FREE(fetched.polygon.points);
-  C_ORM_FREE(fetched.data.data);
-  C_ORM_FREE(fetched.ndval);
+  (void)c_orm_system_free(fetched.polygon.points);
+  (void)c_orm_system_free(fetched.data.data);
+  (void)c_orm_system_free(fetched.ndval);
   memset(&fetched, 0, sizeof(fetched));
   err = c_orm_find_by_id_int32(db, &SpatialModel_meta, 1, &fetched);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ_FMT(99.9, fetched.point.x, "%f");
 
-  C_ORM_FREE(sm.polygon.points);
-  C_ORM_FREE(fetched.polygon.points);
-  C_ORM_FREE(sm.data.data);
-  C_ORM_FREE(fetched.data.data);
-  C_ORM_FREE(sm.ndval);
-  C_ORM_FREE(fetched.ndval);
+  (void)c_orm_system_free(sm.polygon.points);
+  (void)c_orm_system_free(fetched.polygon.points);
+  (void)c_orm_system_free(sm.data.data);
+  (void)c_orm_system_free(fetched.data.data);
+  (void)c_orm_system_free(sm.ndval);
+  (void)c_orm_system_free(fetched.ndval);
 
   db->vtable->disconnect(db);
   PASS();
@@ -214,7 +243,21 @@ struct InlineUser {
   int32_t id;
   /** @brief User name string. */
   char *username;
+  /** @brief Inline parent user pointer. */
+  C_ORM_INLINE_BELONGS_TO(struct InlineUser, manager);
 };
+
+#define DECL_TAG_FIELDS(X, S)                                                  \
+  X(S, C_ORM_TYPE_INT32, int32_t, id)                                          \
+  X(S, C_ORM_TYPE_STRING, char *, label)
+
+/**
+ * @brief Test struct exercising split C_ORM_STRUCT_DECL and C_ORM_STRUCT_IMPL.
+ * @var id Primary key tag identifier.
+ * @var label Tag display label.
+ */
+C_ORM_STRUCT_DECL(DeclTag, DECL_TAG_FIELDS)
+C_ORM_STRUCT_IMPL(DeclTag, DECL_TAG_FIELDS)
 
 /** @brief Column metadata array for InlineUser. */
 static const c_orm_column_meta_t InlineUser_cols[] = {
@@ -223,6 +266,11 @@ static const c_orm_column_meta_t InlineUser_cols[] = {
     C_ORM_DEFINE_COLUMN("username", C_ORM_TYPE_STRING,
                         offsetof(struct InlineUser, username), false, false,
                         NULL, false, false)};
+
+/** @brief Relation metadata array for InlineUser. */
+static const c_orm_relation_meta_t InlineUser_rels[] = {C_ORM_DEFINE_RELATION(
+    "manager", C_ORM_RELATION_BELONGS_TO, "inline_users", "manager_id", "id",
+    offsetof(struct InlineUser, manager), 0, &DeclTag_meta)};
 
 /** @brief Table metadata for InlineUser model. */
 static const c_orm_table_meta_t InlineUser_meta = C_ORM_DEFINE_MODEL(
@@ -281,9 +329,14 @@ TEST test_inline_macros_crud(void) {
   err = c_orm_find_by_id_int32(db, &InlineUser_meta, 1, &fetched);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_STR_EQ("inline_test", fetched.username);
-  C_ORM_FREE(fetched.username);
+  (void)c_orm_system_free(fetched.username);
 
-  db->vtable->disconnect(db);
+  ASSERT_STR_EQ("manager", InlineUser_rels[0].field_name);
+  ASSERT(InlineUser_rels[0].target_meta == &DeclTag_meta);
+  ASSERT_STR_EQ("DeclTag", DeclTag_meta.name);
+  ASSERT_EQ((size_t)2, DeclTag_meta.num_columns);
+
+  ASSERT_EQ_FMT(C_ORM_OK, db->vtable->disconnect(db), "%d");
   PASS();
 }
 

@@ -17,17 +17,18 @@ extern "C" {
 #endif /* __cplusplus */
 
 #ifndef LOG_DEBUG
+#ifdef DEBUG
+#if defined(__clang__) || defined(__GNUC__)
+__attribute__((__format__(__printf__, 1, 2)))
+#endif
 /**
  * @brief Logs a debug message to standard error.
  *
  * @param fmt The format string.
  * @param ... The format arguments.
+ * @return C_ORM_OK on success.
  */
-#ifdef DEBUG
-#if defined(__clang__) || defined(__GNUC__)
-__attribute__((__format__(__printf__, 1, 2)))
-#endif
-C_ORM_EXPORT void
+C_ORM_EXPORT c_orm_error_t
 c_orm_log_debug(const char *fmt, ...);
 #define LOG_DEBUG c_orm_log_debug
 #else
@@ -39,10 +40,11 @@ __attribute__((__format__(__printf__, 1, 2)))
  *
  * @param fmt The format string.
  * @param ... The format arguments.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void
+C_ORM_EXPORT c_orm_error_t
 c_orm_log_debug(const char *fmt, ...);
-#define LOG_DEBUG 1 ? (void)0 : c_orm_log_debug
+#define LOG_DEBUG 1 ? C_ORM_OK : c_orm_log_debug
 #endif /* DEBUG */
 #endif /* !LOG_DEBUG */
 

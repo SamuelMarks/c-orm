@@ -26,27 +26,51 @@ extern "C" {
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -60,7 +84,13 @@ extern "C" {
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do {                                                                       \
+      enum greatest_test_res _rc = (res);                                      \
+      greatest_info.assertions++;                                              \
+      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
+        return _rc;                                                            \
+      }                                                                        \
+    } while ((void)0, 0);                                                      \
   } while ((void)0, 0)
 
 /**
@@ -110,7 +140,7 @@ TEST test_sql_to_c_header_emit(void) {
   ASSERT(strstr(buf, "struct Users_Array {") != NULL);
 
   sql_table_C_ORM_FREE(table);
-  C_ORM_FREE(table);
+  (void)c_orm_system_free(table);
   sql_token_list_free(list);
   PASS();
 }
@@ -160,7 +190,7 @@ TEST test_sql_to_c_source_emit(void) {
   ASSERT(strstr(buf, "c_orm_error_t Users_Array_deepcopy(") != NULL);
 
   sql_table_C_ORM_FREE(table);
-  C_ORM_FREE(table);
+  (void)c_orm_system_free(table);
   sql_token_list_free(list);
   PASS();
 }
@@ -501,6 +531,30 @@ TEST test_sql_to_c_projection_types(void) {
   PASS();
 }
 
+/** @brief Countdown before mock OOM triggers in test_c_orm_sql_to_c. */
+static int g_s2c_oom_countdown = -1;
+
+/**
+ * @brief Mock malloc callback for sql_to_c OOM testing.
+ * @param size Allocation byte size.
+ * @param out_ptr Output allocated pointer.
+ * @return C_ORM_OK or C_ORM_ERROR_MEMORY.
+ */
+static c_orm_error_t s2c_oom_malloc(size_t size, void **out_ptr) {
+  if (g_s2c_oom_countdown >= 0) {
+    if (g_s2c_oom_countdown == 0) {
+      g_s2c_oom_countdown = -1;
+      if (out_ptr) {
+        *out_ptr = NULL;
+      }
+      return C_ORM_ERROR_MEMORY;
+    }
+    g_s2c_oom_countdown--;
+  }
+  *out_ptr = malloc(size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+}
+
 /**
  * @brief Test edge cases in SQL to C generation and projection handling.
  * @return GREATEST test result.
@@ -674,7 +728,59 @@ TEST test_sql_to_c_edge_cases(void) {
   ASSERT_STR_EQ("C_ORM_TYPE_DOUBLE", out);
   rc = sql_type_to_c_orm_type(SQL_TYPE_DECIMAL, &out);
   ASSERT_EQ(C_ORM_OK, rc);
-  ASSERT_STR_EQ("C_ORM_TYPE_DOUBLE", out);
+  ASSERT_STR_EQ("C_ORM_TYPE_DECIMAL", out);
+  rc = sql_type_to_c_orm_type(SQL_TYPE_VARBINARY, &out);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_STR_EQ("C_ORM_TYPE_VARBINARY", out);
+  rc = sql_type_to_c_orm_type(SQL_TYPE_BLOB, &out);
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_STR_EQ("C_ORM_TYPE_BLOB", out);
+  {
+    char *ct = NULL;
+    int is_s = -1;
+    ASSERT_EQ(C_ORM_OK, sql_type_to_c_type(SQL_TYPE_BLOB, &ct));
+    ASSERT_STR_EQ("c_orm_blob_t", ct);
+    ASSERT_EQ(C_ORM_OK, sql_type_is_string(SQL_TYPE_VARCHAR, &is_s));
+    ASSERT_EQ(1, is_s);
+    ASSERT_EQ(C_ORM_OK, sql_type_is_string(SQL_TYPE_INT, &is_s));
+    ASSERT_EQ(0, is_s);
+  }
+  ASSERT_EQ(C_ORM_ERROR_NULL_POINTER, sql_type_is_string(SQL_TYPE_INT, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit_body(NULL, NULL));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit_body(fp, NULL));
+
+  {
+    c_orm_malloc_fn_t old_m = c_orm_malloc;
+    c_orm_realloc_fn_t old_r = c_orm_realloc;
+    c_orm_free_fn_t old_f = c_orm_free;
+    struct sql_table_t unk_tbl;
+    struct sql_table_t unnamed_tbl;
+    struct sql_column_t col;
+    memset(&unk_tbl, 0, sizeof(unk_tbl));
+    memset(&unnamed_tbl, 0, sizeof(unnamed_tbl));
+    memset(&col, 0, sizeof(col));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              sql_to_c_header_emit_body(fp, &unnamed_tbl));
+    unk_tbl.name = "unk";
+    unk_tbl.n_columns = 1;
+    unk_tbl.columns = &col;
+    col.name = "c";
+    col.type = (enum SqlDataType)999;
+
+    ASSERT_EQ(C_ORM_OK, sql_to_c_header_emit_body(fp, &unk_tbl));
+
+    c_orm_set_allocators(s2c_oom_malloc, old_r, old_f);
+    g_s2c_oom_countdown = 0;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit(fp, &unk_tbl));
+    g_s2c_oom_countdown = 0;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit_body(fp, &unk_tbl));
+    g_s2c_oom_countdown = 1;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_header_emit_body(fp, &unk_tbl));
+    g_s2c_oom_countdown = 0;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_to_c_source_emit(fp, &unk_tbl, "u.h"));
+    g_s2c_oom_countdown = -1;
+    c_orm_set_allocators(old_m, old_r, old_f);
+  }
 
   fclose(fp);
   PASS();

@@ -30,7 +30,7 @@ c_orm_error_t cdd_c_query_projection_init(cdd_c_query_projection_t *proj) {
 }
 
 /**
- * @brief Duplicates a string using C_ORM_MALLOC.
+ * @brief Duplicates a string using c_orm_system_malloc.
  * @param src Source null-terminated string to duplicate.
  * @param dest Output pointer where duplicated string will be stored.
  * @return C_ORM_OK on success, or error code on allocation failure.
@@ -42,8 +42,8 @@ static c_orm_error_t duplicate_string_qp(const char *src, char **dest) {
     return C_ORM_OK;
   }
   len = strlen(src);
-  *dest = (char *)C_ORM_MALLOC(len + 1);
-  if (!*dest)
+  *dest = NULL;
+  if (c_orm_system_malloc(len + 1, (void **)dest) != C_ORM_OK || !*dest)
     return C_ORM_ERROR_UNKNOWN;
   memcpy(*dest, src, len + 1);
   return C_ORM_OK;
@@ -52,26 +52,30 @@ static c_orm_error_t duplicate_string_qp(const char *src, char **dest) {
 c_orm_error_t
 cdd_c_query_projection_add_field(cdd_c_query_projection_t *proj,
                                  const cdd_c_query_projection_field_t *field) {
-  cdd_c_query_projection_field_t *new_fields;
+  cdd_c_query_projection_field_t *new_fields = NULL;
   size_t new_cap;
   if (!proj || !field)
     return C_ORM_ERROR_UNKNOWN;
 
   if (proj->n_fields >= proj->capacity) {
     new_cap = proj->capacity == 0 ? 4 : proj->capacity * 2;
-    new_fields = (cdd_c_query_projection_field_t *)C_ORM_REALLOC(
-        proj->fields, new_cap * sizeof(cdd_c_query_projection_field_t));
-    if (!new_fields)
+    if (c_orm_system_realloc(proj->fields,
+                             new_cap * sizeof(cdd_c_query_projection_field_t),
+                             (void **)&new_fields) != C_ORM_OK ||
+        !new_fields)
       return C_ORM_ERROR_UNKNOWN;
     proj->fields = new_fields;
     proj->capacity = new_cap;
   }
 
-  if (duplicate_string_qp(field->name, &proj->fields[proj->n_fields].name) != 0)
+  if (duplicate_string_qp(field->name, &proj->fields[proj->n_fields].name) !=
+      C_ORM_OK)
     return C_ORM_ERROR_UNKNOWN;
   if (duplicate_string_qp(field->original_name,
-                          &proj->fields[proj->n_fields].original_name) != 0) {
-    C_ORM_FREE(proj->fields[proj->n_fields].name);
+                          &proj->fields[proj->n_fields].original_name) !=
+      C_ORM_OK) {
+    (void)c_orm_system_free(proj->fields[proj->n_fields].name);
+    proj->fields[proj->n_fields].name = NULL;
     return C_ORM_ERROR_UNKNOWN;
   }
   proj->fields[proj->n_fields].type = field->type;
@@ -86,26 +90,43 @@ cdd_c_query_projection_add_field(cdd_c_query_projection_t *proj,
 
 c_orm_error_t cdd_c_query_projection_free(cdd_c_query_projection_t *proj) {
   size_t i;
+  c_orm_error_t rc = C_ORM_OK;
+  c_orm_error_t frc;
   if (!proj)
     return C_ORM_ERROR_UNKNOWN;
 
   for (i = 0; i < proj->n_fields; ++i) {
-    if (proj->fields[i].name)
-      C_ORM_FREE(proj->fields[i].name);
-    if (proj->fields[i].original_name)
-      C_ORM_FREE(proj->fields[i].original_name);
+    if (proj->fields[i].name) {
+      frc = c_orm_system_free(proj->fields[i].name);
+      if (frc != C_ORM_OK && rc == C_ORM_OK)
+        rc = frc;
+    }
+    if (proj->fields[i].original_name) {
+      frc = c_orm_system_free(proj->fields[i].original_name);
+      if (frc != C_ORM_OK && rc == C_ORM_OK)
+        rc = frc;
+    }
   }
-  if (proj->fields)
-    C_ORM_FREE(proj->fields);
-  if (proj->source_table)
-    C_ORM_FREE(proj->source_table);
-  if (proj->mapping_meta.target_name)
-    C_ORM_FREE(proj->mapping_meta.target_name);
+  if (proj->fields) {
+    frc = c_orm_system_free(proj->fields);
+    if (frc != C_ORM_OK && rc == C_ORM_OK)
+      rc = frc;
+  }
+  if (proj->source_table) {
+    frc = c_orm_system_free(proj->source_table);
+    if (frc != C_ORM_OK && rc == C_ORM_OK)
+      rc = frc;
+  }
+  if (proj->mapping_meta.target_name) {
+    frc = c_orm_system_free(proj->mapping_meta.target_name);
+    if (frc != C_ORM_OK && rc == C_ORM_OK)
+      rc = frc;
+  }
 
   proj->fields = NULL;
   proj->n_fields = 0;
   proj->capacity = 0;
   proj->source_table = NULL;
   proj->mapping_meta.target_name = NULL;
-  return C_ORM_OK;
+  return rc;
 }

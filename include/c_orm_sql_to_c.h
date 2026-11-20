@@ -1,5 +1,5 @@
 /**
- * @file sql_to_c.h
+ * @file c_orm_sql_to_c.h
  * @brief Emits C structures and array containers from SQL DDL AST.
  */
 
@@ -24,9 +24,8 @@ extern "C" {
  * @brief Map a SQL data type to a C type string.
  *
  * @param type The SQL data type.
- * @param _out_val Whether the field can be NULL (if 1, returns a pointer
- * type for certain types if needed, though usually handled by the caller).
- * @return String representing the C type (e.g., "int32_t", "char*").
+ * @param _out_val Output pointer receiving the C type string literal.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_VALIDATION for unknown type.
  */
 C_ORM_EXPORT c_orm_error_t sql_type_to_c_type(enum SqlDataType type,
                                               char **_out_val);
@@ -35,29 +34,47 @@ C_ORM_EXPORT c_orm_error_t sql_type_to_c_type(enum SqlDataType type,
  * @brief Checks if a given SQL type is passed/stored as a pointer string by
  * default.
  * @param type The SQL data type.
- * @return 1 if string/pointer, 0 if primitive.
+ * @param out_is_string Output pointer set to 1 if string/pointer, 0 if
+ * primitive.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_NULL_POINTER if out_is_string is
+ * NULL.
  */
-C_ORM_EXPORT c_orm_error_t sql_type_is_string(enum SqlDataType type);
+C_ORM_EXPORT c_orm_error_t sql_type_is_string(enum SqlDataType type,
+                                              int *out_is_string);
 
 /**
  * @brief Map a SQL data type to a c_orm_type_t enum string.
  *
  * @param type The SQL data type.
- * @param[out] out_val out_val
- * @return String representing the c_orm_type_t (e.g., "C_ORM_TYPE_INT32").
+ * @param[out] out_val Output pointer receiving the c_orm_type_t constant string
+ * (e.g., "C_ORM_TYPE_INT32").
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY if out_val is NULL.
  */
 C_ORM_EXPORT c_orm_error_t sql_type_to_c_orm_type(enum SqlDataType type,
                                                   const char **out_val);
 
 /**
- * @brief Generate the C header file content for a given SQL table.
+ * @brief Generate a standalone C header file content for a single SQL table,
+ * including header guards, clang-format include guards, and extern "C" guards.
  *
  * @param fp File pointer to write the output to.
  * @param table The SQL table AST node.
- * @return 0 on success, non-zero on failure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
 C_ORM_EXPORT c_orm_error_t
 sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table);
+
+/**
+ * @brief Generate the C struct, array, helper prototypes, and metadata
+ * declaration body for a single SQL table (for embedding inside a multi-table
+ * header that already emitted its top-level includes and extern "C" block).
+ *
+ * @param fp File pointer to write the output to.
+ * @param table The SQL table AST node.
+ * @return C_ORM_OK on success, or error code on failure.
+ */
+C_ORM_EXPORT c_orm_error_t
+sql_to_c_header_emit_body(FILE *fp, const struct sql_table_t *table);
 
 /**
  * @brief Generate the C source file content containing helpers for a given SQL
@@ -118,36 +135,47 @@ C_ORM_EXPORT c_orm_error_t sql_to_c_projection_meta_emit(
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_hydrate_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name);
 /**
- * @brief sql_to_c_projection_dehydrate_emit
- * @param fp fp
- * @param proj proj
- * @param struct_name struct_name
+ * @brief Emit dehydration parameter-binding function for a query projection
+ * struct.
+ *
+ * @param[in,out] fp File pointer to write to.
+ * @param[in] proj Query projection definition.
+ * @param[in] struct_name Name of the struct.
+ * @return C_ORM_OK on success, or an error code on failure.
  */
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_dehydrate_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name);
 /**
- * @brief sql_to_c_projection_nested_struct_emit
- * @param fp fp
- * @param proj proj
- * @param struct_name struct_name
+ * @brief Emit nested sub-struct definition for joined query projections.
+ *
+ * @param[in,out] fp File pointer to write to.
+ * @param[in] proj Query projection definition.
+ * @param[in] struct_name Name of the struct.
+ * @return C_ORM_OK on success, or an error code on failure.
  */
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_nested_struct_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name);
 /**
- * @brief sql_to_c_projection_nested_array_emit
- * @param fp fp
- * @param proj proj
- * @param struct_name struct_name
- * @param array_name array_name
+ * @brief Emit nested array container definition for one-to-many query
+ * projections.
+ *
+ * @param[in,out] fp File pointer to write to.
+ * @param[in] proj Query projection definition.
+ * @param[in] struct_name Element struct name.
+ * @param[in] array_name Generated array container struct name.
+ * @return C_ORM_OK on success, or an error code on failure.
  */
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_nested_array_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name,
     const char *array_name);
 /**
- * @brief sql_to_c_projection_dirty_bitmask_emit
- * @param fp fp
- * @param proj proj
- * @param struct_name struct_name
+ * @brief Emit dirty-tracking bitmask helpers for partial updates on a query
+ * projection struct.
+ *
+ * @param[in,out] fp File pointer to write to.
+ * @param[in] proj Query projection definition.
+ * @param[in] struct_name Name of the struct.
+ * @return C_ORM_OK on success, or an error code on failure.
  */
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_dirty_bitmask_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name);
@@ -164,10 +192,13 @@ C_ORM_EXPORT c_orm_error_t sql_to_c_projection_union_struct_emit(
     FILE *fp, const cdd_c_query_projection_t *projs, size_t n_projs,
     const char *struct_name);
 /**
- * @brief sql_to_c_projection_polymorphic_struct_emit
- * @param fp fp
- * @param proj proj
- * @param struct_name struct_name
+ * @brief Emit polymorphic struct combining explicit projection fields with a
+ * dynamic abstract property dictionary.
+ *
+ * @param[in,out] fp File pointer to write to.
+ * @param[in] proj Query projection definition.
+ * @param[in] struct_name Name of the polymorphic struct to emit.
+ * @return C_ORM_OK on success, or an error code on failure.
  */
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_polymorphic_struct_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name);

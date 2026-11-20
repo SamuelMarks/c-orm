@@ -13,70 +13,48 @@
 /* clang-format on */
 
 /**
- * @brief Convert string to uppercase.
- * @param dst Destination buffer.
- * @param src Source string.
- * @return C_ORM_OK on success.
- */
-static c_orm_error_t str_to_upper(char *dst, const char *src) {
-  if (!src)
-    return C_ORM_ERROR_VALIDATION;
-  while (*src) {
-    *dst = (char)toupper((unsigned char)*src);
-    dst++;
-    src++;
-  }
-  *dst = '\0';
-  return C_ORM_OK;
-}
-
-/**
- * @brief Convert string to TitleCase (first letter upper).
- * @param dst Destination buffer.
- * @param src Source string.
- * @return C_ORM_OK on success.
- */
-static c_orm_error_t str_to_title(char *dst, const char *src) {
-  if (!src)
-    return C_ORM_ERROR_VALIDATION;
-  if (!*src) {
-    *dst = '\0';
-    return C_ORM_OK;
-  }
-  *dst = (char)toupper((unsigned char)*src);
-  dst++;
-  src++;
-  while (*src) {
-    *dst = *src;
-    dst++;
-    src++;
-  }
-  *dst = '\0';
-  return C_ORM_OK;
-}
-
-/**
- * @brief Determine whether an SQL column is nullable.
+ * @brief Checks if an SQL column carries a NOT NULL or PRIMARY KEY constraint.
  * @param col Column definition pointer.
- * @param out_is_nullable Pointer receiving 1 if nullable, 0 if not nullable.
- * @return C_ORM_OK on success.
+ * @return C_ORM_OK if NOT NULL / PRIMARY KEY, or C_ORM_ERROR_NOT_FOUND if
+ * nullable.
  */
-static c_orm_error_t is_nullable(const struct sql_column_t *col,
-                                 int *out_is_nullable) {
+static c_orm_error_t is_not_null_col(const struct sql_column_t *col) {
   size_t i;
-  *out_is_nullable = 1;
   for (i = 0; i < col->n_constraints; ++i) {
     if (col->constraints[i].type == SQL_CONSTRAINT_NOT_NULL ||
         col->constraints[i].type == SQL_CONSTRAINT_PRIMARY_KEY) {
-      *out_is_nullable = 0; /* NOT nullable */
       return C_ORM_OK;
     }
   }
-  return C_ORM_OK; /* nullable */
+  return C_ORM_ERROR_NOT_FOUND;
+}
+
+/**
+ * @brief Checks if an SQL data type maps to a C string representation.
+ * @param type SQL data type enum.
+ * @return C_ORM_OK if string-like, or C_ORM_ERROR_NOT_FOUND otherwise.
+ */
+static c_orm_error_t is_string_sql_type(enum SqlDataType type) {
+  switch (type) {
+  case SQL_TYPE_VARCHAR:
+  case SQL_TYPE_TEXT:
+  case SQL_TYPE_CHAR:
+  case SQL_TYPE_GRAPHIC:
+  case SQL_TYPE_VARGRAPHIC:
+  case SQL_TYPE_CLOB:
+  case SQL_TYPE_DBCLOB:
+  case SQL_TYPE_DATE:
+  case SQL_TYPE_TIME:
+  case SQL_TYPE_TIMESTAMP:
+    return C_ORM_OK;
+  default:
+    return C_ORM_ERROR_NOT_FOUND;
+  }
 }
 
 c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   switch (type) {
+  case SQL_TYPE_SMALLINT:
   case SQL_TYPE_INT: {
     *_out_val = "int32_t";
     return C_ORM_OK;
@@ -88,7 +66,12 @@ c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   case SQL_TYPE_VARCHAR:
   case SQL_TYPE_TEXT:
   case SQL_TYPE_CHAR:
+  case SQL_TYPE_GRAPHIC:
+  case SQL_TYPE_VARGRAPHIC:
+  case SQL_TYPE_CLOB:
+  case SQL_TYPE_DBCLOB:
   case SQL_TYPE_DATE:
+  case SQL_TYPE_TIME:
   case SQL_TYPE_TIMESTAMP: {
     *_out_val = "char *";
     return C_ORM_OK;
@@ -97,13 +80,24 @@ c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
     *_out_val = "float";
     return C_ORM_OK;
   }
-  case SQL_TYPE_DOUBLE:
-  case SQL_TYPE_DECIMAL: {
+  case SQL_TYPE_DOUBLE: {
     *_out_val = "double";
+    return C_ORM_OK;
+  }
+  case SQL_TYPE_DECIMAL:
+  case SQL_TYPE_NUMERIC:
+  case SQL_TYPE_DECFLOAT: {
+    *_out_val = "c_orm_decimal_t";
     return C_ORM_OK;
   }
   case SQL_TYPE_BOOLEAN: {
     *_out_val = "bool";
+    return C_ORM_OK;
+  }
+  case SQL_TYPE_BLOB:
+  case SQL_TYPE_BINARY:
+  case SQL_TYPE_VARBINARY: {
+    *_out_val = "c_orm_blob_t";
     return C_ORM_OK;
   }
   default: {
@@ -113,63 +107,62 @@ c_orm_error_t sql_type_to_c_type(enum SqlDataType type, char **_out_val) {
   }
 }
 
-c_orm_error_t sql_type_is_string(enum SqlDataType type) {
-  switch (type) {
-  case SQL_TYPE_VARCHAR:
-  case SQL_TYPE_TEXT:
-  case SQL_TYPE_CHAR:
-  case SQL_TYPE_DATE:
-  case SQL_TYPE_TIMESTAMP:
-    return C_ORM_ERROR_MEMORY;
-  default:
-    return C_ORM_OK;
+c_orm_error_t sql_type_is_string(enum SqlDataType type, int *out_is_string) {
+  if (!out_is_string) {
+    return C_ORM_ERROR_NULL_POINTER;
   }
+  *out_is_string = (is_string_sql_type(type) == C_ORM_OK) ? 1 : 0;
+  return C_ORM_OK;
 }
 
-static c_orm_error_t emit_c_orm_metadata(FILE *fp,
-                                         const struct sql_table_t *table,
-                                         const char *struct_name);
-
 /**
- * @brief Emit table string queries.
+ * @brief Emits SQL query macros and ORM table metadata, then frees struct_name.
  * @param fp Target file pointer.
- * @param table SQL table metadata.
- * @param struct_name Struct name string.
- * @return C_ORM_OK on success.
+ * @param table SQL table AST node.
+ * @param struct_name Heap-allocated struct name string (freed before return).
+ * @return C_ORM_OK on success, or error code from c_orm_system_free.
  */
-static c_orm_error_t emit_c_orm_queries(FILE *fp,
-                                        const struct sql_table_t *table,
-                                        const char *struct_name);
+static c_orm_error_t
+emit_c_orm_queries_and_meta(FILE *fp, const struct sql_table_t *table,
+                            char *struct_name);
 
-c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
+c_orm_error_t sql_to_c_header_emit_body(FILE *fp,
+                                        const struct sql_table_t *table) {
   char *_ast_sql_type_to_c_type_0 = NULL;
-  char table_name_upper[128];
-  char struct_name[128];
+  char *table_name_upper = NULL;
+  char *struct_name = NULL;
+  size_t name_len;
   size_t i;
   c_orm_error_t rc;
 
   if (!fp || !table) {
     return C_ORM_ERROR_MEMORY;
   }
-
-  rc = str_to_upper(table_name_upper, table->name);
-  if (rc != C_ORM_OK) {
-    return rc;
+  if (!table->name) {
+    return C_ORM_ERROR_VALIDATION;
   }
-  str_to_title(struct_name, table->name);
 
-  fprintf(fp, "/**\n");
-  fprintf(fp, " * @file %s.h\n", table->name);
-  fprintf(fp, " * @brief Auto-generated C structs for SQL table %s.\n",
-          table->name);
-  fprintf(fp, " */\n\n");
+  name_len = strlen(table->name);
+  rc = c_orm_system_malloc(name_len + 1, (void **)&table_name_upper);
+  if (rc != C_ORM_OK) {
+    return C_ORM_ERROR_MEMORY;
+  }
+  rc = c_orm_system_malloc(name_len + 1, (void **)&struct_name);
+  if (rc != C_ORM_OK) {
+    (void)c_orm_system_free(table_name_upper);
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  for (i = 0; i < name_len; ++i) {
+    table_name_upper[i] = (char)toupper((unsigned char)table->name[i]);
+    struct_name[i] = (i == 0) ? (char)toupper((unsigned char)table->name[0])
+                              : table->name[i];
+  }
+  table_name_upper[name_len] = '\0';
+  struct_name[name_len] = '\0';
 
   fprintf(fp, "#ifndef C_ORM_MODEL_%s_H\n", table_name_upper);
   fprintf(fp, "#define C_ORM_MODEL_%s_H\n\n", table_name_upper);
-
-  fprintf(fp, "# ifdef __cplusplus\n");
-  fprintf(fp, "extern \"C\" {\n");
-  fprintf(fp, "# endif /* __cplusplus */\n\n");
 
   /* Emit row struct */
   fprintf(fp, "/**\n");
@@ -180,13 +173,12 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
 
   for (i = 0; i < table->n_columns; ++i) {
     const struct sql_column_t *col = &table->columns[i];
+    int nullable = (is_not_null_col(col) != C_ORM_OK);
+    int is_str = (is_string_sql_type(col->type) == C_ORM_OK);
     const char *c_type =
-        (sql_type_to_c_type(col->type, &_ast_sql_type_to_c_type_0),
-         _ast_sql_type_to_c_type_0);
-    int nullable;
-    c_orm_error_t is_str;
-    is_nullable(col, &nullable);
-    is_str = sql_type_is_string(col->type);
+        (sql_type_to_c_type(col->type, &_ast_sql_type_to_c_type_0) == C_ORM_OK)
+            ? _ast_sql_type_to_c_type_0
+            : "void *";
 
     if (nullable && !is_str) {
       /* Use pointer for nullable primitive types */
@@ -210,8 +202,8 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
   /* Function declarations */
   fprintf(fp,
           "/**\n * @brief Initialize a %s_Array.\n * @param arr Array to "
-          "init.\n * @param initial_capacity Initial capacity.\n * @return 0 "
-          "on success.\n */\n",
+          "init.\n * @param initial_capacity Initial capacity.\n * @return "
+          "C_ORM_OK on success.\n */\n",
           struct_name);
   fprintf(fp,
           "c_orm_error_t %s_Array_init(struct %s_Array *arr, size_t "
@@ -220,21 +212,22 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
 
   fprintf(fp,
           "/**\n * @brief Free resources inside a single %s struct.\n * @param "
-          "item Pointer to struct.\n * @return 0 on success.\n */\n",
+          "item Pointer to struct.\n * @return C_ORM_OK on success.\n */\n",
           struct_name);
   fprintf(fp, "c_orm_error_t %s_free(struct %s *item);\n\n", struct_name,
           struct_name);
 
   fprintf(fp,
           "/**\n * @brief Free resources of a %s_Array.\n * @param arr Pointer "
-          "to array.\n * @return 0 on success.\n */\n",
+          "to array.\n * @return C_ORM_OK on success.\n */\n",
           struct_name);
   fprintf(fp, "c_orm_error_t %s_Array_free(struct %s_Array *arr);\n\n",
           struct_name, struct_name);
 
   fprintf(fp,
           "/**\n * @brief Deep copy a %s row.\n * @param src Source struct.\n "
-          "* @param dest Destination struct.\n * @return 0 on success.\n */\n",
+          "* @param dest Destination struct.\n * @return C_ORM_OK on "
+          "success.\n */\n",
           struct_name);
   fprintf(
       fp,
@@ -243,7 +236,8 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
 
   fprintf(fp,
           "/**\n * @brief Deep copy a %s_Array.\n * @param src Source array.\n "
-          "* @param dest Destination array.\n * @return 0 on success.\n */\n",
+          "* @param dest Destination array.\n * @return C_ORM_OK on "
+          "success.\n */\n",
           struct_name);
   fprintf(fp,
           "c_orm_error_t %s_Array_deepcopy(const struct %s_Array *src, struct "
@@ -251,12 +245,49 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
           "*dest);\n\n",
           struct_name, struct_name, struct_name);
 
-  fprintf(fp, "# ifdef __cplusplus\n");
-  fprintf(fp, "}\n");
-  fprintf(fp, "# endif /* __cplusplus */\n\n");
-
   fprintf(fp, "extern const c_orm_table_meta_t %s_meta;\n\n", struct_name);
-  fprintf(fp, "# endif /* C_ORM_MODEL_%s_H */\n", table_name_upper);
+  fprintf(fp, "#endif /* C_ORM_MODEL_%s_H */\n\n", table_name_upper);
+
+  (void)c_orm_system_free(struct_name);
+  (void)c_orm_system_free(table_name_upper);
+  return C_ORM_OK;
+}
+
+c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
+  c_orm_error_t rc;
+  if (!fp || !table) {
+    return C_ORM_ERROR_MEMORY;
+  }
+  if (!table->name) {
+    return C_ORM_ERROR_VALIDATION;
+  }
+
+  fprintf(fp, "/**\n");
+  fprintf(fp, " * @file %s.h\n", table->name);
+  fprintf(fp, " * @brief Auto-generated C structs for SQL table %s.\n",
+          table->name);
+  fprintf(fp, " */\n\n");
+
+  fprintf(fp, "/* clang-format "
+              "off */\n");
+  fprintf(fp, "#include \"c_orm_meta.h\"\n");
+  fprintf(fp, "#include \"c_orm_decimal.h\"\n");
+  fprintf(fp, "#include <stddef.h>\n");
+  fprintf(fp, "/* clang-format "
+              "on */\n\n");
+
+  fprintf(fp, "#ifdef __cplusplus\n");
+  fprintf(fp, "extern \"C\" {\n");
+  fprintf(fp, "#endif /* __cplusplus */\n\n");
+
+  rc = sql_to_c_header_emit_body(fp, table);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+
+  fprintf(fp, "#ifdef __cplusplus\n");
+  fprintf(fp, "}\n");
+  fprintf(fp, "#endif /* __cplusplus */\n");
 
   return C_ORM_OK;
 }
@@ -264,7 +295,8 @@ c_orm_error_t sql_to_c_header_emit(FILE *fp, const struct sql_table_t *table) {
 c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
                                    const char *header_name) {
   char *_ast_sql_type_to_c_type_1 = NULL;
-  char struct_name[128];
+  char *struct_name = NULL;
+  size_t name_len;
   size_t i;
   c_orm_error_t rc;
   (void)header_name;
@@ -272,11 +304,21 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   if (!fp || !table) {
     return C_ORM_ERROR_MEMORY;
   }
-
-  rc = str_to_title(struct_name, table->name);
-  if (rc != C_ORM_OK) {
-    return rc;
+  if (!table->name) {
+    return C_ORM_ERROR_VALIDATION;
   }
+
+  name_len = strlen(table->name);
+  rc = c_orm_system_malloc(name_len + 1, (void **)&struct_name);
+  if (rc != C_ORM_OK) {
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  for (i = 0; i < name_len; ++i) {
+    struct_name[i] = (i == 0) ? (char)toupper((unsigned char)table->name[0])
+                              : table->name[i];
+  }
+  struct_name[name_len] = '\0';
 
   fprintf(fp, "\n\n");
 
@@ -306,9 +348,8 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "  if (!item) return C_ORM_OK;\n");
   for (i = 0; i < table->n_columns; ++i) {
     const struct sql_column_t *col = &table->columns[i];
-    c_orm_error_t is_str = sql_type_is_string(col->type);
-    int nullable;
-    is_nullable(col, &nullable);
+    int is_str = (is_string_sql_type(col->type) == C_ORM_OK);
+    int nullable = (is_not_null_col(col) != C_ORM_OK);
 
     if (is_str) {
       fprintf(fp,
@@ -349,27 +390,23 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
       "c_orm_error_t %s_deepcopy(const struct %s *src, struct %s *dest) {\n",
       struct_name, struct_name, struct_name);
   fprintf(fp, "  if (!src || !dest) return C_ORM_ERROR_MEMORY;\n");
+  fprintf(fp, "  memset(dest, 0, sizeof(*dest));\n");
   for (i = 0; i < table->n_columns; ++i) {
     const struct sql_column_t *col = &table->columns[i];
-    c_orm_error_t is_str = sql_type_is_string(col->type);
-    int nullable;
-    const char *c_type;
-    is_nullable(col, &nullable);
-    c_type = (sql_type_to_c_type(col->type, &_ast_sql_type_to_c_type_1),
-              _ast_sql_type_to_c_type_1);
+    int is_str = (is_string_sql_type(col->type) == C_ORM_OK);
+    int nullable = (is_not_null_col(col) != C_ORM_OK);
+    const char *c_type =
+        (sql_type_to_c_type(col->type, &_ast_sql_type_to_c_type_1) == C_ORM_OK)
+            ? _ast_sql_type_to_c_type_1
+            : "void *";
 
     if (is_str) {
       fprintf(fp, "  if (src->%s) {\n", col->name);
-      fprintf(fp,
-              "    if (c_orm_system_malloc(strlen(src->%s) + 1, (void "
-              "**)&dest->%s) != C_ORM_OK) {\n",
+      fprintf(fp, "    if (c_orm_strdup(src->%s, &dest->%s) != C_ORM_OK) {\n",
               col->name, col->name);
-      fprintf(fp, "      %s_free(dest); return C_ORM_ERROR_MEMORY;\n    }\n",
-              struct_name);
       fprintf(fp,
-              "#if defined(_MSC_VER)\n    strcpy_s(dest->%s, strlen(src->%s) + "
-              "1, src->%s);\n#else\n    strcpy(dest->%s, src->%s);\n#endif\n",
-              col->name, col->name, col->name, col->name, col->name);
+              "      (void)%s_free(dest); return C_ORM_ERROR_MEMORY;\n    }\n",
+              struct_name);
       fprintf(fp, "  } else {\n    dest->%s = NULL;\n  }\n", col->name);
     } else if (nullable) {
       fprintf(fp, "  if (src->%s) {\n", col->name);
@@ -377,7 +414,8 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
               "    if (c_orm_system_malloc(sizeof(%s), (void **)&dest->%s) != "
               "C_ORM_OK) {\n",
               c_type, col->name);
-      fprintf(fp, "      %s_free(dest); return C_ORM_ERROR_MEMORY;\n    }\n",
+      fprintf(fp,
+              "      (void)%s_free(dest); return C_ORM_ERROR_MEMORY;\n    }\n",
               struct_name);
       fprintf(fp, "    *dest->%s = *src->%s;\n", col->name, col->name);
       fprintf(fp, "  } else {\n    dest->%s = NULL;\n  }\n", col->name);
@@ -398,13 +436,13 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "  c_orm_error_t err;\n");
   fprintf(fp, "  if (!src || !dest) return C_ORM_ERROR_MEMORY;\n");
   fprintf(fp, "  err = %s_Array_init(dest, src->capacity);\n", struct_name);
-  fprintf(fp, "  if (err) return err;\n");
+  fprintf(fp, "  if (err != C_ORM_OK) return err;\n");
   fprintf(fp, "  for (i = 0; i < src->length; ++i) {\n");
   fprintf(fp, "    err = %s_deepcopy(&src->data[i], &dest->data[i]);\n",
           struct_name);
-  fprintf(fp, "    if (err) {\n");
+  fprintf(fp, "    if (err != C_ORM_OK) {\n");
   fprintf(fp, "      dest->length = i;\n");
-  fprintf(fp, "      %s_Array_free(dest);\n", struct_name);
+  fprintf(fp, "      (void)%s_Array_free(dest);\n", struct_name);
   fprintf(fp, "      return err;\n");
   fprintf(fp, "    }\n");
   fprintf(fp, "  }\n");
@@ -412,10 +450,7 @@ c_orm_error_t sql_to_c_source_emit(FILE *fp, const struct sql_table_t *table,
   fprintf(fp, "  return C_ORM_OK;\n");
   fprintf(fp, "}\n\n");
 
-  emit_c_orm_queries(fp, table, struct_name);
-  emit_c_orm_metadata(fp, table, struct_name);
-
-  return C_ORM_OK;
+  return emit_c_orm_queries_and_meta(fp, table, struct_name);
 }
 /**
  * @brief Converts a SQL data type enum to its corresponding C ORM string
@@ -429,6 +464,7 @@ c_orm_error_t sql_type_to_c_orm_type(enum SqlDataType type,
   if (!out_val)
     return C_ORM_ERROR_MEMORY;
   switch (type) {
+  case SQL_TYPE_SMALLINT:
   case SQL_TYPE_INT:
     *out_val = "C_ORM_TYPE_INT32";
     return C_ORM_OK;
@@ -438,10 +474,21 @@ c_orm_error_t sql_type_to_c_orm_type(enum SqlDataType type,
   case SQL_TYPE_VARCHAR:
   case SQL_TYPE_TEXT:
   case SQL_TYPE_CHAR:
+  case SQL_TYPE_CLOB:
     *out_val = "C_ORM_TYPE_STRING";
+    return C_ORM_OK;
+  case SQL_TYPE_GRAPHIC:
+    *out_val = "C_ORM_TYPE_GRAPHIC";
+    return C_ORM_OK;
+  case SQL_TYPE_VARGRAPHIC:
+  case SQL_TYPE_DBCLOB:
+    *out_val = "C_ORM_TYPE_VARGRAPHIC";
     return C_ORM_OK;
   case SQL_TYPE_DATE:
     *out_val = "C_ORM_TYPE_DATE";
+    return C_ORM_OK;
+  case SQL_TYPE_TIME:
+    *out_val = "C_ORM_TYPE_TIME";
     return C_ORM_OK;
   case SQL_TYPE_TIMESTAMP:
     *out_val = "C_ORM_TYPE_TIMESTAMP";
@@ -450,11 +497,26 @@ c_orm_error_t sql_type_to_c_orm_type(enum SqlDataType type,
     *out_val = "C_ORM_TYPE_FLOAT";
     return C_ORM_OK;
   case SQL_TYPE_DOUBLE:
-  case SQL_TYPE_DECIMAL:
     *out_val = "C_ORM_TYPE_DOUBLE";
+    return C_ORM_OK;
+  case SQL_TYPE_DECIMAL:
+  case SQL_TYPE_NUMERIC:
+    *out_val = "C_ORM_TYPE_DECIMAL";
+    return C_ORM_OK;
+  case SQL_TYPE_DECFLOAT:
+    *out_val = "C_ORM_TYPE_DECFLOAT";
     return C_ORM_OK;
   case SQL_TYPE_BOOLEAN:
     *out_val = "C_ORM_TYPE_BOOL";
+    return C_ORM_OK;
+  case SQL_TYPE_BINARY:
+    *out_val = "C_ORM_TYPE_BINARY_FIXED";
+    return C_ORM_OK;
+  case SQL_TYPE_VARBINARY:
+    *out_val = "C_ORM_TYPE_VARBINARY";
+    return C_ORM_OK;
+  case SQL_TYPE_BLOB:
+    *out_val = "C_ORM_TYPE_BLOB";
     return C_ORM_OK;
   default:
     *out_val = "C_ORM_TYPE_UNKNOWN";
@@ -471,7 +533,7 @@ c_orm_error_t sql_type_to_c_orm_type(enum SqlDataType type,
  */
 static c_orm_error_t emit_c_orm_metadata(FILE *fp,
                                          const struct sql_table_t *table,
-                                         const char *struct_name) {
+                                         char *struct_name) {
   size_t i;
   int is_pk;
   int is_null;
@@ -523,7 +585,7 @@ static c_orm_error_t emit_c_orm_metadata(FILE *fp,
   /* Emit Nullable flags */
   fprintf(fp, "const bool %s_col_is_nullable[] = {\n", struct_name);
   for (i = 0; i < table->n_columns; ++i) {
-    is_nullable(&table->columns[i], &is_null);
+    is_null = (is_not_null_col(&table->columns[i]) != C_ORM_OK);
     fprintf(fp, "  %s%s\n", is_null ? "true" : "false",
             i == table->n_columns - 1 ? "" : ",");
   }
@@ -560,6 +622,11 @@ static c_orm_error_t emit_c_orm_metadata(FILE *fp,
   /* Emit fully compiled metadata struct */
   fprintf(fp, "const c_orm_column_meta_t %s_meta_columns[] = {\n", struct_name);
   for (i = 0; i < table->n_columns; ++i) {
+    unsigned int col_prec = 0;
+    unsigned int col_scale = 0;
+    unsigned long col_fixed = 0UL;
+    unsigned int col_ccsid = (unsigned int)table->columns[i].ccsid;
+
     is_pk = 0;
     if (table->columns[i].n_constraints > 0) {
       size_t j;
@@ -571,15 +638,34 @@ static c_orm_error_t emit_c_orm_metadata(FILE *fp,
         }
       }
     }
-    is_nullable(&table->columns[i], &is_null);
+    is_null = (is_not_null_col(&table->columns[i]) != C_ORM_OK);
     sql_type_to_c_orm_type(table->columns[i].type, &orm_type_str);
+
+    if ((table->columns[i].type == SQL_TYPE_DECIMAL ||
+         table->columns[i].type == SQL_TYPE_NUMERIC ||
+         table->columns[i].type == SQL_TYPE_DECFLOAT) &&
+        table->columns[i].length > 0) {
+      col_prec = (unsigned int)table->columns[i].length;
+    }
+    if ((table->columns[i].type == SQL_TYPE_DECIMAL ||
+         table->columns[i].type == SQL_TYPE_NUMERIC) &&
+        table->columns[i].scale >= 0) {
+      col_scale = (unsigned int)table->columns[i].scale;
+    }
+    if ((table->columns[i].type == SQL_TYPE_CHAR ||
+         table->columns[i].type == SQL_TYPE_GRAPHIC ||
+         table->columns[i].type == SQL_TYPE_BINARY) &&
+        table->columns[i].length > 0) {
+      col_fixed = (unsigned long)table->columns[i].length;
+    }
 
     fprintf(fp,
             "  { \"%s\", %s, offsetof(struct %s, %s), %s, %s, NULL, false, "
-            "false }%s\n",
+            "false, %u, %u, %lu, %u }%s\n",
             table->columns[i].name, orm_type_str, struct_name,
             table->columns[i].name, is_pk ? "true" : "false",
-            is_null ? "true" : "false", i == table->n_columns - 1 ? "" : ",");
+            is_null ? "true" : "false", col_prec, col_scale, col_fixed,
+            col_ccsid, i == table->n_columns - 1 ? "" : ",");
   }
   fprintf(fp, "};\n\n");
 
@@ -597,18 +683,18 @@ static c_orm_error_t emit_c_orm_metadata(FILE *fp,
   fprintf(fp, "  false, false, 0, 0, { 0 }, NULL, 0\n");
   fprintf(fp, "};\n\n");
 
-  return C_ORM_OK;
+  return c_orm_system_free(struct_name);
 }
 /**
- * @brief Emit table string queries.
+ * @brief Emits SQL query macros and ORM table metadata, then frees struct_name.
  * @param fp Target file pointer.
  * @param table SQL table metadata.
- * @param struct_name Struct name string.
+ * @param struct_name Heap-allocated struct name string.
  * @return C_ORM_OK on success.
  */
-static c_orm_error_t emit_c_orm_queries(FILE *fp,
-                                        const struct sql_table_t *table,
-                                        const char *struct_name) {
+static c_orm_error_t
+emit_c_orm_queries_and_meta(FILE *fp, const struct sql_table_t *table,
+                            char *struct_name) {
   size_t i;
   int pk_count = 0;
   const char *pk_name = NULL;
@@ -664,7 +750,7 @@ static c_orm_error_t emit_c_orm_queries(FILE *fp,
     fprintf(fp, "\"\n\n");
   }
 
-  return C_ORM_OK;
+  return emit_c_orm_metadata(fp, table, struct_name);
 }
 /* To be appended to sql_to_c.c */
 
@@ -722,7 +808,7 @@ sql_to_c_projection_struct_emit(FILE *fp, const cdd_c_query_projection_t *proj,
 
     char *c_type = NULL;
 
-    if (sql_type_to_c_type(field->type, &c_type) != 0) {
+    if (sql_type_to_c_type(field->type, &c_type) != C_ORM_OK) {
 
       /* Fallback to void* or generic byte array if completely unknown, though
        * type inference should catch most */
@@ -740,8 +826,9 @@ sql_to_c_projection_struct_emit(FILE *fp, const cdd_c_query_projection_t *proj,
         fprintf(fp, "    size_t %s_count;\n", field->name);
 
       } else {
+        int is_str = (is_string_sql_type(field->type) == C_ORM_OK);
 
-        if (sql_type_is_string(field->type)) {
+        if (is_str) {
 
           /* Depending on length, it could be a fixed buffer or a pointer.
            * Default to pointer for pure queries unless bounded */
@@ -796,11 +883,12 @@ sql_to_c_projection_free_emit(FILE *fp, const cdd_c_query_projection_t *proj,
   for (i = 0; i < proj->n_fields; ++i) {
 
     const cdd_c_query_projection_field_t *field = &proj->fields[i];
+    int is_str = (is_string_sql_type(field->type) == C_ORM_OK);
 
     if (field->is_array) {
       fprintf(fp, "    if (obj->%s) c_orm_system_free(obj->%s);\n", field->name,
               field->name);
-    } else if (sql_type_is_string(field->type) && field->length == 0) {
+    } else if (is_str && field->length == 0) {
       /* Only free if it's an unbounded pointer string */
       if (field->is_secure) {
         fprintf(fp,
@@ -811,7 +899,7 @@ sql_to_c_projection_free_emit(FILE *fp, const cdd_c_query_projection_t *proj,
         fprintf(fp, "    if (obj->%s) c_orm_system_free(obj->%s);\n",
                 field->name, field->name);
       }
-    } else if (sql_type_is_string(field->type) && field->is_secure) {
+    } else if (is_str && field->is_secure) {
       fprintf(fp, "    memset(obj->%s, 0, %u);\n", field->name,
               (unsigned int)field->length);
     }
@@ -919,7 +1007,8 @@ sql_to_c_projection_hydrate_emit(FILE *fp, const cdd_c_query_projection_t *proj,
 
     const cdd_c_query_projection_field_t *field = &proj->fields[i];
 
-    fprintf(fp, "    if (cdd_c_abstract_get(row, \"%s\", &val) == 0) {\n",
+    fprintf(fp,
+            "    if (cdd_c_abstract_get(row, \"%s\", &val) == C_ORM_OK) {\n",
             field->name);
 
     switch (field->type) {
@@ -963,10 +1052,10 @@ sql_to_c_projection_hydrate_emit(FILE *fp, const cdd_c_query_projection_t *proj,
         /* Fixed buffer */
 
         fprintf(fp,
-                "#if defined(_MSC_VER)\n            strncpy_s(out_struct->%s, "
-                "%u, val->value.s_val, _TRUNCATE);\n#else\n            "
-                "strncpy(out_struct->%s, val->value.s_val, %u);\n#endif\n",
-                field->name, (unsigned int)field->length, field->name,
+                "            if (C_ORM_STRNCPY(out_struct->%s, %u, "
+                "val->value.s_val, %u - 1) != C_ORM_OK) return "
+                "C_ORM_ERROR_OVERFLOW;\n",
+                field->name, (unsigned int)field->length,
                 (unsigned int)field->length);
 
         fprintf(fp, "            out_struct->%s[%u - 1] = '\\0';\n",
@@ -976,10 +1065,10 @@ sql_to_c_projection_hydrate_emit(FILE *fp, const cdd_c_query_projection_t *proj,
 
         /* Dynamic alloc */
 
-        fprintf(
-            fp,
-            "            C_ORM_STRDUP(val->value.s_val, &out_struct->%s);\n",
-            field->name);
+        fprintf(fp,
+                "            if (C_ORM_STRDUP(val->value.s_val, "
+                "&out_struct->%s) != C_ORM_OK) return C_ORM_ERROR_MEMORY;\n",
+                field->name);
       }
 
       fprintf(fp, "        }\n");
@@ -1034,7 +1123,7 @@ c_orm_error_t sql_to_c_projection_dehydrate_emit(
 
   fprintf(fp, "    if (!in_struct || !out_row) return C_ORM_ERROR_MEMORY;\n");
 
-  fprintf(fp, "    if (cdd_c_abstract_struct_init(out_row) != 0) return "
+  fprintf(fp, "    if (cdd_c_abstract_struct_init(out_row) != C_ORM_OK) return "
               "C_ORM_ERROR_MEMORY;\n");
 
   for (i = 0; i < proj->n_fields; ++i) {
@@ -1095,8 +1184,10 @@ c_orm_error_t sql_to_c_projection_dehydrate_emit(
       continue;
     }
 
-    fprintf(fp, "    if (cdd_c_abstract_set(out_row, \"%s\", &val) != 0) {\n",
-            field->name);
+    fprintf(
+        fp,
+        "    if (cdd_c_abstract_set(out_row, \"%s\", &val) != C_ORM_OK) {\n",
+        field->name);
 
     fprintf(fp, "        cdd_c_abstract_struct_free(out_row);\n");
 
@@ -1318,7 +1409,8 @@ sql_to_c_projection_union_struct_emit(FILE *fp,
 
       char *c_type = NULL;
 
-      if (sql_type_to_c_type(field->type, &c_type) == 0) {
+      if (sql_type_to_c_type(field->type, &c_type) == C_ORM_OK) {
+        int is_str = (is_string_sql_type(field->type) == C_ORM_OK);
 
         if (field->is_array) {
 
@@ -1326,7 +1418,7 @@ sql_to_c_projection_union_struct_emit(FILE *fp,
 
           fprintf(fp, "            size_t %s_count;\n", field->name);
 
-        } else if (sql_type_is_string(field->type)) {
+        } else if (is_str) {
 
           if (field->length > 0) {
 
@@ -1407,7 +1499,8 @@ c_orm_error_t sql_to_c_projection_polymorphic_struct_emit(
 
       char *c_type = NULL;
 
-      if (sql_type_to_c_type(field->type, &c_type) == 0) {
+      if (sql_type_to_c_type(field->type, &c_type) == C_ORM_OK) {
+        int is_str = (is_string_sql_type(field->type) == C_ORM_OK);
 
         if (field->is_array) {
 
@@ -1415,7 +1508,7 @@ c_orm_error_t sql_to_c_projection_polymorphic_struct_emit(
 
           fprintf(fp, "    size_t %s_count;\n", field->name);
 
-        } else if (sql_type_is_string(field->type)) {
+        } else if (is_str) {
 
           if (field->length > 0) {
 

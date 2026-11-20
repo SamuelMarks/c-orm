@@ -31,8 +31,8 @@ endif()
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UPPER)
 string(REPLACE "-" "_" PROJECT_NAME_SAFE "${PROJECT_NAME_UPPER}")
 
-set(${PROJECT_NAME_SAFE}_CRT_LINKAGE "dynamic" CACHE STRING "CRT Linkage (static/dynamic)")
-set_property(CACHE ${PROJECT_NAME_SAFE}_CRT_LINKAGE PROPERTY STRINGS "static" "dynamic")
+set(${PROJECT_NAME_SAFE}_CRT_LINKAGE "" CACHE STRING "CRT Linkage (static/dynamic)")
+set_property(CACHE ${PROJECT_NAME_SAFE}_CRT_LINKAGE PROPERTY STRINGS "" "static" "dynamic")
 set(${PROJECT_NAME_SAFE}_CHARSET "UNICODE" CACHE STRING "Character set (UNICODE/ANSI)")
 set_property(CACHE ${PROJECT_NAME_SAFE}_CHARSET PROPERTY STRINGS "UNICODE" "ANSI")
 option(${PROJECT_NAME_SAFE}_THREADING "Enable multi-threading" ON)
@@ -48,18 +48,53 @@ endif()
 
 # Pass configurations down to dependencies
 set(CDD_CHARSET ${${PROJECT_NAME_SAFE}_CHARSET} CACHE STRING "Character set for cdd" FORCE)
-set(CDD_THREADING ${${PROJECT_NAME_SAFE}_THREADING} CACHE BOOL "Threading for cdd" FORCE)
-set(CDD_MSVC_RTC ${${PROJECT_NAME_SAFE}_MSVC_RTC} CACHE STRING "MSVC RTC for cdd" FORCE)
+if(${PROJECT_NAME_SAFE}_THREADING)
+    set(CDD_THREADING "Multi-threaded" CACHE STRING "Threading for cdd" FORCE)
+else()
+    set(CDD_THREADING "Single-threaded" CACHE STRING "Threading for cdd" FORCE)
+endif()
+if(${PROJECT_NAME_SAFE}_MSVC_RTC STREQUAL "OFF")
+    set(CDD_MSVC_RTC "" CACHE STRING "MSVC RTC for cdd" FORCE)
+else()
+    set(CDD_MSVC_RTC "RTC${${PROJECT_NAME_SAFE}_MSVC_RTC}" CACHE STRING "MSVC RTC for cdd" FORCE)
+endif()
+
+if(NOT ${PROJECT_NAME_SAFE}_THREADING)
+    add_compile_definitions(C_ORM_NO_THREADS)
+endif()
 
 if(MSVC)
-    if(${PROJECT_NAME_SAFE}_CRT_LINKAGE STREQUAL "static")
+    if(${PROJECT_NAME_SAFE}_CRT_LINKAGE STREQUAL "static" OR
+       (${PROJECT_NAME_SAFE}_CRT_LINKAGE STREQUAL "" AND CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL"))
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
         set(C_CDD_STATIC_CRT ON CACHE BOOL "" FORCE)
-    elseif(${PROJECT_NAME_SAFE}_CRT_LINKAGE STREQUAL "dynamic")
+        set(C_CDD_CRT_LINKAGE "Static" CACHE STRING "" FORCE)
+        set(CFS_CRT_LINKAGE "static" CACHE STRING "" FORCE)
+        set(C_STR_SPAN_CRT_LINKAGE "static" CACHE STRING "" FORCE)
+        foreach(flag_var
+            CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+            CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO
+            CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+            CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+            if(${flag_var} MATCHES "/MD")
+                string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+            endif()
+        endforeach()
+    else()
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
         set(C_CDD_STATIC_CRT OFF CACHE BOOL "" FORCE)
-    elseif(CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL")
-        set(C_CDD_STATIC_CRT ON CACHE BOOL "" FORCE)
+        set(C_CDD_CRT_LINKAGE "Shared" CACHE STRING "" FORCE)
+        set(CFS_CRT_LINKAGE "dynamic" CACHE STRING "" FORCE)
+        set(C_STR_SPAN_CRT_LINKAGE "dynamic" CACHE STRING "" FORCE)
+        foreach(flag_var
+            CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+            CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO
+            CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+            CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+            if(${flag_var} MATCHES "/MT")
+                string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
+            endif()
+        endforeach()
     endif()
 endif()
 
@@ -93,18 +128,28 @@ endif()
 if(MSVC)
     string(REGEX REPLACE "/W[0-4]" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
     string(REGEX REPLACE "/W[0-4]" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    set(C_ORM_STRICT_OPTIONS /W4 /WX /sdl)
+    set(C_ORM_STRICT_OPTIONS /W4 /WX)
+    if(NOT MSVC_VERSION LESS 1700)
+        list(APPEND C_ORM_STRICT_OPTIONS /sdl)
+    endif()
     add_link_options("/MANIFEST:NO")
 
     if(${PROJECT_NAME_SAFE}_CHARSET STREQUAL "UNICODE")
         add_compile_definitions(UNICODE _UNICODE)
+    elseif(${PROJECT_NAME_SAFE}_CHARSET STREQUAL "ANSI")
+        remove_definitions(-DUNICODE -D_UNICODE)
+        add_compile_definitions(_MBCS)
     endif()
 
     if(NOT ${PROJECT_NAME_SAFE}_MSVC_RTC STREQUAL "OFF")
-        string(REGEX REPLACE "/RTC(1|c|s|u)+" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-        string(REGEX REPLACE "/RTC(1|c|s|u)+" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-        string(REGEX REPLACE "/RTC(1|c|s|u)+" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
-        string(REGEX REPLACE "/RTC(1|c|s|u)+" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+        foreach(flag_var
+            CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+            CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO
+            CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+            CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+            string(REGEX REPLACE "/RTC(1|c|s|u)+" "" ${flag_var} "${${flag_var}}")
+            string(REGEX REPLACE "/O(1|2|x|b1|b2)" "/Od" ${flag_var} "${${flag_var}}")
+        endforeach()
         list(APPEND C_ORM_STRICT_OPTIONS "/RTC${${PROJECT_NAME_SAFE}_MSVC_RTC}")
     endif()
 elseif(CMAKE_C_COMPILER_ID MATCHES "Watcom")
@@ -125,29 +170,24 @@ endif()
 
 include(FetchContent)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "Don't update dependencies on reconfigure")
-unset(FETCHCONTENT_SOURCE_DIR_CFS CACHE)
-unset(FETCHCONTENT_SOURCE_DIR_C_FS CACHE)
-unset(FETCHCONTENT_SOURCE_DIR_CDD_C CACHE)
-unset(FETCHCONTENT_SOURCE_DIR_CDD-C CACHE)
-unset(FETCHCONTENT_SOURCE_DIR_C89STRINGUTILS CACHE)
-unset(FETCHCONTENT_SOURCE_DIR_C_STR_SPAN CACHE)
-unset(FETCHCONTENT_SOURCE_DIR_C-STR-SPAN CACHE)
-unset(FETCHCONTENT_SOURCE_DIR_PARSON CACHE)
-unset(FETCHCONTENT_SOURCE_DIR_C_ABSTRACT_HTTP CACHE)
-unset(FETCHCONTENT_SOURCE_DIR_C-ABSTRACT-HTTP CACHE)
+option(C_ORM_FORCE_FETCH_MASTER "Clear cached FETCHCONTENT_SOURCE_DIR_* overrides" OFF)
+if(C_ORM_FORCE_FETCH_MASTER)
+    unset(FETCHCONTENT_SOURCE_DIR_CFS CACHE)
+    unset(FETCHCONTENT_SOURCE_DIR_C_FS CACHE)
+    unset(FETCHCONTENT_SOURCE_DIR_CDD_C CACHE)
+    unset(FETCHCONTENT_SOURCE_DIR_CDD-C CACHE)
+    unset(FETCHCONTENT_SOURCE_DIR_C89STRINGUTILS CACHE)
+    unset(FETCHCONTENT_SOURCE_DIR_C_STR_SPAN CACHE)
+    unset(FETCHCONTENT_SOURCE_DIR_C-STR-SPAN CACHE)
+    unset(FETCHCONTENT_SOURCE_DIR_C_ABSTRACT_HTTP CACHE)
+    unset(FETCHCONTENT_SOURCE_DIR_C-ABSTRACT-HTTP CACHE)
+endif()
 set(OLD_BUILD_TESTING_VAL "${BUILD_TESTING}")
 #set(BUILD_TESTING OFF)
 
 if(NOT WIN32 AND NOT EMSCRIPTEN)
 if(TARGET curl OR TARGET CURL::libcurl OR TARGET libcurl)
     # Target already populated natively
-elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../curl/CMakeLists.txt")
-    FetchContent_Declare(curl SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../curl")
-    if(NOT TARGET curl)
-    FetchContent_MakeAvailable(curl)
-    endif()
-        set(CURL_FOUND ON)
-        set(curl_FOUND ON)
 else()
     if(CDD_DEPS STREQUAL "VCPKG" OR (DEFINED CMAKE_TOOLCHAIN_FILE AND CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg") OR DEFINED VCPKG_TOOLCHAIN)
         find_package(CURL CONFIG QUIET)
@@ -216,6 +256,9 @@ else()
     FetchContent_MakeAvailable(c89stringutils)
     endif()
 endif()
+if(APPLE AND TARGET c89stringutils)
+    target_compile_definitions(c89stringutils PRIVATE _DARWIN_C_SOURCE)
+endif()
 
 set(C_REST_FRAMEWORK_FETCH_C_FS OFF CACHE BOOL "Disable c_fs fetch in c_rest_framework")
 set(C_REST_FRAMEWORK_FETCH_C_ORM OFF CACHE BOOL "Disable c_orm fetch in c_rest_framework")
@@ -232,29 +275,6 @@ else()
     FetchContent_Declare(cfs GIT_REPOSITORY https://github.com/SamuelMarks/c-fs.git GIT_TAG master)
     if(NOT TARGET cfs)
     FetchContent_MakeAvailable(cfs)
-    endif()
-endif()
-
-if(TARGET parson)
-    # Target already populated natively
-elseif(FALSE)
-    FetchContent_Declare(parson SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../parson")
-    if(NOT TARGET parson)
-    FetchContent_MakeAvailable(parson)
-    endif()
-    if(TARGET parson AND NOT TARGET parson::parson)
-        add_library(parson::parson ALIAS parson)
-    endif()
-else()
-    FetchContent_Declare(parson GIT_REPOSITORY https://github.com/SamuelMarks/parson.git GIT_TAG master)
-    if(NOT TARGET parson)
-    FetchContent_MakeAvailable(parson)
-    endif()
-    if(TARGET parson AND NOT TARGET parson::parson)
-        add_library(parson::parson ALIAS parson)
-    endif()
-    if(TARGET parson AND parson_SOURCE_DIR)
-        target_include_directories(parson PUBLIC $<BUILD_INTERFACE:${parson_SOURCE_DIR}>)
     endif()
 endif()
 
@@ -299,6 +319,9 @@ else()
     FetchContent_MakeAvailable(cdd_c)
     endif()
 endif()
+if(MSVC AND NOT MSVC_VERSION LESS 1800 AND TARGET c_cdd)
+    target_compile_options(c_cdd PRIVATE /FIstdbool.h)
+endif()
 
 set(BUILD_TESTING "${OLD_BUILD_TESTING_VAL}")
 
@@ -307,6 +330,14 @@ add_library(c-orm
     src/c_orm_db.c
     src/c_orm_log.c
     src/c_orm_alloc.c
+    src/c_orm_decimal.c
+    src/c_orm_ebcdic.c
+    src/c_orm_odbc_loader.c
+    src/c_orm_odbc.c
+    src/c_orm_db2.c
+    src/c_orm_copybook.c
+    src/c_orm_copybook_wire.c
+    src/c_orm_copybook_codegen.c
     src/c_orm_string_builder.c
     src/c_orm_query_builder.c
     src/c_orm_arena.c
@@ -314,6 +345,7 @@ add_library(c-orm
     src/c_orm_query_sql.c
     src/c_orm_api.c
     src/c_orm_cache.c
+    src/c_orm_pool.c
     src/c_orm_sqlite.c
     src/c_orm_postgres.c
     src/c_orm_mysql.c
@@ -340,11 +372,11 @@ set_target_properties(c-orm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 target_compile_options(c-orm PRIVATE ${C_ORM_STRICT_OPTIONS})
 
 target_include_directories(c-orm PUBLIC include)
-target_link_libraries(c-orm PUBLIC c_cdd cfs parson c89stringutils c_str_span)
+target_link_libraries(c-orm PUBLIC c_cdd cfs c89stringutils c_str_span)
 if(TARGET c_cdd)
     add_dependencies(c-orm c_cdd)
 endif()
-target_include_directories(c-orm PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../cdd-c/include>" "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../cdd-c/src>" "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/cdd_c-build/src>")
+target_include_directories(c-orm PUBLIC "$<BUILD_INTERFACE:${cdd_c_SOURCE_DIR}/include>" "$<BUILD_INTERFACE:${cdd_c_SOURCE_DIR}/src>" "$<BUILD_INTERFACE:${cdd_c_BINARY_DIR}/src>")
 if(NOT WIN32 AND NOT EMSCRIPTEN)
     find_package(OpenSSL QUIET)
     if(OPENSSL_FOUND)
@@ -367,6 +399,41 @@ target_compile_definitions(c-orm-async PUBLIC $<$<BOOL:${BUILD_SHARED_LIBS}>:C_O
 set(C_ORM_SQLITE "LINKED" CACHE STRING "Enable SQLite driver (LINKED, DYNAMIC, OFF)")
 set(C_ORM_POSTGRESQL "OFF" CACHE STRING "Enable PostgreSQL driver (LINKED, DYNAMIC, OFF)")
 set(C_ORM_MYSQL "OFF" CACHE STRING "Enable MySQL driver (LINKED, DYNAMIC, OFF)")
+option(C_ORM_ENABLE_ODBC "Enable Generic ODBC driver support" ON)
+option(C_ORM_ENABLE_DB2 "Enable IBM Db2 CLI/ODBC driver support" ON)
+option(C_ORM_ENABLE_COPYBOOK "Enable COBOL Copybook parser and codegen" ON)
+option(C_ORM_LINK_ODBC "Directly link against system/vcpkg ODBC library instead of runtime dlopen/LoadLibrary" OFF)
+option(C_ORM_LINK_DB2 "Directly link against IBM Db2 CLI library (libdb2) when IBM_DB_HOME is present" OFF)
+
+if(C_ORM_ENABLE_ODBC)
+    target_compile_definitions(c-orm PUBLIC C_ORM_ENABLE_ODBC)
+endif()
+if(C_ORM_ENABLE_DB2)
+    target_compile_definitions(c-orm PUBLIC C_ORM_ENABLE_DB2)
+endif()
+if(C_ORM_ENABLE_COPYBOOK)
+    target_compile_definitions(c-orm PUBLIC C_ORM_ENABLE_COPYBOOK)
+endif()
+
+if(C_ORM_LINK_ODBC)
+    target_compile_definitions(c-orm PRIVATE C_ORM_LINK_ODBC)
+    if(WIN32)
+        target_link_libraries(c-orm PRIVATE odbc32)
+    else()
+        find_package(ODBC REQUIRED)
+        target_link_libraries(c-orm PRIVATE ODBC::ODBC)
+    endif()
+elseif((C_ORM_ENABLE_ODBC OR C_ORM_ENABLE_DB2) AND NOT WIN32 AND NOT EMSCRIPTEN)
+    target_link_libraries(c-orm PRIVATE ${CMAKE_DL_LIBS})
+endif()
+
+if(C_ORM_LINK_DB2)
+    target_compile_definitions(c-orm PRIVATE C_ORM_LINK_DB2)
+    if(DEFINED ENV{IBM_DB_HOME})
+        target_link_directories(c-orm PRIVATE "$ENV{IBM_DB_HOME}/lib64" "$ENV{IBM_DB_HOME}/lib")
+    endif()
+    target_link_libraries(c-orm PRIVATE db2)
+endif()
 
 if(EMSCRIPTEN)
     set(C_ORM_POSTGRESQL "OFF" CACHE STRING "Enable PostgreSQL driver (LINKED, DYNAMIC, OFF)" FORCE)
@@ -539,10 +606,16 @@ target_link_libraries(c_orm_example_dashboard PRIVATE c-orm c_cdd)
 if(C_ORM_STRICT_OPTIONS)
     target_compile_options(c_orm_example_dashboard PRIVATE ${C_ORM_STRICT_OPTIONS})
 endif()
+add_executable(c_orm_example_cobol_db2_ledger examples/cobol_db2_ledger.c)
+target_link_libraries(c_orm_example_cobol_db2_ledger PRIVATE c-orm)
+if(C_ORM_STRICT_OPTIONS)
+    target_compile_options(c_orm_example_cobol_db2_ledger PRIVATE ${C_ORM_STRICT_OPTIONS})
+endif()
 if(BUILD_TESTING)
     add_test(NAME example_blog COMMAND c_orm_example_blog)
     add_test(NAME example_dashboard COMMAND c_orm_example_dashboard)
     add_test(NAME example_relationships COMMAND c_orm_example_relationships)
+    add_test(NAME example_cobol_db2_ledger COMMAND c_orm_example_cobol_db2_ledger)
 endif()
 endif()
 

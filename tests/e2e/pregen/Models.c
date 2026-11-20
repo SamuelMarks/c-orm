@@ -219,19 +219,19 @@ const size_t Users_struct_size = sizeof(struct Users);
 
 const c_orm_column_meta_t Users_meta_columns[] = {
     {"id", C_ORM_TYPE_INT32, offsetof(struct Users, id), true, false, NULL,
-     false, false},
+     false, false, 0, 0, 0, 0},
     {"username", C_ORM_TYPE_STRING, offsetof(struct Users, username), false,
-     false, NULL, false, false},
+     false, NULL, false, false, 0, 0, 0, 0},
     {"email", C_ORM_TYPE_STRING, offsetof(struct Users, email), false, false,
-     NULL, false, false},
+     NULL, false, false, 0, 0, 0, 0},
     {"age", C_ORM_TYPE_INT32, offsetof(struct Users, age), false, true, NULL,
-     false, false},
+     false, false, 0, 0, 0, 0},
     {"score", C_ORM_TYPE_FLOAT, offsetof(struct Users, score), false, true,
-     NULL, false, false},
+     NULL, false, false, 0, 0, 0, 0},
     {"is_active", C_ORM_TYPE_BOOL, offsetof(struct Users, is_active), false,
-     true, NULL, false, false},
+     true, NULL, false, false, 0, 0, 0, 0},
     {"created_at", C_ORM_TYPE_TIMESTAMP, offsetof(struct Users, created_at),
-     false, true, NULL, false, false}};
+     false, true, NULL, false, false, 0, 0, 0, 0}};
 
 const c_orm_table_meta_t Users_meta = {"users",
                                        Users_meta_columns,
@@ -426,17 +426,17 @@ const size_t Posts_struct_size = sizeof(struct Posts);
 
 const c_orm_column_meta_t Posts_meta_columns[] = {
     {"id", C_ORM_TYPE_INT32, offsetof(struct Posts, id), true, false, NULL,
-     false, false},
+     false, false, 0, 0, 0, 0},
     {"user_id", C_ORM_TYPE_INT32, offsetof(struct Posts, user_id), false, false,
-     NULL, false, false},
+     NULL, false, false, 0, 0, 0, 0},
     {"title", C_ORM_TYPE_STRING, offsetof(struct Posts, title), false, false,
-     NULL, false, false},
+     NULL, false, false, 0, 0, 0, 0},
     {"content", C_ORM_TYPE_STRING, offsetof(struct Posts, content), false, true,
-     NULL, false, false},
+     NULL, false, false, 0, 0, 0, 0},
     {"views", C_ORM_TYPE_INT64, offsetof(struct Posts, views), false, true,
-     NULL, false, false},
+     NULL, false, false, 0, 0, 0, 0},
     {"published_date", C_ORM_TYPE_DATE, offsetof(struct Posts, published_date),
-     false, true, NULL, false, false}};
+     false, true, NULL, false, false, 0, 0, 0, 0}};
 
 const c_orm_table_meta_t Posts_meta = {"posts",
                                        Posts_meta_columns,
@@ -653,17 +653,17 @@ const size_t Oauth2_tokens_struct_size = sizeof(struct Oauth2_tokens);
 const c_orm_column_meta_t Oauth2_tokens_meta_columns[] = {
     {"access_token", C_ORM_TYPE_STRING,
      offsetof(struct Oauth2_tokens, access_token), true, false, NULL, false,
-     false},
+     false, 0, 0, 0, 0},
     {"refresh_token", C_ORM_TYPE_STRING,
      offsetof(struct Oauth2_tokens, refresh_token), false, true, NULL, false,
-     false},
+     false, 0, 0, 0, 0},
     {"token_type", C_ORM_TYPE_STRING,
      offsetof(struct Oauth2_tokens, token_type), false, true, NULL, false,
-     false},
+     false, 0, 0, 0, 0},
     {"expires_in", C_ORM_TYPE_INT32, offsetof(struct Oauth2_tokens, expires_in),
-     false, true, NULL, false, false},
+     false, true, NULL, false, false, 0, 0, 0, 0},
     {"created_at", C_ORM_TYPE_INT64, offsetof(struct Oauth2_tokens, created_at),
-     false, true, NULL, false, false}};
+     false, true, NULL, false, false, 0, 0, 0, 0}};
 
 const c_orm_table_meta_t Oauth2_tokens_meta = {"oauth2_tokens",
                                                Oauth2_tokens_meta_columns,

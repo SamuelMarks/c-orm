@@ -75,41 +75,54 @@ def is_math_function(name: str) -> bool:
     return any(kw in name_lower for kw in math_keywords)
 
 
-def is_memory_management_function(name: str) -> bool:
-    """Checks if a function name implies memory management (destroy/free/alloc).
+def is_foreign_abi_callback(name: str) -> bool:
+    """Checks if a function pointer represents an external OS/C-library dlsym ABI symbol.
 
     Args:
-        name (str): The name of the function to check.
+        name (str): The identifier name of the typedef, field, or variable.
 
     Returns:
-        bool: True if the function is a memory management function, False otherwise.
+        bool: True if it is a foreign ABI symbol loaded via dlsym/GetProcAddress.
     """
     if not name:
         return False
-    name_lower = name.lower()
-    for kw in ["destroy", "free", "malloc", "realloc", "calloc", "alloc"]:
-        if (
-            name_lower == kw
-            or name_lower.startswith(f"{kw}_")
-            or name_lower.endswith(f"_{kw}")
-            or f"_{kw}_" in name_lower
-        ):
-            return True
-    return False
+    foreign_prefixes = (
+        "dyn_",
+        "PQ",
+        "mysql_",
+        "sqlite3_",
+        "SQL",
+        "LoadLibrary",
+        "GetProcAddress",
+        "FreeLibrary",
+        "CryptProtectData",
+        "CryptUnprotectData",
+        "RtlGenRandom",
+        "BCryptGenRandom",
+        "InitializeCriticalSection",
+        "EnterCriticalSection",
+        "LeaveCriticalSection",
+        "DeleteCriticalSection",
+        "Sleep",
+    )
+    return name.startswith(foreign_prefixes)
 
 
-def is_logger(name: str) -> bool:
-    """Checks if a function name implies logging.
+def unwrap_function_pointer_proto(clang_type):
+    """Unwraps a clang Type if it is a pointer to a function prototype.
 
     Args:
-        name (str): The name of the function to check.
+        clang_type: libclang Type instance.
 
     Returns:
-        bool: True if it's a logging function, False otherwise.
+        Canonical function prototype Type, or None if not a function pointer.
     """
-    if not name:
-        return False
-    return "log" in name.lower()
+    canon = clang_type.get_canonical()
+    if canon.kind == TypeKind.POINTER:
+        pointee = canon.get_pointee().get_canonical()
+        if pointee.kind in (TypeKind.FUNCTIONPROTO, TypeKind.FUNCTIONNOPROTO):
+            return pointee
+    return None
 
 
 def should_exclude(
@@ -126,6 +139,8 @@ def should_exclude(
         bool: True if the file should be excluded, False otherwise.
     """
     path = Path(filepath)
+    if any(part.startswith("build") or part == ".git" for part in path.parts):
+        return True
     for pattern in exclude_patterns:
         if fnmatch.fnmatch(filepath, pattern) or fnmatch.fnmatch(path.name, pattern):
             return True
@@ -143,7 +158,7 @@ def should_exclude(
 def gather_files(
     paths: list, exclude_patterns: list = None, use_default_exceptions: bool = True
 ) -> list:
-    """Gathers C files from a list of files and directories.
+    """Gathers C source and header files from a list of files and directories.
 
     Args:
         paths (list): A list of file or directory paths to search.
@@ -151,7 +166,7 @@ def gather_files(
         use_default_exceptions (bool, optional): Whether to exclude test files by default.
 
     Returns:
-        list: A sorted list of unique C file paths.
+        list: A sorted list of unique C/header file paths.
     """
     if exclude_patterns is None:
         exclude_patterns = []
@@ -163,6 +178,7 @@ def gather_files(
             c_files.append(str(path))
         elif path.is_dir():
             c_files.extend(str(p) for p in path.rglob("*.c"))
+            c_files.extend(str(p) for p in path.rglob("*.h"))
 
     filtered_files = [
         f
@@ -198,9 +214,14 @@ def check_file(
     args_to_use = compile_args
     if comp_db:
         cmds = comp_db.getCompileCommands(os.path.abspath(filename))
+        if not cmds and filename.endswith(".h"):
+            probe = os.path.abspath("src/c_orm_alloc.c")
+            if os.path.isfile(probe):
+                cmds = comp_db.getCompileCommands(probe)
         if cmds:
             for cmd in cmds:
                 raw_args = list(cmd.arguments)[1:]
+                cmd_file = cmd.filename
                 # Filter out arguments that cause libclang to fail parsing (like output paths)
                 filtered_args = []
                 skip_next = False
@@ -215,13 +236,41 @@ def check_file(
                         arg == "-c"
                         or arg == os.path.abspath(filename)
                         or arg == filename
+                        or arg == cmd_file
+                        or arg == os.path.abspath(cmd_file)
                     ):
                         continue
                     filtered_args.append(arg)
+                if filename.endswith(".h"):
+                    hdr_args = ["-x", "c"]
+                    i_arg = 0
+                    while i_arg < len(filtered_args):
+                        a = filtered_args[i_arg]
+                        if a in ("-I", "-D", "-isystem", "-isysroot") and (
+                            i_arg + 1 < len(filtered_args)
+                        ):
+                            hdr_args.extend([a, filtered_args[i_arg + 1]])
+                            i_arg += 2
+                            continue
+                        if a.startswith(("-I", "-D", "-std=")):
+                            hdr_args.append(a)
+                        i_arg += 1
+                    filtered_args = hdr_args
                 args_to_use = filtered_args
                 break
 
     args_to_use = list(args_to_use)
+    if sys.platform == "darwin" and "-isysroot" not in args_to_use:
+        import subprocess
+
+        try:
+            sdk_path = subprocess.check_output(
+                ["xcrun", "--show-sdk-path"], text=True
+            ).strip()
+            if sdk_path and os.path.exists(sdk_path):
+                args_to_use.extend(["-isysroot", sdk_path])
+        except Exception:
+            pass
     if not any("-I" in a and "include" in a for a in args_to_use):
         if os.path.isdir("include"):
             args_to_use.append("-Iinclude")
@@ -258,7 +307,9 @@ def check_file(
     for cursor in tu.cursor.walk_preorder():
         if cursor.kind == CursorKind.FUNCTION_DECL:
             # Check if this function is defined in the target file (ignore included headers)
-            if cursor.location.file and cursor.location.file.name == filename:
+            if cursor.location.file and os.path.abspath(
+                cursor.location.file.name
+            ) == os.path.abspath(filename):
                 if use_default_symbol_exceptions and file_lines:
                     start_line = cursor.extent.start.line - 1
                     end_line = cursor.extent.end.line - 1
@@ -287,6 +338,12 @@ def check_file(
                 if canon_type.kind == TypeKind.ENUM:
                     continue
 
+                if (
+                    is_foreign_abi_callback(cursor.spelling)
+                    and not cursor.is_definition()
+                ):
+                    continue
+
                 # Check for exception: arithmetic/math functions returning primitive numeric types
                 if is_math_function(cursor.spelling):
                     if canon_type.kind in [
@@ -307,15 +364,6 @@ def check_file(
                     ]:
                         continue
 
-                # Check for exception: memory management functions (destroy/free/alloc) returning void or pointer
-                if canon_type.kind in (
-                    TypeKind.VOID,
-                    TypeKind.POINTER,
-                ) and is_memory_management_function(cursor.spelling):
-                    continue
-                if canon_type.kind == TypeKind.VOID and is_logger(cursor.spelling):
-                    continue
-
                 # Check for exception: test functions
                 if use_default_exceptions and is_test_function(cursor.spelling):
                     continue
@@ -325,6 +373,54 @@ def check_file(
                     print(
                         f"{filename}:{cursor.location.line}:{cursor.location.column}: "
                         f"error: Function '{cursor.spelling}' must return an enum or typedef to enum. Returned '{ret_type.spelling}' instead."
+                    )
+                errors += 1
+
+        elif cursor.kind in (
+            CursorKind.TYPEDEF_DECL,
+            CursorKind.FIELD_DECL,
+            CursorKind.VAR_DECL,
+        ):
+            if cursor.location.file and os.path.abspath(
+                cursor.location.file.name
+            ) == os.path.abspath(filename):
+                decl_type = (
+                    cursor.underlying_typedef_type
+                    if cursor.kind == CursorKind.TYPEDEF_DECL
+                    else cursor.type
+                )
+                fn_proto = unwrap_function_pointer_proto(decl_type)
+                if fn_proto is None:
+                    continue
+                if is_foreign_abi_callback(cursor.spelling):
+                    continue
+                ret_type = fn_proto.get_result()
+                canon_type = ret_type.get_canonical()
+                if canon_type.kind == TypeKind.ENUM:
+                    continue
+                if is_math_function(cursor.spelling) and canon_type.kind in [
+                    TypeKind.INT,
+                    TypeKind.UINT,
+                    TypeKind.LONG,
+                    TypeKind.ULONG,
+                    TypeKind.LONGLONG,
+                    TypeKind.ULONGLONG,
+                    TypeKind.FLOAT,
+                    TypeKind.DOUBLE,
+                    TypeKind.LONGDOUBLE,
+                    TypeKind.SHORT,
+                    TypeKind.USHORT,
+                    TypeKind.CHAR_S,
+                    TypeKind.SCHAR,
+                    TypeKind.UCHAR,
+                ]:
+                    continue
+                if use_default_exceptions and is_test_function(cursor.spelling):
+                    continue
+                if print_errors:
+                    print(
+                        f"{filename}:{cursor.location.line}:{cursor.location.column}: "
+                        f"error: Function pointer '{cursor.spelling}' must return an enum or typedef to enum. Returned '{ret_type.spelling}' instead."
                     )
                 errors += 1
 

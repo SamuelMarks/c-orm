@@ -30,21 +30,21 @@ c_orm_query_builder_where(qb, "is_deleted = 0");
 
 ## Optimistic Concurrency Control
 
-To prevent lost updates, `c-orm` supports optimistic locking using a version column via `c_orm_update_optimistic`. Your struct must have a version column (typically integer) that you increment on read and submit on update. If the database version doesn't match the submitted previous version, it returns `C_ORM_CONCURRENCY_ERROR`.
+To prevent lost updates, `c-orm` supports optimistic locking using an integer version column (`C_ORM_TYPE_INT32` or `C_ORM_TYPE_INT64`, nullable or non-nullable) via `c_orm_update_optimistic`. Increment the version field on your struct before calling `c_orm_update_optimistic`; if the database row's current version does not equal `new_version - 1`, the update aborts and returns `C_ORM_ERROR_NOT_FOUND`.
 
 ```c
 struct Users user;
 c_orm_find_by_id_int32(db, &Users_meta, 1, &user);
 
-/* user.version is 1 */
+/* Suppose user.version is currently 1; increment to 2 */
 int32_t new_version = (*user.version) + 1;
 user.version = &new_version;
 
-/* The optimistic update will add WHERE id = 1 AND version = 1 */
-c_orm_error_t err = c_orm_update_optimistic(db, &Users_meta, &user);
+/* Executes WHERE id = 1 AND version = 1, setting version = 2 */
+c_orm_error_t err = c_orm_update_optimistic(db, &Users_meta, "version", &user);
 
-if (err == C_ORM_CONCURRENCY_ERROR) {
-    printf("Another process modified this row!\n");
+if (err == C_ORM_ERROR_NOT_FOUND) {
+    printf("Another process modified or deleted this row!\n");
 }
 ```
 

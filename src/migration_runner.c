@@ -19,9 +19,9 @@
 #endif /* !defined(__EMSCRIPTEN__) && USE_LIBPQ_LINKED */
 
 #include "migration.h"
+#include "functions/parse/fs.h"
 #include "cfs/cfs.h"
 #include "c89stringutils_string_extras.h"
-#include "functions/parse/fs.h"
 
 #if !defined(__EMSCRIPTEN__) && (defined(USE_LIBPQ_LINKED) || defined(USE_LIBPQ_DYNAMIC))
 
@@ -30,8 +30,14 @@
 #include "win_compat_sym.h"
 #include <winbase.h>
 #include <windef.h>
+#if !defined(C_ORM_NO_THREADS) && defined(_MSC_VER)
+#include <intrin.h>
+#endif
 #else
 #include <dlfcn.h>
+#if !defined(C_ORM_NO_THREADS)
+#include <pthread.h>
+#endif
 #endif
 #endif /* USE_LIBPQ_DYNAMIC */
 #endif
@@ -74,18 +80,55 @@ static PQgetvalue_t dyn_PQgetvalue = NULL;
 static PQclear_t dyn_PQclear = NULL;
 static PQexecParams_t dyn_PQexecParams = NULL;
 
+#if !defined(C_ORM_NO_THREADS)
+#if defined(_WIN32)
+static volatile long mig_libpq_lock = 0;
+#else
+static pthread_mutex_t mig_libpq_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
+#endif
+
 static c_orm_error_t load_libpq(void) {
   static int loaded = 0;
   void *handle;
-  if (loaded)
+#if !defined(C_ORM_NO_THREADS)
+#if defined(_MSC_VER)
+  while (_InterlockedCompareExchange(&mig_libpq_lock, 1L, 0L) != 0L) {
+  }
+#elif defined(_WIN32)
+  while (__sync_val_compare_and_swap(&mig_libpq_lock, 0L, 1L) != 0L) {
+  }
+#else
+  if (pthread_mutex_lock(&mig_libpq_mutex) != 0) {
+    return C_ORM_ERROR_BUSY;
+  }
+#endif
+#endif
+  if (loaded) {
+#if !defined(C_ORM_NO_THREADS)
+#if defined(_WIN32)
+    mig_libpq_lock = 0;
+#else
+    (void)pthread_mutex_unlock(&mig_libpq_mutex);
+#endif
+#endif
     return C_ORM_OK;
+  }
 #if defined(_WIN32)
   handle = LoadLibraryA("libpq.dll");
 #else
   handle = dlopen("libpq.so", RTLD_LAZY);
 #endif
-  if (!handle)
+  if (!handle) {
+#if !defined(C_ORM_NO_THREADS)
+#if defined(_WIN32)
+    mig_libpq_lock = 0;
+#else
+    (void)pthread_mutex_unlock(&mig_libpq_mutex);
+#endif
+#endif
     return C_ORM_ERROR_NOT_FOUND;
+  }
 
 #if defined(_WIN32)
 #define LOAD_SYM(name, type)                                                   \
@@ -105,10 +148,25 @@ static c_orm_error_t load_libpq(void) {
   LOAD_SYM(PQclear, PQclear_t);
   LOAD_SYM(PQexecParams, PQexecParams_t);
 
-  if (!dyn_PQconnectdb || !dyn_PQexec || !dyn_PQfinish)
+  if (!dyn_PQconnectdb || !dyn_PQexec || !dyn_PQfinish) {
+#if !defined(C_ORM_NO_THREADS)
+#if defined(_WIN32)
+    mig_libpq_lock = 0;
+#else
+    (void)pthread_mutex_unlock(&mig_libpq_mutex);
+#endif
+#endif
     return C_ORM_ERROR_NOT_FOUND;
+  }
 
   loaded = 1;
+#if !defined(C_ORM_NO_THREADS)
+#if defined(_WIN32)
+  mig_libpq_lock = 0;
+#else
+  (void)pthread_mutex_unlock(&mig_libpq_mutex);
+#endif
+#endif
   return C_ORM_OK;
 }
 
@@ -178,58 +236,166 @@ static c_orm_error_t ensure_schema_migrations_table(PGconn *conn) {
 }
 
 /**
- * @brief Callback to collect migration files via walk_directory.
+ * @brief Collects `.sql` migration files in a directory using c-fs directory
+ * iteration, returning `c_orm_error_t` directly without integer callbacks.
  *
- * @param[in] path File path.
- * @param[in] user_data Pointer to MigrationList.
- * @return 0 on success, error code otherwise.
+ * @param[in] migrations_dir Directory path to scan.
+ * @param[in,out] list Pointer to MigrationList receiving discovered files.
+ * @return C_ORM_OK on success, or a c_orm_error_t code on failure.
  */
-static int collect_migration_cb(const char *path, void *user_data) {
-  struct MigrationList *list;
-  size_t len;
-  c_orm_error_t rc;
-  char *basename;
+static c_orm_error_t collect_migrations_from_dir(const char *migrations_dir,
+                                                 struct MigrationList *list) {
+  cfs_path dir_path;
+  cfs_directory_iterator *it = NULL;
+  const cfs_directory_entry *entry = NULL;
+  cfs_error_code ec;
+  cfs_errc cfs_rc;
 
-  list = (struct MigrationList *)user_data;
-  basename = NULL;
-
-  if (!path) {
-    return 0;
+  if (!migrations_dir || !list) {
+    return C_ORM_ERROR_VALIDATION;
   }
 
-  len = strlen(path);
-  if (len < 4 || strcmp(path + len - 4, ".sql") != 0) {
-    return 0;
-  }
-
-  rc = get_basename(path, &basename);
-  if (rc != C_ORM_OK || !basename) {
-    return rc ? (int)rc : (int)C_ORM_ERROR_MEMORY;
-  }
-
-  /* Extract version: remove .sql extension */
-  basename[strlen(basename) - 4] = '\0';
-
-  if (list->count >= list->capacity) {
-    size_t new_cap = list->capacity == 0 ? 16 : list->capacity * 2;
-    struct MigrationFile *new_arr = (struct MigrationFile *)realloc(
-        list->files, new_cap * sizeof(struct MigrationFile));
-    if (!new_arr) {
-      free(basename);
-      return (int)C_ORM_ERROR_MEMORY;
+  cfs_path_init(&dir_path);
+#if defined(CFS_OS_WINDOWS) && defined(CFS_UNICODE)
+  {
+    cfs_size_t req = 0;
+    wchar_t *wdir = NULL;
+    cfs_rc = cfs_utf8_to_utf16(migrations_dir, NULL, 0, &req);
+    if (cfs_rc != cfs_errc_success || req == 0) {
+      cfs_path_destroy(&dir_path);
+      return C_ORM_ERROR_IO;
     }
-    list->files = new_arr;
-    list->capacity = new_cap;
+    wdir = (wchar_t *)malloc(req * sizeof(wchar_t));
+    if (!wdir) {
+      cfs_path_destroy(&dir_path);
+      return C_ORM_ERROR_MEMORY;
+    }
+    cfs_rc = cfs_utf8_to_utf16(migrations_dir, wdir, req, NULL);
+    if (cfs_rc != cfs_errc_success) {
+      free(wdir);
+      cfs_path_destroy(&dir_path);
+      return C_ORM_ERROR_IO;
+    }
+    cfs_rc = cfs_path_init_str(&dir_path, wdir);
+    free(wdir);
+  }
+#else
+  cfs_rc = cfs_path_init_str(&dir_path, migrations_dir);
+#endif
+  if (cfs_rc != cfs_errc_success) {
+    cfs_path_destroy(&dir_path);
+    return C_ORM_ERROR_IO;
   }
 
-  if (c_cdd_strdup(path, &list->files[list->count].filepath) != 0) {
-    free(basename);
-    return (int)C_ORM_ERROR_MEMORY;
+  memset(&ec, 0, sizeof(ec));
+  cfs_rc = cfs_dir_itr_init(&dir_path, &it, &ec);
+  cfs_path_destroy(&dir_path);
+  if (cfs_rc != cfs_errc_success || !it) {
+    return C_ORM_ERROR_NOT_FOUND;
   }
-  list->files[list->count].version = basename;
-  list->count++;
 
-  return 0;
+  for (;;) {
+    const cfs_char_t *raw_path = NULL;
+    char *utf8_path = NULL;
+    size_t len;
+    char *basename = NULL;
+    c_orm_error_t rc;
+
+    cfs_rc = cfs_dir_itr_next(it, &entry, &ec);
+    if ((int)cfs_rc == 1 || !entry) {
+      break;
+    }
+    if (cfs_rc != cfs_errc_success) {
+      cfs_dir_itr_close(it);
+      return C_ORM_ERROR_IO;
+    }
+
+    if (cfs_path_c_str(&entry->path, &raw_path) != cfs_errc_success ||
+        !raw_path) {
+      continue;
+    }
+
+#if defined(CFS_OS_WINDOWS) && defined(CFS_UNICODE)
+    {
+      cfs_size_t req = 0;
+      if (cfs_utf16_to_utf8(raw_path, NULL, 0, &req) != cfs_errc_success ||
+          req == 0) {
+        cfs_dir_itr_close(it);
+        return C_ORM_ERROR_IO;
+      }
+      utf8_path = (char *)malloc(req);
+      if (!utf8_path) {
+        cfs_dir_itr_close(it);
+        return C_ORM_ERROR_MEMORY;
+      }
+      if (cfs_utf16_to_utf8(raw_path, utf8_path, req, NULL) !=
+          cfs_errc_success) {
+        free(utf8_path);
+        cfs_dir_itr_close(it);
+        return C_ORM_ERROR_IO;
+      }
+    }
+#else
+    if (c_cdd_strdup(raw_path, &utf8_path) != CDD_C_SUCCESS || !utf8_path) {
+      cfs_dir_itr_close(it);
+      return C_ORM_ERROR_MEMORY;
+    }
+#endif
+
+    len = strlen(utf8_path);
+    if (strcmp(utf8_path, ".") == 0 || strcmp(utf8_path, "..") == 0 ||
+        len < 4 || strcmp(utf8_path + len - 4, ".sql") != 0) {
+      free(utf8_path);
+      continue;
+    }
+
+    if (!strchr(utf8_path, '/') && !strchr(utf8_path, '\\')) {
+      size_t dlen = strlen(migrations_dir);
+      int has_sep = (dlen > 0 && (migrations_dir[dlen - 1] == '/' ||
+                                  migrations_dir[dlen - 1] == '\\'));
+      size_t full_len = dlen + (has_sep ? 0 : 1) + len + 1;
+      char *joined = (char *)malloc(full_len);
+      if (!joined) {
+        free(utf8_path);
+        cfs_dir_itr_close(it);
+        return C_ORM_ERROR_MEMORY;
+      }
+      C_ORM_SPRINTF(joined, full_len, "%s%s%s", migrations_dir,
+                    has_sep ? "" : "/", utf8_path);
+      free(utf8_path);
+      utf8_path = joined;
+    }
+
+    rc = (c_orm_error_t)get_basename(utf8_path, &basename);
+    if (rc != C_ORM_OK || !basename) {
+      free(utf8_path);
+      cfs_dir_itr_close(it);
+      return rc != C_ORM_OK ? rc : C_ORM_ERROR_MEMORY;
+    }
+
+    basename[strlen(basename) - 4] = '\0';
+
+    if (list->count >= list->capacity) {
+      size_t new_cap = list->capacity == 0 ? 16 : list->capacity * 2;
+      struct MigrationFile *new_arr = (struct MigrationFile *)realloc(
+          list->files, new_cap * sizeof(struct MigrationFile));
+      if (!new_arr) {
+        free(basename);
+        free(utf8_path);
+        cfs_dir_itr_close(it);
+        return C_ORM_ERROR_MEMORY;
+      }
+      list->files = new_arr;
+      list->capacity = new_cap;
+    }
+
+    list->files[list->count].filepath = utf8_path;
+    list->files[list->count].version = basename;
+    list->count++;
+  }
+
+  cfs_dir_itr_close(it);
+  return C_ORM_OK;
 }
 
 /**
@@ -286,7 +452,7 @@ static c_orm_error_t get_applied_migrations(PGconn *conn, char ***out_versions,
 
   for (i = 0; i < rows; i++) {
     char *val = PQgetvalue(res, i, 0);
-    if (c_cdd_strdup(val, &versions[i]) != 0) {
+    if (c_cdd_strdup(val, &versions[i]) != CDD_C_SUCCESS) {
       int j;
       for (j = 0; j < i; j++) {
         free(versions[j]);
@@ -479,8 +645,7 @@ C_ORM_EXPORT c_orm_error_t run_pending_migrations(const char *migrations_dir) {
   list.count = 0;
   list.capacity = 0;
 
-  rc = (c_orm_error_t)walk_directory(migrations_dir, collect_migration_cb,
-                                     &list);
+  rc = collect_migrations_from_dir(migrations_dir, &list);
   if (rc != C_ORM_OK) {
     fprintf(stderr, "Error reading migrations directory.\n");
     for (i = 0; i < applied_count; i++) {
@@ -632,8 +797,7 @@ C_ORM_EXPORT c_orm_error_t rollback_last_migration(const char *migrations_dir) {
   list.count = 0;
   list.capacity = 0;
 
-  rc = (c_orm_error_t)walk_directory(migrations_dir, collect_migration_cb,
-                                     &list);
+  rc = collect_migrations_from_dir(migrations_dir, &list);
   if (rc != C_ORM_OK) {
     fprintf(stderr, "Error reading migrations directory.\n");
     free(last_version);
@@ -751,7 +915,7 @@ C_ORM_EXPORT c_orm_error_t create_migration_file(const char *migrations_dir,
   }
   strftime(timestamp, sizeof(timestamp), "%Y%m%d%H%M%S", tm_info);
 
-  if (c_cdd_strdup(name, &safe_name) != 0) {
+  if (c_cdd_strdup(name, &safe_name) != CDD_C_SUCCESS) {
     return C_ORM_ERROR_MEMORY;
   }
 
@@ -783,7 +947,7 @@ C_ORM_EXPORT c_orm_error_t create_migration_file(const char *migrations_dir,
     printf("Created migration file: %s\n", filepath);
   } else {
     fprintf(stderr, "Failed to create migration file: %s\n", filepath);
-    rc = C_ORM_ERROR_UNKNOWN;
+    rc = C_ORM_ERROR_IO;
   }
 
   free(safe_name);
@@ -799,6 +963,8 @@ C_ORM_EXPORT c_orm_error_t reset_database(const char *migrations_dir) {
   char db_url[1024];
   PGresult *res;
   c_orm_error_t rc;
+
+  ENSURE_LIBPQ();
 
   C_ORM_GETENV(db_url, sizeof(db_url), "DATABASE_URL");
   if (db_url[0] == '\0') {
@@ -833,17 +999,54 @@ C_ORM_EXPORT c_orm_error_t reset_database(const char *migrations_dir) {
 }
 
 /**
- * @brief Executes the dump schema operation.
+ * @brief Validates that a SQL identifier contains only safe ASCII identifier
+ * characters (`[A-Za-z_][A-Za-z0-9_]*`).
+ *
+ * @param[in] ident Identifier string to validate.
+ * @param[out] out_valid Output flag set to 1 if valid, 0 otherwise.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t is_safe_pg_identifier(const char *ident, int *out_valid) {
+  size_t i;
+  if (!out_valid) {
+    return C_ORM_ERROR_NULL_POINTER;
+  }
+  *out_valid = 0;
+  if (!ident || ident[0] == '\0') {
+    return C_ORM_OK;
+  }
+  if (!((ident[0] >= 'a' && ident[0] <= 'z') ||
+        (ident[0] >= 'A' && ident[0] <= 'Z') || ident[0] == '_')) {
+    return C_ORM_OK;
+  }
+  for (i = 1; ident[i] != '\0'; i++) {
+    char c = ident[i];
+    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+          (c >= '0' && c <= '9') || c == '_')) {
+      return C_ORM_OK;
+    }
+  }
+  *out_valid = 1;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Executes the dump schema operation via direct libpq catalog
+ * introspection (without invoking any external shell command).
  */
 C_ORM_EXPORT c_orm_error_t dump_schema(const char *out_filepath) {
   char db_url[1024];
-  char *cmd;
-  size_t cmd_len;
-  int sys_rc;
+  PGconn *conn;
+  PGresult *tables_res;
+  FILE *fp = NULL;
+  int t_rows;
+  int t_idx;
 
-  if (!out_filepath) {
+  if (!out_filepath || out_filepath[0] == '\0') {
     return C_ORM_ERROR_VALIDATION;
   }
+
+  ENSURE_LIBPQ();
 
   C_ORM_GETENV(db_url, sizeof(db_url), "DATABASE_URL");
   if (db_url[0] == '\0') {
@@ -851,27 +1054,83 @@ C_ORM_EXPORT c_orm_error_t dump_schema(const char *out_filepath) {
     return C_ORM_ERROR_VALIDATION;
   }
 
-  /* Note: Assumes pg_dump is in PATH */
-  cmd_len = strlen("pg_dump -s -O -x \"\" > \"\"") + strlen(db_url) +
-            strlen(out_filepath) + 1;
-  cmd = (char *)malloc(cmd_len);
-  if (!cmd) {
-    return C_ORM_ERROR_MEMORY;
+  conn = PQconnectdb(db_url);
+  if (PQstatus(conn) != CONNECTION_OK) {
+    fprintf(stderr, "Connection to database failed: %s\n",
+            PQerrorMessage(conn));
+    PQfinish(conn);
+    return C_ORM_ERROR_CONNECTION;
   }
 
-  C_ORM_SPRINTF(cmd, cmd_len, "pg_dump -s -O -x \"%s\" > \"%s\"", db_url,
-                out_filepath);
-
-  sys_rc = system(cmd);
-  if (sys_rc == 0) {
-    printf("Schema dumped successfully to %s\n", out_filepath);
-  } else {
-    fprintf(stderr, "Failed to dump schema (exit code %d).\n", sys_rc);
-    fprintf(stderr, "Ensure 'pg_dump' is installed and in your PATH.\n");
+  tables_res = PQexec(
+      conn, "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' "
+            "ORDER BY table_name ASC;");
+  if (PQresultStatus(tables_res) != PGRES_TUPLES_OK) {
+    fprintf(stderr, "Failed to query public tables: %s\n",
+            PQerrorMessage(conn));
+    PQclear(tables_res);
+    PQfinish(conn);
+    return C_ORM_ERROR_SQL;
   }
 
-  free(cmd);
-  return sys_rc != 0 ? C_ORM_ERROR_UNKNOWN : C_ORM_OK;
+  if (C_ORM_FOPEN(&fp, out_filepath, "wb") != C_ORM_OK || !fp) {
+    PQclear(tables_res);
+    PQfinish(conn);
+    return C_ORM_ERROR_IO;
+  }
+
+  fprintf(fp, "-- PostgreSQL schema dump generated by c-orm\n\n");
+
+  t_rows = PQntuples(tables_res);
+  for (t_idx = 0; t_idx < t_rows; t_idx++) {
+    const char *tname = PQgetvalue(tables_res, t_idx, 0);
+    const char *params[1];
+    PGresult *cols_res;
+    int c_rows;
+    int c_idx;
+
+    params[0] = tname;
+    cols_res = PQexecParams(
+        conn,
+        "SELECT column_name, data_type, is_nullable, column_default "
+        "FROM information_schema.columns "
+        "WHERE table_schema = 'public' AND table_name = $1 "
+        "ORDER BY ordinal_position ASC;",
+        1, NULL, params, NULL, NULL, 0);
+    if (PQresultStatus(cols_res) != PGRES_TUPLES_OK) {
+      PQclear(cols_res);
+      fclose(fp);
+      PQclear(tables_res);
+      PQfinish(conn);
+      return C_ORM_ERROR_SQL;
+    }
+
+    fprintf(fp, "CREATE TABLE \"%s\" (\n", tname);
+    c_rows = PQntuples(cols_res);
+    for (c_idx = 0; c_idx < c_rows; c_idx++) {
+      const char *cname = PQgetvalue(cols_res, c_idx, 0);
+      const char *dtype = PQgetvalue(cols_res, c_idx, 1);
+      const char *nullable = PQgetvalue(cols_res, c_idx, 2);
+      const char *defval = PQgetvalue(cols_res, c_idx, 3);
+      fprintf(fp, "  \"%s\" %s", cname, dtype);
+      if (nullable && strcmp(nullable, "NO") == 0) {
+        fprintf(fp, " NOT NULL");
+      }
+      if (defval && defval[0] != '\0') {
+        fprintf(fp, " DEFAULT %s", defval);
+      }
+      fprintf(fp, "%s\n", (c_idx + 1 < c_rows) ? "," : "");
+    }
+    fprintf(fp, ");\n\n");
+    PQclear(cols_res);
+  }
+
+  fclose(fp);
+  PQclear(tables_res);
+  PQfinish(conn);
+  printf("Schema dumped successfully to %s\n", out_filepath);
+  return C_ORM_OK;
 }
 /**
  * @brief Executes the setup test database operation.
@@ -883,10 +1142,19 @@ C_ORM_EXPORT c_orm_error_t setup_test_database(const char *db_name,
   char *create_db_query;
   size_t query_len;
   PGresult *res;
+  int valid_ident = 0;
+  c_orm_error_t rc;
 
   if (!db_name || !migrations_dir) {
     return C_ORM_ERROR_VALIDATION;
   }
+
+  rc = is_safe_pg_identifier(db_name, &valid_ident);
+  if (rc != C_ORM_OK || !valid_ident) {
+    return C_ORM_ERROR_VALIDATION;
+  }
+
+  ENSURE_LIBPQ();
 
   C_ORM_GETENV(db_url, sizeof(db_url), "DATABASE_URL");
   if (db_url[0] == '\0') {

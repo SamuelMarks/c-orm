@@ -8,10 +8,10 @@
 
 /* clang-format off */
 #undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 
 #undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+#define ASSERT(cond) do { greatest_info.assertions++; if (!((cond) != 0)) { fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 /* clang-format on */
 
 /** @brief Counter decremented before triggering simulated malloc/realloc
@@ -19,38 +19,79 @@
 static int ir_oom_countdown = 0;
 
 /** @brief Pointer to original malloc allocator. */
-static void *(*old_malloc_ir)(size_t) = NULL;
+static c_orm_malloc_fn_t old_malloc_ir = NULL;
 
 /** @brief Pointer to original realloc allocator. */
-static void *(*old_realloc_ir)(void *, size_t) = NULL;
+static c_orm_realloc_fn_t old_realloc_ir = NULL;
 
 /**
  * @brief Mock malloc callback for triggering out-of-memory errors.
  * @param size Requested allocation size.
- * @return Pointer or NULL on countdown expiry.
+ * @param out_ptr Output pointer receiving allocated block or NULL.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on countdown expiry.
  */
-static void *mock_malloc_ir(size_t size) {
+static c_orm_error_t mock_malloc_ir(size_t size, void **out_ptr) {
   if (ir_oom_countdown == 0) {
     ir_oom_countdown--;
-    return NULL;
+    if (out_ptr) {
+      *out_ptr = NULL;
+    }
+    return C_ORM_ERROR_MEMORY;
   }
   ir_oom_countdown--;
-  return old_malloc_ir(size);
+  return old_malloc_ir(size, out_ptr);
 }
 
 /**
  * @brief Mock realloc callback for triggering out-of-memory errors.
  * @param ptr Existing memory pointer.
  * @param size Requested reallocation size.
- * @return Pointer or NULL on countdown expiry.
+ * @param out_ptr Output pointer receiving reallocated block or NULL.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on countdown expiry.
  */
-static void *mock_realloc_ir(void *ptr, size_t size) {
+static c_orm_error_t mock_realloc_ir(void *ptr, size_t size, void **out_ptr) {
   if (ir_oom_countdown == 0) {
     ir_oom_countdown--;
-    return NULL;
+    if (out_ptr) {
+      *out_ptr = NULL;
+    }
+    return C_ORM_ERROR_MEMORY;
   }
   ir_oom_countdown--;
-  return old_realloc_ir(ptr, size);
+  return old_realloc_ir(ptr, size, out_ptr);
+}
+
+/**
+ * @brief Mock realloc returning C_ORM_OK with NULL *out_ptr to exercise
+ * defensive NULL check branches in cdd_c_ir.c.
+ * @param ptr Existing memory pointer.
+ * @param size Requested reallocation size.
+ * @param out_ptr Output pointer receiving NULL.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t mock_ok_null_realloc_ir(void *ptr, size_t size,
+                                             void **out_ptr) {
+  (void)ptr;
+  (void)size;
+  *out_ptr = NULL;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock malloc returning C_ORM_OK with NULL *out_ptr when
+ * ir_oom_countdown hits 0.
+ * @param size Requested allocation size.
+ * @param out_ptr Output pointer receiving allocated block or NULL.
+ * @return C_ORM_OK or C_ORM_ERROR_MEMORY.
+ */
+static c_orm_error_t mock_ok_null_malloc_ir(size_t size, void **out_ptr) {
+  if (ir_oom_countdown == 0) {
+    ir_oom_countdown--;
+    *out_ptr = NULL;
+    return C_ORM_OK;
+  }
+  ir_oom_countdown--;
+  return old_malloc_ir(size, out_ptr);
 }
 
 /**
@@ -73,23 +114,30 @@ TEST test_cdd_c_ir_oom(void) {
   old_malloc_ir = c_orm_malloc;
   old_realloc_ir = c_orm_realloc;
 
-  /* add_table realloc fail */
+  /* add_table realloc fail & defensive NULL realloc */
   rc = cdd_c_ir_init(&ir);
   ASSERT_EQ(C_ORM_OK, rc);
   ir_oom_countdown = 0;
   c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_table(&ir, &tbl));
 
+  c_orm_set_allocators(old_malloc_ir, mock_ok_null_realloc_ir, c_orm_free);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_table(&ir, &tbl));
+
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
   rc = cdd_c_ir_free(&ir);
   ASSERT_EQ(C_ORM_OK, rc);
 
-  /* add_projection realloc fail */
+  /* add_projection realloc fail & defensive NULL realloc */
   rc = cdd_c_ir_init(&ir);
   ASSERT_EQ(C_ORM_OK, rc);
   ir_oom_countdown = 0;
   c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
+
+  c_orm_set_allocators(old_malloc_ir, mock_ok_null_realloc_ir, c_orm_free);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
+  c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
 
   /* duplicate_projection field alloc fail */
   {
@@ -115,9 +163,13 @@ TEST test_cdd_c_ir_oom(void) {
     ASSERT_EQ(C_ORM_OK, rc);
   }
 
-  /* duplicate_projection malloc fail 1 - source_table */
+  /* duplicate_projection malloc fail & defensive NULL - source_table */
   ir_oom_countdown = 0;
   c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
+
+  ir_oom_countdown = 0;
+  c_orm_set_allocators(mock_ok_null_malloc_ir, old_realloc_ir, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
 
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
@@ -126,16 +178,20 @@ TEST test_cdd_c_ir_oom(void) {
   rc = cdd_c_ir_init(&ir);
   ASSERT_EQ(C_ORM_OK, rc);
 
-  /* duplicate_projection malloc fail 2 - target_name */
+  /* duplicate_projection malloc fail & defensive NULL - target_name */
   ir_oom_countdown = 1; /* skips source_table alloc */
   c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
+
+  ir_oom_countdown = 1;
+  c_orm_set_allocators(mock_ok_null_malloc_ir, old_realloc_ir, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
 
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
   rc = cdd_c_ir_free(&ir);
   ASSERT_EQ(C_ORM_OK, rc);
 
-  /* parse_sql_into_ir failure paths */
+  /* parse_sql_into_ir failure paths across realloc and malloc countdowns */
   rc = cdd_c_ir_init(&ir);
   ASSERT_EQ(C_ORM_OK, rc);
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
@@ -144,45 +200,50 @@ TEST test_cdd_c_ir_oom(void) {
                            cdd_c_ir_add_table realloc */
   c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
   ASSERT(parse_sql_into_ir("CREATE TABLE x (id INT);", &ir) != C_ORM_OK);
-
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
   rc = cdd_c_ir_free(&ir);
   ASSERT_EQ(C_ORM_OK, rc);
-  rc = cdd_c_ir_init(&ir);
-  ASSERT_EQ(C_ORM_OK, rc);
 
-  ir_oom_countdown = 1;
-  c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
-  ASSERT(parse_sql_into_ir("SELECT id FROM x;", &ir) != C_ORM_OK);
-
-  ir_oom_countdown = 1; /* 0: token_list MALLOC, 1: sql_parse_select MALLOC */
-  c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
-  ASSERT(parse_sql_into_ir("SELECT id FROM x;", &ir) != C_ORM_OK);
-
-  c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
-  rc = cdd_c_ir_free(&ir);
-  ASSERT_EQ(C_ORM_OK, rc);
-  rc = cdd_c_ir_init(&ir);
-  ASSERT_EQ(C_ORM_OK, rc);
-
-  ir_oom_countdown =
-      1; /* 0: token_list MALLOC, 1: sql_parse_returning MALLOC */
-  c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
-  ASSERT(parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;",
-                           &ir) != C_ORM_OK);
-
-  for (i = 0; i < 3; ++i) {
+  for (i = 0; i < 6; ++i) {
+    rc = cdd_c_ir_init(&ir);
+    ASSERT_EQ(C_ORM_OK, rc);
     ir_oom_countdown = i;
     c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
-    ASSERT(parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;",
-                             &ir) != C_ORM_OK);
+    (void)parse_sql_into_ir("SELECT id FROM x;", &ir);
     c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
     rc = cdd_c_ir_free(&ir);
     ASSERT_EQ(C_ORM_OK, rc);
+
     rc = cdd_c_ir_init(&ir);
+    ASSERT_EQ(C_ORM_OK, rc);
+    ir_oom_countdown = i;
+    c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
+    (void)parse_sql_into_ir("SELECT id FROM x;", &ir);
+    c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
+    rc = cdd_c_ir_free(&ir);
+    ASSERT_EQ(C_ORM_OK, rc);
+
+    rc = cdd_c_ir_init(&ir);
+    ASSERT_EQ(C_ORM_OK, rc);
+    ir_oom_countdown = i;
+    c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
+    (void)parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
+    c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
+    rc = cdd_c_ir_free(&ir);
+    ASSERT_EQ(C_ORM_OK, rc);
+
+    rc = cdd_c_ir_init(&ir);
+    ASSERT_EQ(C_ORM_OK, rc);
+    ir_oom_countdown = i;
+    c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
+    (void)parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
+    c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
+    rc = cdd_c_ir_free(&ir);
     ASSERT_EQ(C_ORM_OK, rc);
   }
 
+  rc = cdd_c_ir_init(&ir);
+  ASSERT_EQ(C_ORM_OK, rc);
   rc = parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
   ASSERT_EQ(C_ORM_OK, rc);
   rc = cdd_c_ir_free(&ir);

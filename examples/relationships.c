@@ -233,48 +233,37 @@ int main(void);
  * @return 0 on success.
  */
 int main(void) {
-  c_orm_db_t *db;
+  c_orm_db_t *db = NULL;
+  int mode;
+  int failed = 0;
 
-  run_relationships_example(":memory:");
-  run_relationships_example(NULL);
+  failed |= (run_relationships_example(":memory:") != C_ORM_OK);
+  failed |= (run_relationships_example(NULL) == C_ORM_OK);
 #ifdef _WIN32
-  run_relationships_example("Z:\\invalid_dir\\bad.db");
+  failed |= (run_relationships_example("Z:\\invalid_dir\\bad.db") == C_ORM_OK);
 #else
-  run_relationships_example("/dev/null/invalid_dir/bad.db");
+  failed |=
+      (run_relationships_example("/dev/null/invalid_dir/bad.db") == C_ORM_OK);
 #endif
-  run_relationships_ops(NULL, "roles", 0);
+  failed |= (run_relationships_ops(NULL, "roles", 0) == C_ORM_OK);
+
+  failed |= (c_orm_sqlite_connect(":memory:", &db) != C_ORM_OK);
+  failed |= (run_relationships_ops(db, NULL, 0) == C_ORM_OK);
+  failed |= (c_orm_execute_raw(db, "CREATE TABLE User (id INT)") != C_ORM_OK);
+  failed |= (run_relationships_ops(db, "roles", 0) == C_ORM_OK);
+  failed |= (db->vtable->disconnect(db) != C_ORM_OK);
 
   db = NULL;
-  c_orm_sqlite_connect(":memory:", &db);
-  run_relationships_ops(db, NULL, 0);
-  c_orm_execute_raw(db, "CREATE TABLE User (id INT)");
-  run_relationships_ops(db, "roles", 0);
-  db->vtable->disconnect(db);
+  failed |= (c_orm_sqlite_connect(":memory:", &db) != C_ORM_OK);
+  failed |= (run_relationships_ops(db, "invalid_rel", 0) == C_ORM_OK);
+  failed |= (db->vtable->disconnect(db) != C_ORM_OK);
 
-  db = NULL;
-  c_orm_sqlite_connect(":memory:", &db);
-  run_relationships_ops(db, "invalid_rel", 0);
-  db->vtable->disconnect(db);
+  for (mode = 1; mode <= 4; mode++) {
+    db = NULL;
+    failed |= (c_orm_sqlite_connect(":memory:", &db) != C_ORM_OK);
+    failed |= (run_relationships_ops(db, "roles", mode) == C_ORM_OK);
+    failed |= (db->vtable->disconnect(db) != C_ORM_OK);
+  }
 
-  db = NULL;
-  c_orm_sqlite_connect(":memory:", &db);
-  run_relationships_ops(db, "roles", 1);
-  db->vtable->disconnect(db);
-
-  db = NULL;
-  c_orm_sqlite_connect(":memory:", &db);
-  run_relationships_ops(db, "roles", 2);
-  db->vtable->disconnect(db);
-
-  db = NULL;
-  c_orm_sqlite_connect(":memory:", &db);
-  run_relationships_ops(db, "roles", 3);
-  db->vtable->disconnect(db);
-
-  db = NULL;
-  c_orm_sqlite_connect(":memory:", &db);
-  run_relationships_ops(db, "roles", 4);
-  db->vtable->disconnect(db);
-
-  return 0;
+  return failed;
 }

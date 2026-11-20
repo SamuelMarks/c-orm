@@ -243,6 +243,120 @@ c_orm_register_crypto_hooks(c_orm_db_t *db, c_orm_crypto_hook_t encrypt_hook,
 }
 
 /**
+ * @brief Resolves a c_orm_error_t enum value into a static human-readable
+ * string.
+ * @param err Error code to describe.
+ * @param out_str Output pointer receiving a static null-terminated string.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_NULL_POINTER if out_str is NULL.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_error_to_string(c_orm_error_t err,
+                                                 const char **out_str) {
+  if (!out_str) {
+    return C_ORM_ERROR_NULL_POINTER;
+  }
+  switch (err) {
+  case C_ORM_OK:
+    *out_str = "C_ORM_OK";
+    break;
+  case C_ORM_ERROR_MEMORY:
+    *out_str = "C_ORM_ERROR_MEMORY";
+    break;
+  case C_ORM_ERROR_CONNECTION:
+    *out_str = "C_ORM_ERROR_CONNECTION";
+    break;
+  case C_ORM_ERROR_SQL:
+    *out_str = "C_ORM_ERROR_SQL";
+    break;
+  case C_ORM_ERROR_BIND:
+    *out_str = "C_ORM_ERROR_BIND";
+    break;
+  case C_ORM_ERROR_STEP:
+    *out_str = "C_ORM_ERROR_STEP";
+    break;
+  case C_ORM_ERROR_TYPE_MISMATCH:
+    *out_str = "C_ORM_ERROR_TYPE_MISMATCH";
+    break;
+  case C_ORM_ERROR_NOT_FOUND:
+    *out_str = "C_ORM_ERROR_NOT_FOUND";
+    break;
+  case C_ORM_ERROR_NOT_IMPLEMENTED:
+    *out_str = "C_ORM_ERROR_NOT_IMPLEMENTED";
+    break;
+  case C_ORM_ERROR_EXPIRED:
+    *out_str = "C_ORM_ERROR_EXPIRED";
+    break;
+  case C_ORM_ERROR_VALIDATION:
+    *out_str = "C_ORM_ERROR_VALIDATION";
+    break;
+  case C_ORM_ERROR_RECURSION:
+    *out_str = "C_ORM_ERROR_RECURSION";
+    break;
+  case C_ORM_ERROR_READ_ONLY:
+    *out_str = "C_ORM_ERROR_READ_ONLY";
+    break;
+  case C_ORM_ERROR_NULL_POINTER:
+    *out_str = "C_ORM_ERROR_NULL_POINTER";
+    break;
+  case C_ORM_ERROR_IO:
+    *out_str = "C_ORM_ERROR_IO";
+    break;
+  case C_ORM_ERROR_PARSE:
+    *out_str = "C_ORM_ERROR_PARSE";
+    break;
+  case C_ORM_ERROR_OVERFLOW:
+    *out_str = "C_ORM_ERROR_OVERFLOW";
+    break;
+  case C_ORM_ERROR_CYCLE:
+    *out_str = "C_ORM_ERROR_CYCLE";
+    break;
+  case C_ORM_ERROR_BUSY:
+    *out_str = "C_ORM_ERROR_BUSY";
+    break;
+  case C_ORM_ERROR_CRYPTO:
+    *out_str = "C_ORM_ERROR_CRYPTO";
+    break;
+  case C_ORM_ERROR_CONSTRAINT:
+    *out_str = "C_ORM_ERROR_CONSTRAINT";
+    break;
+  case C_ORM_ERROR_DRIVER_LOAD:
+    *out_str = "C_ORM_ERROR_DRIVER_LOAD";
+    break;
+  case C_ORM_ERROR_ODBC_DIAG:
+    *out_str = "C_ORM_ERROR_ODBC_DIAG";
+    break;
+  case C_ORM_ERROR_TIMEOUT:
+    *out_str = "C_ORM_ERROR_TIMEOUT";
+    break;
+  case C_ORM_ERROR_DEADLOCK:
+    *out_str = "C_ORM_ERROR_DEADLOCK";
+    break;
+  case C_ORM_ERROR_TRUNCATION:
+    *out_str = "C_ORM_ERROR_TRUNCATION";
+    break;
+  case C_ORM_ERROR_DECIMAL_SYNTAX:
+    *out_str = "C_ORM_ERROR_DECIMAL_SYNTAX";
+    break;
+  case C_ORM_ERROR_DECIMAL_OVERFLOW:
+    *out_str = "C_ORM_ERROR_DECIMAL_OVERFLOW";
+    break;
+  case C_ORM_ERROR_DECIMAL_INEXACT:
+    *out_str = "C_ORM_ERROR_DECIMAL_INEXACT";
+    break;
+  case C_ORM_ERROR_CODEPAGE:
+    *out_str = "C_ORM_ERROR_CODEPAGE";
+    break;
+  case C_ORM_ERROR_COPYBOOK_SYNTAX:
+    *out_str = "C_ORM_ERROR_COPYBOOK_SYNTAX";
+    break;
+  case C_ORM_ERROR_UNKNOWN:
+  default:
+    *out_str = "C_ORM_ERROR_UNKNOWN";
+    break;
+  }
+  return C_ORM_OK;
+}
+
+/**
  * @brief Sets the database connection timezone.
  * @param db Database instance.
  * @param tz Timezone enum.

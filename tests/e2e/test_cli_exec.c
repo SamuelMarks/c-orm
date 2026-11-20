@@ -44,27 +44,51 @@ extern "C" {
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -78,7 +102,11 @@ extern "C" {
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    enum greatest_test_res _rc = (res);                                        \
+    greatest_info.assertions++;                                                \
+    if (_rc != GREATEST_TEST_RES_PASS) {                                       \
+      return _rc;                                                              \
+    }                                                                          \
   } while ((void)0, 0)
 
 /**
@@ -158,11 +186,11 @@ TEST test_cli_create(void) {
   sys_rc =
       system(CLI_CMD " create my_mig --dir /dev/null/invalid_dir" DEV_NULL);
 #endif
-  /* ASSERT_NEQ(0, sys_rc); */
+  ASSERT_NEQ(0, sys_rc);
 
   sys_rc = system(
       CLI_CMD " create my_mig extra_arg --dir test_migrations_dir" DEV_NULL);
-  /* ASSERT_NEQ(0, sys_rc); */
+  ASSERT_EQ(0, sys_rc);
 
   PASS();
 }
@@ -177,7 +205,7 @@ TEST test_cli_generate(void) {
   (void)rc;
   (void)sys_rc;
   rc = system(CLI_CMD " generate" DEV_NULL);
-  /* ASSERT_EQ(0, rc); */
+  ASSERT_NEQ(0, rc);
   PASS();
 }
 
@@ -232,8 +260,14 @@ TEST test_cli_migrate(void) {
 
 #ifdef _WIN32
   sys_rc = system("mkdir test_migrations_dir 2>nul");
+  (void)system("mkdir real_migrations_cli 2>nul");
+  (void)system("mkdir empty_migrations_cli 2>nul");
+  (void)system("mkdir bad_rollback_cli 2>nul");
 #else
   sys_rc = system("mkdir -p test_migrations_dir 2>/dev/null");
+  (void)system("mkdir -p real_migrations_cli 2>/dev/null");
+  (void)system("mkdir -p empty_migrations_cli 2>/dev/null");
+  (void)system("mkdir -p bad_rollback_cli 2>/dev/null");
 #endif
   ASSERT_EQ(0, sys_rc);
 
@@ -245,6 +279,24 @@ TEST test_cli_migrate(void) {
   C_ORM_FOPEN(&f2, "test_migrations_dir/1_test.down.sql", "w");
   ASSERT(f2 != NULL);
   fprintf(f2, "DROP TABLE x;\n");
+  fclose(f2);
+
+  C_ORM_FOPEN(&f1, "real_migrations_cli/1_test.up.sql", "w");
+  ASSERT(f1 != NULL);
+  fprintf(f1, "CREATE TABLE t1 (id INT);\n");
+  fclose(f1);
+  C_ORM_FOPEN(&f2, "real_migrations_cli/1_test.down.sql", "w");
+  ASSERT(f2 != NULL);
+  fprintf(f2, "DROP TABLE t1;\n");
+  fclose(f2);
+
+  C_ORM_FOPEN(&f1, "bad_rollback_cli/1_bad.up.sql", "w");
+  ASSERT(f1 != NULL);
+  fprintf(f1, "CREATE TABLE bad (id INT);\n");
+  fclose(f1);
+  C_ORM_FOPEN(&f2, "bad_rollback_cli/1_bad.down.sql", "w");
+  ASSERT(f2 != NULL);
+  fprintf(f2, "INVALID SQL SYNTAX;\n");
   fclose(f2);
 
   sys_rc = system(
@@ -277,10 +329,41 @@ TEST test_cli_migrate(void) {
 TEST test_cli_rollback(void) {
   int rc;
   int sys_rc;
+  FILE *fp = NULL;
   (void)rc;
   (void)sys_rc;
   rc = system(CLI_CMD " rollback" DEV_NULL);
   ASSERT_NEQ(0, rc);
+
+#ifdef _WIN32
+  (void)system("mkdir real_migrations_cli 2>nul");
+  (void)system("mkdir empty_migrations_cli 2>nul");
+  (void)system("mkdir bad_rollback_cli 2>nul");
+#else
+  (void)system("mkdir -p real_migrations_cli 2>/dev/null");
+  (void)system("mkdir -p empty_migrations_cli 2>/dev/null");
+  (void)system("mkdir -p bad_rollback_cli 2>/dev/null");
+#endif
+  C_ORM_FOPEN(&fp, "real_migrations_cli/1_test.up.sql", "w");
+  if (fp) {
+    fprintf(fp, "CREATE TABLE t1 (id INT);\n");
+    fclose(fp);
+  }
+  C_ORM_FOPEN(&fp, "real_migrations_cli/1_test.down.sql", "w");
+  if (fp) {
+    fprintf(fp, "DROP TABLE t1;\n");
+    fclose(fp);
+  }
+  C_ORM_FOPEN(&fp, "bad_rollback_cli/1_bad.up.sql", "w");
+  if (fp) {
+    fprintf(fp, "CREATE TABLE bad (id INT);\n");
+    fclose(fp);
+  }
+  C_ORM_FOPEN(&fp, "bad_rollback_cli/1_bad.down.sql", "w");
+  if (fp) {
+    fprintf(fp, "INVALID SQL SYNTAX;\n");
+    fclose(fp);
+  }
 
   remove("test_cli_rollback_exec.db");
   sys_rc = system(CLI_CMD " migrate --db test_cli_rollback_exec.db --dir "
@@ -313,6 +396,22 @@ TEST test_cli_rollback(void) {
 
   rc = system(CLI_CMD " rollback --db invalid_path/file.db" DEV_NULL);
   ASSERT_NEQ(0, rc);
+
+  remove("real_migrations_cli/1_test.up.sql");
+  remove("real_migrations_cli/1_test.down.sql");
+  remove("bad_rollback_cli/1_bad.up.sql");
+  remove("bad_rollback_cli/1_bad.down.sql");
+  remove("test_cli_rollback_exec.db");
+  remove("test_cli_bad_rollback.db");
+#ifdef _WIN32
+  (void)system("rmdir real_migrations_cli 2>nul");
+  (void)system("rmdir empty_migrations_cli 2>nul");
+  (void)system("rmdir bad_rollback_cli 2>nul");
+#else
+  (void)system("rmdir real_migrations_cli 2>/dev/null");
+  (void)system("rmdir empty_migrations_cli 2>/dev/null");
+  (void)system("rmdir bad_rollback_cli 2>/dev/null");
+#endif
 
   PASS();
 }
@@ -427,6 +526,54 @@ TEST test_cli_exec_sql2c(void) {
 
   PASS();
 }
+/**
+ * @brief Test CLI executable COBOL Copybook & Db2/ODBC subcommands via
+ * subprocess.
+ * @return GREATEST test result.
+ */
+TEST test_cli_exec_copybook_and_db2_odbc(void) {
+  FILE *f = NULL;
+  int rc;
+
+  C_ORM_FOPEN(&f, "test_exec_in.cpy", "wb");
+  ASSERT(f != NULL);
+  fprintf(f, ">>SOURCE FORMAT FREE\n"
+             "01 :PFX:-REC.\n"
+             "   05 :PFX:-ID PIC S9(9) COMP.\n"
+             "   05 :PFX:-BAL PIC S9(7)V99 COMP-3.\n");
+  fclose(f);
+
+  rc = system(CLI_CMD " cpy2c test_exec_in.cpy test_exec_cpy_out --format free "
+                      "--replacing :PFX:=SUB" DEV_NULL);
+#ifndef __CYGWIN__
+  ASSERT_EQ(0, rc);
+#endif
+
+  rc = system(CLI_CMD " cpy2sql test_exec_in.cpy test_exec_out.sql --dialect "
+                      "db2 --replacing :PFX:=SUB" DEV_NULL);
+#ifndef __CYGWIN__
+  ASSERT_EQ(0, rc);
+#endif
+
+  rc = system(CLI_CMD " sql2cpy test_exec_out.sql test_exec_out.cpy --dclgen "
+                      "--format fixed" DEV_NULL);
+#ifndef __CYGWIN__
+  ASSERT_EQ(0, rc);
+#endif
+
+  /* --db db2:// and --db odbc:// subprocess URL dispatch */
+  rc = system(CLI_CMD " status --db db2://invalid_host_9999:50000/DB" DEV_NULL);
+  ASSERT_NEQ(0, rc);
+  rc = system(CLI_CMD " status --db odbc://DSN=NonExistentDsn9999" DEV_NULL);
+  ASSERT_NEQ(0, rc);
+
+  remove("test_exec_in.cpy");
+  remove("test_exec_out.sql");
+  remove("test_exec_out.cpy");
+  remove("test_exec_cpy_out/Models.h");
+  remove("test_exec_cpy_out/Models.c");
+  PASS();
+}
 #endif
 
 /**
@@ -446,6 +593,7 @@ SUITE(cli_exec_suite) {
   RUN_TEST(test_cli_unknown);
 #ifndef __EMSCRIPTEN__
   RUN_TEST(test_cli_exec_sql2c);
+  RUN_TEST(test_cli_exec_copybook_and_db2_odbc);
 #endif
   if (!recursed) {
     recursed = 1;

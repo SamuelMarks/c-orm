@@ -20,6 +20,11 @@ extern "C" {
 
 /* clang-format on */
 
+#ifndef TEST_C_TO_SQL_TMP_FILE
+/** @brief Default temporary filename for standalone C-to-SQL test output. */
+#define TEST_C_TO_SQL_TMP_FILE "test_c_to_sql_standalone.txt"
+#endif
+
 /**
  * @brief Test write_struct_to_sql_create_table generator.
  * @return GREATEST test result.
@@ -28,27 +33,51 @@ extern "C" {
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -62,7 +91,13 @@ extern "C" {
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do {                                                                       \
+      enum greatest_test_res _rc = (res);                                      \
+      greatest_info.assertions++;                                              \
+      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
+        return _rc;                                                            \
+      }                                                                        \
+    } while ((void)0, 0);                                                      \
   } while ((void)0, 0)
 
 /**
@@ -92,7 +127,8 @@ TEST test_write_struct_to_sql_create_table(void) {
   sf.size = 3;
   sf.fields = fields;
 
-  C_ORM_FOPEN(&fp, "test_c_to_sql.txt", "w+");
+  rc = C_ORM_FOPEN(&fp, TEST_C_TO_SQL_TMP_FILE, "w+");
+  ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(fp != NULL);
 
   rc = write_struct_to_sql_create_table(fp, "users", &sf,
@@ -100,7 +136,7 @@ TEST test_write_struct_to_sql_create_table(void) {
   ASSERT_EQ(0, rc);
 
   rewind(fp);
-  fread(buf, 1, sizeof(buf) - 1, fp);
+  (void)fread(buf, 1, sizeof(buf) - 1, fp);
   fclose(fp);
 
   ASSERT(strstr(buf, "CREATE TABLE users") != NULL);
@@ -108,7 +144,7 @@ TEST test_write_struct_to_sql_create_table(void) {
   ASSERT(strstr(buf, "username TEXT UNIQUE NOT NULL") != NULL);
   ASSERT(strstr(buf, "company_id INTEGER REFERENCES company(id)") != NULL);
 
-  remove("test_c_to_sql.txt");
+  remove(TEST_C_TO_SQL_TMP_FILE);
   PASS();
 }
 

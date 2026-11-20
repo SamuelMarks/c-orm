@@ -12,9 +12,9 @@
 #include <string.h>
 
 #include "c_str_span.h"
+#include "functions/parse/fs.h"
 #include "cfs/cfs.h"
 #include "c89stringutils_string_extras.h"
-#include "functions/parse/fs.h"
 #include "c_orm_meta.h"
 /* clang-format on */
 
@@ -47,17 +47,23 @@ c_orm_error_t migration_statements_init(struct MigrationStatements *out) {
  * @return C_ORM_OK on success.
  */
 c_orm_error_t migration_statements_free(struct MigrationStatements *out) {
+  c_orm_error_t rc = C_ORM_OK;
+  c_orm_error_t frc;
   if (out) {
     if (out->up_statement) {
-      C_ORM_FREE(out->up_statement);
+      frc = c_orm_system_free(out->up_statement);
+      if (frc != C_ORM_OK)
+        rc = frc;
       out->up_statement = NULL;
     }
     if (out->down_statement) {
-      C_ORM_FREE(out->down_statement);
+      frc = c_orm_system_free(out->down_statement);
+      if (frc != C_ORM_OK && rc == C_ORM_OK)
+        rc = frc;
       out->down_statement = NULL;
     }
   }
-  return C_ORM_OK;
+  return rc;
 }
 
 /**
@@ -108,7 +114,7 @@ c_orm_error_t parse_migration_file(const char *filepath,
   }
 
   if (file_size == 0) {
-    C_ORM_FREE(file_data);
+    free(file_data);
     return C_ORM_OK;
   }
 
@@ -142,9 +148,9 @@ c_orm_error_t parse_migration_file(const char *filepath,
   }
 
   if (up_start && up_len > 0) {
-    up_stmt = (char *)C_ORM_MALLOC(up_len + 1);
-    if (!up_stmt) {
-      C_ORM_FREE(file_data);
+    rc = c_orm_system_malloc(up_len + 1, (void **)&up_stmt);
+    if (rc != C_ORM_OK || !up_stmt) {
+      free(file_data);
       return C_ORM_ERROR_MEMORY;
     }
     memcpy(up_stmt, up_start, up_len);
@@ -153,10 +159,13 @@ c_orm_error_t parse_migration_file(const char *filepath,
   }
 
   if (down_start && down_len > 0) {
-    down_stmt = (char *)C_ORM_MALLOC(down_len + 1);
-    if (!down_stmt) {
-      C_ORM_FREE(file_data);
-      migration_statements_free(out);
+    rc = c_orm_system_malloc(down_len + 1, (void **)&down_stmt);
+    if (rc != C_ORM_OK || !down_stmt) {
+      free(file_data);
+      rc = migration_statements_free(out);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
       return C_ORM_ERROR_MEMORY;
     }
     memcpy(down_stmt, down_start, down_len);
@@ -164,6 +173,6 @@ c_orm_error_t parse_migration_file(const char *filepath,
     out->down_statement = down_stmt;
   }
 
-  C_ORM_FREE(file_data);
+  free(file_data);
   return C_ORM_OK;
 }

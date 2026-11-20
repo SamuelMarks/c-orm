@@ -193,15 +193,20 @@ TEST test_hydrate_router_dispatch(void) {
 }
 
 /**
- * @brief Mock realloc returning NULL.
+ * @brief Mock realloc returning C_ORM_ERROR_MEMORY.
  * @param ptr Existing pointer.
  * @param size Requested size.
- * @return NULL on failure.
+ * @param out_ptr Output pointer receiving NULL on failure.
+ * @return C_ORM_ERROR_MEMORY on failure.
  */
-static void *mock_realloc_hydrate(void *ptr, size_t size) {
+static c_orm_error_t mock_realloc_hydrate(void *ptr, size_t size,
+                                          void **out_ptr) {
   (void)ptr;
   (void)size;
-  return NULL;
+  if (out_ptr) {
+    *out_ptr = NULL;
+  }
+  return C_ORM_ERROR_MEMORY;
 }
 
 /**
@@ -211,18 +216,18 @@ static void *mock_realloc_hydrate(void *ptr, size_t size) {
 TEST test_hydrate_router_register_oom(void) {
   cdd_c_hydrate_router_t router;
   cdd_c_meta_t m1;
-  void *(*orig_realloc)(void *, size_t);
+  c_orm_realloc_fn_t orig_realloc;
 
   orig_realloc = c_orm_realloc;
 
   memset(&m1, 0, sizeof(m1));
   ASSERT_EQ(0, cdd_c_hydrate_router_init(&router));
 
-  c_orm_set_allocators(c_orm_malloc, mock_realloc_hydrate, c_orm_free);
+  (void)c_orm_set_allocators(c_orm_malloc, mock_realloc_hydrate, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
             cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator));
 
-  c_orm_set_allocators(c_orm_malloc, orig_realloc, c_orm_free);
+  (void)c_orm_set_allocators(c_orm_malloc, orig_realloc, c_orm_free);
   cdd_c_hydrate_router_free(&router);
   PASS();
 }

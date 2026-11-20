@@ -67,7 +67,7 @@ typedef unsigned char bool;
 #define CMP_SECURE_FIELD true
 
 /**
- * @brief Data types supported by c-orm.
+ * @brief Error status codes returned and percolated by all c-orm functions.
  */
 #if defined(_MSC_VER) && _MSC_VER >= 1700
 typedef _Check_return_ enum {
@@ -87,17 +87,77 @@ typedef enum {
   C_ORM_ERROR_EXPIRED,
   C_ORM_ERROR_VALIDATION,
   C_ORM_ERROR_RECURSION,
-  C_ORM_ERROR_READ_ONLY
+  C_ORM_ERROR_READ_ONLY,
+  C_ORM_ERROR_NULL_POINTER,
+  C_ORM_ERROR_IO,
+  C_ORM_ERROR_PARSE,
+  C_ORM_ERROR_OVERFLOW,
+  C_ORM_ERROR_CYCLE,
+  C_ORM_ERROR_BUSY,
+  C_ORM_ERROR_CRYPTO,
+  C_ORM_ERROR_CONSTRAINT,  /**< Unique, foreign-key, or check constraint
+                              violation */
+  C_ORM_ERROR_DRIVER_LOAD, /**< Dynamic client library or symbol failed to load
+                            */
+  C_ORM_ERROR_ODBC_DIAG,   /**< Underlying ODBC / Db2 CLI diagnostic error */
+  C_ORM_ERROR_TIMEOUT,     /**< Login or statement execution timeout */
+  C_ORM_ERROR_DEADLOCK,    /**< Serialization failure or deadlock victim */
+  C_ORM_ERROR_TRUNCATION,  /**< Disallowed string, binary, or fractional
+                              truncation */
+  C_ORM_ERROR_DECIMAL_SYNTAX, /**< Malformed decimal string or invalid BCD/sign
+                                 nybble */
+  C_ORM_ERROR_DECIMAL_OVERFLOW, /**< Decimal precision exceeded or division by
+                                   zero */
+  C_ORM_ERROR_DECIMAL_INEXACT,  /**< Non-zero digits lost under exact rounding
+                                   mode */
+  C_ORM_ERROR_CODEPAGE, /**< Unmappable character or invalid UTF/EBCDIC sequence
+                         */
+  C_ORM_ERROR_COPYBOOK_SYNTAX /**< COBOL Copybook (.cpy) lexer or parser syntax
+                                 error */
 } c_orm_error_t;
 
-#ifndef C_ORM_TEST_ALLOCATOR
-#define C_ORM_MALLOC malloc
-#define C_ORM_FREE free
-#define C_ORM_REALLOC realloc
-#else
-C_ORM_EXPORT extern void *(*c_orm_malloc)(size_t size);
-C_ORM_EXPORT extern void (*c_orm_free)(void *ptr);
-C_ORM_EXPORT extern void *(*c_orm_realloc)(void *ptr, size_t size);
+/**
+ * @brief Resolves a c_orm_error_t enum value into a static human-readable
+ * string.
+ * @param err Error code to describe.
+ * @param out_str Output pointer receiving a static null-terminated string.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_NULL_POINTER if out_str is NULL.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_error_to_string(c_orm_error_t err,
+                                                 const char **out_str);
+
+/**
+ * @brief Custom malloc callback signature returning c_orm_error_t.
+ * @param size Number of bytes to allocate.
+ * @param out_ptr Output pointer receiving allocated address.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on allocation failure.
+ */
+typedef c_orm_error_t (*c_orm_malloc_fn_t)(size_t size, void **out_ptr);
+
+/**
+ * @brief Custom realloc callback signature returning c_orm_error_t.
+ * @param ptr Existing allocation pointer or NULL.
+ * @param size New size in bytes.
+ * @param out_ptr Output pointer receiving reallocated address.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on allocation failure.
+ */
+typedef c_orm_error_t (*c_orm_realloc_fn_t)(void *ptr, size_t size,
+                                            void **out_ptr);
+
+/**
+ * @brief Custom free callback signature returning c_orm_error_t.
+ * @param ptr Pointer to memory block to free (or NULL).
+ * @return C_ORM_OK on success.
+ */
+typedef c_orm_error_t (*c_orm_free_fn_t)(void *ptr);
+
+#ifdef C_ORM_TEST_ALLOCATOR
+/** @brief Active heap allocation callback pointer. */
+C_ORM_EXPORT extern c_orm_malloc_fn_t c_orm_malloc;
+/** @brief Active heap deallocation callback pointer. */
+C_ORM_EXPORT extern c_orm_free_fn_t c_orm_free;
+/** @brief Active heap reallocation callback pointer. */
+C_ORM_EXPORT extern c_orm_realloc_fn_t c_orm_realloc;
 
 /**
  * @brief Sets the allocator functions. Useful for testing across DLL
@@ -105,15 +165,18 @@ C_ORM_EXPORT extern void *(*c_orm_realloc)(void *ptr, size_t size);
  * @param m Custom malloc function pointer.
  * @param r Custom realloc function pointer.
  * @param f Custom free function pointer.
- * @return 0 on success.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_VALIDATION if any pointer is
+ * NULL.
  */
-C_ORM_EXPORT c_orm_error_t c_orm_set_allocators(void *(*m)(size_t),
-                                                void *(*r)(void *, size_t),
-                                                void (*f)(void *));
+C_ORM_EXPORT c_orm_error_t c_orm_set_allocators(c_orm_malloc_fn_t m,
+                                                c_orm_realloc_fn_t r,
+                                                c_orm_free_fn_t f);
 
-#define C_ORM_MALLOC c_orm_malloc
-#define C_ORM_FREE c_orm_free
-#define C_ORM_REALLOC c_orm_realloc
+/**
+ * @brief Resets the allocator functions back to default system allocators.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_reset_allocators(void);
 #endif
 
 /**
@@ -135,14 +198,46 @@ typedef enum {
   C_ORM_TYPE_BLOB,
   C_ORM_TYPE_DATE,
   C_ORM_TYPE_TIMESTAMP,
-  C_ORM_TYPE_JSON,    /**< Dynamic JSON type (Postgres JSONB) */
-  C_ORM_TYPE_ENUM,    /**< Enumeration mapped via cdd-c (MySQL/PG ENUM) */
-  C_ORM_TYPE_SET,     /**< Set mapping via cdd-c (MySQL SET) */
-  C_ORM_TYPE_ARRAY,   /**< Homogeneous array mapping via cdd-c (PG Arrays) */
-  C_ORM_TYPE_POINT,   /**< Spatial Point (PostGIS/MySQL Spatial) */
-  C_ORM_TYPE_POLYGON, /**< Spatial Polygon (PostGIS/MySQL Spatial) */
+  C_ORM_TYPE_JSON,       /**< Dynamic JSON type (Postgres JSONB) */
+  C_ORM_TYPE_ENUM,       /**< Enumeration mapped via cdd-c (MySQL/PG ENUM) */
+  C_ORM_TYPE_SET,        /**< Set mapping via cdd-c (MySQL SET) */
+  C_ORM_TYPE_ARRAY,      /**< Homogeneous array mapping via cdd-c (PG Arrays) */
+  C_ORM_TYPE_POINT,      /**< Spatial Point (PostGIS/MySQL Spatial) */
+  C_ORM_TYPE_POLYGON,    /**< Spatial Polygon (PostGIS/MySQL Spatial) */
+  C_ORM_TYPE_DECIMAL,    /**< Exact fixed-point decimal (c_orm_decimal_t) */
+  C_ORM_TYPE_DECFLOAT,   /**< IEEE 754r decimal float (Db2 DECFLOAT) */
+  C_ORM_TYPE_CHAR_FIXED, /**< Fixed-length space-padded character (CHAR(n) / PIC
+                            X) */
+  C_ORM_TYPE_BINARY_FIXED, /**< Fixed-length raw binary (Db2 CHAR(n) FOR BIT
+                              DATA) */
+  C_ORM_TYPE_VARBINARY,    /**< Variable-length raw binary (Db2 VARCHAR FOR BIT
+                              DATA) */
+  C_ORM_TYPE_GRAPHIC, /**< Fixed-length DBCS / UTF-16 (Db2 GRAPHIC / PIC G/N) */
+  C_ORM_TYPE_VARGRAPHIC, /**< Variable-length DBCS / UTF-16 (Db2 VARGRAPHIC /
+                            DBCLOB) */
+  C_ORM_TYPE_TIME,       /**< SQL TIME (HH:MM:SS) */
   C_ORM_TYPE_UNKNOWN
 } c_orm_type_t;
+
+/**
+ * @brief Dialect renderer type for SQL generation across AST and query
+ * builders.
+ */
+typedef enum c_orm_dialect {
+  /** @brief SQLite SQL dialect (`?` placeholders, `LIMIT`/`OFFSET`). */
+  C_ORM_DIALECT_SQLITE = 0,
+  /** @brief PostgreSQL SQL dialect (`$N` placeholders, `RETURNING`). */
+  C_ORM_DIALECT_POSTGRES = 1,
+  /** @brief MySQL / MariaDB SQL dialect (`?` placeholders, `ON DUPLICATE KEY`).
+   */
+  C_ORM_DIALECT_MYSQL = 2,
+  /** @brief IBM Db2 (LUW, z/OS, i) SQL dialect (`"IDENT"`, `FETCH FIRST`,
+   * `FINAL TABLE`, `MERGE INTO`, `SYSIBM.SYSDUMMY1`). */
+  C_ORM_DIALECT_DB2 = 3,
+  /** @brief Generic ANSI/ISO ODBC SQL dialect (`"IDENT"`, `OFFSET ... FETCH
+   * NEXT`). */
+  C_ORM_DIALECT_ODBC = 4
+} c_orm_dialect_t;
 
 /**
  * @brief Represents a 2D spatial point (Step 172).
@@ -318,6 +413,13 @@ typedef struct {
                              row. */
   bool is_secure; /**< True if the field data must be encrypted at rest (e.g.
                      DPAPI, Keychain). */
+  unsigned char
+      precision;       /**< Decimal precision (1..38), or 0 when unspecified. */
+  unsigned char scale; /**< Decimal scale (0..38), or 0 when unspecified. */
+  size_t fixed_length; /**< Fixed byte/character capacity for CHAR/GRAPHIC/BIT
+                          DATA, or 0. */
+  unsigned short ccsid; /**< Coded Character Set ID (e.g. 37, 1047, 1200, 1208,
+                           65535), or 0. */
 } c_orm_column_meta_t;
 
 /**

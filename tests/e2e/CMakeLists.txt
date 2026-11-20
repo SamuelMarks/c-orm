@@ -38,6 +38,8 @@ add_custom_target(generate_e2e_models DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Models
 
     add_executable(c_orm_e2e_tests
     test_arena_uuid.c
+    test_decimal_cobol.c
+    test_ebcdic.c
     test_ast.c
     test_cache_coverage.c
     test_cli.c
@@ -69,6 +71,11 @@ add_custom_target(generate_e2e_models DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Models
     test_sql_parser.c
     test_oauth2.c
     test_models_coverage.c
+    test_odbc_driver.c
+    test_db2_driver.c
+    test_db2_dialect.c
+    test_copybook.c
+    test_pool_optimistic.c
 )
 
 add_dependencies(c_orm_e2e_tests e2e_models)

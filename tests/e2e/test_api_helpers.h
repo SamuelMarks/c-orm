@@ -15,6 +15,762 @@ extern "C" {
 #endif /* __cplusplus */
 
 /**
+ * @brief Async query completion callback for testing.
+ * @param err Error enum.
+ * @param ctx Context pointer.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t test_dummy_cb(c_orm_error_t err, void *ctx) {
+  (void)err;
+  (void)ctx;
+  return C_ORM_OK;
+}
+/**
+ * @brief Batch operation progress callback.
+ *
+ * @param p Number of items processed so far.
+ * @param t Total items to process.
+ * @param ctx User context pointer.
+ * @return C_ORM_OK, or C_ORM_ERROR_VALIDATION if ctx points to -1.
+ */
+static c_orm_error_t dummy_batch_progress(size_t p, size_t t, void *ctx) {
+  (void)p;
+  (void)t;
+  if (ctx && *(int *)ctx == -1) {
+    return C_ORM_ERROR_VALIDATION;
+  }
+  return C_ORM_OK;
+}
+/**
+ * @brief Lifecycle hook callback that succeeds.
+ *
+ * @param st Struct instance pointer.
+ * @param user_data User data context pointer.
+ */
+static c_orm_error_t dummy_lifecycle_hook(void *st, void *user_data) {
+  (void)st;
+  (void)user_data;
+  return C_ORM_OK;
+}
+/**
+ * @brief Lifecycle hook callback that fails.
+ *
+ * @param st Struct instance pointer.
+ * @param user_data User data context pointer.
+ */
+static c_orm_error_t dummy_failing_hook(void *st, void *user_data) {
+  (void)st;
+  (void)user_data;
+  return C_ORM_ERROR_UNKNOWN;
+}
+/**
+ * @brief Generic array container for test relations.
+ * @var data Pointer to array data buffer.
+ * @var length Current count of items.
+ * @var capacity Allocated capacity.
+ */
+struct Generic_Array {
+  void *data;
+  size_t length;
+  size_t capacity;
+};
+
+/**
+ * @brief Buffer union for memory alignment testing.
+ * @var buf Byte buffer.
+ * @var ptr Pointer for alignment.
+ * @var d Double for alignment.
+ */
+typedef union MegaBufUnion {
+  char buf[256];
+  void *ptr;
+  double d;
+} MegaBufUnion_t;
+
+/**
+ * @brief Simple struct with int32 identifier.
+ * @var id 32-bit integer identifier.
+ */
+typedef struct CoverageIntObj {
+  int32_t id;
+} CoverageIntObj_t;
+
+/**
+ * @brief Simple struct with string identifier.
+ * @var id String identifier.
+ */
+typedef struct CoverageStrObj {
+  char *id;
+} CoverageStrObj_t;
+
+/**
+ * @brief Test object for meta free testing.
+ * @var s String field.
+ * @var b Blob field.
+ * @var p Polygon field.
+ * @var null_ptr Null pointer field.
+ * @var i Integer field.
+ */
+typedef struct CoverageMetaFreeObj {
+  char *s;
+  c_orm_blob_t b;
+  c_orm_polygon_t p;
+  void *null_ptr;
+  int i;
+} CoverageMetaFreeObj_t;
+
+/**
+ * @brief Batch item for batch operations test.
+ * @var id Identifier field.
+ * @var name Name buffer.
+ */
+typedef struct CoverageBatchItem {
+  int32_t id;
+  char name[32];
+} CoverageBatchItem_t;
+
+/**
+ * @brief String batch item for batch operations test.
+ * @var id String identifier.
+ * @var val Integer value.
+ */
+typedef struct CoverageStrBatchItem {
+  char *id;
+  int32_t val;
+} CoverageStrBatchItem_t;
+
+/**
+ * @brief Object for partial update testing.
+ * @var id String identifier.
+ * @var count 32-bit integer counter.
+ * @var score Floating point score.
+ */
+typedef struct CoverageUpdateObj {
+  char *id;
+  int32_t count;
+  float score;
+} CoverageUpdateObj_t;
+
+/**
+ * @brief Parent entity for relation testing.
+ * @var id Parent ID.
+ * @var name Parent name.
+ * @var ctx Lazy loading context.
+ * @var children_arr Children array.
+ * @var child_ptr Child pointer.
+ */
+struct Parent {
+  int32_t id;
+  char name[32];
+  c_orm_lazy_load_context_t ctx;
+  struct Generic_Array children_arr;
+  void *child_ptr;
+};
+
+/**
+ * @brief Child entity for relation testing.
+ * @var id Child ID.
+ * @var parent_id Parent foreign key.
+ * @var val Child value string.
+ */
+struct Child {
+  int64_t id;
+  int64_t parent_id;
+  char val[32];
+};
+
+/**
+ * @brief Tag entity for relation testing.
+ * @var tag_id Tag ID.
+ * @var tag_name Tag name.
+ */
+struct Tag {
+  int64_t tag_id;
+  char tag_name[32];
+};
+
+/**
+ * @brief Validation parent entity.
+ * @var id Entity ID.
+ * @var fk_id Foreign key ID.
+ * @var child_ptr Child pointer.
+ * @var ctx Lazy load context.
+ */
+struct ValParent {
+  int64_t id;
+  int64_t fk_id;
+  void *child_ptr;
+  c_orm_lazy_load_context_t ctx;
+};
+
+/**
+ * @brief Simple test entity.
+ * @var id Entity ID.
+ * @var name Entity name.
+ */
+struct S {
+  int32_t id;
+  char name[32];
+};
+
+/**
+ * @brief Target child entity for free relations testing.
+ * @var name Child name.
+ */
+struct TargetChild {
+  char *name;
+};
+
+/**
+ * @brief Free parent entity for free relations testing.
+ * @var single_child Single child entity.
+ * @var single_ctx Single child lazy loading context.
+ * @var children_arr Array of children.
+ * @var multi_ctx Multi-child lazy loading context.
+ */
+struct FreeParent {
+  struct TargetChild *single_child;
+  c_orm_lazy_load_context_t single_ctx;
+  struct Generic_Array children_arr;
+  c_orm_lazy_load_context_t multi_ctx;
+};
+/**
+ * @brief Mock decryption routine for testing.
+ *
+ * @param in Input encrypted bytes.
+ * @param ins Input byte length.
+ * @param ctx Encryption context pointer.
+ * @param out Output decrypted buffer pointer.
+ * @param outs Output decrypted byte length pointer.
+ */
+static c_orm_error_t mock_decrypt(const void *in, size_t ins, void *ctx,
+                                  void **out, size_t *outs) {
+  (void)ctx;
+  *out = NULL;
+  if (c_orm_system_malloc(ins, out) != C_ORM_OK || !*out)
+    return C_ORM_ERROR_MEMORY;
+  memcpy(*out, in, ins);
+  *outs = ins;
+  return C_ORM_OK;
+}
+/**
+ * @brief Mock encryption routine for testing.
+ *
+ * @param in Input plaintext bytes.
+ * @param ins Input byte length.
+ * @param ctx Encryption context pointer.
+ * @param out Output encrypted buffer pointer.
+ * @param outs Output encrypted byte length pointer.
+ */
+static c_orm_error_t mock_encrypt(const void *in, size_t ins, void *ctx,
+                                  void **out, size_t *outs) {
+  (void)ctx;
+  *out = NULL;
+  if (c_orm_system_malloc(ins, out) != C_ORM_OK || !*out)
+    return C_ORM_ERROR_MEMORY;
+  memcpy(*out, in, ins);
+  *outs = ins;
+  return C_ORM_OK;
+}
+
+static int g_malloc_fail = 0;
+static int g_malloc_count = 0;
+static int g_malloc_target = -1;
+/**
+ * @brief Helper to free table metadata columns.
+ *
+ * @param meta Table metadata pointer.
+ * @param obj Structure instance pointer.
+ */
+static void test_free_meta_data(const c_orm_table_meta_t *meta, void *obj) {
+  c_orm_free_columns(meta, obj);
+}
+
+static void *tracked_allocs[20000];
+static int tracked_count = 0;
+
+/**
+ * @brief Mock malloc with injection failure support.
+ *
+ * @param size Number of bytes to allocate.
+ * @param out_ptr Output pointer receiving allocated address.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
+ */
+static c_orm_error_t mock_malloc_fail(size_t size, void **out_ptr) {
+  void *ptr;
+  if (g_malloc_fail) {
+    if (g_malloc_target == g_malloc_count++) {
+      if (out_ptr) {
+        *out_ptr = NULL;
+      }
+      return C_ORM_ERROR_MEMORY;
+    }
+  }
+  ptr = malloc(size == 0 ? 1 : size);
+  if (!ptr) {
+    if (out_ptr) {
+      *out_ptr = NULL;
+    }
+    return C_ORM_ERROR_MEMORY;
+  }
+  tracked_allocs[tracked_count++] = ptr;
+  *out_ptr = ptr;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock realloc with injection failure support.
+ *
+ * @param ptr Existing buffer pointer.
+ * @param size New size in bytes.
+ * @param out_ptr Output pointer receiving reallocated address.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
+ */
+static c_orm_error_t mock_realloc_fail(void *ptr, size_t size, void **out_ptr) {
+  void *new_ptr;
+  int i;
+  if (g_malloc_fail) {
+    if (g_malloc_target == g_malloc_count++) {
+      if (out_ptr) {
+        *out_ptr = NULL;
+      }
+      return C_ORM_ERROR_MEMORY;
+    }
+  }
+  new_ptr = realloc(ptr, size == 0 ? 1 : size);
+  if (!new_ptr) {
+    if (out_ptr) {
+      *out_ptr = NULL;
+    }
+    return C_ORM_ERROR_MEMORY;
+  }
+  for (i = 0; i < tracked_count; i++) {
+    if (tracked_allocs[i] == ptr) {
+      tracked_allocs[i] = new_ptr;
+      *out_ptr = new_ptr;
+      return C_ORM_OK;
+    }
+  }
+  tracked_allocs[tracked_count++] = new_ptr;
+  *out_ptr = new_ptr;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock free tracking allocations.
+ *
+ * @param ptr Pointer to memory to free.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t mock_free(void *ptr) {
+  int i;
+  if (!ptr)
+    return C_ORM_OK;
+  for (i = 0; i < tracked_count; i++) {
+    if (tracked_allocs[i] == ptr) {
+      tracked_allocs[i] = NULL;
+    }
+  }
+  free(ptr);
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Free all tracked mock allocations.
+ */
+static void free_tracked(void) {
+  int i;
+  for (i = 0; i < tracked_count; i++) {
+    if (tracked_allocs[i]) {
+      free(tracked_allocs[i]);
+      tracked_allocs[i] = NULL;
+    }
+  }
+  tracked_count = 0;
+}
+
+static int g_db_fail = 0;
+static int g_db_count = 0;
+static int g_db_target = -1;
+/**
+ * @brief Check whether database mock call should fail.
+ */
+static c_orm_error_t check_db_fail(void) {
+  if (g_db_fail) {
+    if (g_db_target == g_db_count++)
+      return C_ORM_ERROR_UNKNOWN;
+  }
+  return C_ORM_OK;
+}
+
+static int g_step_count = 0;
+static int g_mock_fail_col_index = -1;
+static int g_mock_is_null_fail_countdown = -1;
+static int g_mock_fail_bind = 0;
+static int g_mock_step_fail_countdown = -1;
+
+/**
+ * @brief Mock is_null query column check.
+ *
+ * @param q Query handle.
+ * @param i Column index.
+ * @param out Output pointer to store is_null boolean flag.
+ */
+static c_orm_error_t mock_is_null(c_orm_query_t *q, int i, int *out) {
+  c_orm_error_t rc;
+  if (g_mock_is_null_fail_countdown >= 0) {
+    if (g_mock_is_null_fail_countdown == 0) {
+      g_mock_is_null_fail_countdown = -1;
+      return C_ORM_ERROR_UNKNOWN;
+    }
+    g_mock_is_null_fail_countdown--;
+  }
+  rc = check_db_fail();
+  if (rc != C_ORM_OK)
+    return rc;
+  if (g_mock_fail_col_index == i)
+    return C_ORM_ERROR_UNKNOWN;
+  if (out)
+    *out = 0;
+  (void)q;
+  (void)i;
+  return C_ORM_OK;
+}
+/**
+ * @brief Mock query preparation.
+ *
+ * @param db Database handle.
+ * @param sql SQL query string.
+ * @param out Output query handle pointer.
+ */
+static c_orm_error_t mock_prepare(c_orm_db_t *db, const char *sql,
+                                  c_orm_query_t **out) {
+  c_orm_error_t rc = check_db_fail();
+  if (rc != C_ORM_OK)
+    return rc;
+  if (out)
+    *out = (c_orm_query_t *)1;
+  (void)db;
+  (void)sql;
+  return C_ORM_OK;
+}
+static int g_step_max = 1;
+static int g_step_pattern[16];
+static int g_step_pattern_len = 0;
+static int g_step_pattern_idx = 0;
+
+/**
+ * @brief Mock query step operation.
+ *
+ * @param q Query handle.
+ * @param out Output step result pointer.
+ */
+static c_orm_error_t mock_step(c_orm_query_t *q, int *out) {
+  c_orm_error_t rc;
+  if (g_mock_step_fail_countdown >= 0) {
+    if (g_mock_step_fail_countdown == 0) {
+      g_mock_step_fail_countdown = -1;
+      return C_ORM_ERROR_UNKNOWN;
+    }
+    g_mock_step_fail_countdown--;
+  }
+  rc = check_db_fail();
+  if (rc != C_ORM_OK)
+    return rc;
+  if (out) {
+    if (g_step_pattern_len > 0) {
+      *out = (g_step_pattern_idx < g_step_pattern_len)
+                 ? g_step_pattern[g_step_pattern_idx++]
+                 : 0;
+    } else {
+      *out = (g_step_count < g_step_max) ? 1 : 0;
+    }
+    g_step_count++;
+  }
+  (void)q;
+  return C_ORM_OK;
+}
+/**
+ * @brief Mock get_string column retrieval.
+ *
+ * @param q Query handle.
+ * @param i Column index.
+ * @param out Output string pointer.
+ */
+static c_orm_error_t mock_get_string(c_orm_query_t *q, int i,
+                                     const char **out) {
+  c_orm_error_t rc = check_db_fail();
+  if (rc != C_ORM_OK)
+    return rc;
+  if (out)
+    *out = "2024-01-01 12:00:00";
+  (void)q;
+  (void)i;
+  return C_ORM_OK;
+}
+/**
+ * @brief Mock bind_int32 query parameter.
+ *
+ * @param q Query handle.
+ * @param i Parameter index.
+ * @param v 32-bit integer value.
+ */
+static c_orm_error_t mock_bind_int32(c_orm_query_t *q, int i, int32_t v) {
+  (void)q;
+  (void)i;
+  (void)v;
+  if (g_mock_fail_bind)
+    return C_ORM_ERROR_UNKNOWN;
+  return check_db_fail();
+}
+/**
+ * @brief Mock bind_int64 query parameter.
+ *
+ * @param q Query handle.
+ * @param i Parameter index.
+ * @param v 64-bit integer value.
+ */
+static c_orm_error_t mock_bind_int64(c_orm_query_t *q, int i, int64_t v) {
+  (void)q;
+  (void)i;
+  (void)v;
+  return check_db_fail();
+}
+/**
+ * @brief Mock bind_double query parameter.
+ *
+ * @param q Query handle.
+ * @param i Parameter index.
+ * @param v Double value.
+ */
+static c_orm_error_t mock_bind_double(c_orm_query_t *q, int i, double v) {
+  (void)q;
+  (void)i;
+  (void)v;
+  return check_db_fail();
+}
+/**
+ * @brief Mock bind_string query parameter.
+ *
+ * @param q Query handle.
+ * @param i Parameter index.
+ * @param v String value.
+ */
+static c_orm_error_t mock_bind_string(c_orm_query_t *q, int i, const char *v) {
+  (void)q;
+  (void)i;
+  (void)v;
+  return check_db_fail();
+}
+/**
+ * @brief Mock bind_blob query parameter.
+ *
+ * @param q Query handle.
+ * @param i Parameter index.
+ * @param v Blob data pointer.
+ * @param s Blob byte length.
+ */
+static c_orm_error_t mock_bind_blob(c_orm_query_t *q, int i, const void *v,
+                                    size_t s) {
+  (void)q;
+  (void)i;
+  (void)v;
+  (void)s;
+  return check_db_fail();
+}
+/**
+ * @brief Mock bind_null query parameter.
+ *
+ * @param q Query handle.
+ * @param i Parameter index.
+ */
+static c_orm_error_t mock_bind_null(c_orm_query_t *q, int i) {
+  (void)q;
+  (void)i;
+  return check_db_fail();
+}
+/**
+ * @brief Mock get_int32 column retrieval.
+ *
+ * @param q Query handle.
+ * @param i Column index.
+ * @param o Output 32-bit integer pointer.
+ */
+static c_orm_error_t mock_get_int32(c_orm_query_t *q, int i, int32_t *o) {
+  (void)q;
+  (void)i;
+  *o = 0;
+  return check_db_fail();
+}
+/**
+ * @brief Mock get_int64 column retrieval.
+ *
+ * @param q Query handle.
+ * @param i Column index.
+ * @param o Output 64-bit integer pointer.
+ */
+static c_orm_error_t mock_get_int64(c_orm_query_t *q, int i, int64_t *o) {
+  (void)q;
+  (void)i;
+  *o = 0;
+  return check_db_fail();
+}
+/**
+ * @brief Mock get_double column retrieval.
+ *
+ * @param q Query handle.
+ * @param i Column index.
+ * @param o Output double pointer.
+ */
+static c_orm_error_t mock_get_double(c_orm_query_t *q, int i, double *o) {
+  (void)q;
+  (void)i;
+  *o = 0.0;
+  return check_db_fail();
+}
+static int g_mock_blob_null = 0;
+static const void *g_custom_blob_data = NULL;
+static size_t g_custom_blob_size = 0;
+
+/**
+ * @brief Mock get_blob column retrieval.
+ *
+ * @param q Query handle.
+ * @param i Column index.
+ * @param o Output blob data pointer.
+ * @param s Output blob size pointer.
+ */
+static c_orm_error_t mock_get_blob(c_orm_query_t *q, int i, const void **o,
+                                   size_t *s) {
+  c_orm_error_t rc = check_db_fail();
+  if (rc != C_ORM_OK)
+    return rc;
+  if (g_mock_blob_null) {
+    if (o)
+      *o = NULL;
+    if (s)
+      *s = 0;
+  } else if (g_custom_blob_data) {
+    if (o)
+      *o = g_custom_blob_data;
+    if (s)
+      *s = g_custom_blob_size;
+  } else {
+    if (o)
+      *o = "blobdata";
+    if (s)
+      *s = 8;
+  }
+  (void)q;
+  (void)i;
+  return C_ORM_OK;
+}
+static int g_mock_finalize_fail = 0;
+static int g_mock_finalize_countdown = -1;
+/**
+ * @brief Mock query finalization.
+ *
+ * @param q Query handle to finalize.
+ */
+static c_orm_error_t mock_finalize(c_orm_query_t *q) {
+  (void)q;
+  if (g_mock_finalize_fail)
+    return C_ORM_ERROR_UNKNOWN;
+  if (g_mock_finalize_countdown >= 0) {
+    if (g_mock_finalize_countdown == 0) {
+      g_mock_finalize_countdown = -1;
+      return C_ORM_ERROR_UNKNOWN;
+    }
+    g_mock_finalize_countdown--;
+  }
+  return C_ORM_OK;
+}
+/**
+ * @brief Mock query reset operation.
+ *
+ * @param q Query handle to reset.
+ */
+static c_orm_error_t mock_reset(c_orm_query_t *q) {
+  (void)q;
+  return C_ORM_OK;
+}
+static int64_t g_mock_last_id = 123;
+/**
+ * @brief Mock get_last_insert_rowid operation.
+ *
+ * @param db Database handle.
+ * @param out_id Output pointer to receive last insert rowid.
+ */
+static c_orm_error_t mock_get_last_insert_rowid(c_orm_db_t *db,
+                                                int64_t *out_id) {
+  (void)db;
+  *out_id = g_mock_last_id;
+  return C_ORM_OK;
+}
+
+static c_orm_driver_vtable_t g_vt = {0};
+static c_orm_db_t g_db = {0};
+
+static c_orm_column_meta_t my_cols[20];
+static c_orm_table_meta_t mega_meta;
+
+/**
+ * @brief Initialize mock database vtable functions.
+ */
+static void setup_vt(void) {
+  g_vt.is_null = mock_is_null;
+  g_vt.prepare = mock_prepare;
+  g_vt.step = mock_step;
+  g_vt.get_string = mock_get_string;
+  g_vt.bind_int32 = mock_bind_int32;
+  g_vt.bind_int64 = mock_bind_int64;
+  g_vt.bind_double = mock_bind_double;
+  g_vt.bind_string = mock_bind_string;
+  g_vt.bind_blob = mock_bind_blob;
+  g_vt.bind_null = mock_bind_null;
+  g_vt.get_int32 = mock_get_int32;
+  g_vt.get_int64 = mock_get_int64;
+  g_vt.get_double = mock_get_double;
+  g_vt.get_blob = mock_get_blob;
+  g_vt.finalize = mock_finalize;
+  g_vt.reset = mock_reset;
+  g_vt.get_last_insert_rowid = mock_get_last_insert_rowid;
+  g_db.vtable = &g_vt;
+  g_db.timezone.offset_minutes = 60;
+  g_db.decrypt_hook = mock_decrypt;
+  g_db.encrypt_hook = mock_encrypt;
+
+  memcpy(&mega_meta, &Users_meta, sizeof(c_orm_table_meta_t));
+  memcpy(my_cols, Users_meta.columns,
+         sizeof(c_orm_column_meta_t) * Users_meta.num_columns);
+  mega_meta.columns = my_cols;
+
+  my_cols[mega_meta.num_columns].name = "test_blob";
+  my_cols[mega_meta.num_columns].type = C_ORM_TYPE_BLOB;
+  my_cols[mega_meta.num_columns].is_secure = 1;
+  my_cols[mega_meta.num_columns].offset = 64;
+  mega_meta.num_columns++;
+
+  my_cols[mega_meta.num_columns].name = "test_ts";
+  my_cols[mega_meta.num_columns].type = C_ORM_TYPE_TIMESTAMP;
+  my_cols[mega_meta.num_columns].is_secure = 0;
+  my_cols[mega_meta.num_columns].offset = 72;
+  mega_meta.num_columns++;
+
+  my_cols[mega_meta.num_columns].name = "test_polygon";
+  my_cols[mega_meta.num_columns].type = C_ORM_TYPE_POLYGON;
+  my_cols[mega_meta.num_columns].is_secure = 0;
+  my_cols[mega_meta.num_columns].offset = 80;
+  mega_meta.num_columns++;
+
+  /* Reset relations so they don't crash us */
+  mega_meta.relations = NULL;
+  mega_meta.num_relations = 0;
+  mega_meta.query_select_by_pk_for_update =
+      "SELECT * FROM users WHERE id = ? FOR UPDATE";
+}
+
+/**
  * @brief Mock query step callback producing a finite sequence of rows.
  * @param q Query pointer.
  * @param has_row Output receiving 1 if row exists, 0 otherwise.
@@ -50,6 +806,84 @@ static c_orm_error_t mock_get_int32_fk(c_orm_query_t *q, int index,
   *val = g_mock_child_fk_id;
   return C_ORM_OK;
 }
+
+/**
+ * @brief Mock get_string returning NULL string.
+ *
+ * @param q Query handle.
+ * @param index Column index.
+ * @param val Output pointer to receive string pointer.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t mock_get_string_null(c_orm_query_t *q, int index,
+                                          const char **val) {
+  (void)q;
+  (void)index;
+  *val = NULL;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock is_null always returning false.
+ *
+ * @param q Query handle.
+ * @param index Column index.
+ * @param is_null Output pointer to receive 0 flag.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t mock_is_null_false(c_orm_query_t *q, int index,
+                                        int *is_null) {
+  (void)q;
+  (void)index;
+  *is_null = 0;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock is_null always returning true.
+ *
+ * @param q Query handle.
+ * @param index Column index.
+ * @param is_null Output pointer to receive 1 flag.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t mock_is_null_true(c_orm_query_t *q, int index,
+                                       int *is_null) {
+  (void)q;
+  (void)index;
+  *is_null = 1;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief NestedChild entity for nested relation tests.
+ * @var id Child ID.
+ * @var parent_id Parent foreign key.
+ * @var name Child name.
+ */
+struct NestedChild {
+  int32_t id;
+  int32_t parent_id;
+  char name[32];
+};
+
+/**
+ * @brief NestedParent entity for nested relation tests.
+ * @var id Parent ID.
+ * @var belongs_to_id Belongs-to foreign key.
+ * @var belongs_to_child Belongs-to child pointer.
+ * @var o2o_child One-to-one child pointer.
+ * @var o2m_children One-to-many children array.
+ * @var name Parent name.
+ */
+struct NestedParent {
+  int32_t id;
+  int32_t belongs_to_id;
+  struct NestedChild *belongs_to_child;
+  struct NestedChild *o2o_child;
+  struct Generic_Array o2m_children;
+  char name[32];
+};
 
 /** @brief Extended parent structure with various relational mappings. */
 struct ExtendedParent {
@@ -158,13 +992,16 @@ static c_orm_error_t mock_hook_fail(void *st, void *ctx) {
  * @param meta Table metadata.
  * @param rec Expired record pointer.
  * @param ud User data pointer.
+ * @return C_ORM_OK.
  */
-static void test_api_expire_cb(c_orm_db_t *db, const c_orm_table_meta_t *meta,
-                               void *rec, void *ud) {
+static c_orm_error_t test_api_expire_cb(c_orm_db_t *db,
+                                        const c_orm_table_meta_t *meta,
+                                        void *rec, void *ud) {
   (void)db;
   (void)meta;
   (void)rec;
   (void)ud;
+  return C_ORM_OK;
 }
 
 /**
@@ -761,6 +1598,8 @@ static c_orm_error_t mock_test_encrypt_hook_ok(const void *in_data,
                                                void **out_data,
                                                size_t *out_size) {
   (void)ctx;
+  if (!in_data)
+    return C_ORM_ERROR_MEMORY;
   *out_data = malloc(in_size);
   if (!*out_data)
     return C_ORM_ERROR_MEMORY;
@@ -790,13 +1629,18 @@ static int g_deep_alloc_cnt = 0;
 /**
  * @brief Mock malloc with targeted allocation failure injection.
  * @param sz Allocation size in bytes.
- * @return Pointer or NULL on simulated failure.
+ * @param out_ptr Output pointer receiving allocated block or NULL.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on simulated failure.
  */
-static void *mock_deep_malloc(size_t sz) {
+static c_orm_error_t mock_deep_malloc(size_t sz, void **out_ptr) {
   if (g_deep_fail_oom == g_deep_alloc_cnt++) {
-    return NULL;
+    if (out_ptr) {
+      *out_ptr = NULL;
+    }
+    return C_ORM_ERROR_MEMORY;
   }
-  return malloc(sz);
+  *out_ptr = malloc(sz == 0 ? 1 : sz);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /** @brief Index of realloc call that should trigger failure in
@@ -809,14 +1653,19 @@ static int g_deep_realloc_cnt = 0;
  * @brief Mock realloc with targeted allocation failure injection.
  * @param ptr Pointer to existing memory block.
  * @param sz New allocation size in bytes.
- * @return Pointer or NULL on simulated failure.
+ * @param out_ptr Output pointer receiving reallocated block or NULL.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on simulated failure.
  */
-static void *mock_deep_realloc(void *ptr, size_t sz) {
+static c_orm_error_t mock_deep_realloc(void *ptr, size_t sz, void **out_ptr) {
   if (g_deep_fail_realloc == g_deep_realloc_cnt++ ||
       (g_deep_fail_realloc == 99 && sz >= 200)) {
-    return NULL;
+    if (out_ptr) {
+      *out_ptr = NULL;
+    }
+    return C_ORM_ERROR_MEMORY;
   }
-  return realloc(ptr, sz);
+  *out_ptr = realloc(ptr, sz == 0 ? 1 : sz);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /**
@@ -1054,24 +1903,30 @@ static c_orm_error_t mock_cov_blob_100(c_orm_query_t *q, int i,
  * @param meta Table metadata.
  * @param obj Record pointer.
  * @param ud User data pointer.
+ * @return C_ORM_OK.
  */
-static void dummy_cov_expire_callback_100(c_orm_db_t *db,
-                                          const c_orm_table_meta_t *meta,
-                                          void *obj, void *ud) {
+static c_orm_error_t
+dummy_cov_expire_callback_100(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                              void *obj, void *ud) {
   (void)db;
   (void)meta;
   (void)obj;
   (void)ud;
+  return C_ORM_OK;
 }
 
 /**
- * @brief Mock malloc that always returns NULL.
+ * @brief Mock malloc that always returns C_ORM_ERROR_MEMORY.
  * @param s Allocation size in bytes.
- * @return NULL.
+ * @param out_ptr Output pointer receiving NULL.
+ * @return C_ORM_ERROR_MEMORY.
  */
-static void *cov_always_null_malloc(size_t s) {
+static c_orm_error_t cov_always_null_malloc(size_t s, void **out_ptr) {
   (void)s;
-  return NULL;
+  if (out_ptr) {
+    *out_ptr = NULL;
+  }
+  return C_ORM_ERROR_MEMORY;
 }
 
 #ifdef __cplusplus

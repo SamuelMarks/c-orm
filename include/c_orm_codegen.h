@@ -37,6 +37,12 @@ C_ORM_EXPORT extern int c_orm_mock_codegen_header_emit_fail;
  * @brief Mock hook to simulate sql_to_c_source_emit failure.
  */
 C_ORM_EXPORT extern int c_orm_mock_codegen_source_emit_fail;
+
+/**
+ * @brief Mock hook to simulate file flush/close I/O failure (1=header,
+ * 2=source).
+ */
+C_ORM_EXPORT extern int c_orm_mock_codegen_io_fail;
 #endif /* C_ORM_TEST_ALLOCATOR */
 
 #ifdef __cplusplus

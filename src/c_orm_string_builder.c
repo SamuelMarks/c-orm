@@ -45,22 +45,22 @@ c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
     return rc;
   }
 
-  sb = (c_orm_string_builder_t *)C_ORM_MALLOC(sizeof(c_orm_string_builder_t));
-  if (!sb) {
+  sb = NULL;
+  rc = c_orm_system_malloc(sizeof(c_orm_string_builder_t), (void **)&sb);
+  if (rc != C_ORM_OK || !sb) {
     LOG_DEBUG("c_orm_string_builder_init: OOM");
-    rc = C_ORM_ERROR_MEMORY;
-    return rc;
+    return C_ORM_ERROR_MEMORY;
   }
 
   sb->capacity = 1;
   sb->length = 0;
   sb->valid = 1;
-  sb->buffer = (char *)C_ORM_MALLOC(sb->capacity);
-  if (!sb->buffer) {
-    C_ORM_FREE(sb);
+  sb->buffer = NULL;
+  rc = c_orm_system_malloc(sb->capacity, (void **)&sb->buffer);
+  if (rc != C_ORM_OK || !sb->buffer) {
+    (void)c_orm_system_free(sb);
     LOG_DEBUG("c_orm_string_builder_init: OOM buffer");
-    rc = C_ORM_ERROR_MEMORY;
-    return rc;
+    return C_ORM_ERROR_MEMORY;
   }
   sb->buffer[0] = '\0';
 
@@ -78,15 +78,23 @@ c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_string_builder_free(c_orm_string_builder_t *builder) {
+  c_orm_error_t rc = C_ORM_OK;
+  c_orm_error_t free_rc;
   LOG_DEBUG("c_orm_string_builder_free: entry");
   if (builder) {
     if (builder->buffer) {
-      C_ORM_FREE(builder->buffer);
+      free_rc = c_orm_system_free(builder->buffer);
+      if (free_rc != C_ORM_OK) {
+        rc = free_rc;
+      }
     }
-    C_ORM_FREE(builder);
+    free_rc = c_orm_system_free(builder);
+    if (free_rc != C_ORM_OK && rc == C_ORM_OK) {
+      rc = free_rc;
+    }
   }
   LOG_DEBUG("c_orm_string_builder_free: exit");
-  return C_ORM_OK;
+  return rc;
 }
 
 #ifdef C_ORM_TEST_ALLOCATOR
@@ -156,8 +164,10 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
     while (new_capacity < required_capacity) {
       new_capacity *= 2;
     }
-    new_buffer = (char *)C_ORM_REALLOC(builder->buffer, new_capacity);
-    if (!new_buffer) {
+    new_buffer = NULL;
+    rc = c_orm_system_realloc(builder->buffer, new_capacity,
+                              (void **)&new_buffer);
+    if (rc != C_ORM_OK || !new_buffer) {
       LOG_DEBUG("c_orm_string_builder_append: OOM realloc");
       builder->valid = 0;
       rc = C_ORM_ERROR_MEMORY;
@@ -167,9 +177,7 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
     builder->capacity = new_capacity;
   }
 
-  C_ORM_STRCPY(builder->buffer + builder->length,
-               builder->capacity - builder->length, str);
-
+  memcpy(builder->buffer + builder->length, str, len + 1);
   builder->length += len;
   rc = C_ORM_OK;
   LOG_DEBUG("c_orm_string_builder_append: exit");
@@ -244,4 +252,183 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_len(
   rc = C_ORM_OK;
   LOG_DEBUG("c_orm_string_builder_len: exit");
   return rc;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_quote_identifier(
+    c_orm_string_builder_t *builder, const char *ident, char quote_char) {
+  const char *p;
+  char qbuf[2];
+  char escbuf[3];
+  char chbuf[2];
+  c_orm_error_t rc;
+
+  if (!builder || !ident) {
+    return C_ORM_ERROR_NULL_POINTER;
+  }
+  if (ident[0] == '\0' || (quote_char != '"' && quote_char != '`')) {
+    return C_ORM_ERROR_VALIDATION;
+  }
+
+  for (p = ident; *p; p++) {
+    if ((unsigned char)*p < 0x20 || (unsigned char)*p == 0x7F) {
+      return C_ORM_ERROR_VALIDATION;
+    }
+  }
+
+  qbuf[0] = quote_char;
+  qbuf[1] = '\0';
+  escbuf[0] = quote_char;
+  escbuf[1] = quote_char;
+  escbuf[2] = '\0';
+  chbuf[1] = '\0';
+
+  rc = c_orm_string_builder_append(builder, qbuf);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+
+  for (p = ident; *p; p++) {
+    if (*p == quote_char) {
+      rc = c_orm_string_builder_append(builder, escbuf);
+    } else {
+      chbuf[0] = *p;
+      rc = c_orm_string_builder_append(builder, chbuf);
+    }
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
+  }
+
+  return c_orm_string_builder_append(builder, qbuf);
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_quote_qualified_identifier(
+    c_orm_string_builder_t *builder, const char *ident, char quote_char) {
+  const char *seg_start;
+  const char *p;
+  c_orm_error_t rc;
+
+  if (!builder || !ident) {
+    return C_ORM_ERROR_NULL_POINTER;
+  }
+  if (ident[0] == '\0' || (quote_char != '"' && quote_char != '`')) {
+    return C_ORM_ERROR_VALIDATION;
+  }
+
+  seg_start = ident;
+  for (p = ident;; ++p) {
+    if (*p == '.' || *p == '\0') {
+      size_t seg_len = (size_t)(p - seg_start);
+      size_t k;
+      if (seg_len == 0) {
+        return C_ORM_ERROR_VALIDATION;
+      }
+      if (!(seg_len == 1 && seg_start[0] == '*' && *p == '\0')) {
+        for (k = 0; k < seg_len; ++k) {
+          unsigned char uch = (unsigned char)seg_start[k];
+          if (uch < 32U || uch == 127U) {
+            return C_ORM_ERROR_VALIDATION;
+          }
+        }
+      }
+      if (*p == '\0') {
+        break;
+      }
+      seg_start = p + 1;
+    }
+  }
+
+  seg_start = ident;
+  for (p = ident;; ++p) {
+    if (*p == '.' || *p == '\0') {
+      size_t seg_len = (size_t)(p - seg_start);
+      if (seg_len == 1 && seg_start[0] == '*' && *p == '\0') {
+        rc = c_orm_string_builder_append(builder, "*");
+      } else {
+        char *seg_buf = NULL;
+        rc = c_orm_system_malloc(seg_len + 1, (void **)&seg_buf);
+        if (rc != C_ORM_OK || !seg_buf) {
+          return C_ORM_ERROR_MEMORY;
+        }
+        memcpy(seg_buf, seg_start, seg_len);
+        seg_buf[seg_len] = '\0';
+        rc = c_orm_quote_identifier(builder, seg_buf, quote_char);
+        (void)c_orm_system_free(seg_buf);
+      }
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
+      if (*p == '\0') {
+        break;
+      }
+      rc = c_orm_string_builder_append(builder, ".");
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
+      seg_start = p + 1;
+    }
+  }
+
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_append_placeholder(
+    c_orm_string_builder_t *builder, int is_postgres, size_t param_index) {
+  char ph[32];
+  char rev[32];
+  size_t rlen = 0;
+  size_t pos = 0;
+  size_t v;
+
+  if (!builder) {
+    return C_ORM_ERROR_NULL_POINTER;
+  }
+  if (is_postgres) {
+    if (param_index == 0) {
+      return C_ORM_ERROR_VALIDATION;
+    }
+    v = param_index;
+    while (v > 0) {
+      rev[rlen++] = (char)('0' + (v % 10U));
+      v /= 10U;
+    }
+    ph[pos++] = '$';
+    while (rlen > 0) {
+      ph[pos++] = rev[--rlen];
+    }
+    ph[pos] = '\0';
+    return c_orm_string_builder_append(builder, ph);
+  }
+  return c_orm_string_builder_append(builder, "?");
+}
+
+C_ORM_EXPORT c_orm_error_t
+c_orm_append_string_literal(c_orm_string_builder_t *builder, const char *str) {
+  c_orm_error_t rc;
+  const char *p;
+  char chbuf[2];
+
+  if (!builder || !str) {
+    return C_ORM_ERROR_NULL_POINTER;
+  }
+
+  rc = c_orm_string_builder_append(builder, "'");
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+
+  chbuf[1] = '\0';
+  for (p = str; *p != '\0'; ++p) {
+    if (*p == '\'') {
+      rc = c_orm_string_builder_append(builder, "''");
+    } else {
+      chbuf[0] = *p;
+      rc = c_orm_string_builder_append(builder, chbuf);
+    }
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
+  }
+
+  return c_orm_string_builder_append(builder, "'");
 }

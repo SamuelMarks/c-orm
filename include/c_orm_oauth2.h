@@ -217,7 +217,22 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time);
 
 /**
- * @brief Verifies a user's credentials against the database.
+ * @brief Derive a PBKDF2-HMAC-SHA256 password hash (10,000 iterations) encoded
+ * as 64 lowercase hexadecimal characters.
+ *
+ * @param password Plaintext password string.
+ * @param salt Per-user salt string (empty string permitted if NULL).
+ * @param out_hash Output pointer receiving heap-allocated 64-char hex digest.
+ * @return C_ORM_OK on success, C_ORM_ERROR_NULL_POINTER on NULL args, or
+ * C_ORM_ERROR_MEMORY on allocation failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_user_hash_password(const char *password,
+                                                    const char *salt,
+                                                    char **out_hash);
+
+/**
+ * @brief Verifies a user's credentials against the database using
+ * PBKDF2-HMAC-SHA256 (`password` + `user.salt`) and constant-time comparison.
  *
  * @param db Database connection.
  * @param username The username to verify.
@@ -254,6 +269,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_token_parse_json(
     const char *json, c_orm_oauth2_token_t *out_token);
 
 /**
+ * @brief Configure an explicit 32-byte master key for authenticated OAuth2
+ * token encryption (`ChaCha20-HMAC-SHA256` Encrypt-then-MAC).
+ *
+ * @param key 32-byte secret key material.
+ * @param key_len Length of `key` in bytes (must be 32).
+ * @return C_ORM_OK on success, or C_ORM_ERROR_VALIDATION if `key` is NULL or
+ * `key_len != 32`.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_oauth2_set_encryption_key(const unsigned char *key, size_t key_len);
+
+/**
  * @brief Encrypts a plain token string for secure storage.
  *
  * @param plain_token The plaintext token.
@@ -274,8 +301,19 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_oauth2_decrypt_token(const char *encrypted_token, char **out_plain_token);
 
 /**
- * @brief Securely stores a token using a platform-specific mechanism (e.g.
- * Web).
+ * @brief Securely stores an encrypted token pair to an explicit file path with
+ * owner-only (`0600`) permissions on POSIX.
+ *
+ * @param token The token structure to store.
+ * @param file_path Target file path on disk.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_store_token_secure_at(
+    const c_orm_oauth2_token_t *token, const char *file_path);
+
+/**
+ * @brief Securely stores a token using `C_ORM_TOKEN_FILE` (or default
+ * `"c_orm_token.dat"`) with owner-only (`0600`) permissions.
  *
  * @param token The token structure to store.
  * @return C_ORM_OK on success.

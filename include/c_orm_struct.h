@@ -38,8 +38,58 @@ extern "C" {
  * @param name The name of the field.
  */
 #define C_ORM_FIELD_META(struct_name, orm_type, c_type, name)                  \
-  {#name, orm_type, offsetof(struct struct_name, name), false, false, NULL,    \
-   false, false},
+  {#name, orm_type, offsetof(struct struct_name, name),                        \
+   false, false,    NULL,                                                      \
+   false, false,    0,                                                         \
+   0,     0,        0},
+
+/**
+ * @brief Generates a `c_orm_column_meta_t` initializer for a fixed-point
+ * `C_ORM_TYPE_DECIMAL` column with explicit precision and scale.
+ *
+ * @param struct_name The name of the struct (`struct struct_name`).
+ * @param field The field identifier inside `struct struct_name`.
+ * @param prec Decimal precision (`1..38`).
+ * @param scl Decimal scale (`0..prec`).
+ * @param nullable Boolean indicating whether NULL values are permitted.
+ */
+#define C_ORM_COL_DECIMAL(struct_name, field, prec, scl, nullable)             \
+  {#field,                                                                     \
+   C_ORM_TYPE_DECIMAL,                                                         \
+   offsetof(struct struct_name, field),                                        \
+   false,                                                                      \
+   nullable,                                                                   \
+   NULL,                                                                       \
+   false,                                                                      \
+   false,                                                                      \
+   (unsigned char)(prec),                                                      \
+   (unsigned char)(scl),                                                       \
+   0,                                                                          \
+   0}
+
+/**
+ * @brief Generates a `c_orm_column_meta_t` initializer for a fixed-width
+ * `C_ORM_TYPE_CHAR_FIXED` column with explicit byte length and CCSID.
+ *
+ * @param struct_name The name of the struct (`struct struct_name`).
+ * @param field The field identifier inside `struct struct_name`.
+ * @param len Fixed character/byte width in the database/record.
+ * @param ccsid_val Coded Character Set ID (e.g. 37, 1047, 1208, or 0).
+ * @param nullable Boolean indicating whether NULL values are permitted.
+ */
+#define C_ORM_COL_CHAR_FIXED(struct_name, field, len, ccsid_val, nullable)     \
+  {#field,                                                                     \
+   C_ORM_TYPE_CHAR_FIXED,                                                      \
+   offsetof(struct struct_name, field),                                        \
+   false,                                                                      \
+   nullable,                                                                   \
+   NULL,                                                                       \
+   false,                                                                      \
+   false,                                                                      \
+   0,                                                                          \
+   0,                                                                          \
+   (size_t)(len),                                                              \
+   (unsigned short)(ccsid_val)}
 
 /**
  * @brief Generates a relationship field definition.
@@ -143,7 +193,12 @@ extern "C" {
    C_ORM_CASCADE_NONE,                                                         \
    NULL,                                                                       \
    NULL,                                                                       \
-   NULL},
+   NULL,                                                                       \
+   NULL,                                                                       \
+   NULL,                                                                       \
+   NULL,                                                                       \
+   NULL,                                                                       \
+   0},
 
 /**
  * @brief Generates a `c_orm_relation_meta_t` entry for a relationship with
@@ -179,33 +234,35 @@ extern "C" {
    on_update,                                                                  \
    NULL,                                                                       \
    NULL,                                                                       \
-   NULL},
+   NULL,                                                                       \
+   NULL,                                                                       \
+   NULL,                                                                       \
+   NULL,                                                                       \
+   NULL,                                                                       \
+   0},
 
 /**
- * @brief Generate a struct and its corresponding ORM metadata.
+ * @brief Declares a strongly typed C struct and extern ORM metadata for safe
+ * inclusion across multiple translation units.
  *
- * This macro uses the X-Macro pattern to generate both a strongly typed
- * C struct and a `c_orm_table_meta_t` descriptor without duplicating the
- * field definitions.
- *
- * **Example Usage:**
- * ```c
- * #define MY_USER_FIELDS(X, STRUCT_NAME) \
- *   X(STRUCT_NAME, C_ORM_TYPE_INT32, int32_t, id) \
- *   X(STRUCT_NAME, C_ORM_TYPE_STRING, char*, username)
- *
- * C_ORM_STRUCT(User, MY_USER_FIELDS)
- * ```
- *
- * This generates `struct User` and `extern const c_orm_table_meta_t User_meta`.
- *
- * @param STRUCT_NAME The name of the struct to generate.
+ * @param STRUCT_NAME The name of the struct to declare.
  * @param FIELDS_MACRO An X-Macro defining the fields.
  */
-#define C_ORM_STRUCT(STRUCT_NAME, FIELDS_MACRO)                                \
+#define C_ORM_STRUCT_DECL(STRUCT_NAME, FIELDS_MACRO)                           \
   struct STRUCT_NAME {                                                         \
     FIELDS_MACRO(C_ORM_FIELD_DEF, STRUCT_NAME)                                 \
   };                                                                           \
+  extern const c_orm_column_meta_t STRUCT_NAME##_columns[];                    \
+  extern const c_orm_table_meta_t STRUCT_NAME##_meta;
+
+/**
+ * @brief Emits the out-of-line column and table metadata definitions for a
+ * struct previously declared with `C_ORM_STRUCT_DECL`.
+ *
+ * @param STRUCT_NAME The name of the struct.
+ * @param FIELDS_MACRO An X-Macro defining the fields.
+ */
+#define C_ORM_STRUCT_IMPL(STRUCT_NAME, FIELDS_MACRO)                           \
   const c_orm_column_meta_t STRUCT_NAME##_columns[] = {                        \
       FIELDS_MACRO(C_ORM_FIELD_META, STRUCT_NAME)};                            \
   const c_orm_table_meta_t STRUCT_NAME##_meta = {                              \
@@ -226,6 +283,17 @@ extern "C" {
       {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},                        \
       NULL,                                                                    \
       0};
+
+/**
+ * @brief Generate a struct and its corresponding ORM metadata in a single
+ * translation unit.
+ *
+ * @param STRUCT_NAME The name of the struct to generate.
+ * @param FIELDS_MACRO An X-Macro defining the fields.
+ */
+#define C_ORM_STRUCT(STRUCT_NAME, FIELDS_MACRO)                                \
+  C_ORM_STRUCT_DECL(STRUCT_NAME, FIELDS_MACRO)                                 \
+  C_ORM_STRUCT_IMPL(STRUCT_NAME, FIELDS_MACRO)
 
 #define C_ORM_RELATION_META_ALL(struct_name, rel_type, target_type, name,      \
                                 foreign_key, local_key, on_delete, on_update,  \
@@ -267,6 +335,19 @@ extern "C" {
     c_orm_lazy_load_context_t lazy_ctx;                                        \
     C_ORM_RELATION_DEF_##rel_type(struct_name, target_type, name)              \
   } name;
+
+#ifdef C_ORM_BELONGS_TO
+#undef C_ORM_BELONGS_TO
+#endif
+#ifdef C_ORM_HAS_ONE
+#undef C_ORM_HAS_ONE
+#endif
+#ifdef C_ORM_HAS_MANY
+#undef C_ORM_HAS_MANY
+#endif
+#ifdef C_ORM_MANY_TO_MANY
+#undef C_ORM_MANY_TO_MANY
+#endif
 
 #define C_ORM_BELONGS_TO(X, S, target, name, fkey, lkey)                       \
   X(S, C_ORM_RELATION_BELONGS_TO, target, name, fkey, lkey,                    \

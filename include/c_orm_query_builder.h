@@ -347,6 +347,79 @@ c_orm_update_where_eq(c_orm_update_builder_t *builder, const char *column);
 C_ORM_EXPORT c_orm_error_t
 c_orm_update_builder_compile(c_orm_update_builder_t *builder, char **out_sql);
 
+/**
+ * @brief Configure whether a select builder emits PostgreSQL `$N` placeholders.
+ *
+ * @param builder Select builder instance.
+ * @param is_postgres Non-zero for PostgreSQL `$N` placeholders, 0 for `?`.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN if builder is NULL.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_select_builder_set_dialect(
+    c_orm_select_builder_t *builder, int is_postgres);
+
+/**
+ * @brief Configure whether an insert builder emits PostgreSQL `$N`
+ * placeholders.
+ *
+ * @param builder Insert builder instance.
+ * @param is_postgres Non-zero for PostgreSQL `$N` placeholders, 0 for `?`.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN if builder is NULL.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_insert_builder_set_dialect(
+    c_orm_insert_builder_t *builder, int is_postgres);
+
+/**
+ * @brief Configure whether an update builder emits PostgreSQL `$N`
+ * placeholders.
+ *
+ * @param builder Update builder instance.
+ * @param is_postgres Non-zero for PostgreSQL `$N` placeholders, 0 for `?`.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN if builder is NULL.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_update_builder_set_dialect(
+    c_orm_update_builder_t *builder, int is_postgres);
+
+/**
+ * @brief Configure the target SQL dialect on a select builder.
+ *
+ * @param builder Select builder instance.
+ * @param dialect Target SQL dialect enum (`C_ORM_DIALECT_DB2`, etc.).
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN if builder is NULL.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_select_builder_set_dialect_kind(
+    c_orm_select_builder_t *builder, c_orm_dialect_t dialect);
+
+/**
+ * @brief Configure the target SQL dialect on an insert builder.
+ *
+ * @param builder Insert builder instance.
+ * @param dialect Target SQL dialect enum (`C_ORM_DIALECT_DB2`, etc.).
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN if builder is NULL.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_insert_builder_set_dialect_kind(
+    c_orm_insert_builder_t *builder, c_orm_dialect_t dialect);
+
+/**
+ * @brief Configure the target SQL dialect on an update builder.
+ *
+ * @param builder Update builder instance.
+ * @param dialect Target SQL dialect enum (`C_ORM_DIALECT_DB2`, etc.).
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN if builder is NULL.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_update_builder_set_dialect_kind(
+    c_orm_update_builder_t *builder, c_orm_dialect_t dialect);
+
+/**
+ * @brief Enable or disable upsert (`MERGE INTO` on Db2/ODBC, `ON CONFLICT` on
+ * SQLite/Postgres, `ON DUPLICATE KEY UPDATE` on MySQL) on an insert builder.
+ *
+ * @param builder Insert builder instance.
+ * @param is_upsert Non-zero to emit upsert SQL on compile, 0 for plain INSERT.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN if builder is NULL.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_insert_builder_set_upsert(c_orm_insert_builder_t *builder, int is_upsert);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

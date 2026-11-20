@@ -1,75 +1,40 @@
 # c-orm Roadmap
 
-This document outlines the planned features and architectural direction for `c-orm`. Our primary goal is to provide a safe, ergonomic, and performant Object-Relational Mapping (ORM) experience natively in C.
+This document tracks delivered capabilities and upcoming architectural milestones for `c-orm`. Our goal is a safe, zero-bloat, strictly ISO C89 Object-Relational Mapper with 100% documentation and core test coverage across embedded, server, and mainframe environments.
+
+## ✅ Delivered Milestones
+
+* **Multi-Backend Driver VTable (`c_orm_connect_url`)**: Unified driver interfaces for SQLite (`sqlite://`), PostgreSQL (`postgres://`), MySQL/MariaDB (`mysql://`), IBM Db2 (`db2://`), Generic ODBC 3.52 (`odbc://`), and Ephemeral Memory (`memory://`), supporting both static/shared linking and runtime dynamic loading.
+* **IBM Db2 & Generic ODBC Enterprise Support**: Zero-`<windows.h>` C89 ODBC 3.52 + IBM Db2 CLI runtime loader, WLM client accounting registers, `MERGE INTO` upserts, `SELECT ... FROM FINAL TABLE (INSERT ...)`, `WITH UR/CS/RS/RR` isolation clauses, `SQL_ATTR_PARAMSET_SIZE` array batching, and streaming LOB locators.
+* **Lossless Financial `DECIMAL` & Mainframe `EBCDIC`**: 38-digit exact fixed-point `c_orm_decimal_t`, `COMP-3` packed decimal, Zoned Decimal, big-endian `COMP`, `IBM037`/`IBM1047`/`IBM500`/`IBM1140` transcoders, and UTF-16 `GRAPHIC`/`VARGRAPHIC`.
+* **Bidirectional COBOL Copybook (`.cpy`) & SQL Codegen**: Fixed/free Copybook + `DCLGEN` parser, binary mainframe wire pack/unpack, and `c-orm-cli sql2c` / `cpy2c` / `cpy2sql` / `sql2cpy` code generation.
+* **Serde/Diesel-Style Struct Reflection & Batch CRUD**: Compile-time `C_ORM_STRUCT` / `C_ORM_STRUCT_WITH_RELATIONS` X-macros (`include/c_orm_struct.h`), metadata-driven CRUD (`c_orm_insert`, `c_orm_find_by_id_*`, `c_orm_update`, `c_orm_upsert`, `c_orm_delete_*`), and bulk batch operations (`c_orm_insert_batch`, `c_orm_update_batch`, `c_orm_upsert_batch`, `c_orm_delete_batch_int32`).
+* **Arena-Backed AST Query Builder**: Parameterized `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `JOIN`s, `GROUP BY`/`HAVING`, subqueries, `UNION`, CTEs (`WITH`), and window functions (`OVER`) rendered cleanly per target SQL dialect.
+* **Relationship Graphs & Concurrency Control**: 1:1, 1:N, M:N, `HAS_MANY_THROUGH`, and polymorphic associations with eager (`JOIN`) and lazy loading, cascade rules, pessimistic `SELECT ... FOR UPDATE`, and version-checked optimistic locking (`c_orm_update_optimistic`).
+* **Thread-Safe Connection Pooling & Statement LRU Cache**: Pre-warmed, capacity-bounded connection pools (`c_orm_pool_t` in `src/c_orm_pool.c`) with acquisition timeouts alongside per-connection prepared-statement LRU caching (`src/c_orm_cache.c`) and session identity maps.
 
 ## 🚀 Near-Term Goals
 
-### Serde/Diesel-Style Struct Mapping
-We aim to bring the developer experience of modern ORMs (like Rust's Diesel) and serialization frameworks (like Serde) to C.
+### Automatic Schema-Diff Migration Generation (`c-orm-cli generate`)
+* Wire live schema introspection (`c_orm_migration_fetch_table_schema` / `cdd_c_inspect_schema_odbc`) to `cdd-c` model metadata diffing so `c-orm-cli generate <name>` automatically emits dialect-specific `-- UP` (`ALTER TABLE` / `CREATE TABLE`) and `-- DOWN` SQL scripts across SQLite, PostgreSQL, MySQL, IBM Db2, and Generic ODBC.
 
-#### Fully Typed SQL Table Representations
-Tables will be directly represented by fully typed C `struct`s. A database schema should map 1:1 to your C data structures, enabling type-safe database interactions natively.
+### True Background Worker Pool & Event-Loop Dispatch (`c-orm-async`)
+* Attach a configurable worker thread pool and event-loop completion adapters (`libuv`, `epoll`, `kqueue`, Win32 IOCP) to `c_orm_set_modality()` and `c-orm-async` (`c_orm_insert_async`, `c_orm_find_all_async`), replacing the current inline synchronous execution fallback when `C_ORM_MODALITY_THREAD_POOL` or `C_ORM_MODALITY_EVENT_LOOP` is configured.
+* Dispatch `c_orm_shard_scatter_gather()` concurrently across shard connections when multi-threading is enabled.
 
-**Example:**
-```sql
-CREATE TABLE Organisation (
-    id INT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP
-);
-```
-
-Maps directly to:
-```c
-struct Organisation {
-    int id;
-    char name[255];
-    time_t created_at;
-};
-```
-
-#### Seamless CRUD Operations for Structs
-Reading and writing these structs should be as frictionless as possible. We plan to implement macros and code-generation utilities that provide out-of-the-box CRUD operations for your defined structures without writing a single line of serialization code:
-
-* **Create (Insert):** Directly pass a `struct` pointer to be inserted into the database.
-* **Read (Select):** Fetch rows directly into a `struct` or an array of `struct`s, automatically handling the field mapping, bounds checking, and data alignment.
-* **Update:** Modify a `struct` in memory and persist the changes back to the database.
-* **Delete:** Remove records using the struct's primary key mapping.
-
-#### Array and Batch Operations
-Support for efficiently reading and writing arrays of structs to handle multiple records in a single query (e.g., batch inserts, bulk reads) bypassing the N+1 problem inherent in simple iterations.
-
-```c
-// Example conceptual API
-struct Organisation orgs[10];
-size_t count = c_orm_find_all_organisations(db, orgs, 10);
-
-struct Organisation new_org = { .id = 1, .name = "Acme Corp" };
-c_orm_insert_organisation(db, &new_org);
-```
+### Result-Set L1 Query Cache
+* Complement the existing prepared-statement LRU cache (`c_orm_prepare_cached`) and PK identity map (`c_orm_identity_map_t`) with an optional transaction-scoped read-through result cache featuring automatic table-level invalidation on `INSERT`/`UPDATE`/`DELETE`.
 
 ## 🛠️ Medium to Long-Term Goals
 
-### Advanced Query Builder Expansion
-* Expand the fluent query builder API (`c_orm_query_t`) to construct complex `JOIN`s, nested `GROUP BY`, and sub-query aggregations without ever falling back to raw SQL strings.
+### Additional Native Dialects & Plugin Registry
+* Formalize external `c_orm_driver_vtable_t` URI scheme registration (`c_orm_register_driver`) so third-party dialects (e.g., Oracle OCI, native TDS/SQL Server, DuckDB) can plug into `c_orm_connect_url()` without modifying core `c-orm` sources.
 
-### Advanced Schema Migrations
-* Fully implement real schema diffing via `cdd-c` to track, generate, and execute database schema changes over time across all three supported dialects (SQLite, Postgres, MySQL).
-* Automatic up/down migration script generation directly from header file diffs.
+### Language & FFI Bindings
+* Leverage `c-orm`'s stable C89 ABI and `c_orm_error_t` conventions to publish official bindings for:
+  * **Lua / LuaJIT** via FFI for embedded scripting.
+  * **Python** via `cffi` for sharing compiled C models and copybook codecs with tooling scripts.
+  * **Zig / Nim** as zero-dependency native C ABI packages.
 
-### Relationship Management
-* Built-in automated handling for One-to-One, One-to-Many, and Many-to-Many relationships between mapped structs.
-* Implement Eager (via `JOIN`) and Lazy (via proxy hooks) loading strategies.
-
-### Ecosystem and Bindings
-* While `c-orm` is built in C, its predictable ABI makes it ideal for language bindings. We intend to officially support:
-  * **Lua:** via LuaJIT FFI for embedded application scripting.
-  * **Python:** via `cffi` to allow using Python scripts to manage C-based database schemas.
-  * **Zig / Nim:** as a high-performance natively-compiled alternative to their standard library ORMs.
-
-### Performance Targets
-* Optimize the driver abstractions to hit targets capable of streaming or querying 1,000,000 rows per second on modern hardware, making it suitable for HFT (High-Frequency Trading) data logging or game server backend telemetry.
-
-## 🤝 Community Goals
-- Expand the CI/CD pipeline to test across embedded targets (e.g., ARM Cortex-M, ESP32) ensuring no regressions are introduced that would bloat the ROM.
-- Standardize the plugin API so community members can write additional dialects (e.g., Oracle, SQL Server) without modifying the core `c-orm` source.
+### Embedded & Minimal-ROM Profiles
+* Add CI binary-size gates targeting constrained microcontrollers (ARM Cortex-M, ESP32) with selective feature stripping (`C_ORM_ENABLE_ODBC=OFF`, `C_ORM_ENABLE_DB2=OFF`, `C_ORM_ENABLE_COPYBOOK=OFF`, `C_ORM_THREADING=OFF`).

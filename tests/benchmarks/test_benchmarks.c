@@ -15,13 +15,13 @@
 #include <greatest.h>
 
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions += !!(cond); } while ((void)0, 0)
+#define ASSERT(cond) do { greatest_info.assertions++; if (!((cond) != 0)) { fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions++; if (strcmp((exp), (got)) != 0) { fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__, (exp), (got)); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST) \
   do { \
@@ -77,7 +77,7 @@ TEST benchmark_setup(void) {
 
   err = c_orm_execute_raw(db, schema);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-  ASSERT_STR_EQ("users", "users");
+  ASSERT_STR_EQ("users", Users_meta.name);
 
   PASS();
 }
@@ -132,14 +132,45 @@ TEST benchmark_specific_struct_hydration_1m(void) {
  * @brief Benchmark abstract struct hydration fallback test.
  * @return GREATEST test result.
  */
-TEST benchmark_abstract_struct_hydration_1m(void) { PASS(); }
+TEST benchmark_abstract_struct_hydration_1m(void) {
+  c_orm_error_t err;
+  cdd_c_abstract_struct_array_t rows;
+
+  err = cdd_c_abstract_struct_array_init(&rows, 64);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  err = c_orm_find_all_abstract(
+      db, "SELECT id, username, email FROM users LIMIT 500", &rows);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  ASSERT_EQ_FMT((unsigned long)500, (unsigned long)rows.count, "%lu");
+
+  err = cdd_c_abstract_struct_array_free(&rows);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  PASS();
+}
 
 /**
  * @brief Benchmark CRUD operations with caching layer.
  * @return GREATEST test result.
  */
 TEST benchmark_crud_caching(void) {
-  /* TODO: implement */
+  c_orm_error_t err;
+  int i;
+  struct Users fetched;
+
+  err = c_orm_enable_statement_caching(db, 16);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+
+  for (i = 0; i < 200; i++) {
+    memset(&fetched, 0, sizeof(fetched));
+    err = c_orm_find_by_id_int32(db, &Users_meta, (int32_t)(i % 50), &fetched);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+    ASSERT_EQ_FMT((int)(i % 50), (int)fetched.id, "%d");
+    Users_free(&fetched);
+  }
+
+  err = c_orm_disable_statement_caching(db);
+  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   PASS();
 }
 
@@ -166,7 +197,7 @@ TEST benchmark_ast_vs_string_concat(void) {
 
   /* AST Build */
   for (i = 0; i < iters; i++) {
-    c_orm_query_t *q = NULL;
+    c_orm_ast_query_t *q = NULL;
     char *sql = NULL;
     c_orm_query_params_t params;
     c_orm_ast_node_t *gt_node = NULL;
@@ -186,7 +217,7 @@ TEST benchmark_ast_vs_string_concat(void) {
     c_orm_query_params_init(&params);
     err = c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql, &params);
     ASSERT_EQ(C_ORM_OK, err);
-    free(sql);
+    (void)c_orm_system_free(sql);
     c_orm_query_params_cleanup(&params);
     c_orm_query_free(q);
   }

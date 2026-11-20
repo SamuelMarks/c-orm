@@ -51,8 +51,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_new(c_orm_arena_t **out_arena) {
     return rc;
   }
 
-  arena = (c_orm_arena_t *)C_ORM_MALLOC(sizeof(c_orm_arena_t));
-  if (!arena) {
+  arena = NULL;
+  rc = c_orm_system_malloc(sizeof(c_orm_arena_t), (void **)&arena);
+  if (rc != C_ORM_OK || !arena) {
     LOG_DEBUG("c_orm_arena_new: OOM");
     rc = C_ORM_ERROR_UNKNOWN;
     return rc;
@@ -75,7 +76,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_new(c_orm_arena_t **out_arena) {
  */
 C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
                                              void **out_ptr) {
-  c_orm_arena_block_t *block;
+  c_orm_arena_block_t *block = NULL;
   size_t alloc_size;
   c_orm_error_t rc;
 
@@ -99,8 +100,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
       alloc_size = sizeof(c_orm_arena_block_t) - C_ORM_ARENA_BLOCK_SIZE + size;
     }
 
-    block = (c_orm_arena_block_t *)C_ORM_MALLOC(alloc_size);
-    if (!block) {
+    rc = c_orm_system_malloc(alloc_size, (void **)&block);
+    if (rc != C_ORM_OK || !block) {
       LOG_DEBUG("c_orm_arena_alloc: OOM");
       rc = C_ORM_ERROR_UNKNOWN;
       return rc;
@@ -171,6 +172,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_strdup(c_orm_arena_t *arena,
 C_ORM_EXPORT c_orm_error_t c_orm_arena_free(c_orm_arena_t *arena) {
   c_orm_arena_block_t *block;
   c_orm_arena_block_t *next;
+  c_orm_error_t rc = C_ORM_OK;
+  c_orm_error_t free_rc;
 
   LOG_DEBUG("c_orm_arena_free: entry");
 
@@ -182,11 +185,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_free(c_orm_arena_t *arena) {
   block = arena->head;
   while (block) {
     next = block->next;
-    C_ORM_FREE(block);
+    free_rc = c_orm_system_free(block);
+    if (free_rc != C_ORM_OK && rc == C_ORM_OK) {
+      rc = free_rc;
+    }
     block = next;
   }
 
-  C_ORM_FREE(arena);
+  free_rc = c_orm_system_free(arena);
+  if (free_rc != C_ORM_OK && rc == C_ORM_OK) {
+    rc = free_rc;
+  }
   LOG_DEBUG("c_orm_arena_free: exit");
-  return C_ORM_OK;
+  return rc;
 }

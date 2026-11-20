@@ -15,10 +15,29 @@ extern "C" {
 #endif /* __cplusplus */
 
 /**
+ * @brief Rewrite SQL positional `?` placeholders into PostgreSQL `$1`, `$2`
+ * placeholders while ignoring string literals, quoted identifiers,
+ * dollar-quoted strings, and SQL comments.
+ *
+ * Double question marks (`??`) outside quotes/comments are unescaped to a
+ * literal `?` (e.g., for PostgreSQL JSONB operators). Pre-existing `$N`
+ * placeholders also update `out_param_count`.
+ *
+ * @param sql Null-terminated input SQL query string.
+ * @param out_param_count Output parameter count discovered in the query.
+ * @param out_new_sql Output pointer receiving heap-allocated rewritten SQL.
+ * @return C_ORM_OK on success, C_ORM_ERROR_NULL_POINTER on NULL arguments, or
+ * C_ORM_ERROR_MEMORY on allocation failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_postgres_rewrite_query(const char *sql,
+                                                        int *out_param_count,
+                                                        char **out_new_sql);
+
+/**
  * @brief Get the PostgreSQL driver vtable.
  *
  * @param out_vtable Output parameter to store the vtable pointer.
- * @return 0 on success, non-zero on failure.
+ * @return C_ORM_OK on success, non-zero on failure.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable);
@@ -38,6 +57,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
  *
  * @param db The database connection.
  * @param out_oid Returns the OID of the newly created Large Object.
+ * @return C_ORM_OK on success, or an error code.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
                                                     unsigned int *out_oid);
@@ -49,6 +69,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
  * @param oid The OID of the Large Object.
  * @param mode The mode (e.g., INV_READ or INV_WRITE).
  * @param out_fd Returns the file descriptor (int) cast to void*.
+ * @return C_ORM_OK on success, or an error code.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
                                                   unsigned int oid, int mode,
@@ -62,6 +83,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
  * @param buffer The buffer to read into.
  * @param len The number of bytes to read.
  * @param out_read Returns the actual number of bytes read.
+ * @return C_ORM_OK on success, or an error code.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_read(c_orm_db_t *db, void *fd,
                                                   void *buffer, size_t len,
@@ -75,6 +97,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_read(c_orm_db_t *db, void *fd,
  * @param buffer The buffer to write from.
  * @param len The number of bytes to write.
  * @param out_written Returns the actual number of bytes written.
+ * @return C_ORM_OK on success, or an error code.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
                                                    const void *buffer,
@@ -86,6 +109,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
  *
  * @param db The database connection.
  * @param fd The file descriptor returned by lo_open.
+ * @return C_ORM_OK on success, or an error code.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd);
 

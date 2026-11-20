@@ -28,12 +28,14 @@ typedef struct BlogPost {
 } BlogPost;
 
 static c_orm_column_meta_t blog_post_cols[] = {
-    {"id", C_ORM_TYPE_INT32, offsetof(BlogPost, id), 1, 0, NULL, 0, 0},
-    {"title", C_ORM_TYPE_STRING, offsetof(BlogPost, title), 0, 0, NULL, 0, 0},
-    {"content", C_ORM_TYPE_STRING, offsetof(BlogPost, content), 0, 0, NULL, 0,
+    {"id", C_ORM_TYPE_INT32, offsetof(BlogPost, id), 1, 0, NULL, 0, 0, 0, 0, 0,
      0},
+    {"title", C_ORM_TYPE_STRING, offsetof(BlogPost, title), 0, 0, NULL, 0, 0, 0,
+     0, 0, 0},
+    {"content", C_ORM_TYPE_STRING, offsetof(BlogPost, content), 0, 0, NULL, 0,
+     0, 0, 0, 0, 0},
     {"author_id", C_ORM_TYPE_INT32, offsetof(BlogPost, author_id), 0, 0, NULL,
-     0, 0},
+     0, 0, 0, 0, 0, 0},
 };
 
 static c_orm_table_meta_t BlogPost_meta = {
@@ -146,34 +148,39 @@ int main(void);
  * @return 0 on success.
  */
 int main(void) {
-  c_orm_db_t *db;
+  c_orm_db_t *db = NULL;
+  int failed = 0;
 
-  run_blog_example(":memory:");
-  run_blog_example(NULL);
+  failed |= (run_blog_example(":memory:") != C_ORM_OK);
+  failed |= (run_blog_example(NULL) == C_ORM_OK);
 #ifdef _WIN32
-  run_blog_example("Z:\\invalid_dir\\bad.db");
+  failed |= (run_blog_example("Z:\\invalid_dir\\bad.db") == C_ORM_OK);
 #else
-  run_blog_example("/dev/null/invalid_dir/bad.db");
+  failed |= (run_blog_example("/dev/null/invalid_dir/bad.db") == C_ORM_OK);
 #endif
-  run_blog_ops(NULL, 1, 0);
+  failed |= (run_blog_ops(NULL, 1, 0) == C_ORM_OK);
+
+  failed |= (c_orm_sqlite_connect(":memory:", &db) != C_ORM_OK);
+  failed |=
+      (c_orm_execute_raw(db, "CREATE TABLE blog_posts (id INT)") != C_ORM_OK);
+  failed |= (run_blog_ops(db, 1, 0) == C_ORM_OK);
+  failed |= (db->vtable->disconnect(db) != C_ORM_OK);
 
   db = NULL;
-  c_orm_sqlite_connect(":memory:", &db);
-  c_orm_execute_raw(db, "CREATE TABLE blog_posts (id INT)");
-  run_blog_ops(db, 1, 0);
-  db->vtable->disconnect(db);
+  failed |= (c_orm_sqlite_connect(":memory:", &db) != C_ORM_OK);
+  failed |=
+      (c_orm_execute_raw(db, "CREATE TABLE blog_posts (id INTEGER PRIMARY KEY, "
+                             "title TEXT, content TEXT, author_id INTEGER)") !=
+       C_ORM_OK);
+  failed |=
+      (c_orm_execute_raw(
+           db, "INSERT INTO blog_posts VALUES(1, 'title', 'content', 1)") !=
+       C_ORM_OK);
+  failed |= (run_blog_ops(db, 1, 1) == C_ORM_OK);
 
-  db = NULL;
-  c_orm_sqlite_connect(":memory:", &db);
-  c_orm_execute_raw(db, "CREATE TABLE blog_posts (id INTEGER PRIMARY KEY, "
-                        "title TEXT, content TEXT, author_id INTEGER)");
-  c_orm_execute_raw(db,
-                    "INSERT INTO blog_posts VALUES(1, 'title', 'content', 1)");
-  run_blog_ops(db, 1, 1);
+  failed |= (c_orm_execute_raw(db, "DELETE FROM blog_posts") != C_ORM_OK);
+  failed |= (run_blog_ops(db, 999, 1) == C_ORM_OK);
+  failed |= (db->vtable->disconnect(db) != C_ORM_OK);
 
-  c_orm_execute_raw(db, "DELETE FROM blog_posts");
-  run_blog_ops(db, 999, 1);
-  db->vtable->disconnect(db);
-
-  return 0;
+  return failed;
 }

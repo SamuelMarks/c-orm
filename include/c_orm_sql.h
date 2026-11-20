@@ -1,5 +1,5 @@
 /**
- * @file sql.h
+ * @file c_orm_sql.h
  * @brief Parses SQL DDL into an AST.
  */
 
@@ -35,7 +35,20 @@ enum SqlDataType {
   SQL_TYPE_DECIMAL,
   SQL_TYPE_BOOLEAN,
   SQL_TYPE_DATE,
-  SQL_TYPE_TIMESTAMP
+  SQL_TYPE_TIMESTAMP,
+  SQL_TYPE_BLOB,
+  SQL_TYPE_SMALLINT,   /**< 16-bit signed integer (`SMALLINT`) */
+  SQL_TYPE_NUMERIC,    /**< Exact fixed-point numeric (`NUMERIC(p, s)`) */
+  SQL_TYPE_DECFLOAT,   /**< Db2 IEEE 754r decimal float (`DECFLOAT(16/34)`) */
+  SQL_TYPE_GRAPHIC,    /**< Fixed-length DBCS/UTF-16 (`GRAPHIC(n)`) */
+  SQL_TYPE_VARGRAPHIC, /**< Variable-length DBCS/UTF-16 (`VARGRAPHIC(n)`) */
+  SQL_TYPE_CLOB,       /**< Character Large Object (`CLOB`) */
+  SQL_TYPE_DBCLOB,     /**< Double-Byte Character Large Object (`DBCLOB`) */
+  SQL_TYPE_BINARY,     /**< Fixed-length binary (`BINARY(n)` / `CHAR FOR BIT
+                          DATA`) */
+  SQL_TYPE_VARBINARY,  /**< Variable-length binary (`VARBINARY(n)` / `VARCHAR
+                          FOR BIT DATA`) */
+  SQL_TYPE_TIME        /**< SQL `TIME` (`HH:MM:SS`) */
 };
 
 /**
@@ -54,8 +67,7 @@ enum SqlConstraintType {
  * @brief Represents a single SQL Constraint.
  */
 struct sql_constraint_t {
-  /** @brief field */
-  /** @brief field */
+  /** @brief Constraint type discriminator */
   enum SqlConstraintType type;
   char *reference_table;  /**< For FOREIGN KEY */
   char *reference_column; /**< For FOREIGN KEY */
@@ -69,18 +81,22 @@ struct sql_constraint_t {
  * @brief Represents a single SQL Column definition.
  */
 struct sql_column_t {
-  /** @brief field */
-  /** @brief field */
+  /** @brief Column identifier name */
   char *name;
-  /** @brief field */
-  /** @brief field */
+  /** @brief Parsed SQL data type */
   enum SqlDataType type;
-  int length; /**< For VARCHAR(n), etc., -1 if not specified */
-  /** @brief field */
-  /** @brief field */
+  int length; /**< For VARCHAR(n) or DECIMAL(p, s) precision, -1 if unspecified
+               */
+  int scale;  /**< Fractional scale for DECIMAL(p, s) / NUMERIC(p, s), -1 if
+                 unspecified */
+  int is_identity;      /**< Non-zero if GENERATED ALWAYS/BY DEFAULT AS IDENTITY
+                         */
+  int is_for_bit_data;  /**< Non-zero if FOR BIT DATA specified */
+  unsigned short ccsid; /**< Parsed CCSID (0 if unspecified, 37=EBCDIC,
+                           1208=UNICODE, 367=ASCII, 65535=FOR BIT DATA) */
+  /** @brief Array of column constraints */
   struct sql_constraint_t *constraints;
-  /** @brief field */
-  /** @brief field */
+  /** @brief Number of column constraints */
   size_t n_constraints;
 };
 
@@ -88,18 +104,14 @@ struct sql_column_t {
  * @brief Represents a SQL Table definition.
  */
 struct sql_table_t {
-  /** @brief field */
-  /** @brief field */
+  /** @brief Table identifier name */
   char *name;
-  /** @brief field */
-  /** @brief field */
+  /** @brief Array of column definitions */
   struct sql_column_t *columns;
-  /** @brief field */
-  /** @brief field */
+  /** @brief Number of column definitions */
   size_t n_columns;
   struct sql_constraint_t *table_constraints; /**< Table-level constraints */
-  /** @brief field */
-  /** @brief field */
+  /** @brief Number of table-level constraints */
   size_t n_table_constraints;
 };
 
@@ -128,14 +140,11 @@ enum SqlTokenKind {
  * @brief A single SQL lexical unit.
  */
 struct sql_token_t {
-  /** @brief field */
-  /** @brief field */
+  /** @brief Token lexical kind */
   enum SqlTokenKind kind;
-  /** @brief field */
-  /** @brief field */
+  /** @brief Pointer to start of token in source buffer */
   const char *start;
-  /** @brief field */
-  /** @brief field */
+  /** @brief Length of token in bytes */
   size_t length;
 };
 
@@ -143,14 +152,11 @@ struct sql_token_t {
  * @brief A list of SQL tokens.
  */
 struct sql_token_list_t {
-  /** @brief field */
-  /** @brief field */
+  /** @brief Dynamic array of SQL tokens */
   struct sql_token_t *tokens;
-  /** @brief field */
-  /** @brief field */
+  /** @brief Number of tokens in array */
   size_t size;
-  /** @brief field */
-  /** @brief field */
+  /** @brief Allocated capacity of tokens array */
   size_t capacity;
 };
 
@@ -158,11 +164,9 @@ struct sql_token_list_t {
  * @brief Error information returned by the SQL parser.
  */
 struct sql_parse_error_t {
-  /** @brief field */
-  /** @brief field */
+  /** @brief Diagnostic parse error message */
   const char *message;
-  /** @brief field */
-  /** @brief field */
+  /** @brief Offending SQL token pointer, if available */
   const struct sql_token_t *token;
 };
 
@@ -205,12 +209,14 @@ C_ORM_EXPORT c_orm_error_t sql_parse_table(const struct sql_token_list_t *list,
 C_ORM_EXPORT c_orm_error_t sql_token_list_free(struct sql_token_list_t *list);
 
 /**
- * @brief Free a SQL table AST node.
+ * @brief Free a SQL table AST node's internal allocations.
  *
  * @param table The table to free.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT c_orm_error_t sql_table_C_ORM_FREE(struct sql_table_t *table);
+C_ORM_EXPORT c_orm_error_t sql_table_free(struct sql_table_t *table);
+
+#define sql_table_C_ORM_FREE sql_table_free
 
 /**
  * @brief Parse full SQL DDL file returning all tables.

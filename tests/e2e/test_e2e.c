@@ -20,19 +20,19 @@
 #include <greatest.h>
 
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions += ((cond) != 0); } while ((void)0, 0)
+#define ASSERT(cond) do { greatest_info.assertions++; if (!((cond) != 0)) { fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions++; if (strcmp((exp), (got)) != 0) { fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__, (exp), (got)); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { greatest_info.assertions += ((exp) != (got)); } while ((void)0, 0)
+#define ASSERT_NEQ(exp, got) do { greatest_info.assertions++; if (!((exp) != (got))) { fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST) do { int should = 0; enum greatest_test_res res; greatest_test_pre(#TEST, &should); res = TEST(); greatest_test_post(res); } while((void)0, 0)
 #undef CHECK_CALL
-#define CHECK_CALL(res) do { greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS); } while ((void)0, 0)
+#define CHECK_CALL(res) do { do { enum greatest_test_res _rc = (res); greatest_info.assertions++; if (_rc != GREATEST_TEST_RES_PASS) { return _rc; } } while ((void)0, 0); } while ((void)0, 0)
 
 #include <stdio.h>
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
@@ -277,7 +277,7 @@ TEST test_query_builder_extensions(void) {
                 "created_at < CURRENT_TIMESTAMP LIMIT 10 OFFSET 5",
                 sql);
 
-  C_ORM_FREE(sql);
+  (void)c_orm_system_free(sql);
   c_orm_select_builder_free(b);
   PASS();
 }
@@ -457,8 +457,8 @@ TEST test_e2e_oauth2_helpers(void) {
   ASSERT(decrypted != NULL);
   ASSERT_STR_EQ("plain", decrypted);
 
-  C_ORM_FREE(encrypted);
-  C_ORM_FREE(decrypted);
+  (void)c_orm_system_free(encrypted);
+  (void)c_orm_system_free(decrypted);
 
   err = c_orm_oauth2_get_current_timestamp(&t1);
   ASSERT_EQ(C_ORM_OK, err);
@@ -490,16 +490,22 @@ TEST test_e2e_verify_credentials(void) {
   err = c_orm_oauth2_create_tables(auth_db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  memset(&user, 0, sizeof(user));
-  user.id = "user123";
-  user.username = "testuser";
-  user.password_hash = "mysecrethash";
-  user.salt = "somesalt";
+  {
+    char *pw_hash = NULL;
+    err = c_orm_user_hash_password("mysecretpassword", "somesalt", &pw_hash);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+    memset(&user, 0, sizeof(user));
+    user.id = "user123";
+    user.username = "testuser";
+    user.password_hash = pw_hash;
+    user.salt = "somesalt";
 
-  err = c_orm_insert(auth_db, &c_orm_user_meta, &user);
-  ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+    err = c_orm_insert(auth_db, &c_orm_user_meta, &user);
+    (void)c_orm_system_free(pw_hash);
+    ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+  }
 
-  err = c_orm_user_verify_credentials(auth_db, "testuser", "mysecrethash",
+  err = c_orm_user_verify_credentials(auth_db, "testuser", "mysecretpassword",
                                       &is_valid);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ(1, is_valid);
@@ -624,7 +630,7 @@ TEST test_e2e_build_relation_meta(void) {
   ASSERT_STR_EQ("id", relations[0].foreign_key);
   ASSERT_STR_EQ("user_id", relations[0].local_key);
 
-  C_ORM_FREE(relations);
+  (void)c_orm_system_free(relations);
   PASS();
 }
 
@@ -680,11 +686,15 @@ TEST test_e2e_lazy_load_macros(void) {
   {
     int i;
     for (i = 0; i < 2; i++) {
-      if (i == 0)
+      if (i == 0) {
         user.username = NULL;
-      else
+        C_ORM_LAZY_LOAD(NULL, &user, &Users_meta, 0, username, err);
+        ASSERT_EQ_FMT(C_ORM_ERROR_MEMORY, err, "%d");
+      } else {
         user.username = "already_loaded";
-      C_ORM_LAZY_LOAD(NULL, &user, &Users_meta, 0, username);
+        C_ORM_LAZY_LOAD(NULL, &user, &Users_meta, 0, username, err);
+        ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
+      }
     }
   }
 
@@ -845,7 +855,23 @@ TEST test_e2e_bulk_processing(void) {
  * @brief Tests executing raw SELECT queries and binding parameters.
  * @return GREATEST test result.
  */
-TEST test_c_orm_select_raw(void) { PASS(); }
+TEST test_c_orm_select_raw(void) {
+  c_orm_query_t *q = NULL;
+  int has_row = 0;
+  const char *uname = NULL;
+
+  ASSERT_EQ_FMT(
+      C_ORM_OK,
+      db->vtable->prepare(db, "SELECT username FROM users WHERE id = ?", &q),
+      "%d");
+  ASSERT_EQ_FMT(C_ORM_OK, db->vtable->bind_int32(q, 1, 1), "%d");
+  ASSERT_EQ_FMT(C_ORM_OK, db->vtable->step(q, &has_row), "%d");
+  ASSERT_EQ_FMT(1, has_row, "%d");
+  ASSERT_EQ_FMT(C_ORM_OK, db->vtable->get_string(q, 0, &uname), "%d");
+  ASSERT(uname != NULL);
+  ASSERT_EQ_FMT(C_ORM_OK, db->vtable->finalize(q), "%d");
+  PASS();
+}
 
 /**
  * @brief Tests filtering parent queries based on child relationship conditions.
@@ -884,7 +910,7 @@ TEST test_c_orm_relationship_filtering(void) {
   ASSERT(strstr(sql, "ILIKE") != NULL);
   ASSERT(strstr(sql, "EXISTS") != NULL);
 
-  C_ORM_FREE(sql);
+  (void)c_orm_system_free(sql);
   c_orm_select_builder_free(b);
   PASS();
 }
@@ -907,7 +933,7 @@ TEST test_c_orm_array_in_clauses(void) {
   ASSERT(sql != NULL);
   ASSERT(strstr(sql, "IN") != NULL);
 
-  C_ORM_FREE(sql);
+  (void)c_orm_system_free(sql);
   c_orm_select_builder_free(b);
   PASS();
 }
@@ -916,19 +942,66 @@ TEST test_c_orm_array_in_clauses(void) {
  * @brief Tests SQL aggregations like COUNT, AVG, and GROUP BY.
  * @return GREATEST test result.
  */
-TEST test_c_orm_complex_aggregations(void) { PASS(); }
+TEST test_c_orm_complex_aggregations(void) {
+  c_orm_query_t *q = NULL;
+  int has_row = 0;
+  int32_t cnt = 0;
+
+  ASSERT_EQ_FMT(
+      C_ORM_OK,
+      db->vtable->prepare(db, "SELECT COUNT(*) FROM users WHERE id >= 1", &q),
+      "%d");
+  ASSERT_EQ_FMT(C_ORM_OK, db->vtable->step(q, &has_row), "%d");
+  ASSERT_EQ_FMT(1, has_row, "%d");
+  ASSERT_EQ_FMT(C_ORM_OK, db->vtable->get_int32(q, 0, &cnt), "%d");
+  ASSERT(cnt >= 1);
+  ASSERT_EQ_FMT(C_ORM_OK, db->vtable->finalize(q), "%d");
+  PASS();
+}
 
 /**
  * @brief Tests runtime reflection on model struct metadata.
  * @return GREATEST test result.
  */
-TEST test_c_orm_dynamic_reflection(void) { PASS(); }
+TEST test_c_orm_dynamic_reflection(void) {
+  ASSERT_STR_EQ("users", Users_meta.name);
+  ASSERT(Users_meta.num_columns >= 3);
+  ASSERT_STR_EQ("id", Users_meta.columns[0].name);
+  ASSERT(Users_meta.columns[0].is_pk != 0);
+  ASSERT_EQ(C_ORM_TYPE_INT32, Users_meta.columns[0].type);
+  PASS();
+}
 
 /**
  * @brief Tests serializing models to and from JSON dictionary format.
  * @return GREATEST test result.
  */
-TEST test_c_orm_json_dict_serialization(void) { PASS(); }
+TEST test_c_orm_json_dict_serialization(void) {
+  cdd_c_abstract_struct_t dict;
+  cdd_c_abstract_struct_t parsed;
+  cdd_c_variant_t v_in;
+  cdd_c_variant_t *v_out = NULL;
+  char *json_str = NULL;
+  char alice_buf[] = "alice";
+
+  ASSERT_EQ_FMT(C_ORM_OK, cdd_c_abstract_struct_init(&dict), "%d");
+  v_in.type = CDD_C_VARIANT_TYPE_STRING;
+  v_in.value.s_val = alice_buf;
+  ASSERT_EQ_FMT(C_ORM_OK, cdd_c_abstract_set(&dict, "username", &v_in), "%d");
+  ASSERT_EQ_FMT(C_ORM_OK, cdd_c_abstract_struct_to_json(&dict, &json_str),
+                "%d");
+  ASSERT(json_str != NULL);
+  ASSERT_EQ_FMT(C_ORM_OK, cdd_c_abstract_struct_from_json(json_str, &parsed),
+                "%d");
+  ASSERT_EQ_FMT(C_ORM_OK, cdd_c_abstract_get(&parsed, "username", &v_out),
+                "%d");
+  ASSERT(v_out != NULL);
+  ASSERT_STR_EQ("alice", v_out->value.s_val);
+  (void)c_orm_system_free(json_str);
+  ASSERT_EQ_FMT(C_ORM_OK, cdd_c_abstract_struct_free(&parsed), "%d");
+  ASSERT_EQ_FMT(C_ORM_OK, cdd_c_abstract_struct_free(&dict), "%d");
+  PASS();
+}
 
 /**
  * @brief Tests runtime validation constraints on model fields.
@@ -1056,13 +1129,13 @@ TEST test_c_orm_uuid_generation(void) {
   ASSERT_STR_EQ(token.access_token, fetched.access_token);
   ASSERT_STR_EQ("rtk_uuid_test", fetched.refresh_token);
 
-  C_ORM_FREE(fetched.access_token);
-  C_ORM_FREE(fetched.refresh_token);
-  C_ORM_FREE(fetched.token_type);
-  C_ORM_FREE(fetched.expires_in);
-  C_ORM_FREE(fetched.created_at);
+  (void)c_orm_system_free(fetched.access_token);
+  (void)c_orm_system_free(fetched.refresh_token);
+  (void)c_orm_system_free(fetched.token_type);
+  (void)c_orm_system_free(fetched.expires_in);
+  (void)c_orm_system_free(fetched.created_at);
 
-  C_ORM_FREE(token.access_token);
+  (void)c_orm_system_free(token.access_token);
 
   PASS();
 }
@@ -1777,12 +1850,34 @@ extern void sql_parser_suite(void);
 extern void oauth2_suite(void);
 /** @brief Generated models coverage test suite. */
 extern void models_coverage_suite(void);
+/** @brief Fixed-point decimal and COBOL numeric wire test suite. */
+extern void decimal_cobol_suite(void);
+/** @brief EBCDIC codepage and UTF-16 GRAPHIC transcoder test suite. */
+extern void ebcdic_suite(void);
+/** @brief Generic ODBC driver and dynamic loader test suite. */
+extern void odbc_driver_suite(void);
+/** @brief IBM Db2 CLI/ODBC driver test suite. */
+extern void db2_driver_suite(void);
+/** @brief IBM Db2 and Generic ODBC SQL dialect test suite. */
+extern void db2_dialect_suite(void);
+/** @brief Bidirectional COBOL Copybook parser, wire serializer, and codegen
+ * suite. */
+extern void copybook_suite(void);
+/** @brief Connection pool and optimistic concurrency test suite. */
+extern void pool_optimistic_suite(void);
 
 /**
  * @brief Orchestrates execution of all individual test suites.
  */
 static void run_all_suites(void) {
   RUN_SUITE(e2e_suite);
+  RUN_SUITE(pool_optimistic_suite);
+  RUN_SUITE(decimal_cobol_suite);
+  RUN_SUITE(ebcdic_suite);
+  RUN_SUITE(odbc_driver_suite);
+  RUN_SUITE(db2_driver_suite);
+  RUN_SUITE(db2_dialect_suite);
+  RUN_SUITE(copybook_suite);
   RUN_SUITE(arena_uuid_suite);
   RUN_SUITE(ast_suite);
   RUN_SUITE(api_coverage_suite);
@@ -1822,14 +1917,14 @@ static void run_all_suites(void) {
 static int g_argc;
 static char **g_argv;
 
-static void emscripten_test_callback(int err) {
+static c_orm_error_t emscripten_test_callback(c_orm_error_t err) {
   int argc = g_argc;
   char **argv = g_argv;
-  if (err) {
+  if (err != C_ORM_OK) {
     fprintf(stderr,
             "Warning: Failed to initialize IDBFS (err: %d), possibly running "
             "in Node.js where IndexedDB is unsupported.\n",
-            err);
+            (int)err);
   }
 
 #if defined(_MSC_VER)
@@ -1859,10 +1954,14 @@ static void emscripten_test_callback(int err) {
  * @return 0 on success, non-zero on failure.
  */
 int main(int argc, char **argv) {
+  c_orm_error_t rc;
   g_argc = argc;
   g_argv = argv;
 
-  c_orm_wasm_init_fs(emscripten_test_callback);
+  rc = c_orm_wasm_init_fs(emscripten_test_callback);
+  if (rc != C_ORM_OK) {
+    return (int)rc;
+  }
   emscripten_exit_with_live_runtime();
   return 0;
 }

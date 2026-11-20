@@ -21,7 +21,7 @@ extern "C" {
 #include <string.h>
 
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 /* clang-format on */
 
 /**
@@ -32,27 +32,51 @@ extern "C" {
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -66,7 +90,13 @@ extern "C" {
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do {                                                                       \
+      enum greatest_test_res _rc = (res);                                      \
+      greatest_info.assertions++;                                              \
+      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
+        return _rc;                                                            \
+      }                                                                        \
+    } while ((void)0, 0);                                                      \
   } while ((void)0, 0)
 
 /**
@@ -334,8 +364,8 @@ TEST test_c_orm_lazy_load_relations(void) {
   ASSERT_EQ_FMT(10, user.team.data->id, "%d");
   ASSERT_STR_EQ("Engineering", user.team.data->name);
 
-  C_ORM_FREE(user.team.data->name);
-  C_ORM_FREE(user.team.data);
+  (void)c_orm_system_free(user.team.data->name);
+  (void)c_orm_system_free(user.team.data);
 
   db->vtable->disconnect(db);
   PASS();
@@ -418,8 +448,8 @@ TEST test_c_orm_eager_load_relations(void) {
   printf("ASSERT 5\n");
   fflush(stdout);
 
-  C_ORM_FREE(user.team.data->name);
-  C_ORM_FREE(user.team.data);
+  (void)c_orm_system_free(user.team.data->name);
+  (void)c_orm_system_free(user.team.data);
   printf("FREED\n");
   fflush(stdout);
 
@@ -431,9 +461,9 @@ TEST test_c_orm_eager_load_relations(void) {
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     ASSERT_EQ_FMT(1, (int)user_arr.length, "%d");
     u0 = (struct User *)user_arr.data;
-    C_ORM_FREE(u0->team.data->name);
-    C_ORM_FREE(u0->team.data);
-    C_ORM_FREE(user_arr.data);
+    (void)c_orm_system_free(u0->team.data->name);
+    (void)c_orm_system_free(u0->team.data);
+    (void)c_orm_system_free(user_arr.data);
   }
 
   {
@@ -446,9 +476,9 @@ TEST test_c_orm_eager_load_relations(void) {
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     ASSERT_EQ_FMT(1, (int)user_arr.length, "%d");
     u0 = (struct User *)user_arr.data;
-    C_ORM_FREE(u0->team.data->name);
-    C_ORM_FREE(u0->team.data);
-    C_ORM_FREE(user_arr.data);
+    (void)c_orm_system_free(u0->team.data->name);
+    (void)c_orm_system_free(u0->team.data);
+    (void)c_orm_system_free(user_arr.data);
   }
 
   db->vtable->disconnect(db);
@@ -643,9 +673,9 @@ TEST test_c_orm_one_to_many_lazy_load(void) {
   ASSERT_EQ_FMT(2, user.posts.data.data[1].id, "%d");
   ASSERT_STR_EQ("Second Post", user.posts.data.data[1].title);
 
-  C_ORM_FREE(user.posts.data.data[0].title);
-  C_ORM_FREE(user.posts.data.data[1].title);
-  C_ORM_FREE(user.posts.data.data);
+  (void)c_orm_system_free(user.posts.data.data[0].title);
+  (void)c_orm_system_free(user.posts.data.data[1].title);
+  (void)c_orm_system_free(user.posts.data.data);
 
   {
     size_t pi;
@@ -655,9 +685,9 @@ TEST test_c_orm_one_to_many_lazy_load(void) {
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     ASSERT_EQ_FMT(2, (int)eager_user.posts.data.length, "%d");
     for (pi = 0; pi < eager_user.posts.data.length; pi++) {
-      C_ORM_FREE(eager_user.posts.data.data[pi].title);
+      (void)c_orm_system_free(eager_user.posts.data.data[pi].title);
     }
-    C_ORM_FREE(eager_user.posts.data.data);
+    (void)c_orm_system_free(eager_user.posts.data.data);
   }
 
   db->vtable->disconnect(db);
@@ -739,8 +769,8 @@ TEST test_c_orm_lazy_load_paginated(void) {
   ASSERT_EQ_FMT(2, user.posts.data.data[0].id, "%d");
   ASSERT_STR_EQ("Second Post", user.posts.data.data[0].title);
 
-  C_ORM_FREE(user.posts.data.data[0].title);
-  C_ORM_FREE(user.posts.data.data);
+  (void)c_orm_system_free(user.posts.data.data[0].title);
+  (void)c_orm_system_free(user.posts.data.data);
 
   /* Test with order_by DESC, soft_delete_aware, and custom_filter */
   user_rels[0].order_by = "id DESC";
@@ -755,8 +785,8 @@ TEST test_c_orm_lazy_load_paginated(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ_FMT(1, (int)user.posts.data.length, "%d");
   ASSERT_EQ_FMT(3, user.posts.data.data[0].id, "%d");
-  C_ORM_FREE(user.posts.data.data[0].title);
-  C_ORM_FREE(user.posts.data.data);
+  (void)c_orm_system_free(user.posts.data.data[0].title);
+  (void)c_orm_system_free(user.posts.data.data);
 
   /* Test with order_by ASC */
   user_rels[0].order_by = "id ASC";
@@ -770,8 +800,8 @@ TEST test_c_orm_lazy_load_paginated(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ_FMT(1, (int)user.posts.data.length, "%d");
   ASSERT_EQ_FMT(1, user.posts.data.data[0].id, "%d");
-  C_ORM_FREE(user.posts.data.data[0].title);
-  C_ORM_FREE(user.posts.data.data);
+  (void)c_orm_system_free(user.posts.data.data[0].title);
+  (void)c_orm_system_free(user.posts.data.data);
 
   /* Test with plain order_by */
   user_rels[0].order_by = "id";
@@ -783,8 +813,8 @@ TEST test_c_orm_lazy_load_paginated(void) {
   err = c_orm_lazy_load_paginated(db, &user_m, &user, "posts", 1, 0);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ_FMT(1, (int)user.posts.data.length, "%d");
-  C_ORM_FREE(user.posts.data.data[0].title);
-  C_ORM_FREE(user.posts.data.data);
+  (void)c_orm_system_free(user.posts.data.data[0].title);
+  (void)c_orm_system_free(user.posts.data.data);
 
   /* Test c_orm_delete with C_ORM_CASCADE_SET_NULL */
   user_rels[0].on_delete = C_ORM_CASCADE_SET_NULL;
@@ -908,9 +938,9 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     ASSERT_EQ_FMT(2, (int)eager_user.roles.data.length, "%d");
     for (ri = 0; ri < eager_user.roles.data.length; ri++) {
-      C_ORM_FREE(eager_user.roles.data.data[ri].name);
+      (void)c_orm_system_free(eager_user.roles.data.data[ri].name);
     }
-    C_ORM_FREE(eager_user.roles.data.data);
+    (void)c_orm_system_free(eager_user.roles.data.data);
   }
 
   {
@@ -925,11 +955,11 @@ TEST test_c_orm_many_to_many_cascade_delete(void) {
     u_roles = (struct UserWithRoles *)user_arr.data;
     for (ui = 0; ui < user_arr.length; ui++) {
       for (ri = 0; ri < u_roles[ui].roles.data.length; ri++) {
-        C_ORM_FREE(u_roles[ui].roles.data.data[ri].name);
+        (void)c_orm_system_free(u_roles[ui].roles.data.data[ri].name);
       }
-      C_ORM_FREE(u_roles[ui].roles.data.data);
+      (void)c_orm_system_free(u_roles[ui].roles.data.data);
     }
-    C_ORM_FREE(user_arr.data);
+    (void)c_orm_system_free(user_arr.data);
   }
 
   /* Delete parent */
@@ -1121,13 +1151,14 @@ TEST test_c_orm_deeply_nested_eager_loads(void) {
   {
     size_t i, j;
     for (i = 0; i < user.posts.data.length; i++) {
-      C_ORM_FREE(user.posts.data.data[i].title);
+      (void)c_orm_system_free(user.posts.data.data[i].title);
       for (j = 0; j < user.posts.data.data[i].comments.data.length; j++) {
-        C_ORM_FREE(user.posts.data.data[i].comments.data.data[j].text);
+        (void)c_orm_system_free(
+            user.posts.data.data[i].comments.data.data[j].text);
       }
-      C_ORM_FREE(user.posts.data.data[i].comments.data.data);
+      (void)c_orm_system_free(user.posts.data.data[i].comments.data.data);
     }
-    C_ORM_FREE(user.posts.data.data);
+    (void)c_orm_system_free(user.posts.data.data);
   }
 
   {
@@ -1142,18 +1173,19 @@ TEST test_c_orm_deeply_nested_eager_loads(void) {
     u_deep = (struct UserWithDeepPosts *)deep_arr.data;
     for (ui = 0; ui < deep_arr.length; ui++) {
       for (pi = 0; pi < u_deep[ui].posts.data.length; pi++) {
-        C_ORM_FREE(u_deep[ui].posts.data.data[pi].title);
+        (void)c_orm_system_free(u_deep[ui].posts.data.data[pi].title);
         for (ci = 0; ci < u_deep[ui].posts.data.length &&
                      ci < u_deep[ui].posts.data.data[pi].comments.data.length;
              ci++) {
-          C_ORM_FREE(
+          (void)c_orm_system_free(
               u_deep[ui].posts.data.data[pi].comments.data.data[ci].text);
         }
-        C_ORM_FREE(u_deep[ui].posts.data.data[pi].comments.data.data);
+        (void)c_orm_system_free(
+            u_deep[ui].posts.data.data[pi].comments.data.data);
       }
-      C_ORM_FREE(u_deep[ui].posts.data.data);
+      (void)c_orm_system_free(u_deep[ui].posts.data.data);
     }
-    C_ORM_FREE(deep_arr.data);
+    (void)c_orm_system_free(deep_arr.data);
   }
 
   db->vtable->disconnect(db);
@@ -1248,7 +1280,7 @@ TEST test_c_orm_query_builder_relation_filtering(void) {
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   }
 
-  C_ORM_FREE(sql);
+  (void)c_orm_system_free(sql);
   c_orm_select_builder_free(builder);
 
   db->vtable->disconnect(db);
@@ -1361,19 +1393,21 @@ TEST test_c_orm_self_referencing_tree(void) {
                 root.children.data.data[0].children.data.data[0].name);
 
   /* Cleanup */
-  C_ORM_FREE(root.name);
+  (void)c_orm_system_free(root.name);
   {
     size_t i, j;
     for (i = 0; i < root.children.data.length; i++) {
-      C_ORM_FREE(root.children.data.data[i].name);
-      C_ORM_FREE(root.children.data.data[i].parent_id);
+      (void)c_orm_system_free(root.children.data.data[i].name);
+      (void)c_orm_system_free(root.children.data.data[i].parent_id);
       for (j = 0; j < root.children.data.data[i].children.data.length; j++) {
-        C_ORM_FREE(root.children.data.data[i].children.data.data[j].name);
-        C_ORM_FREE(root.children.data.data[i].children.data.data[j].parent_id);
+        (void)c_orm_system_free(
+            root.children.data.data[i].children.data.data[j].name);
+        (void)c_orm_system_free(
+            root.children.data.data[i].children.data.data[j].parent_id);
       }
-      C_ORM_FREE(root.children.data.data[i].children.data.data);
+      (void)c_orm_system_free(root.children.data.data[i].children.data.data);
     }
-    C_ORM_FREE(root.children.data.data);
+    (void)c_orm_system_free(root.children.data.data);
   }
 
   db->vtable->disconnect(db);
@@ -1503,12 +1537,12 @@ TEST test_c_orm_relation_advanced_features(void) {
       db, "INSERT INTO bridge (src_str, item_id) VALUES ('code_123', 1);");
   err = c_orm_load_relation_ext(db, &obj, &p_meta, 1, 10, 0);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-  C_ORM_FREE(obj.items_arr.data);
+  (void)c_orm_system_free(obj.items_arr.data);
   obj.items_arr.data = NULL;
   obj.ctx.is_loaded = 0;
   err = c_orm_load_relation_ext(db, &obj, &p_meta, 1, 10, 5);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-  C_ORM_FREE(obj.items_arr.data);
+  (void)c_orm_system_free(obj.items_arr.data);
   obj.items_arr.data = NULL;
 
   /* 4. Missing join_table in HAS_MANY_THROUGH */

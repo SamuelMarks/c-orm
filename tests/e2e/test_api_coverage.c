@@ -17,13 +17,13 @@
 #include <greatest.h>
 
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ(exp, got) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions += !!(cond); } while ((void)0, 0)
+#define ASSERT(cond) do { greatest_info.assertions++; if (!((cond) != 0)) { fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions += (strcmp((exp), (got)) == 0); } while ((void)0, 0)
+#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions++; if (strcmp((exp), (got)) != 0) { fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__, (exp), (got)); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST) \
   do { \
@@ -40,729 +40,15 @@
 #include <string.h>
 
 #undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions += ((exp) == (got)); } while ((void)0, 0)
+#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
+#include "test_api_helpers.h"
+#include "test_api_collections.h"
+#include "test_api_crud.h"
+#include "test_api_exhaust.h"
+#include "test_api_hydration.h"
+#include "test_api_relations.h"
+#include "test_api_transactions.h"
 /* clang-format on */
-
-/**
- * @brief Async query completion callback for testing.
- * @param err Error enum.
- * @param ctx Context pointer.
- */
-static void test_dummy_cb(c_orm_error_t err, void *ctx) {
-  (void)err;
-  (void)ctx;
-}
-/**
- * @brief Batch operation progress callback.
- *
- * @param p Number of items processed so far.
- * @param t Total items to process.
- * @param ctx User context pointer.
- */
-static void dummy_batch_progress(size_t p, size_t t, void *ctx) {
-  (void)p;
-  (void)t;
-  (void)ctx;
-}
-/**
- * @brief Lifecycle hook callback that succeeds.
- *
- * @param st Struct instance pointer.
- * @param user_data User data context pointer.
- */
-static c_orm_error_t dummy_lifecycle_hook(void *st, void *user_data) {
-  (void)st;
-  (void)user_data;
-  return C_ORM_OK;
-}
-/**
- * @brief Lifecycle hook callback that fails.
- *
- * @param st Struct instance pointer.
- * @param user_data User data context pointer.
- */
-static c_orm_error_t dummy_failing_hook(void *st, void *user_data) {
-  (void)st;
-  (void)user_data;
-  return C_ORM_ERROR_UNKNOWN;
-}
-/**
- * @brief Generic array container for test relations.
- * @var data Pointer to array data buffer.
- * @var length Current count of items.
- * @var capacity Allocated capacity.
- */
-struct Generic_Array {
-  void *data;
-  size_t length;
-  size_t capacity;
-};
-
-/**
- * @brief Buffer union for memory alignment testing.
- * @var buf Byte buffer.
- * @var ptr Pointer for alignment.
- * @var d Double for alignment.
- */
-typedef union MegaBufUnion {
-  char buf[256];
-  void *ptr;
-  double d;
-} MegaBufUnion_t;
-
-/**
- * @brief Simple struct with int32 identifier.
- * @var id 32-bit integer identifier.
- */
-typedef struct CoverageIntObj {
-  int32_t id;
-} CoverageIntObj_t;
-
-/**
- * @brief Simple struct with string identifier.
- * @var id String identifier.
- */
-typedef struct CoverageStrObj {
-  char *id;
-} CoverageStrObj_t;
-
-/**
- * @brief Test object for meta free testing.
- * @var s String field.
- * @var b Blob field.
- * @var p Polygon field.
- * @var null_ptr Null pointer field.
- * @var i Integer field.
- */
-typedef struct CoverageMetaFreeObj {
-  char *s;
-  c_orm_blob_t b;
-  c_orm_polygon_t p;
-  void *null_ptr;
-  int i;
-} CoverageMetaFreeObj_t;
-
-/**
- * @brief Batch item for batch operations test.
- * @var id Identifier field.
- * @var name Name buffer.
- */
-typedef struct CoverageBatchItem {
-  int32_t id;
-  char name[32];
-} CoverageBatchItem_t;
-
-/**
- * @brief String batch item for batch operations test.
- * @var id String identifier.
- * @var val Integer value.
- */
-typedef struct CoverageStrBatchItem {
-  char *id;
-  int32_t val;
-} CoverageStrBatchItem_t;
-
-/**
- * @brief Object for partial update testing.
- * @var id String identifier.
- * @var count 32-bit integer counter.
- * @var score Floating point score.
- */
-typedef struct CoverageUpdateObj {
-  char *id;
-  int32_t count;
-  float score;
-} CoverageUpdateObj_t;
-
-/**
- * @brief Parent entity for relation testing.
- * @var id Parent ID.
- * @var name Parent name.
- * @var ctx Lazy loading context.
- * @var children_arr Children array.
- * @var child_ptr Child pointer.
- */
-struct Parent {
-  int32_t id;
-  char name[32];
-  c_orm_lazy_load_context_t ctx;
-  struct Generic_Array children_arr;
-  void *child_ptr;
-};
-
-/**
- * @brief Child entity for relation testing.
- * @var id Child ID.
- * @var parent_id Parent foreign key.
- * @var val Child value string.
- */
-struct Child {
-  int64_t id;
-  int64_t parent_id;
-  char val[32];
-};
-
-/**
- * @brief Tag entity for relation testing.
- * @var tag_id Tag ID.
- * @var tag_name Tag name.
- */
-struct Tag {
-  int64_t tag_id;
-  char tag_name[32];
-};
-
-/**
- * @brief Validation parent entity.
- * @var id Entity ID.
- * @var fk_id Foreign key ID.
- * @var child_ptr Child pointer.
- * @var ctx Lazy load context.
- */
-struct ValParent {
-  int64_t id;
-  int64_t fk_id;
-  void *child_ptr;
-  c_orm_lazy_load_context_t ctx;
-};
-
-/**
- * @brief Simple test entity.
- * @var id Entity ID.
- * @var name Entity name.
- */
-struct S {
-  int32_t id;
-  char name[32];
-};
-
-/**
- * @brief Target child entity for free relations testing.
- * @var name Child name.
- */
-struct TargetChild {
-  char *name;
-};
-
-/**
- * @brief Free parent entity for free relations testing.
- * @var single_child Single child entity.
- * @var single_ctx Single child lazy loading context.
- * @var children_arr Array of children.
- * @var multi_ctx Multi-child lazy loading context.
- */
-struct FreeParent {
-  struct TargetChild *single_child;
-  c_orm_lazy_load_context_t single_ctx;
-  struct Generic_Array children_arr;
-  c_orm_lazy_load_context_t multi_ctx;
-};
-/**
- * @brief Mock decryption routine for testing.
- *
- * @param in Input encrypted bytes.
- * @param ins Input byte length.
- * @param ctx Encryption context pointer.
- * @param out Output decrypted buffer pointer.
- * @param outs Output decrypted byte length pointer.
- */
-static c_orm_error_t mock_decrypt(const void *in, size_t ins, void *ctx,
-                                  void **out, size_t *outs) {
-  (void)ctx;
-  *out = c_orm_malloc(ins);
-  if (!*out)
-    return C_ORM_ERROR_MEMORY;
-  memcpy(*out, in, ins);
-  *outs = ins;
-  return C_ORM_OK;
-}
-/**
- * @brief Mock encryption routine for testing.
- *
- * @param in Input plaintext bytes.
- * @param ins Input byte length.
- * @param ctx Encryption context pointer.
- * @param out Output encrypted buffer pointer.
- * @param outs Output encrypted byte length pointer.
- */
-static c_orm_error_t mock_encrypt(const void *in, size_t ins, void *ctx,
-                                  void **out, size_t *outs) {
-  (void)ctx;
-  *out = c_orm_malloc(ins);
-  if (!*out)
-    return C_ORM_ERROR_MEMORY;
-  memcpy(*out, in, ins);
-  *outs = ins;
-  return C_ORM_OK;
-}
-
-static int g_malloc_fail = 0;
-static int g_malloc_count = 0;
-static int g_malloc_target = -1;
-/**
- * @brief Helper to free table metadata columns.
- *
- * @param meta Table metadata pointer.
- * @param obj Structure instance pointer.
- */
-static void test_free_meta_data(const c_orm_table_meta_t *meta, void *obj) {
-  c_orm_free_columns(meta, obj);
-}
-
-static void *tracked_allocs[20000];
-static int tracked_count = 0;
-
-/**
- * @brief Mock malloc with injection failure support.
- *
- * @param size Number of bytes to allocate.
- */
-static void *mock_malloc_fail(size_t size) {
-  void *ptr;
-  if (g_malloc_fail) {
-    if (g_malloc_target == g_malloc_count++)
-      return NULL;
-  }
-  ptr = malloc(size);
-  tracked_allocs[tracked_count++] = ptr;
-  return ptr;
-}
-
-/**
- * @brief Mock realloc with injection failure support.
- *
- * @param ptr Existing buffer pointer.
- * @param size New size in bytes.
- */
-static void *mock_realloc_fail(void *ptr, size_t size) {
-  void *new_ptr;
-  int i;
-  if (g_malloc_fail) {
-    if (g_malloc_target == g_malloc_count++)
-      return NULL;
-  }
-  new_ptr = realloc(ptr, size);
-  for (i = 0; i < tracked_count; i++) {
-    if (tracked_allocs[i] == ptr) {
-      tracked_allocs[i] = new_ptr;
-      return new_ptr;
-    }
-  }
-  tracked_allocs[tracked_count++] = new_ptr;
-  return new_ptr;
-}
-
-/**
- * @brief Mock free tracking allocations.
- *
- * @param ptr Pointer to memory to free.
- */
-static void mock_free(void *ptr) {
-  int i;
-  if (!ptr)
-    return;
-  for (i = 0; i < tracked_count; i++) {
-    if (tracked_allocs[i] == ptr) {
-      tracked_allocs[i] = NULL;
-    }
-  }
-  free(ptr);
-}
-
-/**
- * @brief Free all tracked mock allocations.
- */
-static void free_tracked(void) {
-  int i;
-  for (i = 0; i < tracked_count; i++) {
-    if (tracked_allocs[i]) {
-      free(tracked_allocs[i]);
-      tracked_allocs[i] = NULL;
-    }
-  }
-  tracked_count = 0;
-}
-
-static int g_db_fail = 0;
-static int g_db_count = 0;
-static int g_db_target = -1;
-/**
- * @brief Check whether database mock call should fail.
- */
-static c_orm_error_t check_db_fail(void) {
-  if (g_db_fail) {
-    if (g_db_target == g_db_count++)
-      return C_ORM_ERROR_UNKNOWN;
-  }
-  return C_ORM_OK;
-}
-
-static int g_step_count = 0;
-static int g_mock_fail_col_index = -1;
-static int g_mock_is_null_fail_countdown = -1;
-static int g_mock_fail_bind = 0;
-static int g_mock_step_fail_countdown = -1;
-
-/**
- * @brief Mock is_null query column check.
- *
- * @param q Query handle.
- * @param i Column index.
- * @param out Output pointer to store is_null boolean flag.
- */
-static c_orm_error_t mock_is_null(c_orm_query_t *q, int i, int *out) {
-  c_orm_error_t rc;
-  if (g_mock_is_null_fail_countdown >= 0) {
-    if (g_mock_is_null_fail_countdown == 0) {
-      g_mock_is_null_fail_countdown = -1;
-      return C_ORM_ERROR_UNKNOWN;
-    }
-    g_mock_is_null_fail_countdown--;
-  }
-  rc = check_db_fail();
-  if (rc != C_ORM_OK)
-    return rc;
-  if (g_mock_fail_col_index == i)
-    return C_ORM_ERROR_UNKNOWN;
-  if (out)
-    *out = 0;
-  (void)q;
-  (void)i;
-  return C_ORM_OK;
-}
-/**
- * @brief Mock query preparation.
- *
- * @param db Database handle.
- * @param sql SQL query string.
- * @param out Output query handle pointer.
- */
-static c_orm_error_t mock_prepare(c_orm_db_t *db, const char *sql,
-                                  c_orm_query_t **out) {
-  c_orm_error_t rc = check_db_fail();
-  if (rc != C_ORM_OK)
-    return rc;
-  if (out)
-    *out = (c_orm_query_t *)1;
-  (void)db;
-  (void)sql;
-  return C_ORM_OK;
-}
-static int g_step_max = 1;
-static int g_step_pattern[16];
-static int g_step_pattern_len = 0;
-static int g_step_pattern_idx = 0;
-
-/**
- * @brief Mock query step operation.
- *
- * @param q Query handle.
- * @param out Output step result pointer.
- */
-static c_orm_error_t mock_step(c_orm_query_t *q, int *out) {
-  c_orm_error_t rc;
-  if (g_mock_step_fail_countdown >= 0) {
-    if (g_mock_step_fail_countdown == 0) {
-      g_mock_step_fail_countdown = -1;
-      return C_ORM_ERROR_UNKNOWN;
-    }
-    g_mock_step_fail_countdown--;
-  }
-  rc = check_db_fail();
-  if (rc != C_ORM_OK)
-    return rc;
-  if (out) {
-    if (g_step_pattern_len > 0) {
-      *out = (g_step_pattern_idx < g_step_pattern_len)
-                 ? g_step_pattern[g_step_pattern_idx++]
-                 : 0;
-    } else {
-      *out = (g_step_count < g_step_max) ? 1 : 0;
-    }
-    g_step_count++;
-  }
-  (void)q;
-  return C_ORM_OK;
-}
-/**
- * @brief Mock get_string column retrieval.
- *
- * @param q Query handle.
- * @param i Column index.
- * @param out Output string pointer.
- */
-static c_orm_error_t mock_get_string(c_orm_query_t *q, int i,
-                                     const char **out) {
-  c_orm_error_t rc = check_db_fail();
-  if (rc != C_ORM_OK)
-    return rc;
-  if (out)
-    *out = "2024-01-01 12:00:00";
-  (void)q;
-  (void)i;
-  return C_ORM_OK;
-}
-/**
- * @brief Mock bind_int32 query parameter.
- *
- * @param q Query handle.
- * @param i Parameter index.
- * @param v 32-bit integer value.
- */
-static c_orm_error_t mock_bind_int32(c_orm_query_t *q, int i, int32_t v) {
-  (void)q;
-  (void)i;
-  (void)v;
-  if (g_mock_fail_bind)
-    return C_ORM_ERROR_UNKNOWN;
-  return check_db_fail();
-}
-/**
- * @brief Mock bind_int64 query parameter.
- *
- * @param q Query handle.
- * @param i Parameter index.
- * @param v 64-bit integer value.
- */
-static c_orm_error_t mock_bind_int64(c_orm_query_t *q, int i, int64_t v) {
-  (void)q;
-  (void)i;
-  (void)v;
-  return check_db_fail();
-}
-/**
- * @brief Mock bind_double query parameter.
- *
- * @param q Query handle.
- * @param i Parameter index.
- * @param v Double value.
- */
-static c_orm_error_t mock_bind_double(c_orm_query_t *q, int i, double v) {
-  (void)q;
-  (void)i;
-  (void)v;
-  return check_db_fail();
-}
-/**
- * @brief Mock bind_string query parameter.
- *
- * @param q Query handle.
- * @param i Parameter index.
- * @param v String value.
- */
-static c_orm_error_t mock_bind_string(c_orm_query_t *q, int i, const char *v) {
-  (void)q;
-  (void)i;
-  (void)v;
-  return check_db_fail();
-}
-/**
- * @brief Mock bind_blob query parameter.
- *
- * @param q Query handle.
- * @param i Parameter index.
- * @param v Blob data pointer.
- * @param s Blob byte length.
- */
-static c_orm_error_t mock_bind_blob(c_orm_query_t *q, int i, const void *v,
-                                    size_t s) {
-  (void)q;
-  (void)i;
-  (void)v;
-  (void)s;
-  return check_db_fail();
-}
-/**
- * @brief Mock bind_null query parameter.
- *
- * @param q Query handle.
- * @param i Parameter index.
- */
-static c_orm_error_t mock_bind_null(c_orm_query_t *q, int i) {
-  (void)q;
-  (void)i;
-  return check_db_fail();
-}
-/**
- * @brief Mock get_int32 column retrieval.
- *
- * @param q Query handle.
- * @param i Column index.
- * @param o Output 32-bit integer pointer.
- */
-static c_orm_error_t mock_get_int32(c_orm_query_t *q, int i, int32_t *o) {
-  (void)q;
-  (void)i;
-  *o = 0;
-  return check_db_fail();
-}
-/**
- * @brief Mock get_int64 column retrieval.
- *
- * @param q Query handle.
- * @param i Column index.
- * @param o Output 64-bit integer pointer.
- */
-static c_orm_error_t mock_get_int64(c_orm_query_t *q, int i, int64_t *o) {
-  (void)q;
-  (void)i;
-  *o = 0;
-  return check_db_fail();
-}
-/**
- * @brief Mock get_double column retrieval.
- *
- * @param q Query handle.
- * @param i Column index.
- * @param o Output double pointer.
- */
-static c_orm_error_t mock_get_double(c_orm_query_t *q, int i, double *o) {
-  (void)q;
-  (void)i;
-  *o = 0.0;
-  return check_db_fail();
-}
-static int g_mock_blob_null = 0;
-static const void *g_custom_blob_data = NULL;
-static size_t g_custom_blob_size = 0;
-
-/**
- * @brief Mock get_blob column retrieval.
- *
- * @param q Query handle.
- * @param i Column index.
- * @param o Output blob data pointer.
- * @param s Output blob size pointer.
- */
-static c_orm_error_t mock_get_blob(c_orm_query_t *q, int i, const void **o,
-                                   size_t *s) {
-  c_orm_error_t rc = check_db_fail();
-  if (rc != C_ORM_OK)
-    return rc;
-  if (g_mock_blob_null) {
-    if (o)
-      *o = NULL;
-    if (s)
-      *s = 0;
-  } else if (g_custom_blob_data) {
-    if (o)
-      *o = g_custom_blob_data;
-    if (s)
-      *s = g_custom_blob_size;
-  } else {
-    if (o)
-      *o = "blobdata";
-    if (s)
-      *s = 8;
-  }
-  (void)q;
-  (void)i;
-  return C_ORM_OK;
-}
-static int g_mock_finalize_fail = 0;
-static int g_mock_finalize_countdown = -1;
-/**
- * @brief Mock query finalization.
- *
- * @param q Query handle to finalize.
- */
-static c_orm_error_t mock_finalize(c_orm_query_t *q) {
-  (void)q;
-  if (g_mock_finalize_fail)
-    return C_ORM_ERROR_UNKNOWN;
-  if (g_mock_finalize_countdown >= 0) {
-    if (g_mock_finalize_countdown == 0) {
-      g_mock_finalize_countdown = -1;
-      return C_ORM_ERROR_UNKNOWN;
-    }
-    g_mock_finalize_countdown--;
-  }
-  return C_ORM_OK;
-}
-/**
- * @brief Mock query reset operation.
- *
- * @param q Query handle to reset.
- */
-static c_orm_error_t mock_reset(c_orm_query_t *q) {
-  (void)q;
-  return C_ORM_OK;
-}
-static int64_t g_mock_last_id = 123;
-/**
- * @brief Mock get_last_insert_rowid operation.
- *
- * @param db Database handle.
- * @param out_id Output pointer to receive last insert rowid.
- */
-static c_orm_error_t mock_get_last_insert_rowid(c_orm_db_t *db,
-                                                int64_t *out_id) {
-  (void)db;
-  *out_id = g_mock_last_id;
-  return C_ORM_OK;
-}
-
-static c_orm_driver_vtable_t g_vt = {0};
-static c_orm_db_t g_db = {0};
-
-static c_orm_column_meta_t my_cols[20];
-static c_orm_table_meta_t mega_meta;
-
-/**
- * @brief Initialize mock database vtable functions.
- */
-static void setup_vt(void) {
-  g_vt.is_null = mock_is_null;
-  g_vt.prepare = mock_prepare;
-  g_vt.step = mock_step;
-  g_vt.get_string = mock_get_string;
-  g_vt.bind_int32 = mock_bind_int32;
-  g_vt.bind_int64 = mock_bind_int64;
-  g_vt.bind_double = mock_bind_double;
-  g_vt.bind_string = mock_bind_string;
-  g_vt.bind_blob = mock_bind_blob;
-  g_vt.bind_null = mock_bind_null;
-  g_vt.get_int32 = mock_get_int32;
-  g_vt.get_int64 = mock_get_int64;
-  g_vt.get_double = mock_get_double;
-  g_vt.get_blob = mock_get_blob;
-  g_vt.finalize = mock_finalize;
-  g_vt.reset = mock_reset;
-  g_vt.get_last_insert_rowid = mock_get_last_insert_rowid;
-  g_db.vtable = &g_vt;
-  g_db.timezone.offset_minutes = 60;
-  g_db.decrypt_hook = mock_decrypt;
-  g_db.encrypt_hook = mock_encrypt;
-
-  memcpy(&mega_meta, &Users_meta, sizeof(c_orm_table_meta_t));
-  memcpy(my_cols, Users_meta.columns,
-         sizeof(c_orm_column_meta_t) * Users_meta.num_columns);
-  mega_meta.columns = my_cols;
-
-  my_cols[mega_meta.num_columns].name = "test_blob";
-  my_cols[mega_meta.num_columns].type = C_ORM_TYPE_BLOB;
-  my_cols[mega_meta.num_columns].is_secure = 1;
-  my_cols[mega_meta.num_columns].offset = 64;
-  mega_meta.num_columns++;
-
-  my_cols[mega_meta.num_columns].name = "test_ts";
-  my_cols[mega_meta.num_columns].type = C_ORM_TYPE_TIMESTAMP;
-  my_cols[mega_meta.num_columns].is_secure = 0;
-  my_cols[mega_meta.num_columns].offset = 72;
-  mega_meta.num_columns++;
-
-  my_cols[mega_meta.num_columns].name = "test_polygon";
-  my_cols[mega_meta.num_columns].type = C_ORM_TYPE_POLYGON;
-  my_cols[mega_meta.num_columns].is_secure = 0;
-  my_cols[mega_meta.num_columns].offset = 80;
-  mega_meta.num_columns++;
-
-  /* Reset relations so they don't crash us */
-  mega_meta.relations = NULL;
-  mega_meta.num_relations = 0;
-  mega_meta.query_select_by_pk_for_update =
-      "SELECT * FROM users WHERE id = ? FOR UPDATE";
-}
 
 /**
  * @brief Out of memory test iteration runner.
@@ -856,9 +142,9 @@ static void test_mock_vt(void) {
   mock_encrypt("a", 1, NULL, &out, &outs);
   g_malloc_fail = 0;
   mock_decrypt("a", 1, NULL, &out, &outs);
-  c_orm_free(out);
+  (void)c_orm_free(out);
   mock_encrypt("a", 1, NULL, &out, &outs);
-  c_orm_free(out);
+  (void)c_orm_free(out);
 }
 
 /**
@@ -1043,7 +329,7 @@ static void test_c_orm_find_all(void) {
   memset(&arr, 0, sizeof(arr));
   c_orm_find_all(&g_db, &mega_meta, &arr);
   if (arr.data) {
-    c_orm_free(arr.data);
+    (void)c_orm_free(arr.data);
     arr.data = NULL;
   }
 }
@@ -2210,8 +1496,10 @@ static void test_c_orm_deep_free(void) {
   char buf[1024] = {0};
   struct cdd_c_meta m;
   struct cdd_c_prop_meta props[4];
-  char *ptr = (char *)c_orm_malloc(10);
+  char *ptr = NULL;
   char *ptr2 = NULL;
+
+  (void)c_orm_system_malloc(10, (void **)&ptr);
 
   memset(&m, 0, sizeof(m));
   memset(props, 0, sizeof(props));
@@ -2279,7 +1567,7 @@ static void test_c_orm_deep_copy(void) {
   if (c_orm_deep_copy(&m, dest, src) == C_ORM_OK) {
     char *dup = NULL;
     memcpy(&dup, dest, sizeof(char *));
-    c_orm_free(dup);
+    (void)c_orm_free(dup);
   }
   c_orm_deep_copy(NULL, src, src);
   c_orm_deep_copy(&m, NULL, src);
@@ -2815,7 +2103,7 @@ static void test_c_orm_find_all_generic(void) {
   (void)buf;
   c_orm_find_all_generic(&g_db, &mega_meta, &void_ptr, &sz_ptr);
   if (void_ptr) {
-    c_orm_free(void_ptr);
+    (void)c_orm_free(void_ptr);
     void_ptr = NULL;
   }
 }
@@ -3067,51 +2355,6 @@ static c_orm_error_t mock_get_double_zero(c_orm_query_t *q, int index,
 }
 
 /**
- * @brief Mock get_string returning NULL string.
- *
- * @param q Query handle.
- * @param index Column index.
- * @param val Output pointer to receive string pointer.
- */
-static c_orm_error_t mock_get_string_null(c_orm_query_t *q, int index,
-                                          const char **val) {
-  (void)q;
-  (void)index;
-  *val = NULL;
-  return C_ORM_OK;
-}
-
-/**
- * @brief Mock is_null always returning false.
- *
- * @param q Query handle.
- * @param index Column index.
- * @param is_null Output pointer to receive 0 flag.
- */
-static c_orm_error_t mock_is_null_false(c_orm_query_t *q, int index,
-                                        int *is_null) {
-  (void)q;
-  (void)index;
-  *is_null = 0;
-  return C_ORM_OK;
-}
-
-/**
- * @brief Mock is_null always returning true.
- *
- * @param q Query handle.
- * @param index Column index.
- * @param is_null Output pointer to receive 1 flag.
- */
-static c_orm_error_t mock_is_null_true(c_orm_query_t *q, int index,
-                                       int *is_null) {
-  (void)q;
-  (void)index;
-  *is_null = 1;
-  return C_ORM_OK;
-}
-
-/**
  * @brief Unit test for test_hydrate_set_null_field.
  * @return GREATEST test result.
  */
@@ -3348,15 +2591,15 @@ TEST test_meta_free_helper(void) {
   g_malloc_fail = 1;
   g_malloc_target = 0;
   g_malloc_count = 0;
-  tmp_p = mock_realloc_fail(NULL, 10);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, mock_realloc_fail(NULL, 10, &tmp_p));
   ASSERT_EQ(NULL, tmp_p);
   g_malloc_fail = 0;
 
   /* mock_realloc_fail with untracked ptr */
   {
     void *untracked = malloc(10);
-    void *reallocated = mock_realloc_fail(untracked, 20);
-    (void)reallocated;
+    void *reallocated = NULL;
+    ASSERT_EQ(C_ORM_OK, mock_realloc_fail(untracked, 20, &reallocated));
   }
 
   PASS();
@@ -3432,6 +2675,13 @@ TEST test_batch_coverage(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_insert_batch_ext(&g_db, &meta, items, 5, 2,
                                              C_ORM_ON_CONFLICT_DO_NOTHING,
                                              dummy_batch_progress, NULL));
+  {
+    int abort_flag = -1;
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_insert_batch_ext(&g_db, &meta, items, 5, 2,
+                                     C_ORM_ON_CONFLICT_DO_NOTHING,
+                                     dummy_batch_progress, &abort_flag));
+  }
   memset(meta.hooks, 0, sizeof(meta.hooks));
 
   /* Failing hooks in insert_batch */
@@ -3627,7 +2877,7 @@ TEST test_shard_and_misc_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_scatter_gather_generic(sm, &meta, &scatter_arr,
                                                    &scatter_cnt));
-  c_orm_free(scatter_arr);
+  (void)c_orm_free(scatter_arr);
   scatter_arr = NULL;
 
   c_orm_shard_manager_free(NULL);
@@ -3865,25 +3115,25 @@ TEST test_relations_extended_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relation(&g_db, &parent_meta,
                                                    "children", &out_arr));
-  c_orm_free(out_arr.data);
+  (void)c_orm_free(out_arr.data);
   memset(&out_arr, 0, sizeof(out_arr));
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relation(&g_db, &parent_meta, "tags",
                                                    &out_arr));
-  c_orm_free(out_arr.data);
+  (void)c_orm_free(out_arr.data);
   memset(&out_arr, 0, sizeof(out_arr));
   rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
   rels[0].data_offset = (size_t)((char *)&parent.child_ptr - (char *)&parent);
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relation(&g_db, &parent_meta,
                                                    "children", &out_arr));
-  c_orm_free(out_arr.data);
+  (void)c_orm_free(out_arr.data);
   memset(&out_arr, 0, sizeof(out_arr));
   rels[0].type = C_ORM_RELATION_BELONGS_TO;
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relation(&g_db, &parent_meta,
                                                    "children", &out_arr));
-  c_orm_free(out_arr.data);
+  (void)c_orm_free(out_arr.data);
   memset(&out_arr, 0, sizeof(out_arr));
   rels[0].type = C_ORM_RELATION_ONE_TO_MANY;
   rels[0].data_offset =
@@ -3899,19 +3149,19 @@ TEST test_relations_extended_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&g_db, &parent_meta, 1,
                                                      "children", &parent));
-  c_orm_free(parent.children_arr.data);
+  (void)c_orm_free(parent.children_arr.data);
   parent.children_arr.data = NULL;
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&g_db, &parent_meta, 1,
                                                      "tags", &parent));
-  c_orm_free(parent.children_arr.data);
+  (void)c_orm_free(parent.children_arr.data);
   parent.children_arr.data = NULL;
   rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
   rels[0].data_offset = (size_t)((char *)&parent.child_ptr - (char *)&parent);
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&g_db, &parent_meta, 1,
                                                      "children", &parent));
-  c_orm_free(parent.child_ptr);
+  (void)c_orm_free(parent.child_ptr);
   parent.child_ptr = NULL;
 
   /* Test HAS_MANY_THROUGH */
@@ -3943,7 +3193,7 @@ TEST test_relations_extended_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&g_db, &parent_meta, 1,
                                                      "children", &parent));
-  c_orm_free(parent.child_ptr);
+  (void)c_orm_free(parent.child_ptr);
   parent.child_ptr = NULL;
   rels[0].type = C_ORM_RELATION_ONE_TO_MANY;
   rels[0].data_offset =
@@ -4024,12 +3274,12 @@ TEST test_relations_extended_coverage(void) {
                                           &out_arr));
   ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relations(&g_db, &parent_meta,
                                                     rel_paths, 0, &out_arr));
-  c_orm_free(out_arr.data);
+  (void)c_orm_free(out_arr.data);
   memset(&out_arr, 0, sizeof(out_arr));
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relations(&g_db, &parent_meta,
                                                     rel_paths, 1, &out_arr));
-  c_orm_free(out_arr.data);
+  (void)c_orm_free(out_arr.data);
   memset(&out_arr, 0, sizeof(out_arr));
   /* find_with_relations_int32 error branches */
   ASSERT_EQ(C_ORM_ERROR_MEMORY,
@@ -4041,7 +3291,7 @@ TEST test_relations_extended_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relations_int32(&g_db, &parent_meta, 1,
                                                       rel_paths, 1, &parent));
-  c_orm_free(parent.children_arr.data);
+  (void)c_orm_free(parent.children_arr.data);
   parent.children_arr.data = NULL;
   {
     const char *nested_paths[1];
@@ -4049,12 +3299,12 @@ TEST test_relations_extended_coverage(void) {
     g_step_count = 0;
     c_orm_find_with_relations_int32(&g_db, &parent_meta, 1, nested_paths, 1,
                                     &parent);
-    c_orm_free(parent.children_arr.data);
+    (void)c_orm_free(parent.children_arr.data);
     parent.children_arr.data = NULL;
     g_step_count = 0;
     c_orm_find_all_with_relations(&g_db, &parent_meta, nested_paths, 1,
                                   &out_arr);
-    c_orm_free(out_arr.data);
+    (void)c_orm_free(out_arr.data);
     memset(&out_arr, 0, sizeof(out_arr));
   }
 
@@ -4268,17 +3518,18 @@ TEST test_free_relations_coverage(void) {
   memset(&parent, 0, sizeof(parent));
 
   parent.single_ctx.is_loaded = 1;
-  parent.single_child =
-      (struct TargetChild *)c_orm_malloc(sizeof(struct TargetChild));
-  parent.single_child->name = (char *)c_orm_malloc(16);
+  (void)c_orm_system_malloc(sizeof(struct TargetChild),
+                            (void **)&parent.single_child);
+  (void)c_orm_system_malloc(16, (void **)&parent.single_child->name);
   C_ORM_STRCPY(parent.single_child->name, 16, "single_val");
 
   parent.multi_ctx.is_loaded = 1;
   parent.children_arr.length = 1;
   parent.children_arr.capacity = 1;
-  parent.children_arr.data = c_orm_malloc(sizeof(struct TargetChild));
+  (void)c_orm_system_malloc(sizeof(struct TargetChild),
+                            &parent.children_arr.data);
   elem = (struct TargetChild *)parent.children_arr.data;
-  elem->name = (char *)c_orm_malloc(16);
+  (void)c_orm_system_malloc(16, (void **)&elem->name);
   C_ORM_STRCPY(elem->name, 16, "multi_val");
 
   ASSERT_EQ(C_ORM_OK, c_orm_free_relations(&parent_meta, &parent));
@@ -4344,7 +3595,7 @@ TEST test_relation_meta_builder_coverage(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_build_relation_meta(&tbl, &built_rels, &n_rels));
   ASSERT_EQ(2, n_rels);
   ASSERT(built_rels != NULL);
-  c_orm_free(built_rels);
+  (void)c_orm_free(built_rels);
 
   PASS();
 }
@@ -4525,8 +3776,8 @@ TEST test_prefix_column_hydration_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_hydrate_row(&local_db, q, &parent_meta, &user_obj));
   ASSERT(user_obj.company != NULL);
-  c_orm_free(user_obj.company->name);
-  c_orm_free(user_obj.company);
+  (void)c_orm_free(user_obj.company->name);
+  (void)c_orm_free(user_obj.company);
   user_obj.company = NULL;
 
   PASS();
@@ -4608,9 +3859,9 @@ TEST test_point_polygon_secure_coverage(void) {
   ASSERT_EQ(1.23, geo_obj.pt.x);
   ASSERT_EQ(4.56, geo_obj.pt.y);
 
-  c_orm_free(geo_obj.poly.points);
+  (void)c_orm_free(geo_obj.poly.points);
   geo_obj.poly.points = NULL;
-  c_orm_free(geo_obj.sec_str);
+  (void)c_orm_free(geo_obj.sec_str);
   geo_obj.sec_str = NULL;
 
   g_custom_blob_data = poly_wkb;
@@ -4621,9 +3872,9 @@ TEST test_point_polygon_secure_coverage(void) {
   ASSERT_EQ(1, geo_obj.poly.num_points);
   ASSERT(geo_obj.poly.points != NULL);
 
-  c_orm_free(geo_obj.poly.points);
+  (void)c_orm_free(geo_obj.poly.points);
   geo_obj.poly.points = NULL;
-  c_orm_free(geo_obj.sec_str);
+  (void)c_orm_free(geo_obj.sec_str);
   geo_obj.sec_str = NULL;
 
   g_custom_blob_data = NULL;
@@ -4639,13 +3890,16 @@ TEST test_point_polygon_secure_coverage(void) {
  * @param meta Table metadata.
  * @param obj Object instance pointer.
  * @param user_data User context pointer.
+ * @return C_ORM_OK.
  */
-static void mock_expire_cb(c_orm_db_t *db, const c_orm_table_meta_t *meta,
-                           void *obj, void *user_data) {
+static c_orm_error_t mock_expire_cb(c_orm_db_t *db,
+                                    const c_orm_table_meta_t *meta, void *obj,
+                                    void *user_data) {
   (void)db;
   (void)meta;
   (void)obj;
   *(int *)user_data = 1;
+  return C_ORM_OK;
 }
 
 /**
@@ -5152,14 +4406,19 @@ TEST test_api_null_and_error_params(void) {
  * @param db Database handle.
  * @param sql Executed SQL query.
  * @param ctx Context pointer.
+ * @return C_ORM_OK, or C_ORM_ERROR_VALIDATION if *ctx == -1.
  */
-static void dummy_query_interceptor(c_orm_db_t *db, const char *sql,
-                                    void *ctx) {
+static c_orm_error_t dummy_query_interceptor(c_orm_db_t *db, const char *sql,
+                                             void *ctx) {
   int *called;
   (void)db;
   (void)sql;
   called = (int *)ctx;
+  if (*called == -1) {
+    return C_ORM_ERROR_VALIDATION;
+  }
   *called = 1;
+  return C_ORM_OK;
 }
 
 /**
@@ -5721,6 +4980,8 @@ static c_orm_error_t mock_encrypt_ok(const void *in_data, size_t in_size,
                                      void *context, void **out_data,
                                      size_t *out_size) {
   (void)context;
+  if (!in_data)
+    return C_ORM_ERROR_MEMORY;
   *out_data = malloc(in_size);
   if (!*out_data)
     return C_ORM_ERROR_MEMORY;
@@ -5853,36 +5114,6 @@ TEST test_bind_row_extended_coverage(void) {
 
   PASS();
 }
-
-/**
- * @brief NestedChild entity for nested relation tests.
- * @var id Child ID.
- * @var parent_id Parent foreign key.
- * @var name Child name.
- */
-struct NestedChild {
-  int32_t id;
-  int32_t parent_id;
-  char name[32];
-};
-
-/**
- * @brief NestedParent entity for nested relation tests.
- * @var id Parent ID.
- * @var belongs_to_id Belongs-to foreign key.
- * @var belongs_to_child Belongs-to child pointer.
- * @var o2o_child One-to-one child pointer.
- * @var o2m_children One-to-many children array.
- * @var name Parent name.
- */
-struct NestedParent {
-  int32_t id;
-  int32_t belongs_to_id;
-  struct NestedChild *belongs_to_child;
-  struct NestedChild *o2o_child;
-  struct Generic_Array o2m_children;
-  char name[32];
-};
 
 /**
  * @brief Unit test for test_crud_relations_and_hooks_coverage.
@@ -6068,14 +5299,6 @@ TEST test_crud_relations_and_hooks_coverage(void) {
   PASS();
 }
 
-#include "test_api_collections.h"
-#include "test_api_crud.h"
-#include "test_api_exhaust.h"
-#include "test_api_helpers.h"
-#include "test_api_hydration.h"
-#include "test_api_relations.h"
-#include "test_api_transactions.h"
-
 /**
  * @brief Unit test for test_api_helpers_full_coverage.
  * @return GREATEST test result.
@@ -6199,7 +5422,9 @@ TEST test_api_helpers_full_coverage(void) {
   ASSERT_EQ(0, is_n);
 
   dummy_cov_expire_callback_100(NULL, NULL, NULL, NULL);
-  ASSERT_EQ(NULL, cov_always_null_malloc(10));
+  out_data = (void *)1;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, cov_always_null_malloc(10, &out_data));
+  ASSERT_EQ(NULL, out_data);
 
   /* 3. test_api_hydration.h mock callbacks */
   rc = mock_prefix_col_name_ok(NULL, 1, NULL);
@@ -6266,9 +5491,9 @@ TEST test_api_helpers_full_coverage(void) {
  */
 SUITE(api_coverage_suite) {
   static int recursed = 0;
-  void *(*old_malloc)(size_t);
-  void *(*old_realloc)(void *, size_t);
-  void (*old_free)(void *);
+  c_orm_malloc_fn_t old_malloc;
+  c_orm_realloc_fn_t old_realloc;
+  c_orm_free_fn_t old_free;
   old_malloc = c_orm_malloc;
   old_realloc = c_orm_realloc;
   old_free = c_orm_free;
@@ -6380,6 +5605,10 @@ SUITE(api_coverage_suite) {
   RUN_TEST(test_api_batch_finalize_error_branches);
   printf("RUNNING test_api_relation_dot_missing_branches\n");
   RUN_TEST(test_api_relation_dot_missing_branches);
+  printf("RUNNING test_api_db2_decimal_safe_crt_and_abstract_exhaustive\n");
+  RUN_TEST(test_api_db2_decimal_safe_crt_and_abstract_exhaustive);
+  printf("RUNNING test_api_final_zero_gaps\n");
+  RUN_TEST(test_api_final_zero_gaps);
 
   printf("HELLO 1\n");
   fflush(stdout);

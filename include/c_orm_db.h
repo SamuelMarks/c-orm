@@ -7,27 +7,19 @@
 #define C_ORM_DB_H
 
 /* clang-format off */
-#if defined(_MSC_VER)
-#if _MSC_VER < 1600
-typedef signed __int8 int8_t;
-typedef signed __int16 int16_t;
-typedef signed __int32 int32_t;
-typedef signed __int64 int64_t;
-typedef unsigned __int8 uint8_t;
-typedef unsigned __int16 uint16_t;
-typedef unsigned __int32 uint32_t;
-typedef unsigned __int64 uint64_t;
-#else
-#include <stdint.h>
-#endif
-#else
-#include <stdint.h>
-#endif
 #include "c_orm_meta.h"
+#include "c_orm_decimal.h"
 /* clang-format on */
 
 #if defined(_MSC_VER)
 #define C_ORM_FMT_SIZE_T "%I64u"
+#define C_ORM_CAST_SIZE_T(x) ((unsigned __int64)(x))
+#elif defined(_WIN64) && (defined(__GNUC__) || defined(__clang__))
+#if defined(__USE_MINGW_ANSI_STDIO) && __USE_MINGW_ANSI_STDIO
+#define C_ORM_FMT_SIZE_T "%llu"
+#else
+#define C_ORM_FMT_SIZE_T "%I64u"
+#endif
 #define C_ORM_CAST_SIZE_T(x) ((unsigned __int64)(x))
 #else
 #define C_ORM_FMT_SIZE_T "%lu"
@@ -43,11 +35,16 @@ extern "C" {
 typedef struct c_orm_db c_orm_db_t;
 
 /**
- * @brief Opaque query/prepared statement handle.
+ * @brief Opaque prepared driver statement handle.
+ */
+typedef struct c_orm_driver_stmt c_orm_stmt_t;
+
+/**
+ * @brief Prepared driver statement handle alias.
  */
 #ifndef C_ORM_QUERY_T_DEFINED
 #define C_ORM_QUERY_T_DEFINED
-typedef struct c_orm_query c_orm_query_t;
+typedef struct c_orm_driver_stmt c_orm_query_t;
 #endif
 
 /**
@@ -76,14 +73,23 @@ C_ORM_EXPORT c_orm_error_t c_orm_get_last_error_trace(c_orm_db_t *db,
 
 /**
  * @brief Query logging callback signature.
+ * @param sql Executed SQL query or diagnostic message.
+ * @param user_data Opaque user context pointer.
+ * @return C_ORM_OK on success, or an error code to abort.
  */
-typedef void (*c_orm_log_cb)(const char *sql, void *user_data);
+typedef c_orm_error_t (*c_orm_log_cb)(const char *sql, void *user_data);
 
 /**
  * @brief Record expiration callback signature.
+ * @param db Database connection handle.
+ * @param meta Table metadata.
+ * @param record Pointer to expired record.
+ * @param user_data Opaque user context pointer.
+ * @return C_ORM_OK on success, or an error code.
  */
-typedef void (*c_orm_expire_cb)(c_orm_db_t *db, const c_orm_table_meta_t *meta,
-                                void *record, void *user_data);
+typedef c_orm_error_t (*c_orm_expire_cb)(c_orm_db_t *db,
+                                         const c_orm_table_meta_t *meta,
+                                         void *record, void *user_data);
 
 /**
  * @brief Virtual table for database driver implementations.
@@ -110,6 +116,8 @@ typedef void (*c_orm_expire_cb)(c_orm_db_t *db, const c_orm_table_meta_t *meta,
  * @var get_last_insert_rowid Retrieves the rowid of the last insert.
  * @var get_column_count Retrieves the number of columns in the result set.
  * @var get_column_name Retrieves the name of a result column by index.
+ * @var bind_decimal Binds an exact fixed-point decimal to a parameter index.
+ * @var get_decimal Retrieves an exact fixed-point decimal from a result column.
  */
 typedef struct c_orm_driver_vtable {
   /** @brief Connects to database. */
@@ -164,6 +172,12 @@ typedef struct c_orm_driver_vtable {
   /** @brief Gets result column name by index. */
   c_orm_error_t (*get_column_name)(c_orm_query_t *query, int index,
                                    const char **out_name);
+  /** @brief Binds exact fixed-point decimal parameter. */
+  c_orm_error_t (*bind_decimal)(c_orm_query_t *query, int index,
+                                const c_orm_decimal_t *val);
+  /** @brief Gets exact fixed-point decimal column value. */
+  c_orm_error_t (*get_decimal)(c_orm_query_t *query, int index,
+                               c_orm_decimal_t *out_val);
 } c_orm_driver_vtable_t;
 
 /**
@@ -189,9 +203,13 @@ typedef struct c_orm_pool_telemetry {
 
 /**
  * @brief Interceptor hooks for plugin architecture.
+ * @param db Database connection handle.
+ * @param sql SQL statement or hydration context string.
+ * @param context Opaque user context pointer.
+ * @return C_ORM_OK to proceed, or non-zero c_orm_error_t to abort execution.
  */
-typedef void (*c_orm_interceptor_cb)(c_orm_db_t *db, const char *sql,
-                                     void *context);
+typedef c_orm_error_t (*c_orm_interceptor_cb)(c_orm_db_t *db, const char *sql,
+                                              void *context);
 
 /**
  * @brief Crypto hooks for transparent encryption/decryption of
@@ -375,6 +393,50 @@ C_ORM_EXPORT c_orm_error_t c_orm_set_timezone(c_orm_db_t *db,
 C_ORM_EXPORT c_orm_error_t c_orm_set_modality(c_orm_db_t *db,
                                               c_orm_modality_t modality,
                                               void *ctx);
+
+/**
+ * @brief Allocates and initializes a cross-platform synchronization mutex.
+ *
+ * @param out_lock Output pointer receiving the allocated mutex handle.
+ * @return C_ORM_OK on success, C_ORM_ERROR_MEMORY on OOM, or C_ORM_ERROR_BUSY
+ * on OS primitive initialization failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_create(void **out_lock);
+
+/**
+ * @brief Acquires a cross-platform synchronization mutex.
+ *
+ * @param lock Mutex handle previously created with c_orm_mutex_create.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY on failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_lock(void *lock);
+
+/**
+ * @brief Releases a cross-platform synchronization mutex.
+ *
+ * @param lock Mutex handle previously created with c_orm_mutex_create.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY on failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_unlock(void *lock);
+
+/**
+ * @brief Destroys and frees a cross-platform synchronization mutex.
+ *
+ * @param lock Mutex handle previously created with c_orm_mutex_create.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY on failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_destroy(void *lock);
+
+#ifdef C_ORM_TEST_ALLOCATOR
+/** @brief Test flag simulating cache mutex initialization failure. */
+C_ORM_EXPORT extern int c_orm_mock_cache_init_fail;
+/** @brief Test flag simulating cache mutex lock failure. */
+C_ORM_EXPORT extern int c_orm_mock_cache_lock_fail;
+/** @brief Test flag simulating cache mutex unlock failure. */
+C_ORM_EXPORT extern int c_orm_mock_cache_unlock_fail;
+/** @brief Test flag simulating cache mutex destroy failure. */
+C_ORM_EXPORT extern int c_orm_mock_cache_destroy_fail;
+#endif /* C_ORM_TEST_ALLOCATOR */
 
 #ifdef __cplusplus
 }

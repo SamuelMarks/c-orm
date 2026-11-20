@@ -37,27 +37,51 @@ static int oom_active = 0;
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -71,7 +95,13 @@ static int oom_active = 0;
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do {                                                                       \
+      enum greatest_test_res _rc = (res);                                      \
+      greatest_info.assertions++;                                              \
+      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
+        return _rc;                                                            \
+      }                                                                        \
+    } while ((void)0, 0);                                                      \
   } while ((void)0, 0)
 
 /**
@@ -89,7 +119,7 @@ static void test_cleanup_tables(struct sql_table_t **tables_ptr,
     for (k = 0; k < *n_tables_ptr; k++) {
       sql_table_C_ORM_FREE(&(*tables_ptr)[k]);
     }
-    C_ORM_FREE(*tables_ptr);
+    (void)c_orm_system_free(*tables_ptr);
     *tables_ptr = NULL;
     *n_tables_ptr = 0;
   }
@@ -98,41 +128,55 @@ static void test_cleanup_tables(struct sql_table_t **tables_ptr,
 /**
  * @brief Mock malloc callback with countdown fault injection.
  * @param size Allocation size in bytes.
- * @return Allocated memory block or NULL on simulated failure.
+ * @param out_ptr Output pointer receiving allocated memory block.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on simulated failure.
  */
-static void *m_mock_malloc(size_t size) {
+static c_orm_error_t m_mock_malloc(size_t size, void **out_ptr) {
   if (oom_active) {
     if (oom_countdown == 0) {
       oom_countdown--;
-      return NULL;
+      if (out_ptr) {
+        *out_ptr = NULL;
+      }
+      return C_ORM_ERROR_MEMORY;
     }
     oom_countdown--;
   }
-  return malloc(size);
+  *out_ptr = malloc(size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /**
  * @brief Mock realloc callback with countdown fault injection.
  * @param ptr Pointer to existing memory block.
  * @param size New allocation size in bytes.
- * @return Reallocated memory block or NULL on simulated failure.
+ * @param out_ptr Output pointer receiving reallocated memory block.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on simulated failure.
  */
-static void *m_mock_realloc(void *ptr, size_t size) {
+static c_orm_error_t m_mock_realloc(void *ptr, size_t size, void **out_ptr) {
   if (oom_active) {
     if (oom_countdown == 0) {
       oom_countdown--;
-      return NULL;
+      if (out_ptr) {
+        *out_ptr = NULL;
+      }
+      return C_ORM_ERROR_MEMORY;
     }
     oom_countdown--;
   }
-  return realloc(ptr, size);
+  *out_ptr = realloc(ptr, size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /**
  * @brief Mock free callback.
  * @param ptr Pointer to memory block to free.
+ * @return C_ORM_OK on success.
  */
-static void m_mock_free(void *ptr) { free(ptr); }
+static c_orm_error_t m_mock_free(void *ptr) {
+  free(ptr);
+  return C_ORM_OK;
+}
 
 /**
  * @brief Forward declaration for test_sql_parser_basic.
@@ -469,8 +513,8 @@ TEST test_sql_parser_errors(void) {
     struct sql_table_t t;
     memset(&t, 0, sizeof(t));
     t.n_table_constraints = 1;
-    t.table_constraints = C_ORM_MALLOC(sizeof(struct sql_constraint_t));
-    memset(t.table_constraints, 0, sizeof(struct sql_constraint_t));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_calloc(1, sizeof(struct sql_constraint_t),
+                                            (void **)&t.table_constraints));
     rc = c_orm_strdup("ref_tbl", &t.table_constraints[0].reference_table);
     ASSERT_EQ(C_ORM_OK, rc);
     rc = c_orm_strdup("ref_col", &t.table_constraints[0].reference_column);
@@ -487,14 +531,14 @@ TEST test_sql_parser_errors(void) {
 
     proj = NULL;
     rc = sql_parse_select(NULL, &proj, &err);
-    /* ASSERT(rc != C_ORM_OK); */
-    cdd_c_query_projection_free(proj);
-    free(proj);
+    ASSERT_EQ(C_ORM_OK, rc);
+    cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
+    (void)c_orm_system_free(proj);
     proj = NULL;
     rc = sql_parse_returning(NULL, &proj, &err);
-    /* ASSERT(rc != C_ORM_OK); */
-    cdd_c_query_projection_free(proj);
-    free(proj);
+    ASSERT_EQ(C_ORM_OK, rc);
+    cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
+    (void)c_orm_system_free(proj);
     proj = NULL;
   }
 
@@ -558,7 +602,7 @@ TEST test_sql_parser_table_constraints(void) {
   ASSERT_STR_EQ("id", tbl->table_constraints[2].columns[0]);
 
   sql_table_C_ORM_FREE(tbl);
-  C_ORM_FREE(tables);
+  (void)c_orm_system_free(tables);
   PASS();
 }
 
@@ -569,9 +613,9 @@ TEST test_sql_parser_table_constraints(void) {
  */
 SUITE(sql_parser_suite) {
   static int recursed = 0;
-  void *(*old_malloc)(size_t);
-  void *(*old_realloc)(void *, size_t);
-  void (*old_free)(void *);
+  c_orm_malloc_fn_t old_malloc;
+  c_orm_realloc_fn_t old_realloc;
+  c_orm_free_fn_t old_free;
 
   old_malloc = c_orm_malloc;
   old_realloc = c_orm_realloc;

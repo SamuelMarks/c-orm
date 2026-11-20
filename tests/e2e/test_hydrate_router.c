@@ -58,27 +58,51 @@ static c_orm_error_t mock_hydrator_err(void *out_struct,
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -92,7 +116,13 @@ static c_orm_error_t mock_hydrator_err(void *out_struct,
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do {                                                                       \
+      enum greatest_test_res _rc = (res);                                      \
+      greatest_info.assertions++;                                              \
+      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
+        return _rc;                                                            \
+      }                                                                        \
+    } while ((void)0, 0);                                                      \
   } while ((void)0, 0)
 
 /**
@@ -234,15 +264,36 @@ TEST test_hydrate_router_dispatch(void) {
 }
 
 /**
- * @brief Mock realloc returning NULL.
+ * @brief Mock realloc returning C_ORM_ERROR_MEMORY.
  * @param ptr Existing pointer.
  * @param size Requested size.
- * @return NULL on failure.
+ * @param out_ptr Output pointer receiving NULL.
+ * @return C_ORM_ERROR_MEMORY on failure.
  */
-static void *mock_realloc_hydrate(void *ptr, size_t size) {
+static c_orm_error_t mock_realloc_hydrate(void *ptr, size_t size,
+                                          void **out_ptr) {
   (void)ptr;
   (void)size;
-  return NULL;
+  if (out_ptr) {
+    *out_ptr = NULL;
+  }
+  return C_ORM_ERROR_MEMORY;
+}
+
+/**
+ * @brief Mock realloc returning C_ORM_OK with NULL *out_ptr to exercise
+ * defensive NULL check branch.
+ * @param ptr Existing pointer.
+ * @param size Requested size.
+ * @param out_ptr Output pointer receiving NULL.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t mock_ok_null_realloc_hydrate(void *ptr, size_t size,
+                                                  void **out_ptr) {
+  (void)ptr;
+  (void)size;
+  *out_ptr = NULL;
+  return C_ORM_OK;
 }
 
 /**
@@ -252,7 +303,7 @@ static void *mock_realloc_hydrate(void *ptr, size_t size) {
 TEST test_hydrate_router_register_oom(void) {
   cdd_c_hydrate_router_t router;
   cdd_c_meta_t m1;
-  void *(*old_realloc)(void *, size_t);
+  c_orm_realloc_fn_t old_realloc;
 
   old_realloc = c_orm_realloc;
 
@@ -260,6 +311,10 @@ TEST test_hydrate_router_register_oom(void) {
   ASSERT_EQ(0, cdd_c_hydrate_router_init(&router));
 
   c_orm_set_allocators(c_orm_malloc, mock_realloc_hydrate, c_orm_free);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator));
+
+  c_orm_set_allocators(c_orm_malloc, mock_ok_null_realloc_hydrate, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
             cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator));
 

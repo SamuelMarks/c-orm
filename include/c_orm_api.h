@@ -104,6 +104,19 @@ c_orm_find_by_id_int32(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                        int32_t id_val, void *out_struct);
 
 /**
+ * @brief Find a single record by an exact fixed-point decimal primary key.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param id_val Pointer to the decimal primary key value to search for.
+ * @param out_struct Pointer to an already allocated struct to hydrate.
+ * @return C_ORM_OK on success, C_ORM_ERROR_NOT_FOUND if no row, or error code.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_find_by_id_decimal(c_orm_db_t *db, const c_orm_table_meta_t *meta,
+                         const c_orm_decimal_t *id_val, void *out_struct);
+
+/**
  * @brief Find a single record by a composite primary key.
  *
  * @param db Database connection.
@@ -189,8 +202,15 @@ typedef enum {
   C_ORM_ON_CONFLICT_DO_UPDATE = 2
 } c_orm_on_conflict_t;
 
-typedef void (*c_orm_batch_progress_cb)(size_t processed, size_t total,
-                                        void *ctx);
+/**
+ * @brief Progress callback invoked after each batch chunk completes.
+ * @param processed Number of items processed so far.
+ * @param total Total number of items in the batch.
+ * @param ctx User context pointer.
+ * @return C_ORM_OK to continue, or non-zero error code to abort and roll back.
+ */
+typedef c_orm_error_t (*c_orm_batch_progress_cb)(size_t processed, size_t total,
+                                                 void *ctx);
 
 /**
  * @brief Insert an array of records into the database in bulk with advanced
@@ -311,6 +331,37 @@ C_ORM_EXPORT c_orm_error_t c_orm_delete_batch(c_orm_db_t *db,
 C_ORM_EXPORT c_orm_error_t c_orm_save(c_orm_db_t *db,
                                       const c_orm_table_meta_t *meta,
                                       const void *in_struct);
+
+/**
+ * @brief Upsert a single record (`MERGE INTO` on Db2/ODBC, `ON CONFLICT DO
+ * UPDATE` on SQLite/PostgreSQL, `ON DUPLICATE KEY UPDATE` on MySQL).
+ *
+ * @param db Database connection.
+ * @param meta Table metadata (must have at least one primary key column).
+ * @param in_struct Pointer to record structure containing primary key and data.
+ * @return C_ORM_OK on success, or an error enum on failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_upsert(c_orm_db_t *db,
+                                        const c_orm_table_meta_t *meta,
+                                        const void *in_struct);
+
+/**
+ * @brief Upsert an array of records in bulk (`MERGE INTO ... USING (VALUES
+ * ...)` on Db2/ODBC, `ON CONFLICT DO UPDATE` on SQLite/PostgreSQL, `ON
+ * DUPLICATE KEY UPDATE` on MySQL).
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_array Pointer to array of record structs.
+ * @param num_items Total number of records in the array.
+ * @param chunk_size Maximum records per statement (0 to auto-calculate).
+ * @return C_ORM_OK on success, or an error enum on failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_upsert_batch(c_orm_db_t *db,
+                                              const c_orm_table_meta_t *meta,
+                                              const void *in_array,
+                                              size_t num_items,
+                                              size_t chunk_size);
 /**
  * @brief Update an existing record in the database by its primary key.
  *
@@ -924,6 +975,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_register_hydration_interceptor(
     c_orm_db_t *db, c_orm_interceptor_cb hook, void *context);
 
 /**
+ * @brief Completion callback signature for asynchronous ORM operations.
+ * @param status Operation result error code.
+ * @param ctx Opaque user context pointer.
+ * @return C_ORM_OK on success, or an error code.
+ */
+typedef c_orm_error_t (*c_orm_async_cb_t)(c_orm_error_t status, void *ctx);
+
+/**
  * @brief Async execution wrapper for record insertion (Steps 207-210).
  *
  * When `C_ORM_THREADING=OFF` or no external event loop is bound, falls back to
@@ -935,13 +994,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_register_hydration_interceptor(
  * @param in_struct Pointer to data.
  * @param cb Callback function executed upon completion.
  * @param ctx User context for callback.
- * @return C_ORM_OK on success, or error code propagated from `c_orm_insert`.
+ * @return C_ORM_OK on success, or error code propagated from `c_orm_insert` or
+ * `cb`.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_insert_async(c_orm_db_t *db,
                                               const c_orm_table_meta_t *meta,
                                               const void *in_struct,
-                                              void (*cb)(c_orm_error_t, void *),
-                                              void *ctx);
+                                              c_orm_async_cb_t cb, void *ctx);
 
 /**
  * @brief Asynchronous fetch all records wrapper (Step 209).
@@ -955,11 +1014,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert_async(c_orm_db_t *db,
  * @param out_array Pointer to output array.
  * @param cb Callback function on completion.
  * @param ctx User context passed to callback.
- * @return C_ORM_OK on success, or error code propagated from `c_orm_find_all`.
+ * @return C_ORM_OK on success, or error code propagated from `c_orm_find_all`
+ * or `cb`.
  */
-C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(
-    c_orm_db_t *db, const c_orm_table_meta_t *meta, void *out_array,
-    void (*cb)(c_orm_error_t, void *), void *ctx);
+C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(c_orm_db_t *db,
+                                                const c_orm_table_meta_t *meta,
+                                                void *out_array,
+                                                c_orm_async_cb_t cb, void *ctx);
 
 /**
  * @brief Hydrate a row, leveraging the cdd-c hydrate_router.
@@ -1064,11 +1125,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_load_relation_ext(
  * @param REL_INDEX Numeric index mapping the relation inside `META`.
  * @param PTR_VAR Target specific pointer inside the struct mapping to the
  * relation.
+ * @param OUT_RC Output variable (`c_orm_error_t`) receiving `C_ORM_OK` if
+ * already loaded or the error enum returned by `c_orm_load_relation`.
  */
-#define C_ORM_LAZY_LOAD(DB, OBJ, META, REL_INDEX, PTR_VAR)                     \
+#define C_ORM_LAZY_LOAD(DB, OBJ, META, REL_INDEX, PTR_VAR, OUT_RC)             \
   do {                                                                         \
     if (!(OBJ)->PTR_VAR) {                                                     \
-      c_orm_load_relation((DB), (OBJ), (META), (REL_INDEX));                   \
+      (OUT_RC) = c_orm_load_relation((DB), (OBJ), (META), (REL_INDEX));        \
+    } else {                                                                   \
+      (OUT_RC) = C_ORM_OK;                                                     \
     }                                                                          \
   } while (0)
 
@@ -1416,15 +1481,35 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_get_generic_string(c_orm_db_t *db, const c_orm_table_meta_t *meta,
                          const char *pk_val, void *out_struct);
 
+/**
+ * @brief Connects to any supported database backend dispatched by URL scheme.
+ *
+ * Recognizes `sqlite://` (or bare file paths), `postgres://`, `postgresql://`,
+ * `mysql://`, `mariadb://`, `memory://`, `odbc://`, and `db2://`.
+ *
+ * @param url Connection URL or SQLite path.
+ * @param out_db Output pointer receiving connected database handle.
+ * @return C_ORM_OK on success, or driver-specific error code.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_connect_url(const char *url,
+                                             c_orm_db_t **out_db);
+
 /** @} */
 
 #ifdef __EMSCRIPTEN__
 /**
- * @brief Emscripten specific initialization hook to mount and sync IDBFS.
- * @param callback Callback function to invoke when syncfs completes (receives
- * an error code, 0 on success).
+ * @brief Callback invoked when Emscripten IDBFS syncfs completes.
+ * @param status C_ORM_OK on success, or error code on sync failure.
+ * @return C_ORM_OK on success.
  */
-C_ORM_EXPORT void c_orm_wasm_init_fs(void (*callback)(int));
+typedef c_orm_error_t (*c_orm_wasm_sync_cb_t)(c_orm_error_t status);
+
+/**
+ * @brief Emscripten specific initialization hook to mount and sync IDBFS.
+ * @param callback Callback function to invoke when syncfs completes.
+ * @return C_ORM_OK on success, or an error code on formatting failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_wasm_init_fs(c_orm_wasm_sync_cb_t callback);
 #endif
 
 #ifdef __cplusplus

@@ -1,5 +1,5 @@
 /**
- * @file c_to_sql.h
+ * @file c_orm_c_to_sql.h
  * @brief C-ORM Schema Generation logic.
  */
 
@@ -23,7 +23,9 @@ extern "C" {
 typedef enum {
   C_TO_SQL_DIALECT_SQLITE = 0,
   C_TO_SQL_DIALECT_POSTGRESQL = 1,
-  C_TO_SQL_DIALECT_MYSQL = 2
+  C_TO_SQL_DIALECT_MYSQL = 2,
+  C_TO_SQL_DIALECT_DB2 = 3, /**< IBM Db2 (LUW, z/OS, i) DDL dialect */
+  C_TO_SQL_DIALECT_ODBC = 4 /**< Generic ANSI/ODBC DDL dialect */
 } c_to_sql_dialect_t;
 
 /**
@@ -119,6 +121,30 @@ C_ORM_EXPORT c_orm_error_t cdd_c_get_schema_inspection_query(
     c_to_sql_dialect_t dialect, const char *table_name, char **out_query);
 
 /**
+ * @brief Get the IBM Db2 for z/OS (`SYSIBM.SYSCOLUMNS`) catalog query to
+ * inspect a live mainframe table schema.
+ *
+ * @param table_name Target table name to inspect.
+ * @param out_query Output pointer receiving heap-allocated SQL query string.
+ * @return C_ORM_OK on success, or error code on NULL/OOM.
+ */
+C_ORM_EXPORT c_orm_error_t
+cdd_c_get_zos_schema_inspection_query(const char *table_name, char **out_query);
+
+/**
+ * @brief Generate a dialect-specific `CREATE TABLE` DDL statement directly from
+ * a `c_orm_table_meta_t` descriptor (preserving `precision`, `scale`,
+ * `fixed_length`, `ccsid`, `FOR BIT DATA`, and Db2 `IDENTITY` clauses).
+ *
+ * @param meta Source ORM table metadata descriptor.
+ * @param dialect Target SQL DDL dialect.
+ * @param out_sql Output pointer receiving heap-allocated SQL DDL string.
+ * @return C_ORM_OK on success, or error code on invalid arguments/OOM.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_table_meta_to_sql_create_table(
+    const c_orm_table_meta_t *meta, c_to_sql_dialect_t dialect, char **out_sql);
+
+/**
  * @brief Emit CREATE INDEX SQL statement.
  *
  * @param table_name Name of the table.
@@ -169,6 +195,36 @@ cdd_c_meta_topological_sort(const cdd_c_meta_t **schemas, size_t num_schemas,
  */
 C_ORM_EXPORT c_orm_error_t c_orm_table_meta_to_cdd_meta(
     const c_orm_table_meta_t *table_meta, cdd_c_meta_t **out_cdd_meta);
+
+/**
+ * @brief Frees a `cdd_c_meta_t` allocated by `c_orm_table_meta_to_cdd_meta`.
+ *
+ * @param cdd_meta Metadata structure to free (safe on NULL).
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_free_cdd_meta(cdd_c_meta_t *cdd_meta);
+
+/**
+ * @brief Converts a `cdd_c_meta_t` reflection descriptor into a
+ * `c_orm_table_meta_t` table descriptor.
+ *
+ * @param cdd_meta Source reflection metadata.
+ * @param out_table_meta Output pointer receiving allocated `c_orm_table_meta_t`
+ * (free with `c_orm_free_table_meta`).
+ * @return C_ORM_OK on success, or error code on failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_cdd_meta_to_table_meta(
+    const cdd_c_meta_t *cdd_meta, c_orm_table_meta_t **out_table_meta);
+
+/**
+ * @brief Frees a `c_orm_table_meta_t` allocated by
+ * `c_orm_cdd_meta_to_table_meta`.
+ *
+ * @param table_meta Table metadata structure to free (safe on NULL).
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t
+c_orm_free_table_meta(c_orm_table_meta_t *table_meta);
 
 #ifdef __cplusplus
 }

@@ -77,7 +77,7 @@ repos:
         additional_dependencies: [libclang]
       - id: check-enum-returns
         name: Check Enum Returns
-        entry: python3 scripts/check_enum_returns_clang.py . --build-dir build --exclude-files src/c_orm_alloc.c
+        entry: python3 scripts/check_enum_returns_clang.py . --build-dir build
         language: system
         pass_filenames: false
       - id: update-shields

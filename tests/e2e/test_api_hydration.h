@@ -349,9 +349,9 @@ TEST test_api_hydrate_and_bind_deep(void) {
   c_orm_db_t ddb;
   c_orm_error_t rc;
   int i;
-  void *(*orig_m)(size_t) = c_orm_malloc;
-  void *(*orig_r)(void *, size_t) = c_orm_realloc;
-  void (*orig_f)(void *) = c_orm_free;
+  c_orm_malloc_fn_t orig_m = c_orm_malloc;
+  c_orm_realloc_fn_t orig_r = c_orm_realloc;
+  c_orm_free_fn_t orig_f = c_orm_free;
 
   memset(&dobj, 0, sizeof(dobj));
   memset(cols, 0, sizeof(cols));
@@ -690,9 +690,9 @@ TEST test_api_field_helpers_and_introspection(void) {
   c_orm_db_t ddb;
   c_orm_error_t rc;
   int64_t i64_v = 200;
-  void *(*orig_m)(size_t) = c_orm_malloc;
-  void *(*orig_r)(void *, size_t) = c_orm_realloc;
-  void (*orig_f)(void *) = c_orm_free;
+  c_orm_malloc_fn_t orig_m = c_orm_malloc;
+  c_orm_realloc_fn_t orig_r = c_orm_realloc;
+  c_orm_free_fn_t orig_f = c_orm_free;
 
   memset(&parent, 0, sizeof(parent));
   memset(&child, 0, sizeof(child));
@@ -1262,9 +1262,9 @@ static c_orm_error_t mock_step_rel_o2o(c_orm_query_t *q, int *has_row) {
 TEST test_api_hydration_types_and_boundaries(void) {
   c_orm_driver_vtable_t custom_vt;
   c_orm_db_t custom_db;
-  void *(*orig_m)(size_t);
-  void *(*orig_r)(void *, size_t);
-  void (*orig_f)(void *);
+  c_orm_malloc_fn_t orig_m;
+  c_orm_realloc_fn_t orig_r;
+  c_orm_free_fn_t orig_f;
   c_orm_error_t rc;
 
   orig_m = c_orm_malloc;
@@ -1404,12 +1404,11 @@ TEST test_api_hydration_types_and_boundaries(void) {
     ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 563: nested_struct != NULL but is_null is true for prefix */
-    p.child_o2o =
-        (struct NestedChild *)c_orm_malloc(sizeof(struct NestedChild));
-    memset(p.child_o2o, 0, sizeof(struct NestedChild));
+    (void)c_orm_system_calloc(1, sizeof(struct NestedChild),
+                              (void **)&p.child_o2o);
     rc = c_orm_hydrate_row(&custom_db, (c_orm_query_t *)1, &p_meta, &p);
     ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
-    C_ORM_FREE(p.child_o2o);
+    (void)c_orm_system_free(p.child_o2o);
     p.child_o2o = NULL;
 
     /* Line 554: nested_struct allocation fails */
@@ -1514,7 +1513,7 @@ TEST test_api_hydration_types_and_boundaries(void) {
     p_meta.num_relations = 1;
 
     /* Lines 1368, 1372 empty strings, and Line 1491: 5 rows to trigger cap*2 */
-    out_arr.data = c_orm_malloc(sizeof(struct FullParentObj));
+    (void)c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data);
     memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
     out_arr.length = 1;
     out_arr.capacity = 1;
@@ -1527,8 +1526,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     {
       struct FullParentObj *fpo = (struct FullParentObj *)out_arr.data;
-      C_ORM_FREE(fpo->children_o2m.data);
-      C_ORM_FREE(out_arr.data);
+      (void)c_orm_system_free(fpo->children_o2m.data);
+      (void)c_orm_system_free(out_arr.data);
       out_arr.data = NULL;
     }
     custom_vt.step = g_vt.step;
@@ -1543,7 +1542,7 @@ TEST test_api_hydration_types_and_boundaries(void) {
     rels[0].lazy_ctx_offset = offsetof(struct FullParentObj, o2o_ctx);
 
     p.child_o2o = NULL;
-    out_arr.data = c_orm_malloc(sizeof(struct FullParentObj));
+    (void)c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data);
     memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
     out_arr.length = 1;
     out_arr.capacity = 1;
@@ -1555,8 +1554,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     custom_vt.step = g_vt.step;
     {
       struct FullParentObj *fpo = (struct FullParentObj *)out_arr.data;
-      C_ORM_FREE(fpo->child_o2o);
-      C_ORM_FREE(out_arr.data);
+      (void)c_orm_system_free(fpo->child_o2o);
+      (void)c_orm_system_free(out_arr.data);
       out_arr.data = NULL;
     }
   }
@@ -2107,7 +2106,7 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
     rc = c_orm_build_relation_meta(&sql_tbl, &out_rels, &out_num);
     ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
-    C_ORM_FREE(out_rels);
+    (void)c_orm_system_free(out_rels);
     out_rels = NULL;
   }
 
@@ -2160,11 +2159,11 @@ TEST test_api_hydration_types_and_boundaries(void) {
     ctx = (c_orm_lazy_load_context_t *)(void *)((char *)&p +
                                                 rels[0].lazy_ctx_offset);
     ctx->is_loaded = 1;
-    p.children_o2m.data = c_orm_malloc(sizeof(struct StringChildObj) * 2);
+    (void)c_orm_system_calloc(2, sizeof(struct StringChildObj),
+                              &p.children_o2m.data);
     {
       struct StringChildObj *scs = (struct StringChildObj *)p.children_o2m.data;
-      memset(scs, 0, sizeof(struct StringChildObj) * 2);
-      scs[0].str_name = (char *)c_orm_malloc(8);
+      (void)c_orm_system_malloc(8, (void **)&scs[0].str_name);
       C_ORM_STRCPY(scs[0].str_name, 8, "test");
       scs[1].str_name = NULL;
       p.children_o2m.length = 2;
@@ -2188,7 +2187,7 @@ TEST test_api_hydration_types_and_boundaries(void) {
     custom_vt.step = mock_scatter_mixed_step;
     rc = c_orm_scatter_gather_generic(sm, &Users_meta, &out_arr, &out_cnt);
     ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
-    C_ORM_FREE(out_arr);
+    (void)c_orm_system_free(out_arr);
     out_arr = NULL;
 
     custom_vt.step = g_vt.step;

@@ -39,27 +39,27 @@ static int mock_malloc_calls = 0;
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; }                              \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; }                              \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++; if (!((cond) != 0)) { fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); return GREATEST_TEST_RES_FAIL; }                                 \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++; if (strcmp((exp), (got)) != 0) { fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__, (exp), (got)); return GREATEST_TEST_RES_FAIL; }                   \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++; if (!((exp) != (got))) { fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; }                              \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -73,18 +73,26 @@ static int mock_malloc_calls = 0;
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do { enum greatest_test_res _rc = (res); greatest_info.assertions++; if (_rc != GREATEST_TEST_RES_PASS) { return _rc; } } while ((void)0, 0);             \
   } while ((void)0, 0)
 
 
 /**
  * @brief Executes mock_malloc.
  * @param size Parameter size.
+ * @param out_ptr Output pointer receiving allocated address.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
  */
-static void *mock_malloc(size_t size) {
+static c_orm_error_t mock_malloc(size_t size, void **out_ptr) {
   mock_malloc_calls++;
-  if (mock_malloc_fail_count == mock_malloc_calls) return NULL;
-  return malloc(size);
+  if (mock_malloc_fail_count == mock_malloc_calls) {
+    if (out_ptr) {
+      *out_ptr = NULL;
+    }
+    return C_ORM_ERROR_MEMORY;
+  }
+  *out_ptr = malloc(size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /**
@@ -189,7 +197,7 @@ TEST test_codegen_malloc_fail(void) {
   int i;
   int total_calls;
   c_orm_error_t rc;
-  void *(*old_malloc)(size_t);
+  c_orm_malloc_fn_t old_malloc;
 
   old_malloc = c_orm_malloc;
   c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free);
@@ -234,6 +242,27 @@ TEST test_codegen_emit_fail(void) {
   rc = c_orm_codegen_generate("dummy.sql", "test_out");
   ASSERT(rc != C_ORM_OK);
   c_orm_mock_codegen_source_emit_fail = 0;
+
+  c_orm_mock_codegen_io_fail = 1;
+  rc = c_orm_codegen_generate("dummy.sql", "test_out");
+  ASSERT_EQ(C_ORM_ERROR_IO, rc);
+  c_orm_mock_codegen_io_fail = 2;
+  rc = c_orm_codegen_generate("dummy.sql", "test_out");
+  ASSERT_EQ(C_ORM_ERROR_IO, rc);
+  c_orm_mock_codegen_io_fail = 0;
+
+  ASSERT_NEQ(C_ORM_OK, c_orm_codegen_generate(NULL, "test_out"));
+  ASSERT_NEQ(C_ORM_OK, c_orm_codegen_generate("dummy.sql", NULL));
+  ASSERT_NEQ(C_ORM_OK, c_orm_codegen_generate("x", "test_out"));
+  ASSERT_NEQ(C_ORM_OK,
+             c_orm_codegen_generate("nonexistent_test.CPY", "test_out"));
+  ASSERT_NEQ(C_ORM_OK,
+             c_orm_codegen_generate("nonexistent_test.COB", "test_out"));
+
+  rc = write_test_file("comment_only.sql", "-- no tables here\n");
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_NEQ(C_ORM_OK, c_orm_codegen_generate("comment_only.sql", "test_out"));
+  remove("comment_only.sql");
 
   remove("dummy.sql");
   remove("test_out/Models.h");

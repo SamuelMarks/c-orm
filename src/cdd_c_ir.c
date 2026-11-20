@@ -32,16 +32,16 @@ c_orm_error_t cdd_c_ir_init(cdd_c_ir_t *ir) {
 
 c_orm_error_t cdd_c_ir_add_table(cdd_c_ir_t *ir,
                                  const struct sql_table_t *table) {
-  struct sql_table_t *new_tables;
+  struct sql_table_t *new_tables = NULL;
   size_t new_cap;
   if (!ir || !table)
     return C_ORM_ERROR_UNKNOWN;
 
   if (ir->n_tables >= ir->capacity_tables) {
     new_cap = ir->capacity_tables == 0 ? 4 : ir->capacity_tables * 2;
-    new_tables = (struct sql_table_t *)C_ORM_REALLOC(
-        ir->tables, new_cap * sizeof(struct sql_table_t));
-    if (!new_tables)
+    if (c_orm_system_realloc(ir->tables, new_cap * sizeof(struct sql_table_t),
+                             (void **)&new_tables) != C_ORM_OK ||
+        !new_tables)
       return C_ORM_ERROR_UNKNOWN;
     ir->tables = new_tables;
     ir->capacity_tables = new_cap;
@@ -63,19 +63,24 @@ static c_orm_error_t duplicate_projection(cdd_c_query_projection_t *dest,
                                           const cdd_c_query_projection_t *src) {
   size_t i;
   c_orm_error_t rc;
-  /* !dest and !src are checked implicitly or by callers */
-  cdd_c_query_projection_init(dest);
+  dest->fields = NULL;
+  dest->n_fields = 0;
+  dest->capacity = 0;
+  dest->source_table = NULL;
+  dest->mapping_meta.target_name = NULL;
+  dest->mapping_meta.kind = src->mapping_meta.kind;
   for (i = 0; i < src->n_fields; ++i) {
     rc = cdd_c_query_projection_add_field(dest, &src->fields[i]);
     if (rc != C_ORM_OK) {
-      cdd_c_query_projection_free(dest);
+      (void)cdd_c_query_projection_free(dest);
       return rc;
     }
   }
   if (src->source_table) {
-    dest->source_table = (char *)C_ORM_MALLOC(strlen(src->source_table) + 1);
-    if (!dest->source_table) {
-      cdd_c_query_projection_free(dest);
+    if (c_orm_system_malloc(strlen(src->source_table) + 1,
+                            (void **)&dest->source_table) != C_ORM_OK ||
+        !dest->source_table) {
+      (void)cdd_c_query_projection_free(dest);
       return C_ORM_ERROR_UNKNOWN;
     }
     memcpy(dest->source_table, src->source_table,
@@ -83,10 +88,11 @@ static c_orm_error_t duplicate_projection(cdd_c_query_projection_t *dest,
   }
   dest->mapping_meta.kind = src->mapping_meta.kind;
   if (src->mapping_meta.target_name) {
-    dest->mapping_meta.target_name =
-        (char *)C_ORM_MALLOC(strlen(src->mapping_meta.target_name) + 1);
-    if (!dest->mapping_meta.target_name) {
-      cdd_c_query_projection_free(dest);
+    if (c_orm_system_malloc(strlen(src->mapping_meta.target_name) + 1,
+                            (void **)&dest->mapping_meta.target_name) !=
+            C_ORM_OK ||
+        !dest->mapping_meta.target_name) {
+      (void)cdd_c_query_projection_free(dest);
       return C_ORM_ERROR_UNKNOWN;
     }
     memcpy(dest->mapping_meta.target_name, src->mapping_meta.target_name,
@@ -99,7 +105,7 @@ static c_orm_error_t duplicate_projection(cdd_c_query_projection_t *dest,
 
 c_orm_error_t cdd_c_ir_add_projection(cdd_c_ir_t *ir,
                                       const cdd_c_query_projection_t *proj) {
-  cdd_c_query_projection_t *new_projs;
+  cdd_c_query_projection_t *new_projs = NULL;
   size_t new_cap;
   c_orm_error_t rc;
   if (!ir || !proj)
@@ -107,9 +113,10 @@ c_orm_error_t cdd_c_ir_add_projection(cdd_c_ir_t *ir,
 
   if (ir->n_projections >= ir->capacity_projections) {
     new_cap = ir->capacity_projections == 0 ? 4 : ir->capacity_projections * 2;
-    new_projs = (cdd_c_query_projection_t *)C_ORM_REALLOC(
-        ir->projections, new_cap * sizeof(cdd_c_query_projection_t));
-    if (!new_projs)
+    if (c_orm_system_realloc(ir->projections,
+                             new_cap * sizeof(cdd_c_query_projection_t),
+                             (void **)&new_projs) != C_ORM_OK ||
+        !new_projs)
       return C_ORM_ERROR_UNKNOWN;
     ir->projections = new_projs;
     ir->capacity_projections = new_cap;
@@ -129,16 +136,16 @@ c_orm_error_t cdd_c_ir_free(cdd_c_ir_t *ir) {
     return C_ORM_ERROR_UNKNOWN;
 
   for (i = 0; i < ir->n_tables; ++i) {
-    sql_table_C_ORM_FREE(&ir->tables[i]);
+    (void)sql_table_free(&ir->tables[i]);
   }
   if (ir->tables)
-    C_ORM_FREE(ir->tables);
+    (void)c_orm_system_free(ir->tables);
 
   for (i = 0; i < ir->n_projections; ++i) {
-    cdd_c_query_projection_free(&ir->projections[i]);
+    (void)cdd_c_query_projection_free(&ir->projections[i]);
   }
   if (ir->projections)
-    C_ORM_FREE(ir->projections);
+    (void)c_orm_system_free(ir->projections);
 
   ir->tables = NULL;
   ir->n_tables = 0;
@@ -199,27 +206,29 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
         }
         rc = cdd_c_ir_add_table(out_ir, table);
         if (rc != C_ORM_OK) {
-          sql_table_C_ORM_FREE(table);
-          C_ORM_FREE(table);
-          sql_token_list_free(list);
+          (void)sql_table_free(table);
+          (void)c_orm_system_free(table);
+          (void)sql_token_list_free(list);
           return rc;
         }
-        C_ORM_FREE(table);
+        (void)c_orm_system_free(table);
         in_table = 0;
       } else {
         proj = NULL;
         rc = sql_parse_select(&sublist, &proj, &err);
         if (rc != C_ORM_OK) {
-          sql_token_list_free(list);
+          (void)sql_token_list_free(list);
           return rc;
         }
         rc = cdd_c_ir_add_projection(out_ir, proj);
         if (rc != C_ORM_OK) {
-          C_ORM_FREE(proj);
-          sql_token_list_free(list);
+          (void)cdd_c_query_projection_free(proj);
+          (void)c_orm_system_free(proj);
+          (void)sql_token_list_free(list);
           return rc;
         }
-        C_ORM_FREE(proj);
+        (void)cdd_c_query_projection_free(proj);
+        (void)c_orm_system_free(proj);
         in_select = 0;
       }
     }
@@ -233,19 +242,20 @@ c_orm_error_t parse_sql_into_ir(const char *sql_data, cdd_c_ir_t *out_ir) {
     {
       c_orm_error_t tmp = sql_parse_returning(list, &proj, &err);
       if (tmp != C_ORM_OK) {
-        sql_token_list_free(list);
+        (void)sql_token_list_free(list);
         return tmp;
       }
     }
     rc = cdd_c_ir_add_projection(out_ir, proj);
     if (rc != C_ORM_OK) {
-      C_ORM_FREE(proj);
-      sql_token_list_free(list);
+      (void)cdd_c_query_projection_free(proj);
+      (void)c_orm_system_free(proj);
+      (void)sql_token_list_free(list);
       return rc;
     }
-    C_ORM_FREE(proj);
+    (void)cdd_c_query_projection_free(proj);
+    (void)c_orm_system_free(proj);
   }
 
-  sql_token_list_free(list);
-  return C_ORM_OK;
+  return sql_token_list_free(list);
 }

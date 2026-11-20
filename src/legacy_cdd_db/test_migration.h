@@ -33,27 +33,51 @@ extern "C" {
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -67,7 +91,13 @@ extern "C" {
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do {                                                                       \
+      enum greatest_test_res _rc = (res);                                      \
+      greatest_info.assertions++;                                              \
+      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
+        return _rc;                                                            \
+      }                                                                        \
+    } while ((void)0, 0);                                                      \
   } while ((void)0, 0)
 
 /**
@@ -215,7 +245,9 @@ TEST test_parse_migration_file_errors(void) {
   /* Empty file */
   {
     const char *filename = "empty.sql";
-    fs_write_to_file(filename, "");
+    c_orm_error_t wrc;
+    wrc = (c_orm_error_t)fs_write_to_file(filename, "");
+    ASSERT_EQ(C_ORM_OK, wrc);
     ASSERT_EQ(0, parse_migration_file(filename, &stmts));
     ASSERT_EQ(NULL, stmts.up_statement);
     ASSERT_EQ(NULL, stmts.down_statement);
@@ -255,14 +287,19 @@ static int alloc_countdown = 0;
 /**
  * @brief Mock malloc callback for simulated OOM testing.
  * @param size Requested allocation size.
- * @return Memory pointer or NULL.
+ * @param out_ptr Output pointer receiving allocated memory or NULL.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
  */
-static void *mock_malloc_migration(size_t size) {
+static c_orm_error_t mock_malloc_migration(size_t size, void **out_ptr) {
   if (alloc_countdown == 0) {
-    return NULL;
+    if (out_ptr) {
+      *out_ptr = NULL;
+    }
+    return C_ORM_ERROR_MEMORY;
   }
   alloc_countdown--;
-  return malloc(size);
+  *out_ptr = malloc(size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /**
@@ -276,23 +313,25 @@ TEST test_parse_migration_file_oom(void) {
                         "-- DOWN\n"
                         "DROP TABLE test;\n";
   struct MigrationStatements stmts;
-  void *(*orig_malloc_migration)(size_t);
+  c_orm_malloc_fn_t orig_malloc_migration;
+  c_orm_error_t rc;
 
   orig_malloc_migration = c_orm_malloc;
 
-  fs_write_to_file(filename, content);
+  rc = (c_orm_error_t)fs_write_to_file(filename, content);
+  ASSERT_EQ(C_ORM_OK, rc);
 
   /* Force OOM on first alloc (up) */
   alloc_countdown = 0;
-  c_orm_set_allocators(mock_malloc_migration, c_orm_realloc, c_orm_free);
+  (void)c_orm_set_allocators(mock_malloc_migration, c_orm_realloc, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
 
   /* Force OOM on second alloc (down) */
   alloc_countdown = 1;
-  c_orm_set_allocators(mock_malloc_migration, c_orm_realloc, c_orm_free);
+  (void)c_orm_set_allocators(mock_malloc_migration, c_orm_realloc, c_orm_free);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
 
-  c_orm_set_allocators(orig_malloc_migration, c_orm_realloc, c_orm_free);
+  (void)c_orm_set_allocators(orig_malloc_migration, c_orm_realloc, c_orm_free);
   remove(filename);
   PASS();
 }
@@ -323,13 +362,15 @@ TEST test_parse_migration_file_empty_blocks(void) {
 
   /* also test single empty marker at end of file */
   content = "-- UP";
-  fs_write_to_file(filename, content);
+  rc = (c_orm_error_t)fs_write_to_file(filename, content);
+  ASSERT_EQ(0, rc);
   rc = parse_migration_file(filename, &stmts);
   ASSERT_EQ(0, rc);
   migration_statements_free(&stmts);
 
   content = "-- DOWN";
-  fs_write_to_file(filename, content);
+  rc = (c_orm_error_t)fs_write_to_file(filename, content);
+  ASSERT_EQ(0, rc);
   rc = parse_migration_file(filename, &stmts);
   ASSERT_EQ(0, rc);
   migration_statements_free(&stmts);

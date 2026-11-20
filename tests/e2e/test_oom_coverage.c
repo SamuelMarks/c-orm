@@ -44,27 +44,51 @@ static int oom_active = 0;
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -78,45 +102,66 @@ static int oom_active = 0;
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do {                                                                       \
+      enum greatest_test_res _rc = (res);                                      \
+      greatest_info.assertions++;                                              \
+      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
+        return _rc;                                                            \
+      }                                                                        \
+    } while ((void)0, 0);                                                      \
   } while ((void)0, 0)
 
 /**
  * @brief Executes mock_malloc_oom.
  * @param size Parameter size.
+ * @param out_ptr Output pointer receiving allocated address.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
  */
-static void *mock_malloc_oom(size_t size) {
+static c_orm_error_t mock_malloc_oom(size_t size, void **out_ptr) {
   if (oom_active) {
     if (oom_countdown == 0) {
       oom_countdown--;
-      return NULL;
+      if (out_ptr) {
+        *out_ptr = NULL;
+      }
+      return C_ORM_ERROR_MEMORY;
     }
     oom_countdown--;
   }
-  return malloc(size);
+  *out_ptr = malloc(size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /**
  * @brief Mock free wrapper for OOM testing.
  * @param ptr Pointer to free.
+ * @return C_ORM_OK on success.
  */
-static void mock_free_oom(void *ptr) { free(ptr); }
+static c_orm_error_t mock_free_oom(void *ptr) {
+  free(ptr);
+  return C_ORM_OK;
+}
 
 /**
- * @brief Mock realloc returning NULL when countdown expires under OOM.
+ * @brief Mock realloc returning error when countdown expires under OOM.
  * @param ptr Existing allocation pointer.
  * @param size New allocation size in bytes.
- * @return Reallocated memory or NULL on failure.
+ * @param out_ptr Output pointer receiving reallocated memory.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
  */
-static void *mock_realloc_oom(void *ptr, size_t size) {
+static c_orm_error_t mock_realloc_oom(void *ptr, size_t size, void **out_ptr) {
   if (oom_active) {
     if (oom_countdown == 0) {
       oom_countdown--;
-      return NULL;
+      if (out_ptr) {
+        *out_ptr = NULL;
+      }
+      return C_ORM_ERROR_MEMORY;
     }
     oom_countdown--;
   }
-  return realloc(ptr, size);
+  *out_ptr = realloc(ptr, size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /**
@@ -245,8 +290,9 @@ static c_orm_error_t do_cdd_c_ir(void) {
   cdd_c_ir_init(&ir);
   cdd_c_ir_add_table(&ir, &tbl);
   cdd_c_query_projection_init(&proj);
-  proj.source_table = (char *)C_ORM_MALLOC(5);
-  if (proj.source_table) {
+  proj.source_table = NULL;
+  if (c_orm_system_malloc(5, (void **)&proj.source_table) == C_ORM_OK &&
+      proj.source_table) {
     C_ORM_STRCPY(proj.source_table, 5, "test");
   }
   cdd_c_query_projection_add_field(&proj, &field);
@@ -288,7 +334,7 @@ static c_orm_error_t do_qb_oom(void) {
       /* compile failed under simulated OOM */
     }
     if (sql) {
-      c_orm_free(sql);
+      (void)c_orm_free(sql);
       sql = NULL;
     }
     c_orm_select_builder_free(sb);
@@ -303,7 +349,7 @@ static c_orm_error_t do_qb_oom(void) {
       /* compile failed under simulated OOM */
     }
     if (sql) {
-      c_orm_free(sql);
+      (void)c_orm_free(sql);
       sql = NULL;
     }
     c_orm_update_builder_free(ub);
@@ -346,21 +392,19 @@ TEST test_cdd_c_ir_oom(void) {
  * @return C_ORM_OK on completion.
  */
 static c_orm_error_t test_mock_alloc_branches(void) {
-  void *p;
+  void *p = NULL;
 
   oom_active = 0;
-  p = mock_malloc_oom(16);
-  p = mock_realloc_oom(p, 32);
-  mock_free_oom(p);
+  (void)mock_malloc_oom(16, &p);
+  (void)mock_realloc_oom(p, 32, &p);
+  (void)mock_free_oom(p);
 
   oom_active = 1;
   oom_countdown = 0;
-  p = mock_malloc_oom(16);
-  (void)p;
+  (void)mock_malloc_oom(16, &p);
 
   oom_countdown = 0;
-  p = mock_realloc_oom(NULL, 32);
-  (void)p;
+  (void)mock_realloc_oom(NULL, 32, &p);
   oom_active = 0;
   return C_ORM_OK;
 }
@@ -371,9 +415,9 @@ static c_orm_error_t test_mock_alloc_branches(void) {
  */
 SUITE(oom_coverage_suite) {
   static int recursed = 0;
-  void *(*old_malloc)(size_t);
-  void (*old_free)(void *);
-  void *(*old_realloc)(void *, size_t);
+  c_orm_malloc_fn_t old_malloc;
+  c_orm_free_fn_t old_free;
+  c_orm_realloc_fn_t old_realloc;
 
   old_malloc = c_orm_malloc;
   old_free = c_orm_free;

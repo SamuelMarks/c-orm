@@ -13,6 +13,7 @@ extern "C" {
 #include "c_orm_api.h"
 #include "c_orm_db.h"
 #include "c_orm_oauth2.h"
+#include "c_orm_uuid.h"
 #include "c_orm_sqlite.h"
 #include "c_orm_postgres.h"
 #include "c_orm_mysql.h"
@@ -34,27 +35,51 @@ extern "C" {
 #undef ASSERT_EQ_FMT
 #define ASSERT_EQ_FMT(exp, got, fmt)                                           \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_EQ
 #define ASSERT_EQ(exp, got)                                                    \
   do {                                                                         \
-    greatest_info.assertions += ((exp) == (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) == (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT
 #define ASSERT(cond)                                                           \
   do {                                                                         \
-    greatest_info.assertions += ((cond) != 0);                                 \
+    greatest_info.assertions++;                                                \
+    if (!((cond) != 0)) {                                                      \
+      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_STR_EQ
 #define ASSERT_STR_EQ(exp, got)                                                \
   do {                                                                         \
-    greatest_info.assertions += (strcmp((exp), (got)) == 0);                   \
+    greatest_info.assertions++;                                                \
+    if (strcmp((exp), (got)) != 0) {                                           \
+      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
+              (exp), (got));                                                   \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef ASSERT_NEQ
 #define ASSERT_NEQ(exp, got)                                                   \
   do {                                                                         \
-    greatest_info.assertions += ((exp) != (got));                              \
+    greatest_info.assertions++;                                                \
+    if (!((exp) != (got))) {                                                   \
+      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
+              #got);                                                           \
+      return GREATEST_TEST_RES_FAIL;                                           \
+    }                                                                          \
   } while ((void)0, 0)
 #undef RUN_TEST
 #define RUN_TEST(TEST)                                                         \
@@ -68,7 +93,13 @@ extern "C" {
 #undef CHECK_CALL
 #define CHECK_CALL(res)                                                        \
   do {                                                                         \
-    greatest_info.assertions += ((res) == GREATEST_TEST_RES_PASS);             \
+    do {                                                                       \
+      enum greatest_test_res _rc = (res);                                      \
+      greatest_info.assertions++;                                              \
+      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
+        return _rc;                                                            \
+      }                                                                        \
+    } while ((void)0, 0);                                                      \
   } while ((void)0, 0)
 
 /**
@@ -161,26 +192,35 @@ static int oom_countdown = -1;
 static int oom_active = 0;
 
 /**
- * @brief Mock malloc returning NULL when countdown expires.
+ * @brief Mock malloc returning error when countdown expires.
  * @param size Allocation size in bytes.
- * @return Allocated buffer or NULL on OOM.
+ * @param out_ptr Output pointer receiving allocated buffer or NULL on OOM.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on OOM.
  */
-static void *m_mock_malloc(size_t size) {
+static c_orm_error_t m_mock_malloc(size_t size, void **out_ptr) {
   if (oom_active) {
     if (oom_countdown == 0) {
       oom_countdown--;
-      return NULL;
+      if (out_ptr) {
+        *out_ptr = NULL;
+      }
+      return C_ORM_ERROR_MEMORY;
     }
     oom_countdown--;
   }
-  return malloc(size);
+  *out_ptr = malloc(size == 0 ? 1 : size);
+  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
 }
 
 /**
  * @brief Mock free wrapper.
  * @param ptr Pointer to memory block to free.
+ * @return C_ORM_OK on success.
  */
-static void m_mock_free(void *ptr) { free(ptr); }
+static c_orm_error_t m_mock_free(void *ptr) {
+  free(ptr);
+  return C_ORM_OK;
+}
 
 /**
  * @brief Tests parsing OAuth2 tokens from JSON edge cases and malformed inputs.
@@ -209,14 +249,20 @@ TEST test_oauth2_json_edge_cases(void) {
 
   c_orm_oauth2_token_parse_json("{\"expires_in\":3600}", &token);
 
-  /* Some bad formatting */
-  c_orm_oauth2_token_parse_json("[]", &token);
-  c_orm_oauth2_token_parse_json("{\"access_token\": ", &token);
-  c_orm_oauth2_token_parse_json("{\"access_token\": 123", &token);
-  c_orm_oauth2_token_parse_json("{\"access_token\": \"123", &token);
-  c_orm_oauth2_token_parse_json("{\"expires_in\": \"3600\"}", &token);
-  c_orm_oauth2_token_parse_json("{\"expires_in\": abc}", &token);
-  c_orm_oauth2_token_parse_json("{\"unknown_key\": \"val\"}", &token);
+  /* Some bad formatting must return C_ORM_ERROR_PARSE */
+  ASSERT_EQ(C_ORM_ERROR_PARSE, c_orm_oauth2_token_parse_json("[]", &token));
+  ASSERT_EQ(C_ORM_ERROR_PARSE,
+            c_orm_oauth2_token_parse_json("{\"access_token\": ", &token));
+  ASSERT_EQ(C_ORM_ERROR_PARSE,
+            c_orm_oauth2_token_parse_json("{\"access_token\": 123", &token));
+  ASSERT_EQ(C_ORM_ERROR_PARSE,
+            c_orm_oauth2_token_parse_json("{\"access_token\": \"123", &token));
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_token_parse_json(
+                          "{\"expires_in\": \"3600\"}", &token));
+  ASSERT_EQ(C_ORM_ERROR_PARSE,
+            c_orm_oauth2_token_parse_json("{\"expires_in\": abc}", &token));
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_token_parse_json(
+                          "{\"unknown_key\": \"val\"}", &token));
 
   PASS();
 }
@@ -240,9 +286,24 @@ TEST test_oauth2_flat_json(void) {
   ASSERT_STR_EQ("Bearer", t.token_type);
   ASSERT_EQ(3600, t.expires_in);
 
-  C_ORM_FREE(t.access_token);
-  C_ORM_FREE(t.refresh_token);
-  C_ORM_FREE(t.token_type);
+  (void)c_orm_system_free(t.access_token);
+  (void)c_orm_system_free(t.refresh_token);
+  (void)c_orm_system_free(t.token_type);
+
+  /* OOM on access_token (0), refresh_token (1), and token_type (2) */
+  {
+    int step;
+    for (step = 0; step < 3; ++step) {
+      oom_active = 1;
+      oom_countdown = step;
+      ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                c_orm_oauth2_token_parse_json(
+                    "{\"access_token\":\"a\",\"refresh_token\":\"b\","
+                    "\"token_type\":\"c\"}",
+                    &t));
+      oom_active = 0;
+    }
+  }
 
   /* Error paths / edge cases in JSON */
   c_orm_oauth2_token_parse_json("{\"escaped\\\"\": \"val\\\"\"}", &t);
@@ -275,7 +336,7 @@ TEST test_oauth2_crypto(void) {
     c_orm_oauth2_encrypt_token("plain", &out);
     oom_active = 0;
     if (out) {
-      C_ORM_FREE(out);
+      (void)c_orm_system_free(out);
       out = NULL;
     }
   }
@@ -286,7 +347,7 @@ TEST test_oauth2_crypto(void) {
     c_orm_oauth2_decrypt_token("cipher", &out);
     oom_active = 0;
     if (out) {
-      C_ORM_FREE(out);
+      (void)c_orm_system_free(out);
       out = NULL;
     }
   }
@@ -300,16 +361,192 @@ TEST test_oauth2_crypto(void) {
 
   c_orm_store_token_secure(NULL);
 
-  /* hex parsing 'A'-'F' and '0'-'9' */
-  c_orm_oauth2_decrypt_token("ABCDEF", &out);
-  C_ORM_FREE(out);
-  out = NULL;
-  c_orm_oauth2_decrypt_token("0123456789", &out);
-  C_ORM_FREE(out);
-  out = NULL;
-  c_orm_oauth2_decrypt_token("!@#$zZgG  ", &out);
-  C_ORM_FREE(out);
-  out = NULL;
+  /* hex parsing 'A'-'F' and '0'-'9' and AEAD authentication rejections */
+  ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_decrypt_token("ABCDEF", &out));
+  ASSERT(out == NULL);
+  ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_decrypt_token("0123456789", &out));
+  ASSERT(out == NULL);
+  ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_decrypt_token("!@#$zZgG  ", &out));
+  ASSERT(out == NULL);
+  ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_decrypt_token("abc", &out));
+
+  /* Explicit key validation, AEAD round-trip, randomized nonce, & tamper test
+   */
+  {
+    unsigned char explicit_key[32];
+    char *enc1 = NULL;
+    char *enc2 = NULL;
+    char *dec = NULL;
+    const char *long_token =
+        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9."
+        "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5"
+        "MDIyfQ.signature_exceeding_two_chacha_and_sha256_blocks";
+    size_t k;
+
+    for (k = 0; k < 32; ++k) {
+      explicit_key[k] = (unsigned char)(k + 1);
+    }
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_oauth2_set_encryption_key(NULL, 32));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_oauth2_set_encryption_key(explicit_key, 16));
+    ASSERT_EQ(C_ORM_OK, c_orm_oauth2_set_encryption_key(explicit_key, 32));
+
+    ASSERT_EQ(C_ORM_OK, c_orm_oauth2_encrypt_token(long_token, &enc1));
+    ASSERT_EQ(C_ORM_OK, c_orm_oauth2_encrypt_token(long_token, &enc2));
+    ASSERT(strcmp(enc1, enc2) != 0);
+
+    ASSERT_EQ(C_ORM_OK, c_orm_oauth2_decrypt_token(enc1, &dec));
+    ASSERT_STR_EQ(long_token, dec);
+    (void)c_orm_system_free(dec);
+    dec = NULL;
+
+    /* Flip last hex nibble (inside HMAC-SHA256 tag) -> must fail with CRYPTO */
+    enc1[strlen(enc1) - 1] = (enc1[strlen(enc1) - 1] == 'a') ? 'b' : 'a';
+    ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_decrypt_token(enc1, &dec));
+    ASSERT(dec == NULL);
+
+    /* Uppercase hex ('A'..'F'), empty "", and invalid hex nibbles */
+    ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_decrypt_token("", &dec));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_store_token_secure_at(NULL, "x"));
+    enc2[0] = 'A';
+    enc2[1] = 'F';
+    (void)c_orm_oauth2_decrypt_token(enc2, &dec);
+    if (dec) {
+      (void)c_orm_system_free(dec);
+      dec = NULL;
+    }
+    enc2[0] = 'z';
+    ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_decrypt_token(enc2, &dec));
+    enc2[0] = '0';
+    enc2[1] = '!';
+    ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_decrypt_token(enc2, &dec));
+    enc2[1] = ':';
+    ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_decrypt_token(enc2, &dec));
+    enc2[1] = '[';
+    ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_decrypt_token(enc2, &dec));
+
+    /* Decrypt OOM on bin_data (0) and plain (1) */
+    {
+      char *enc3 = NULL;
+      ASSERT_EQ(C_ORM_OK, c_orm_oauth2_encrypt_token("hello", &enc3));
+      for (i = 0; i < 3; ++i) {
+        oom_active = 1;
+        oom_countdown = i;
+        (void)c_orm_oauth2_decrypt_token(enc3, &dec);
+        oom_active = 0;
+        if (dec) {
+          (void)c_orm_system_free(dec);
+          dec = NULL;
+        }
+      }
+#if defined(C_ORM_TEST_ALLOCATOR) && !defined(_MSC_VER)
+      /* Master key reset + C_ORM_OAUTH2_SECRET derivation */
+      ASSERT_EQ(C_ORM_OK, c_orm_oauth2_set_encryption_key(NULL, 0));
+      (void)C_ORM_SETENV("C_ORM_OAUTH2_SECRET", "env_master_secret_key");
+      ASSERT_EQ(C_ORM_OK, c_orm_oauth2_encrypt_token("env_tok", &dec));
+      (void)c_orm_system_free(dec);
+      dec = NULL;
+      (void)C_ORM_UNSETENV("C_ORM_OAUTH2_SECRET");
+
+      /* Master key reset + OS CSPRNG success & CSPRNG failures */
+      ASSERT_EQ(C_ORM_OK, c_orm_oauth2_set_encryption_key(NULL, 0));
+      ASSERT_EQ(C_ORM_OK, c_orm_oauth2_encrypt_token("rng_tok", &dec));
+      (void)c_orm_system_free(dec);
+      dec = NULL;
+
+      ASSERT_EQ(C_ORM_OK, c_orm_oauth2_set_encryption_key(NULL, 0));
+      c_orm_mock_urandom_path = "/nonexistent_urandom_oauth2";
+      ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_encrypt_token("x", &dec));
+      ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_decrypt_token(enc3, &dec));
+      ASSERT_EQ(C_ORM_OK, c_orm_oauth2_set_encryption_key(explicit_key, 32));
+      ASSERT_EQ(C_ORM_ERROR_CRYPTO, c_orm_oauth2_encrypt_token("x", &dec));
+      c_orm_mock_urandom_path = NULL;
+#endif
+      (void)c_orm_system_free(enc3);
+    }
+    (void)c_orm_system_free(enc1);
+    (void)c_orm_system_free(enc2);
+  }
+
+  /* SHA-256 streaming boundaries: empty "", 56-byte (>56 pad), 60-byte salt
+   * (+4 be_idx == 64), 62-byte salt (+4 > 64), NULL salt */
+  {
+    char *hx = NULL;
+    int sv = 0;
+    c_orm_oauth2_token_t t_empty;
+    ASSERT_EQ(C_ORM_OK, c_orm_user_hash_password("", NULL, &hx));
+    (void)c_orm_system_free(hx);
+    ASSERT_EQ(
+        C_ORM_OK,
+        c_orm_user_hash_password(
+            "pw", "0123456789012345678901234567890123456789012345678901", &hx));
+    (void)c_orm_system_free(hx);
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_user_hash_password(
+                  "01234567890123456789012345678901234567890123456789012345",
+                  "", &hx));
+    (void)c_orm_system_free(hx);
+    ASSERT_EQ(
+        C_ORM_OK,
+        c_orm_user_hash_password(
+            "pw",
+            "012345678901234567890123456789012345678901234567890123456789",
+            &hx));
+    (void)c_orm_system_free(hx);
+    ASSERT_EQ(
+        C_ORM_OK,
+        c_orm_user_hash_password(
+            "pw",
+            "012345678901234567890123456789012345678901234567890123456789ab",
+            &hx));
+    (void)c_orm_system_free(hx);
+
+    /* Trailing whitespace in granted_scopes when requested scope mismatches */
+    ASSERT_EQ(C_ORM_OK, c_orm_oauth2_validate_scope("read  \t ", "write", &sv));
+    ASSERT_EQ(0, sv);
+
+    /* C_ORM_TOKEN_FILE env override + NULL access/refresh tokens */
+    memset(&t_empty, 0, sizeof(t_empty));
+    (void)C_ORM_SETENV("C_ORM_TOKEN_FILE", "c_orm_env_tok.dat");
+    ASSERT_EQ(C_ORM_OK, c_orm_store_token_secure(&t_empty));
+    remove("c_orm_env_tok.dat");
+    (void)C_ORM_UNSETENV("C_ORM_TOKEN_FILE");
+  }
+
+  /* PBKDF2-HMAC-SHA256 password hashing (>64-byte password exercises HMAC key
+   * compression) */
+  {
+    char *h1 = NULL;
+    char *h2 = NULL;
+    char *h3 = NULL;
+    const char *long_pw = "super_long_passphrase_exceeding_sixty_four_bytes_"
+                          "hmac_sha256_block_size_limit_12345";
+    ASSERT_EQ(C_ORM_ERROR_NULL_POINTER,
+              c_orm_user_hash_password(NULL, "s", &h1));
+    ASSERT_EQ(C_ORM_ERROR_NULL_POINTER,
+              c_orm_user_hash_password("pw", "s", NULL));
+    oom_active = 1;
+    oom_countdown = 0;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_user_hash_password("pw", "s", &h1));
+    oom_active = 0;
+
+    ASSERT_EQ(C_ORM_OK, c_orm_user_hash_password(long_pw, "saltA", &h1));
+    ASSERT_EQ(C_ORM_OK, c_orm_user_hash_password(long_pw, "saltA", &h2));
+    ASSERT_EQ(C_ORM_OK, c_orm_user_hash_password(long_pw, "saltB", &h3));
+    ASSERT_EQ(64U, (unsigned int)strlen(h1));
+    ASSERT_STR_EQ(h1, h2);
+    ASSERT(strcmp(h1, h3) != 0);
+    (void)c_orm_system_free(h1);
+    (void)c_orm_system_free(h2);
+    (void)c_orm_system_free(h3);
+  }
+
+  /* Explicit secure token file path & validation */
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_store_token_secure_at(&t, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_store_token_secure_at(&t, ""));
+  ASSERT_EQ(C_ORM_OK, c_orm_store_token_secure_at(&t, "c_orm_custom_tok.dat"));
+  remove("c_orm_custom_tok.dat");
 
   c_orm_oauth2_get_current_timestamp(NULL);
   {
@@ -525,16 +762,38 @@ TEST test_oauth2_client(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ(1, is_valid);
 
-  memset(&user, 0, sizeof(user));
-  user.id = "u";
-  user.username = "u";
-  user.password_hash = "p";
-  user.salt = "s";
-  c_orm_insert_generic(db, &c_orm_user_meta, &user);
+  {
+    char *hashed_pw = NULL;
+    c_orm_user_t u_nosalt;
+    char *h_nosalt = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_user_hash_password("p", NULL, &h_nosalt));
+    memset(&u_nosalt, 0, sizeof(u_nosalt));
+    u_nosalt.id = "u_ns";
+    u_nosalt.username = "u_ns";
+    u_nosalt.password_hash = h_nosalt;
+    u_nosalt.salt = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_insert_generic(db, &c_orm_user_meta, &u_nosalt));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_user_verify_credentials(db, "u_ns", "p", &is_valid));
+    ASSERT_EQ(1, is_valid);
+    (void)c_orm_system_free(h_nosalt);
+    ASSERT_EQ(C_ORM_OK, c_orm_user_hash_password("p", "s", &hashed_pw));
+    memset(&user, 0, sizeof(user));
+    user.id = "u";
+    user.username = "u";
+    user.password_hash = hashed_pw;
+    user.salt = "s";
+    c_orm_insert_generic(db, &c_orm_user_meta, &user);
+    (void)c_orm_system_free(hashed_pw);
+  }
 
   is_valid = 0;
   c_orm_user_verify_credentials(db, "u", "p", &is_valid);
   ASSERT_EQ(1, is_valid);
+
+  is_valid = 1;
+  c_orm_user_verify_credentials(db, "u", "wrong", &is_valid);
+  ASSERT_EQ(0, is_valid);
 
   fail_sql = 5; /* trigger error in c_orm_find_one_by_string */
   mock_vt = *db->vtable;
@@ -564,8 +823,15 @@ TEST test_oauth2_scopes(void) {
     c_orm_oauth2_validate_scope("a b c", "a b", &is_valid);
     oom_active = 0;
   }
-  c_orm_oauth2_validate_scope("a b c", "d", &is_valid);
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_validate_scope("a b c", "d", &is_valid));
   ASSERT(!is_valid);
+  /* Regression test: substring scope must NOT escalate privileges */
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_validate_scope("read:public write:own",
+                                                  "read", &is_valid));
+  ASSERT_EQ(0, is_valid);
+  ASSERT_EQ(C_ORM_OK, c_orm_oauth2_validate_scope("read:public write:own",
+                                                  "write:own", &is_valid));
+  ASSERT_EQ(1, is_valid);
   c_orm_oauth2_validate_scope(NULL, "a b", &is_valid);
   c_orm_oauth2_validate_scope("a b c", NULL, &is_valid);
   c_orm_oauth2_validate_scope("a b c", "", &is_valid);
@@ -600,15 +866,15 @@ TEST test_oauth2_auth_code(void) {
 
   c_orm_oauth2_save_auth_code(db, &ac);
   c_orm_oauth2_consume_auth_code(db, "123", &out);
-  C_ORM_FREE(out.code);
+  (void)c_orm_system_free(out.code);
   out.code = NULL;
-  C_ORM_FREE(out.client_id);
+  (void)c_orm_system_free(out.client_id);
   out.client_id = NULL;
-  C_ORM_FREE(out.redirect_uri);
+  (void)c_orm_system_free(out.redirect_uri);
   out.redirect_uri = NULL;
-  C_ORM_FREE(out.user_id);
+  (void)c_orm_system_free(out.user_id);
   out.user_id = NULL;
-  C_ORM_FREE(out.scopes);
+  (void)c_orm_system_free(out.scopes);
   out.scopes = NULL;
   c_orm_oauth2_consume_auth_code(db, "bad", &out);
 
@@ -624,15 +890,15 @@ TEST test_oauth2_auth_code(void) {
     oom_countdown = i;
     c_orm_oauth2_consume_auth_code(db, "123", &out);
     oom_active = 0;
-    C_ORM_FREE(out.code);
+    (void)c_orm_system_free(out.code);
     out.code = NULL;
-    C_ORM_FREE(out.client_id);
+    (void)c_orm_system_free(out.client_id);
     out.client_id = NULL;
-    C_ORM_FREE(out.redirect_uri);
+    (void)c_orm_system_free(out.redirect_uri);
     out.redirect_uri = NULL;
-    C_ORM_FREE(out.user_id);
+    (void)c_orm_system_free(out.user_id);
     out.user_id = NULL;
-    C_ORM_FREE(out.scopes);
+    (void)c_orm_system_free(out.scopes);
     out.scopes = NULL;
   }
   for (i = 0; i < 20; i++) {
@@ -696,15 +962,15 @@ TEST test_oauth2_token(void) {
 
   c_orm_oauth2_save_token(db, &t);
   c_orm_oauth2_get_token(db, "atk", &out);
-  C_ORM_FREE(out.access_token);
+  (void)c_orm_system_free(out.access_token);
   out.access_token = NULL;
-  C_ORM_FREE(out.refresh_token);
+  (void)c_orm_system_free(out.refresh_token);
   out.refresh_token = NULL;
-  C_ORM_FREE(out.token_type);
+  (void)c_orm_system_free(out.token_type);
   out.token_type = NULL;
-  C_ORM_FREE(out.user_id);
+  (void)c_orm_system_free(out.user_id);
   out.user_id = NULL;
-  C_ORM_FREE(out.scopes);
+  (void)c_orm_system_free(out.scopes);
   out.scopes = NULL;
   c_orm_oauth2_get_token(db, "does_not_exist", &out);
 
@@ -724,15 +990,15 @@ TEST test_oauth2_token(void) {
     oom_countdown = i;
     c_orm_oauth2_get_token(db, "atk", &out);
     oom_active = 0;
-    C_ORM_FREE(out.access_token);
+    (void)c_orm_system_free(out.access_token);
     out.access_token = NULL;
-    C_ORM_FREE(out.refresh_token);
+    (void)c_orm_system_free(out.refresh_token);
     out.refresh_token = NULL;
-    C_ORM_FREE(out.token_type);
+    (void)c_orm_system_free(out.token_type);
     out.token_type = NULL;
-    C_ORM_FREE(out.user_id);
+    (void)c_orm_system_free(out.user_id);
     out.user_id = NULL;
-    C_ORM_FREE(out.scopes);
+    (void)c_orm_system_free(out.scopes);
     out.scopes = NULL;
   }
   for (i = 0; i < 20; i++) {
@@ -969,7 +1235,7 @@ TEST test_oauth2_all_branches(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_oauth2_token_parse_json(
                           "{\"unknown_key\":\"val\",\"access_token\":\"tok1\"}",
                           &out_tok));
-  c_orm_free(out_tok.access_token);
+  (void)c_orm_free(out_tok.access_token);
   out_tok.access_token = NULL;
 
   memset(huge_json, 'a', sizeof(huge_json));
@@ -987,7 +1253,7 @@ TEST test_oauth2_all_branches(void) {
   ASSERT_EQ(C_ORM_OK,
             c_orm_oauth2_token_parse_json(
                 "{\"my\\\"key\":\"val\",\"access_token\":\"tok2\"}", &out_tok));
-  c_orm_free(out_tok.access_token);
+  (void)c_orm_free(out_tok.access_token);
   out_tok.access_token = NULL;
 
   oom_active = 1;
@@ -1113,11 +1379,11 @@ TEST test_oauth2_all_branches(void) {
     c_orm_error_t get_tok_rc = c_orm_oauth2_get_token(db, "tok_acc", &out_tok);
     ASSERT_EQ_FMT(C_ORM_OK, get_tok_rc, "%d");
   }
-  c_orm_free(out_tok.access_token);
-  c_orm_free(out_tok.refresh_token);
-  c_orm_free(out_tok.token_type);
-  c_orm_free(out_tok.user_id);
-  c_orm_free(out_tok.scopes);
+  (void)c_orm_free(out_tok.access_token);
+  (void)c_orm_free(out_tok.refresh_token);
+  (void)c_orm_free(out_tok.token_type);
+  (void)c_orm_free(out_tok.user_id);
+  (void)c_orm_free(out_tok.scopes);
 
   /* 8. revoke_token NULL checks */
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_oauth2_revoke_token(NULL, "tok_acc"));
@@ -1150,11 +1416,11 @@ TEST test_oauth2_all_branches(void) {
   ASSERT_EQ(C_ORM_ERROR_VALIDATION,
             c_orm_oauth2_consume_auth_code(db, "code_123", NULL));
   c_orm_oauth2_consume_auth_code(db, "code_123", &out_ac);
-  c_orm_free(out_ac.code);
-  c_orm_free(out_ac.client_id);
-  c_orm_free(out_ac.redirect_uri);
-  c_orm_free(out_ac.user_id);
-  c_orm_free(out_ac.scopes);
+  (void)c_orm_free(out_ac.code);
+  (void)c_orm_free(out_ac.client_id);
+  (void)c_orm_free(out_ac.redirect_uri);
+  (void)c_orm_free(out_ac.user_id);
+  (void)c_orm_free(out_ac.scopes);
 
   /* 11. cleanup_expired_tokens error path */
   ASSERT_EQ(C_ORM_ERROR_VALIDATION,
@@ -1497,14 +1763,13 @@ TEST test_oauth2_mock_driver_coverage(void) {
  */
 SUITE(oauth2_suite) {
   static int recursed = 0;
-  void *(*old_malloc)(size_t);
-  void (*old_free)(void *);
+  c_orm_malloc_fn_t old_malloc;
+  c_orm_free_fn_t old_free;
 
   old_malloc = c_orm_malloc;
   old_free = c_orm_free;
 
-  c_orm_set_allocators(m_mock_malloc, c_orm_realloc, c_orm_free);
-  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, m_mock_free);
+  c_orm_set_allocators(m_mock_malloc, c_orm_realloc, m_mock_free);
 
   RUN_TEST(test_oauth2_flat_json);
   RUN_TEST(test_oauth2_json_edge_cases);
@@ -1522,8 +1787,7 @@ SUITE(oauth2_suite) {
   RUN_TEST(test_oauth2_all_branches);
   RUN_TEST(test_oauth2_mock_driver_coverage);
 
-  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
-  c_orm_set_allocators(c_orm_malloc, c_orm_realloc, old_free);
+  c_orm_set_allocators(old_malloc, c_orm_realloc, old_free);
 
   if (!recursed) {
     recursed = 1;

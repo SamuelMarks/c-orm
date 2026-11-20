@@ -60,6 +60,9 @@ def run_gcovr(cov_dir):
             "-r",
             "..",
             ".",
+            "--gcov-exclude-directories",
+            ".*_deps.*",
+            "--gcov-ignore-errors=all",
             "--exclude-unreachable-branches",
             "--exclude-throw-branches",
             "--gcov-ignore-parse-errors=all",
@@ -149,13 +152,18 @@ def main():
                     for i, line in enumerate(lines):
                         if (
                             "_API " in line
+                            or line.startswith("C_ORM_EXPORT ")
                             or line.startswith("void ")
                             or line.startswith("int ")
                             or line.startswith("char ")
                         ):
                             total_decls += 1
                             j = i - 1
-                            while j >= 0 and lines[j].strip() == "":
+                            while j >= 0 and (
+                                lines[j].strip() == ""
+                                or lines[j].lstrip().startswith("#")
+                                or lines[j].lstrip().startswith("__attribute__")
+                            ):
                                 j -= 1
                             if j >= 0 and ("*/" in lines[j] or "//" in lines[j]):
                                 doc_decls += 1

@@ -498,9 +498,9 @@ TEST test_api_batch_crud_deep_errors(void) {
   c_orm_db_t bdb;
   struct c_orm_iterator *iter;
   size_t has_row;
-  void *(*orig_m)(size_t);
-  void *(*orig_r)(void *, size_t);
-  void (*orig_f)(void *);
+  c_orm_malloc_fn_t orig_m;
+  c_orm_realloc_fn_t orig_r;
+  c_orm_free_fn_t orig_f;
 
   iter = NULL;
   has_row = 0;

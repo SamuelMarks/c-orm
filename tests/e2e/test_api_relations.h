@@ -774,9 +774,9 @@ TEST test_api_find_with_relation_int32_deep(void) {
   c_orm_table_meta_t c_meta;
   c_orm_driver_vtable_t custom_vt;
   c_orm_db_t custom_db;
-  void *(*orig_m)(size_t) = c_orm_malloc;
-  void *(*orig_r)(void *, size_t) = c_orm_realloc;
-  void (*orig_f)(void *) = c_orm_free;
+  c_orm_malloc_fn_t orig_m = c_orm_malloc;
+  c_orm_realloc_fn_t orig_r = c_orm_realloc;
+  c_orm_free_fn_t orig_f = c_orm_free;
   c_orm_error_t rc;
 
   memset(&p, 0, sizeof(p));
@@ -1077,9 +1077,9 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   c_orm_table_meta_t c_meta;
   c_orm_driver_vtable_t custom_vt;
   c_orm_db_t custom_db;
-  void *(*orig_m)(size_t) = c_orm_malloc;
-  void *(*orig_r)(void *, size_t) = c_orm_realloc;
-  void (*orig_f)(void *) = c_orm_free;
+  c_orm_malloc_fn_t orig_m = c_orm_malloc;
+  c_orm_realloc_fn_t orig_r = c_orm_realloc;
+  c_orm_free_fn_t orig_f = c_orm_free;
 
   memset(parents, 0, sizeof(parents));
   memset(&out_arr, 0, sizeof(out_arr));
@@ -1430,9 +1430,9 @@ TEST test_api_find_and_eager_missing_branches(void) {
   c_orm_table_meta_t c_meta;
   c_orm_driver_vtable_t custom_vt;
   c_orm_db_t custom_db;
-  void *(*orig_m)(size_t) = c_orm_malloc;
-  void *(*orig_r)(void *, size_t) = c_orm_realloc;
-  void (*orig_f)(void *) = c_orm_free;
+  c_orm_malloc_fn_t orig_m = c_orm_malloc;
+  c_orm_realloc_fn_t orig_r = c_orm_realloc;
+  c_orm_free_fn_t orig_f = c_orm_free;
   c_orm_error_t rc;
 
   memset(&p, 0, sizeof(p));
