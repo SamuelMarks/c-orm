@@ -555,7 +555,7 @@ c_orm_odbc_load_driver_manager(const c_orm_odbc_api_t **out_api) {
 #endif
 
   env_lib[0] = '\0';
-  (void)C_ORM_GETENV(env_lib, sizeof(env_lib), "C_ORM_ODBC_LIB");
+  C_ORM_GETENV(env_lib, sizeof(env_lib), "C_ORM_ODBC_LIB");
   if (env_lib[0] != '\0') {
     rc = try_load_candidate(env_lib, &g_odbc_lib_handle, &g_odbc_dyn_api);
     if (rc == C_ORM_OK) {
@@ -571,7 +571,7 @@ c_orm_odbc_load_driver_manager(const c_orm_odbc_api_t **out_api) {
                            &g_odbc_dyn_api) == C_ORM_OK) {
       g_odbc_dyn_loaded = 1;
       *out_api = &g_odbc_dyn_api;
-      (void)loader_unlock();
+      loader_unlock();
       return C_ORM_OK;
     }
   }
@@ -626,7 +626,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_load_cli(const c_orm_odbc_api_t **out_api,
   }
 
   env_lib[0] = '\0';
-  (void)C_ORM_GETENV(env_lib, sizeof(env_lib), "C_ORM_DB2_LIB");
+  C_ORM_GETENV(env_lib, sizeof(env_lib), "C_ORM_DB2_LIB");
   if (env_lib[0] != '\0') {
     rc = try_load_candidate(env_lib, &g_db2_lib_handle, &g_db2_dyn_api);
     if (rc == C_ORM_OK) {
@@ -641,7 +641,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_load_cli(const c_orm_odbc_api_t **out_api,
   }
 
   db2_home[0] = '\0';
-  (void)C_ORM_GETENV(db2_home, sizeof(db2_home), "IBM_DB_HOME");
+  C_ORM_GETENV(db2_home, sizeof(db2_home), "IBM_DB_HOME");
   if (db2_home[0] != '\0') {
 #if defined(_WIN32)
     rc = C_ORM_SPRINTF(home_candidate, sizeof(home_candidate),
@@ -673,7 +673,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_load_cli(const c_orm_odbc_api_t **out_api,
       if (out_is_direct_db2_cli) {
         *out_is_direct_db2_cli = 1;
       }
-      (void)loader_unlock();
+      loader_unlock();
       return C_ORM_OK;
     }
   }

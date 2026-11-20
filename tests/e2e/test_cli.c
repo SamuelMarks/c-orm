@@ -55,7 +55,7 @@ static c_orm_error_t mock_load_dir(const char *dir_path,
   }
   *out_count = 1;
   *out_migrations = NULL;
-  (void)c_orm_system_calloc(1, sizeof(c_orm_migration_t),
+  c_orm_system_calloc(1, sizeof(c_orm_migration_t),
                             (void **)out_migrations);
   C_ORM_STRCPY((*out_migrations)[0].version, sizeof((*out_migrations)[0].version), "1");
   C_ORM_STRCPY((*out_migrations)[0].name, sizeof((*out_migrations)[0].name), "test");
@@ -111,7 +111,7 @@ static c_orm_error_t mock_get_applied(c_orm_db_t *db,
   }
   *out_count = 1;
   *out_migrations = NULL;
-  (void)c_orm_system_calloc(1, sizeof(c_orm_migration_t),
+  c_orm_system_calloc(1, sizeof(c_orm_migration_t),
                             (void **)out_migrations);
   C_ORM_STRCPY((*out_migrations)[0].version,
                sizeof((*out_migrations)[0].version), "1");
@@ -1304,8 +1304,8 @@ SUITE(cli_suite) {
   RUN_TEST(test_cli_unknown);
 #ifndef __EMSCRIPTEN__
   RUN_TEST(test_cli_sql2c);
-  RUN_TEST(test_cli_copybook_and_db2_odbc_branches);
 #endif
+  RUN_TEST(test_cli_copybook_and_db2_odbc_branches);
   if (!recursed) {
     recursed = 1;
     greatest_set_test_filter("never_match_filter");

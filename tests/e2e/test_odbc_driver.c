@@ -5,6 +5,12 @@
  */
 
 /* clang-format off */
+#if !defined(_WIN32) && !defined(_XOPEN_SOURCE)
+#define _XOPEN_SOURCE 600
+#endif
+#if !defined(_WIN32) && !defined(_DEFAULT_SOURCE)
+#define _DEFAULT_SOURCE 1
+#endif
 #include "c_orm_api.h"
 #include "c_orm_decimal.h"
 #include "c_orm_ebcdic.h"
@@ -112,8 +118,7 @@ static c_orm_error_t reset_mock_state(void) {
   size_t i;
   memset(&g_mock, 0, sizeof(g_mock));
   g_mock.autocommit_mode = 1UL;
-  (void)C_ORM_STRCPY(g_mock.diag_sqlstate, sizeof(g_mock.diag_sqlstate),
-                     "HY000");
+  C_ORM_STRCPY(g_mock.diag_sqlstate, sizeof(g_mock.diag_sqlstate), "HY000");
   g_mock.diag_native = -1;
   g_mock.diag_msg1 = "Mock ODBC error";
   g_mock.diag_msg2 = NULL;
@@ -276,8 +281,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_DriverConnect(
     return C_ORM_SQL_ERROR;
   }
   if (InConnectionString) {
-    (void)C_ORM_STRCPY(g_mock.last_conn_str, sizeof(g_mock.last_conn_str),
-                       (const char *)InConnectionString);
+    C_ORM_STRCPY(g_mock.last_conn_str, sizeof(g_mock.last_conn_str),
+                 (const char *)InConnectionString);
   }
   return C_ORM_SQL_SUCCESS;
 }
@@ -322,9 +327,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_DriverConnectW(
         units++;
       }
     }
-    (void)c_orm_utf16_to_utf8(InConnectionString, units, 0,
-                              g_mock.last_conn_str,
-                              sizeof(g_mock.last_conn_str), NULL);
+    c_orm_utf16_to_utf8(InConnectionString, units, 0, g_mock.last_conn_str,
+                        sizeof(g_mock.last_conn_str), NULL);
   }
   return C_ORM_SQL_SUCCESS;
 }
@@ -352,8 +356,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_Connect(
   (void)Authentication;
   (void)NameLength3;
   if (ServerName) {
-    (void)C_ORM_STRCPY(g_mock.last_conn_str, sizeof(g_mock.last_conn_str),
-                       (const char *)ServerName);
+    C_ORM_STRCPY(g_mock.last_conn_str, sizeof(g_mock.last_conn_str),
+                 (const char *)ServerName);
   }
   return C_ORM_SQL_SUCCESS;
 }
@@ -446,8 +450,8 @@ SQLMock_Prepare(c_orm_sqlhstmt_t StatementHandle,
     return C_ORM_SQL_ERROR;
   }
   if (StatementText) {
-    (void)C_ORM_STRCPY(g_mock.last_sql, sizeof(g_mock.last_sql),
-                       (const char *)StatementText);
+    C_ORM_STRCPY(g_mock.last_sql, sizeof(g_mock.last_sql),
+                 (const char *)StatementText);
     if (strstr(g_mock.last_sql, "@@IDENTITY") != NULL) {
       g_mock.result_mode = 4;
       g_mock.total_rows = 1;
@@ -483,8 +487,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_PrepareW(
         units++;
       }
     }
-    (void)c_orm_utf16_to_utf8(StatementText, units, 0, g_mock.last_sql,
-                              sizeof(g_mock.last_sql), NULL);
+    c_orm_utf16_to_utf8(StatementText, units, 0, g_mock.last_sql,
+                        sizeof(g_mock.last_sql), NULL);
     if (strstr(g_mock.last_sql, "@@IDENTITY") != NULL) {
       g_mock.result_mode = 4;
       g_mock.total_rows = 1;
@@ -644,22 +648,22 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_DescribeCol(
   *NullablePtr = 1;
 
   if (g_mock.result_mode == 1 && ColumnNumber >= 1 && ColumnNumber <= 7) {
-    (void)C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength,
-                       m1_names[ColumnNumber - 1]);
+    C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength,
+                 m1_names[ColumnNumber - 1]);
     *NameLengthPtr = (c_orm_sqlsmallint_t)strlen((const char *)ColumnName);
     *DataTypePtr = m1_types[ColumnNumber - 1];
   } else if (g_mock.result_mode == 2 && ColumnNumber >= 1 &&
              ColumnNumber <= 3) {
-    (void)C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength,
-                       m2_names[ColumnNumber - 1]);
+    C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength,
+                 m2_names[ColumnNumber - 1]);
     *NameLengthPtr = (c_orm_sqlsmallint_t)strlen((const char *)ColumnName);
     *DataTypePtr = m2_types[ColumnNumber - 1];
   } else if (g_mock.result_mode >= 6) {
-    (void)C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength, "c0");
+    C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength, "c0");
     *NameLengthPtr = 2;
     *DataTypePtr = g_mock.custom_col_type;
   } else {
-    (void)C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength, "ident");
+    C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength, "ident");
     *NameLengthPtr = 5;
     *DataTypePtr = C_ORM_SQL_BIGINT;
   }
@@ -698,8 +702,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_DescribeColW(
   (void)SQLMock_DescribeCol(
       StatementHandle, ColumnNumber, aname, (c_orm_sqlsmallint_t)sizeof(aname),
       &alen, DataTypePtr, ColumnSizePtr, DecimalDigitsPtr, NullablePtr);
-  (void)c_orm_utf8_to_utf16((const char *)aname, (size_t)alen, 0, ColumnName,
-                            (size_t)BufferLength, &units);
+  c_orm_utf8_to_utf16((const char *)aname, (size_t)alen, 0, ColumnName,
+                      (size_t)BufferLength, &units);
   *NameLengthPtr = g_mock.zero_wide_len ? 0 : (c_orm_sqlsmallint_t)units;
   return C_ORM_SQL_SUCCESS;
 }
@@ -782,8 +786,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_GetData(
     }
     if (Col_or_Param_Num == 4) {
       char cn[32];
-      (void)C_ORM_SPRINTF(cn, sizeof(cn), "COL_%02d", g_mock.cur_row);
-      (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, cn);
+      C_ORM_SPRINTF(cn, sizeof(cn), "COL_%02d", g_mock.cur_row);
+      C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, cn);
       *StrLen_or_IndPtr = (c_orm_sqllen_t)strlen(cn);
       return C_ORM_SQL_SUCCESS;
     }
@@ -794,8 +798,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_GetData(
         ((char *)TargetValuePtr)[0] = '\0';
         *StrLen_or_IndPtr = 0;
       } else {
-        (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
-                           "DECIMAL");
+        C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, "DECIMAL");
         *StrLen_or_IndPtr = 7;
       }
       return C_ORM_SQL_SUCCESS;
@@ -820,7 +823,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_GetData(
     }
     if (Col_or_Param_Num == 18) {
       const char *ns = (g_mock.cur_row % 2 == 0) ? "NO" : "YES";
-      (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, ns);
+      C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, ns);
       *StrLen_or_IndPtr = (c_orm_sqllen_t)strlen(ns);
       return C_ORM_SQL_SUCCESS;
     }
@@ -957,8 +960,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_GetData(
     if (g_mock.cur_row == 3 && g_mock.zero_wide_len) {
       return C_ORM_SQL_ERROR;
     }
-    (void)C_ORM_SPRINTF(tbl, sizeof(tbl), "TBL_%02d", g_mock.cur_row);
-    (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, tbl);
+    C_ORM_SPRINTF(tbl, sizeof(tbl), "TBL_%02d", g_mock.cur_row);
+    C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, tbl);
     *StrLen_or_IndPtr = (c_orm_sqllen_t)strlen(tbl);
     return C_ORM_SQL_SUCCESS;
   }
@@ -970,11 +973,11 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_GetData(
       return C_ORM_SQL_SUCCESS;
     }
     if (g_mock.custom_str && strcmp(g_mock.custom_str, "ID_BAD") == 0) {
-      (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, "abc");
+      C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, "abc");
       *StrLen_or_IndPtr = 3;
       return C_ORM_SQL_SUCCESS;
     }
-    (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, "777");
+    C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, "777");
     *StrLen_or_IndPtr = 3;
     return C_ORM_SQL_SUCCESS;
   }
@@ -983,26 +986,26 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_GetData(
   if (g_mock.result_mode == 1) {
     if (Col_or_Param_Num == 1) {
       const char *v = (g_mock.cur_row == 1) ? "42" : "3000000000";
-      (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, v);
+      C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, v);
       *StrLen_or_IndPtr = (c_orm_sqllen_t)strlen(v);
       return C_ORM_SQL_SUCCESS;
     }
     if (Col_or_Param_Num == 2) {
       const char *v =
           (g_mock.cur_row == 1) ? "-9007199254740993" : "not_an_int";
-      (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, v);
+      C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, v);
       *StrLen_or_IndPtr = (c_orm_sqllen_t)strlen(v);
       return C_ORM_SQL_SUCCESS;
     }
     if (Col_or_Param_Num == 3) {
       const char *v = (g_mock.cur_row == 1) ? "3.14159" : "bad_dbl";
-      (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, v);
+      C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, v);
       *StrLen_or_IndPtr = (c_orm_sqllen_t)strlen(v);
       return C_ORM_SQL_SUCCESS;
     }
     if (Col_or_Param_Num == 4) {
-      (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
-                         "CobolMainframe");
+      C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
+                   "CobolMainframe");
       *StrLen_or_IndPtr = 14;
       return C_ORM_SQL_SUCCESS;
     }
@@ -1022,8 +1025,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_GetData(
         *StrLen_or_IndPtr = (c_orm_sqllen_t)sizeof(*ns);
         return C_ORM_SQL_SUCCESS;
       }
-      (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
-                         "-123456789.75");
+      C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
+                   "-123456789.75");
       *StrLen_or_IndPtr = 13;
       return C_ORM_SQL_SUCCESS;
     }
@@ -1148,7 +1151,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_GetDiagRec(
   (void)HandleType;
   (void)Handle;
   if (g_mock.flood_diag_recs && RecNumber >= 1 && RecNumber <= 20) {
-    (void)C_ORM_STRCPY((char *)SQLState, 6, "HY000");
+    C_ORM_STRCPY((char *)SQLState, 6, "HY000");
     *NativeErrorPtr = -1;
     memset(MessageText, 'D', 200);
     MessageText[200] = '\0';
@@ -1156,10 +1159,9 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_GetDiagRec(
     return C_ORM_SQL_SUCCESS;
   }
   if (RecNumber == 1 && g_mock.diag_msg1) {
-    (void)C_ORM_STRCPY((char *)SQLState, 6, g_mock.diag_sqlstate);
+    C_ORM_STRCPY((char *)SQLState, 6, g_mock.diag_sqlstate);
     *NativeErrorPtr = g_mock.diag_native;
-    (void)C_ORM_STRCPY((char *)MessageText, (size_t)BufferLength,
-                       g_mock.diag_msg1);
+    C_ORM_STRCPY((char *)MessageText, (size_t)BufferLength, g_mock.diag_msg1);
     *TextLengthPtr =
         g_mock.zero_wide_len
             ? -1
@@ -1167,10 +1169,9 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_GetDiagRec(
     return C_ORM_SQL_SUCCESS;
   }
   if (RecNumber == 2 && g_mock.diag_msg2) {
-    (void)C_ORM_STRCPY((char *)SQLState, 6, g_mock.diag_sqlstate);
+    C_ORM_STRCPY((char *)SQLState, 6, g_mock.diag_sqlstate);
     *NativeErrorPtr = g_mock.diag_native;
-    (void)C_ORM_STRCPY((char *)MessageText, (size_t)BufferLength,
-                       g_mock.diag_msg2);
+    C_ORM_STRCPY((char *)MessageText, (size_t)BufferLength, g_mock.diag_msg2);
     *TextLengthPtr = (c_orm_sqlsmallint_t)strlen((const char *)MessageText);
     return C_ORM_SQL_SUCCESS;
   }
@@ -1205,10 +1206,10 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLMock_GetDiagRecW(
   if (!C_ORM_SQL_SUCCEEDED(r)) {
     return r;
   }
-  (void)c_orm_utf8_to_utf16((const char *)astate, strlen((const char *)astate),
-                            0, SQLState, 6, &su);
-  (void)c_orm_utf8_to_utf16((const char *)amsg, strlen((const char *)amsg), 0,
-                            MessageText, (size_t)BufferLength, &mu);
+  c_orm_utf8_to_utf16((const char *)astate, strlen((const char *)astate), 0,
+                      SQLState, 6, &su);
+  c_orm_utf8_to_utf16((const char *)amsg, strlen((const char *)amsg), 0,
+                      MessageText, (size_t)BufferLength, &mu);
   *TextLengthPtr = g_mock.zero_wide_len ? 0 : (c_orm_sqlsmallint_t)mu;
   return C_ORM_SQL_SUCCESS;
 }
@@ -1650,7 +1651,8 @@ TEST test_odbc_crud_types_and_streaming(void) {
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, vt->get_column_name(q, 99, &col_name));
 
   ASSERT_EQ(C_ORM_OK, vt->bind_int32(q, 1, -42));
-  ASSERT_EQ(C_ORM_OK, vt->bind_int64(q, 2, (int64_t)9000000000L));
+  ASSERT_EQ(C_ORM_OK,
+            vt->bind_int64(q, 2, (c_orm_int64_t)9000000 * (c_orm_int64_t)1000));
   ASSERT_EQ(C_ORM_OK, vt->bind_double(q, 3, 2.71828));
   ASSERT_EQ(C_ORM_OK, vt->bind_string(q, 4, "hello_odbc"));
   ASSERT_EQ(C_ORM_OK, vt->bind_string(q, 5, NULL));
@@ -3419,6 +3421,16 @@ TEST test_odbc_exhaustive_branches_and_oom(void) {
           (void)vt->get_string(wq, 0, &ws);
         }
         (void)vt->finalize(wq);
+      }
+    }
+    /* ANSI SQLDriverConnect OOM (prefer_wide = 0) */
+    for (step_i = 0; step_i < 6; step_i++) {
+      c_orm_db_t *cdb = NULL;
+      g_oom_countdown = step_i;
+      if (c_orm_odbc_connect_raw(&mock_api, "DSN=MY_DSN", "odbc", NULL, 0, 1, 0,
+                                 &cdb) == C_ORM_OK &&
+          cdb) {
+        vt->disconnect(cdb);
       }
     }
     /* SQLConnect OOM */

@@ -795,9 +795,9 @@ TEST test_decimal_exhaustive_errors(void) {
   ASSERT_EQ(C_ORM_ERROR_OVERFLOW, c_orm_int64_to_cobol_comp(1, 4, 1, wire, 2));
   ASSERT_EQ(C_ORM_ERROR_DECIMAL_OVERFLOW,
             c_orm_int64_to_cobol_comp(70000, 2, 1, wire, 8));
-  ASSERT_EQ(
-      C_ORM_ERROR_DECIMAL_OVERFLOW,
-      c_orm_int64_to_cobol_comp((c_orm_int64_t)5000000000L, 4, 1, wire, 8));
+  ASSERT_EQ(C_ORM_ERROR_DECIMAL_OVERFLOW,
+            c_orm_int64_to_cobol_comp(
+                (c_orm_int64_t)5000000 * (c_orm_int64_t)1000, 4, 1, wire, 8));
   ASSERT_EQ(C_ORM_OK, c_orm_int64_to_cobol_comp(1234, 2, 0, wire, 8));
   ASSERT_EQ(C_ORM_OK, c_orm_int64_from_cobol_comp(wire, 2, 1, 0, &iv));
   ASSERT_EQ((c_orm_int64_t)1234, iv);
@@ -813,9 +813,9 @@ TEST test_decimal_exhaustive_errors(void) {
             c_orm_int64_from_cobol_comp(wire, 5, 1, 1, &iv));
   ASSERT_EQ(C_ORM_ERROR_DECIMAL_OVERFLOW,
             c_orm_int64_to_cobol_comp(-40000, 2, 1, wire, 8));
-  ASSERT_EQ(
-      C_ORM_ERROR_DECIMAL_OVERFLOW,
-      c_orm_int64_to_cobol_comp(-(c_orm_int64_t)5000000000L, 4, 1, wire, 8));
+  ASSERT_EQ(C_ORM_ERROR_DECIMAL_OVERFLOW,
+            c_orm_int64_to_cobol_comp(
+                -(c_orm_int64_t)5000000 * (c_orm_int64_t)1000, 4, 1, wire, 8));
 
   /* Additional exhaustive decimal & COBOL wire branches */
   {

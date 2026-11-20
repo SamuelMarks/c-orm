@@ -349,8 +349,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
         ((char *)field_ptr)[copy_n] = '\0';
         break;
       }
-      /* Fall through to dynamic char* string hydration when fixed_length == 0
-       */
+      /* fall through */
     case C_ORM_TYPE_STRING:
     case C_ORM_TYPE_DATE:
     case C_ORM_TYPE_TIME:
@@ -537,7 +536,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_row_from(
         }
         break;
       }
-      /* Fall through to c_orm_blob_t when fixed_length == 0 */
+      /* fall through */
     case C_ORM_TYPE_BLOB:
     case C_ORM_TYPE_VARBINARY: {
       const void *val;
@@ -1074,7 +1073,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_by_composite_key(
       rc = C_ORM_ERROR_NOT_IMPLEMENTED;
     }
     if (rc != C_ORM_OK) {
-      (void)c_orm_finalize_cached(db, query);
+      c_orm_finalize_cached(db, query);
       return rc;
     }
   }
@@ -1098,7 +1097,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_update_by_composite_key(
       rc = C_ORM_ERROR_NOT_IMPLEMENTED;
     }
     if (rc != C_ORM_OK) {
-      (void)c_orm_finalize_cached(db, query);
+      c_orm_finalize_cached(db, query);
       return rc;
     }
   }
@@ -2335,9 +2334,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_hydrate_all(c_orm_db_t *db,
     if (data) {
       size_t j;
       for (j = 0; j <= count && j < cap; j++) {
-        (void)c_orm_free_columns(meta, (char *)data + (j * meta->struct_size));
-        (void)c_orm_free_relations(meta,
-                                   (char *)data + (j * meta->struct_size));
+        c_orm_free_columns(meta, (char *)data + (j * meta->struct_size));
+        c_orm_free_relations(meta, (char *)data + (j * meta->struct_size));
       }
       (void)c_orm_system_free(data);
       ((struct Generic_Array *)out_array)->data = NULL;
@@ -2655,8 +2653,8 @@ static c_orm_error_t set_null_field(const c_orm_table_meta_t *meta,
           break;
         case C_ORM_TYPE_DECIMAL:
         case C_ORM_TYPE_DECFLOAT:
-          (void)c_orm_decimal_zero(meta->columns[i].scale,
-                                   (c_orm_decimal_t *)field_ptr);
+          c_orm_decimal_zero(meta->columns[i].scale,
+                             (c_orm_decimal_t *)field_ptr);
           break;
         default:
           break;
@@ -2868,7 +2866,7 @@ static c_orm_error_t bind_row(c_orm_db_t *db, c_orm_query_t *query,
           (!str_val || str_val[0] == '\0')) {
         char *new_uuid = NULL;
         if (c_orm_system_malloc(37, (void **)&new_uuid) == C_ORM_OK) {
-          (void)c_orm_uuid_v4(new_uuid);
+          c_orm_uuid_v4(new_uuid);
           *(char **)(size_t)field_ptr = new_uuid;
           str_val = new_uuid;
         }
@@ -4028,8 +4026,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
             if (rc != C_ORM_OK)
               return rc;
           } else {
-            (void)get_int_field(rel->target_meta, nested_ptr, rel->foreign_key,
-                                &new_id);
+            get_int_field(rel->target_meta, nested_ptr, rel->foreign_key,
+                          &new_id);
             if (new_id > 0) {
               rc = set_int_field(meta, (void *)(size_t)in_struct,
                                  rel->local_key, new_id);
@@ -4050,8 +4048,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
           if (strcmp(meta->columns[j].name, rel->local_key) == 0) {
             if (!meta->columns[j].is_nullable) {
               int64_t existing_fk = 0;
-              (void)get_int_field(meta, in_struct, rel->local_key,
-                                  &existing_fk);
+              get_int_field(meta, in_struct, rel->local_key, &existing_fk);
               if (existing_fk == 0) {
                 {
                   rc = C_ORM_ERROR_VALIDATION;
@@ -4118,8 +4115,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
           (meta->columns[pk_idx].type == C_ORM_TYPE_INT32 ||
            meta->columns[pk_idx].type == C_ORM_TYPE_INT64)) {
         int64_t cur_pk = 0;
-        (void)get_int_field(meta, in_struct, meta->columns[pk_idx].name,
-                            &cur_pk);
+        get_int_field(meta, in_struct, meta->columns[pk_idx].name, &cur_pk);
         if (cur_pk == 0) {
           db2_auto_pk = 1;
         }
@@ -4220,8 +4216,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
       if (rc == C_ORM_OK && has_row && db->vtable->get_int64) {
         if (db->vtable->get_int64(query, 0, &gen_id) == C_ORM_OK &&
             gen_id > 0) {
-          (void)set_int_field(meta, (void *)(size_t)in_struct,
-                              meta->columns[pk_idx].name, gen_id);
+          set_int_field(meta, (void *)(size_t)in_struct,
+                        meta->columns[pk_idx].name, gen_id);
         }
       }
       fin_rc = c_orm_finalize_cached(db, query);
@@ -4234,8 +4230,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
       if (gen_id <= 0 && db->vtable->get_last_insert_rowid &&
           db->vtable->get_last_insert_rowid(db, &gen_id) == C_ORM_OK &&
           gen_id > 0) {
-        (void)set_int_field(meta, (void *)(size_t)in_struct,
-                            meta->columns[pk_idx].name, gen_id);
+        set_int_field(meta, (void *)(size_t)in_struct,
+                      meta->columns[pk_idx].name, gen_id);
       }
     } else {
       rc = c_orm_prepare_cached(db, meta->query_insert, &query);
@@ -4286,7 +4282,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_insert(c_orm_db_t *db,
            * it */
         }
         if (parent_id <= 0) {
-          (void)get_int_field(meta, in_struct, rel->local_key, &parent_id);
+          get_int_field(meta, in_struct, rel->local_key, &parent_id);
         }
         if (parent_id > 0) {
           rc = set_int_field(rel->target_meta, nested_ptr, rel->foreign_key,
@@ -4399,8 +4395,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_update(c_orm_db_t *db,
           if (strcmp(meta->columns[j].name, rel->local_key) == 0) {
             if (!meta->columns[j].is_nullable) {
               int64_t existing_fk = 0;
-              (void)get_int_field(meta, in_struct, rel->local_key,
-                                  &existing_fk);
+              get_int_field(meta, in_struct, rel->local_key, &existing_fk);
               if (existing_fk == 0) {
                 {
                   rc = C_ORM_ERROR_VALIDATION;
@@ -7956,10 +7951,10 @@ empty */
   }
 
   if (limit > 0) {
-    (void)q->limit(q, limit);
+    q->limit(q, limit);
   }
   if (offset > 0) {
-    (void)q->offset(q, offset);
+    q->offset(q, offset);
   }
 
   target_data_ptr =
@@ -8067,7 +8062,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
         void *ptr = *(void **)target_data_ptr;
         if (ptr) {
           size_t c;
-          (void)c_orm_free_relations(rel->target_meta, ptr);
+          c_orm_free_relations(rel->target_meta, ptr);
           /* We must free allocated basic strings in target_meta. */
           /* Since we don't have a direct c_orm_free_columns yet, we'll iterate
            * columns here: */
@@ -8095,7 +8090,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_free_relations(const c_orm_table_meta_t *meta,
             size_t c;
             void *child =
                 (char *)arr->data + (j * rel->target_meta->struct_size);
-            (void)c_orm_free_relations(rel->target_meta, child);
+            c_orm_free_relations(rel->target_meta, child);
             for (c = 0; c < rel->target_meta->num_columns; c++) {
               if (rel->target_meta->columns[c].type == C_ORM_TYPE_STRING) {
                 char **str_ptr =

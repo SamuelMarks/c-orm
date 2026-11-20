@@ -357,12 +357,12 @@ static c_orm_error_t clone_table_list(const mem_table_t *src,
     const mem_row_t *r;
 
     if (c_orm_system_calloc(1, sizeof(mem_table_t), (void **)&nt) != C_ORM_OK) {
-      (void)free_table_list(head);
+      free_table_list(head);
       return C_ORM_ERROR_MEMORY;
     }
     if (C_ORM_STRDUP(t->name, &nt->name) != C_ORM_OK) {
       (void)c_orm_system_free(nt);
-      (void)free_table_list(head);
+      free_table_list(head);
       return C_ORM_ERROR_MEMORY;
     }
     memcpy(nt->col_names, t->col_names, sizeof(t->col_names));
@@ -373,8 +373,8 @@ static c_orm_error_t clone_table_list(const mem_table_t *src,
       mem_row_t *nr = NULL;
       size_t ci;
       if (c_orm_system_calloc(1, sizeof(mem_row_t), (void **)&nr) != C_ORM_OK) {
-        (void)free_table_list(nt);
-        (void)free_table_list(head);
+        free_table_list(nt);
+        free_table_list(head);
         return C_ORM_ERROR_MEMORY;
       }
       nr->num_cols = r->num_cols;
@@ -382,8 +382,8 @@ static c_orm_error_t clone_table_list(const mem_table_t *src,
         if (c_orm_system_calloc(r->num_cols, sizeof(void *),
                                 (void **)&nr->columns) != C_ORM_OK) {
           (void)c_orm_system_free(nr);
-          (void)free_table_list(nt);
-          (void)free_table_list(head);
+          free_table_list(nt);
+          free_table_list(head);
           return C_ORM_ERROR_MEMORY;
         }
         for (ci = 0; ci < r->num_cols; ci++) {
@@ -391,8 +391,8 @@ static c_orm_error_t clone_table_list(const mem_table_t *src,
                              (mem_cell_t **)&nr->columns[ci]) != C_ORM_OK) {
             nr->num_cols = ci;
             *rtail = nr;
-            (void)free_table_list(nt);
-            (void)free_table_list(head);
+            free_table_list(nt);
+            free_table_list(head);
             return C_ORM_ERROR_MEMORY;
           }
         }

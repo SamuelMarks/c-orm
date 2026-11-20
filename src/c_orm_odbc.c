@@ -464,12 +464,12 @@ static c_orm_error_t parse_bool_flag(const char *val, int *out_bool) {
   size_t i;
   int eq = 0;
   for (i = 0; i < 4U; ++i) {
-    (void)ascii_ieq(val, trues[i], &eq);
+    ascii_ieq(val, trues[i], &eq);
     if (eq) {
       *out_bool = 1;
       return C_ORM_OK;
     }
-    (void)ascii_ieq(val, falses[i], &eq);
+    ascii_ieq(val, falses[i], &eq);
     if (eq) {
       *out_bool = 0;
       return C_ORM_OK;
@@ -507,14 +507,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_build_conn_string(const char *url,
     *out_autocommit = 1;
   }
 
-  (void)ascii_istarts_with(url, "odbc://", 7, &has_scheme);
+  ascii_istarts_with(url, "odbc://", 7, &has_scheme);
   body = has_scheme ? (url + 7) : url;
   if (body[0] == '\0') {
     return C_ORM_ERROR_VALIDATION;
   }
 
-  (void)ascii_istarts_with(body, "DSN=", 4, &is_dsn_raw);
-  (void)ascii_istarts_with(body, "DRIVER=", 7, &is_drv_raw);
+  ascii_istarts_with(body, "DSN=", 4, &is_dsn_raw);
+  ascii_istarts_with(body, "DRIVER=", 7, &is_drv_raw);
   if (is_dsn_raw || is_drv_raw || (!has_scheme && strchr(body, '=') != NULL)) {
     size_t blen = strlen(body);
     size_t i;
@@ -938,19 +938,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
   is_db2 = (strcmp(db->driver_name, "db2") == 0) ? 1 : 0;
   conn->last_error[0] = '\0';
   conn->last_trace[0] = '\0';
-  (void)C_ORM_STRCPY(conn->last_sqlstate, sizeof(conn->last_sqlstate), "00000");
+  C_ORM_STRCPY(conn->last_sqlstate, sizeof(conn->last_sqlstate), "00000");
   conn->last_native_error = 0;
 
   if (context) {
-    (void)C_ORM_SPRINTF(conn->last_trace, sizeof(conn->last_trace), "[%s] ",
-                        context);
+    C_ORM_SPRINTF(conn->last_trace, sizeof(conn->last_trace), "[%s] ", context);
     trace_pos = strlen(conn->last_trace);
   }
 
   if (!handle) {
-    (void)C_ORM_SPRINTF(conn->last_error, sizeof(conn->last_error),
-                        "[%s] invalid NULL ODBC handle",
-                        context ? context : "odbc");
+    C_ORM_SPRINTF(conn->last_error, sizeof(conn->last_error),
+                  "[%s] invalid NULL ODBC handle", context ? context : "odbc");
     return fallback_err;
   }
 
@@ -978,10 +976,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
             wlen++;
           }
         }
-        (void)c_orm_utf16_to_utf8(wstate, 5, 0, state_utf8, sizeof(state_utf8),
-                                  NULL);
-        (void)c_orm_utf16_to_utf8(wmsg, wlen, 0, msg_utf8, sizeof(msg_utf8),
-                                  NULL);
+        c_orm_utf16_to_utf8(wstate, 5, 0, state_utf8, sizeof(state_utf8), NULL);
+        c_orm_utf16_to_utf8(wmsg, wlen, 0, msg_utf8, sizeof(msg_utf8), NULL);
       }
     } else if (conn->api->SQLGetDiagRec) {
       c_orm_sqlchar_t astate[8];
@@ -992,9 +988,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
           handle_type, handle, rec_num, astate, &native_err, amsg,
           (c_orm_sqlsmallint_t)sizeof(amsg), &text_len);
       if (C_ORM_SQL_SUCCEEDED(sret)) {
-        (void)C_ORM_STRNCPY(state_utf8, sizeof(state_utf8),
-                            (const char *)astate, 5);
-        (void)C_ORM_STRCPY(msg_utf8, sizeof(msg_utf8), (const char *)amsg);
+        C_ORM_STRNCPY(state_utf8, sizeof(state_utf8), (const char *)astate, 5);
+        C_ORM_STRCPY(msg_utf8, sizeof(msg_utf8), (const char *)amsg);
       }
     }
 
@@ -1004,13 +999,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
 
     if (rec_num == 1) {
       if (strlen(state_utf8) == 5) {
-        (void)C_ORM_STRCPY(conn->last_sqlstate, sizeof(conn->last_sqlstate),
-                           state_utf8);
+        C_ORM_STRCPY(conn->last_sqlstate, sizeof(conn->last_sqlstate),
+                     state_utf8);
       }
       conn->last_native_error = native_err;
-      (void)C_ORM_SPRINTF(conn->last_error, sizeof(conn->last_error),
-                          "[SQLSTATE=%s][Native=%ld] %s", conn->last_sqlstate,
-                          (long)native_err, msg_utf8);
+      C_ORM_SPRINTF(conn->last_error, sizeof(conn->last_error),
+                    "[SQLSTATE=%s][Native=%ld] %s", conn->last_sqlstate,
+                    (long)native_err, msg_utf8);
       map_sqlstate_to_error(conn->last_sqlstate, native_err, is_db2,
                             fallback_err, &mapped_err);
     }
@@ -1018,9 +1013,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
     {
       char frame[448];
       size_t flen;
-      (void)C_ORM_SPRINTF(
-          frame, sizeof(frame), "%s[SQLSTATE=%s][Native=%ld] %s",
-          rec_num > 1 ? " | " : "", state_utf8, (long)native_err, msg_utf8);
+      C_ORM_SPRINTF(frame, sizeof(frame), "%s[SQLSTATE=%s][Native=%ld] %s",
+                    rec_num > 1 ? " | " : "", state_utf8, (long)native_err,
+                    msg_utf8);
       flen = strlen(frame);
       if (trace_pos + flen + 1 < sizeof(conn->last_trace)) {
         memcpy(conn->last_trace + trace_pos, frame, flen + 1);
@@ -1031,11 +1026,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
   }
 
   if (conn->last_error[0] == '\0') {
-    (void)C_ORM_SPRINTF(conn->last_error, sizeof(conn->last_error),
-                        "[%s] ODBC diagnostic failure",
-                        context ? context : "odbc");
-    (void)C_ORM_STRCPY(conn->last_trace, sizeof(conn->last_trace),
-                       conn->last_error);
+    C_ORM_SPRINTF(conn->last_error, sizeof(conn->last_error),
+                  "[%s] ODBC diagnostic failure", context ? context : "odbc");
+    C_ORM_STRCPY(conn->last_trace, sizeof(conn->last_trace), conn->last_error);
   }
 
   return mapped_err;
@@ -1649,8 +1642,7 @@ static c_orm_error_t odbc_bind_decimal(c_orm_query_t *query, int index,
   /* Fallback for minimal ODBC 2.x drivers without SQL_C_NUMERIC descriptor */
   {
     size_t slen = 0;
-    (void)c_orm_decimal_to_str(val, slot->dec_str, sizeof(slot->dec_str),
-                               &slen);
+    c_orm_decimal_to_str(val, slot->dec_str, sizeof(slot->dec_str), &slen);
     slot->ind = (c_orm_sqllen_t)slen;
     sret = stmt->conn->api->SQLBindParameter(
         stmt->hstmt, (c_orm_sqlusmallint_t)index, C_ORM_SQL_PARAM_INPUT,
@@ -1729,8 +1721,8 @@ static c_orm_error_t describe_result_columns(c_orm_odbc_stmt_t *stmt) {
             units++;
           }
         }
-        (void)c_orm_utf16_to_utf8(wname, units, 0, col->name, sizeof(col->name),
-                                  NULL);
+        c_orm_utf16_to_utf8(wname, units, 0, col->name, sizeof(col->name),
+                            NULL);
       }
     } else if (stmt->conn->api->SQLDescribeCol) {
       c_orm_sqlchar_t aname[128];
@@ -1740,7 +1732,7 @@ static c_orm_error_t describe_result_columns(c_orm_odbc_stmt_t *stmt) {
           (c_orm_sqlsmallint_t)sizeof(aname), &name_len, &col->sql_type,
           &col->col_size, &col->decimal_digits, &col->nullable);
       if (C_ORM_SQL_SUCCEEDED(sret)) {
-        (void)C_ORM_STRCPY(col->name, sizeof(col->name), (const char *)aname);
+        C_ORM_STRCPY(col->name, sizeof(col->name), (const char *)aname);
       }
     }
   }
@@ -1807,9 +1799,8 @@ static c_orm_error_t odbc_step(c_orm_query_t *query, int *out_has_row) {
         stmt->db->telemetry.slow_queries_logged++;
         if (stmt->db->log_cb) {
           char log_msg[1024];
-          (void)C_ORM_SPRINTF(log_msg, sizeof(log_msg),
-                              "SLOW QUERY (%.2fms): %s", elapsed,
-                              stmt->sql_text);
+          C_ORM_SPRINTF(log_msg, sizeof(log_msg), "SLOW QUERY (%.2fms): %s",
+                        elapsed, stmt->sql_text);
           rc = stmt->db->log_cb(log_msg, stmt->db->log_user_data);
           if (rc != C_ORM_OK) {
             return rc;
@@ -2139,8 +2130,8 @@ static c_orm_error_t fetch_single_col(c_orm_odbc_stmt_t *stmt, int col_idx) {
       if (rc != C_ORM_OK) {
         return rc;
       }
-      (void)c_orm_decimal_to_str(&col->dec_val, (char *)col->inline_buf,
-                                 sizeof(col->inline_buf), &slen);
+      c_orm_decimal_to_str(&col->dec_val, (char *)col->inline_buf,
+                           sizeof(col->inline_buf), &slen);
       col->has_dec = 1;
       col->byte_len = slen;
       col->fetched_kind = ODBC_CELL_BYTES;
@@ -2407,7 +2398,7 @@ static c_orm_error_t odbc_get_decimal(c_orm_query_t *query, int index,
     if (*s == '+' || *s == '-') {
       s++;
     }
-    (void)ascii_istarts_with(s, "Infinity", 8, &is_inf);
+    ascii_istarts_with(s, "Infinity", 8, &is_inf);
     if (is_inf) {
       return C_ORM_ERROR_DECIMAL_OVERFLOW;
     }
@@ -2715,7 +2706,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_connect_raw(
   conn->prefer_wide = prefer_wide ? 1 : 0;
   conn->base_autocommit = autocommit ? 1 : 0;
   conn->in_tx = 0;
-  (void)C_ORM_STRCPY(conn->last_sqlstate, sizeof(conn->last_sqlstate), "00000");
+  C_ORM_STRCPY(conn->last_sqlstate, sizeof(conn->last_sqlstate), "00000");
 
   db->vtable = vtable_override ? vtable_override : &g_odbc_vtable;
   db->driver_data = conn;
@@ -3047,7 +3038,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_tables(c_orm_db_t *db,
           c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt,
                                   "SQLFetch(SQLTables)", C_ORM_ERROR_ODBC_DIAG);
       (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-      (void)c_orm_odbc_free_string_list(list, count);
+      c_orm_odbc_free_string_list(list, count);
       return rc;
     }
     memset(tname, 0, sizeof(tname));
@@ -3063,7 +3054,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_tables(c_orm_db_t *db,
         if (c_orm_system_realloc(list, new_cap * sizeof(char *),
                                  (void **)&grown) != C_ORM_OK) {
           (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-          (void)c_orm_odbc_free_string_list(list, count);
+          c_orm_odbc_free_string_list(list, count);
           return C_ORM_ERROR_MEMORY;
         }
         list = grown;
@@ -3071,7 +3062,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_tables(c_orm_db_t *db,
       }
       if (c_orm_strdup(tname, &dup) != C_ORM_OK) {
         (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-        (void)c_orm_odbc_free_string_list(list, count);
+        c_orm_odbc_free_string_list(list, count);
         return C_ORM_ERROR_MEMORY;
       }
       list[count++] = dup;
@@ -3161,7 +3152,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_columns(
       rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt,
                                    "SQLFetch(SQLColumns)", C_ORM_ERROR_STEP);
       (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-      (void)c_orm_odbc_free_column_list(list, count);
+      c_orm_odbc_free_column_list(list, count);
       return rc;
     }
 
@@ -3177,7 +3168,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_columns(
     (void)conn->api->SQLGetData(hstmt, 6, C_ORM_SQL_C_CHAR, tname,
                                 (c_orm_sqllen_t)sizeof(tname), &ind);
     if (ind == C_ORM_SQL_NULL_DATA || tname[0] == '\0') {
-      (void)C_ORM_STRCPY(tname, sizeof(tname), "VARCHAR");
+      C_ORM_STRCPY(tname, sizeof(tname), "VARCHAR");
     }
     ind = 0;
     (void)conn->api->SQLGetData(hstmt, 7, C_ORM_SQL_C_SLONG, &col_sz,
@@ -3201,7 +3192,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_columns(
       if (c_orm_system_realloc(list, new_cap * sizeof(c_orm_odbc_column_info_t),
                                (void **)&grown) != C_ORM_OK) {
         (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-        (void)c_orm_odbc_free_column_list(list, count);
+        c_orm_odbc_free_column_list(list, count);
         return C_ORM_ERROR_MEMORY;
       }
       list = grown;
@@ -3214,7 +3205,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_columns(
       (void)c_orm_system_free(list[count].name);
       (void)c_orm_system_free(list[count].type_name);
       (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-      (void)c_orm_odbc_free_column_list(list, count);
+      c_orm_odbc_free_column_list(list, count);
       return C_ORM_ERROR_MEMORY;
     }
     list[count].column_size = (int)col_sz;

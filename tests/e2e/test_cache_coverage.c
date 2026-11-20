@@ -77,7 +77,7 @@ static c_orm_error_t my_mock_lock(pthread_mutex_t *m) {
  */
 static c_orm_error_t my_mock_unlock(pthread_mutex_t *m) {
   if (mock_mutex_unlock_fail) {
-    (void)orig_mutex_unlock(m);
+    orig_mutex_unlock(m);
     return C_ORM_ERROR_BUSY;
   }
   return orig_mutex_unlock(m);

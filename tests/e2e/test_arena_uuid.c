@@ -312,8 +312,7 @@ TEST test_uuid_coverage(void) {
   ASSERT_EQ('-', buf[8]);
   ASSERT_EQ('4', buf[14]);
 
-#if defined(C_ORM_TEST_ALLOCATOR) && !defined(_WIN32) && !defined(_WIN64) &&   \
-    !defined(__EMSCRIPTEN__)
+#if defined(C_ORM_TEST_ALLOCATOR) && !defined(_WIN32) && !defined(_WIN64)
   c_orm_mock_urandom_path = "/nonexistent_c_orm_urandom_404";
   ASSERT_EQ(C_ORM_ERROR_IO, c_orm_uuid_v4(buf));
 

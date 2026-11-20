@@ -361,18 +361,18 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
       if (strcmp(argv[opt_i], "--format") == 0 && opt_i + 1 < argc) {
         rc = cli_parse_cobol_format(argv[++opt_i], &cpy_fmt);
         if (rc != C_ORM_OK) {
-          (void)cli_free_replace_pairs(rep_bufs, num_reps);
+          cli_free_replace_pairs(rep_bufs, num_reps);
           goto cleanup;
         }
       } else if (strcmp(argv[opt_i], "--replacing") == 0 && opt_i + 1 < argc) {
         rc =
             cli_add_replace_pair(argv[++opt_i], rep_pairs, rep_bufs, &num_reps);
         if (rc != C_ORM_OK) {
-          (void)cli_free_replace_pairs(rep_bufs, num_reps);
+          cli_free_replace_pairs(rep_bufs, num_reps);
           goto cleanup;
         }
       } else {
-        (void)cli_free_replace_pairs(rep_bufs, num_reps);
+        cli_free_replace_pairs(rep_bufs, num_reps);
         rc = C_ORM_ERROR_VALIDATION;
         goto cleanup;
       }
@@ -380,7 +380,7 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
 
     rc = c_orm_copybook_parse_file(
         argv[2], cpy_fmt, num_reps > 0 ? rep_pairs : NULL, num_reps, &rec);
-    (void)cli_free_replace_pairs(rep_bufs, num_reps);
+    cli_free_replace_pairs(rep_bufs, num_reps);
     if (rc != C_ORM_OK) {
       printf("Failed to parse COBOL Copybook (rc=%d).\n", (int)rc);
       goto cleanup;
@@ -413,24 +413,24 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
       if (strcmp(argv[opt_i], "--dialect") == 0 && opt_i + 1 < argc) {
         rc = cli_parse_sql_dialect(argv[++opt_i], &sql_dial);
         if (rc != C_ORM_OK) {
-          (void)cli_free_replace_pairs(rep_bufs, num_reps);
+          cli_free_replace_pairs(rep_bufs, num_reps);
           goto cleanup;
         }
       } else if (strcmp(argv[opt_i], "--format") == 0 && opt_i + 1 < argc) {
         rc = cli_parse_cobol_format(argv[++opt_i], &cpy_fmt);
         if (rc != C_ORM_OK) {
-          (void)cli_free_replace_pairs(rep_bufs, num_reps);
+          cli_free_replace_pairs(rep_bufs, num_reps);
           goto cleanup;
         }
       } else if (strcmp(argv[opt_i], "--replacing") == 0 && opt_i + 1 < argc) {
         rc =
             cli_add_replace_pair(argv[++opt_i], rep_pairs, rep_bufs, &num_reps);
         if (rc != C_ORM_OK) {
-          (void)cli_free_replace_pairs(rep_bufs, num_reps);
+          cli_free_replace_pairs(rep_bufs, num_reps);
           goto cleanup;
         }
       } else {
-        (void)cli_free_replace_pairs(rep_bufs, num_reps);
+        cli_free_replace_pairs(rep_bufs, num_reps);
         rc = C_ORM_ERROR_VALIDATION;
         goto cleanup;
       }
@@ -438,7 +438,7 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
 
     rc = c_orm_copybook_parse_file(
         argv[2], cpy_fmt, num_reps > 0 ? rep_pairs : NULL, num_reps, &rec);
-    (void)cli_free_replace_pairs(rep_bufs, num_reps);
+    cli_free_replace_pairs(rep_bufs, num_reps);
     if (rc != C_ORM_OK) {
       printf("Failed to parse COBOL Copybook (rc=%d).\n", (int)rc);
       goto cleanup;
@@ -556,7 +556,7 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
     err = c_orm_migration_load_dir(dir_path, &migs, &migs_count);
     if (err == C_ORM_OK && migs_count > 0) {
       rc = c_orm_migrate_all(db, migs, migs_count, &opts);
-      (void)c_orm_migration_free_array(migs, migs_count);
+      c_orm_migration_free_array(migs, migs_count);
     } else {
       printf("No pending migrations found in %s\n", dir_path);
     }
@@ -606,7 +606,7 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
       } else {
         printf("Rollback completed.\n");
       }
-      (void)c_orm_migration_free_array(migs, migs_count);
+      c_orm_migration_free_array(migs, migs_count);
     } else {
       printf("No migrations found in %s to rollback.\n", dir_path);
     }
@@ -649,7 +649,7 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
       for (j = 0; j < count; j++) {
         printf("  [%s] %s\n", applied[j].version, applied[j].name);
       }
-      (void)c_orm_migration_free_array(applied, count);
+      c_orm_migration_free_array(applied, count);
     } else {
       printf("Failed to fetch migration status or no migrations applied.\n");
       db->vtable->disconnect(db);

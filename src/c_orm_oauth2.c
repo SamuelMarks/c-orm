@@ -331,7 +331,7 @@ static c_orm_error_t c_orm_sha256_update(c_orm_sha256_ctx_t *ctx,
     }
   }
   while (idx + 64 <= len) {
-    (void)c_orm_sha256_compress(ctx, data + idx);
+    c_orm_sha256_compress(ctx, data + idx);
     idx += 64;
   }
   if (idx < len) {
@@ -403,7 +403,7 @@ c_orm_hmac_sha256_2(const unsigned char *key, size_t key_len,
   memset(k_pad, 0, sizeof(k_pad));
   if (key_len > 64) {
     c_orm_sha256_init(&ctx);
-    (void)c_orm_sha256_update(&ctx, key, key_len);
+    c_orm_sha256_update(&ctx, key, key_len);
     c_orm_sha256_final(&ctx, k_pad);
   } else if (key_len > 0) {
     memcpy(k_pad, key, key_len);
@@ -415,16 +415,16 @@ c_orm_hmac_sha256_2(const unsigned char *key, size_t key_len,
   }
 
   c_orm_sha256_init(&ctx);
-  (void)c_orm_sha256_update(&ctx, ipad, 64);
-  (void)c_orm_sha256_update(&ctx, msg1, msg1_len);
+  c_orm_sha256_update(&ctx, ipad, 64);
+  c_orm_sha256_update(&ctx, msg1, msg1_len);
   if (msg2_len > 0) {
-    (void)c_orm_sha256_update(&ctx, msg2, msg2_len);
+    c_orm_sha256_update(&ctx, msg2, msg2_len);
   }
   c_orm_sha256_final(&ctx, inner);
 
   c_orm_sha256_init(&ctx);
-  (void)c_orm_sha256_update(&ctx, opad, 64);
-  (void)c_orm_sha256_update(&ctx, inner, 32);
+  c_orm_sha256_update(&ctx, opad, 64);
+  c_orm_sha256_update(&ctx, inner, 32);
   c_orm_sha256_final(&ctx, out_mac);
 
   memset(k_pad, 0, sizeof(k_pad));
@@ -452,12 +452,11 @@ c_orm_pbkdf2_hmac_sha256(const unsigned char *password, size_t password_len,
   unsigned int iter;
   size_t k;
 
-  (void)c_orm_hmac_sha256_2(password, password_len, salt, salt_len, be_idx, 4,
-                            u);
+  c_orm_hmac_sha256_2(password, password_len, salt, salt_len, be_idx, 4, u);
   memcpy(out_dk, u, 32);
 
   for (iter = 1; iter < iterations; ++iter) {
-    (void)c_orm_hmac_sha256_2(password, password_len, u, 32, NULL, 0, u_next);
+    c_orm_hmac_sha256_2(password, password_len, u, 32, NULL, 0, u_next);
     memcpy(u, u_next, 32);
     for (k = 0; k < 32; ++k) {
       out_dk[k] ^= u[k];
@@ -482,11 +481,10 @@ static c_orm_error_t c_orm_pbkdf2_password_hex(const char *password,
   const char *s = salt ? salt : "";
   size_t i;
 
-  (void)c_orm_pbkdf2_hmac_sha256((const unsigned char *)password,
-                                 strlen(password), (const unsigned char *)s,
-                                 strlen(s), 10000U, dk);
+  c_orm_pbkdf2_hmac_sha256((const unsigned char *)password, strlen(password),
+                           (const unsigned char *)s, strlen(s), 10000U, dk);
   for (i = 0; i < 32; ++i) {
-    (void)C_ORM_SPRINTF(&out_hex[i * 2], 3, "%02x", dk[i]);
+    C_ORM_SPRINTF(&out_hex[i * 2], 3, "%02x", dk[i]);
   }
   out_hex[64] = '\0';
   memset(dk, 0, sizeof(dk));
@@ -570,12 +568,12 @@ static c_orm_error_t c_orm_chacha20_xor(const unsigned char key[32],
     st[2] = 0x79622d32UL;
     st[3] = 0x6b206574UL;
     for (i = 0; i < 8; ++i) {
-      (void)c_orm_load_le32(key + i * 4, &st[4 + i]);
+      c_orm_load_le32(key + i * 4, &st[4 + i]);
     }
     st[12] = counter++;
-    (void)c_orm_load_le32(nonce, &st[13]);
-    (void)c_orm_load_le32(nonce + 4, &st[14]);
-    (void)c_orm_load_le32(nonce + 8, &st[15]);
+    c_orm_load_le32(nonce, &st[13]);
+    c_orm_load_le32(nonce + 4, &st[14]);
+    c_orm_load_le32(nonce + 8, &st[15]);
 
     for (i = 0; i < 16; ++i) {
       wk[i] = st[i];
@@ -641,10 +639,10 @@ static c_orm_error_t c_orm_oauth2_get_subkeys(unsigned char out_enc_key[32],
   if (!g_oauth2_master_key_ready) {
     char env_secret[256];
     env_secret[0] = '\0';
-    (void)C_ORM_GETENV(env_secret, sizeof(env_secret), "C_ORM_OAUTH2_SECRET");
+    C_ORM_GETENV(env_secret, sizeof(env_secret), "C_ORM_OAUTH2_SECRET");
     if (env_secret[0] != '\0') {
       static const unsigned char kdf_salt[] = "c-orm-oauth2-master-salt";
-      (void)c_orm_pbkdf2_hmac_sha256(
+      c_orm_pbkdf2_hmac_sha256(
           (const unsigned char *)env_secret, strlen(env_secret), kdf_salt,
           sizeof(kdf_salt) - 1, 10000U, g_oauth2_master_key);
       memset(env_secret, 0, sizeof(env_secret));
@@ -657,8 +655,8 @@ static c_orm_error_t c_orm_oauth2_get_subkeys(unsigned char out_enc_key[32],
     g_oauth2_master_key_ready = 1;
   }
 
-  (void)c_orm_hmac_sha256_2(g_oauth2_master_key, 32, enc_label,
-                            sizeof(enc_label) - 1, NULL, 0, out_enc_key);
+  c_orm_hmac_sha256_2(g_oauth2_master_key, 32, enc_label, sizeof(enc_label) - 1,
+                      NULL, 0, out_enc_key);
   return c_orm_hmac_sha256_2(g_oauth2_master_key, 32, mac_label,
                              sizeof(mac_label) - 1, NULL, 0, out_mac_key);
 }
@@ -774,9 +772,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
     }
 
     memcpy(wire, nonce, 12);
-    (void)c_orm_chacha20_xor(enc_key, nonce, (const unsigned char *)plain_token,
-                             wire + 12, pt_len);
-    (void)c_orm_hmac_sha256_2(mac_key, 32, wire, 12 + pt_len, NULL, 0, tag);
+    c_orm_chacha20_xor(enc_key, nonce, (const unsigned char *)plain_token,
+                       wire + 12, pt_len);
+    c_orm_hmac_sha256_2(mac_key, 32, wire, 12 + pt_len, NULL, 0, tag);
     memcpy(wire + 12 + pt_len, tag, 32);
     memset(enc_key, 0, sizeof(enc_key));
     memset(mac_key, 0, sizeof(mac_key));
@@ -787,7 +785,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
       return C_ORM_ERROR_VALIDATION;
     }
     for (i = 0; i < wire_len; ++i) {
-      (void)C_ORM_SPRINTF(&hex_str[i * 2], 3, "%02x", wire[i]);
+      C_ORM_SPRINTF(&hex_str[i * 2], 3, "%02x", wire[i]);
     }
     hex_str[wire_len * 2] = '\0';
     (void)c_orm_system_free(wire);
@@ -899,8 +897,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
       return rc;
     }
 
-    (void)c_orm_hmac_sha256_2(mac_key, 32, bin_data, 12 + ct_len, NULL, 0,
-                              expected_tag);
+    c_orm_hmac_sha256_2(mac_key, 32, bin_data, 12 + ct_len, NULL, 0,
+                        expected_tag);
     memset(mac_key, 0, sizeof(mac_key));
 
     for (i = 0; i < 32; ++i) {
@@ -919,8 +917,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
       return C_ORM_ERROR_VALIDATION;
     }
 
-    (void)c_orm_chacha20_xor(enc_key, bin_data, bin_data + 12,
-                             (unsigned char *)plain, ct_len);
+    c_orm_chacha20_xor(enc_key, bin_data, bin_data + 12, (unsigned char *)plain,
+                       ct_len);
     memset(enc_key, 0, sizeof(enc_key));
     (void)c_orm_system_free(bin_data);
     plain[ct_len] = '\0';
@@ -960,7 +958,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_store_token_secure_at(
   {
 #if !defined(_WIN32) && !defined(_MSC_VER) && !defined(__EMSCRIPTEN__)
     mode_t old_mask = umask(0177);
-    (void)C_ORM_FOPEN(&f, file_path, "w");
+    C_ORM_FOPEN(&f, file_path, "w");
     (void)umask(old_mask);
     if (f) {
       (void)chmod(file_path, 0600);

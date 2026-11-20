@@ -17,7 +17,7 @@
 extern "C" {
 #endif /* __cplusplus */
 
-#if defined(__clang__) || defined(__GNUC__)
+#if (defined(__clang__) || defined(__GNUC__)) && !defined(__MINGW32__)
 __attribute__((__format__(__printf__, 3, 4)))
 #endif
 /**

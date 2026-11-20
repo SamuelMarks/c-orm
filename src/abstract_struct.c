@@ -261,6 +261,7 @@ cdd_c_abstract_struct_array_to_json(const cdd_c_abstract_struct_array_t *arr,
   JSON_Value *root_val = NULL;
   JSON_Array *root_arr = NULL;
   cdd_c_error_t jrc;
+  JSON_Status jstatus = JSONSuccess;
   size_t i, j;
   if (!arr || !out_json)
     return C_ORM_ERROR_VALIDATION;
@@ -285,14 +286,14 @@ cdd_c_abstract_struct_array_to_json(const cdd_c_abstract_struct_array_t *arr,
       const cdd_c_abstract_struct_kv_t *kv = &astruct->kvs[j];
       switch (kv->value.type) {
       case CDD_C_VARIANT_TYPE_INT:
-        (void)json_object_set_number(obj, kv->key,
-                                     (double)kv->value.value.i_val);
+        jstatus =
+            json_object_set_number(obj, kv->key, (double)kv->value.value.i_val);
         break;
       case CDD_C_VARIANT_TYPE_FLOAT:
-        (void)json_object_set_number(obj, kv->key, kv->value.value.f_val);
+        jstatus = json_object_set_number(obj, kv->key, kv->value.value.f_val);
         break;
       case CDD_C_VARIANT_TYPE_STRING:
-        (void)json_object_set_string(obj, kv->key, kv->value.value.s_val);
+        jstatus = json_object_set_string(obj, kv->key, kv->value.value.s_val);
         break;
       case CDD_C_VARIANT_TYPE_DECIMAL: {
         char dbuf[64];
@@ -302,21 +303,22 @@ cdd_c_abstract_struct_array_to_json(const cdd_c_abstract_struct_array_t *arr,
           (void)cdd_json_value_free(root_val);
           return C_ORM_ERROR_VALIDATION;
         }
-        (void)json_object_set_string(obj, kv->key, dbuf);
+        jstatus = json_object_set_string(obj, kv->key, dbuf);
         break;
       }
       case CDD_C_VARIANT_TYPE_BLOB:
-        (void)json_object_set_string(obj, kv->key, "<BLOB>");
+        jstatus = json_object_set_string(obj, kv->key, "<BLOB>");
         break;
       case CDD_C_VARIANT_TYPE_NULL:
       default:
-        (void)json_object_set_null(obj, kv->key);
+        jstatus = json_object_set_null(obj, kv->key);
         break;
       }
     }
     jrc = cdd_json_array_append_value(root_arr, obj_val);
   }
   (void)sizeof(jrc);
+  (void)sizeof(jstatus);
 
   if (cdd_json_serialize_to_string_pretty(root_val, out_json) !=
       CDD_C_SUCCESS) {
@@ -621,6 +623,7 @@ cdd_c_abstract_struct_to_json(const cdd_c_abstract_struct_t *astruct,
   JSON_Value *root_val = NULL;
   JSON_Object *root_obj = NULL;
   cdd_c_error_t jrc;
+  JSON_Status jstatus = JSONSuccess;
   size_t i;
 
   if (!astruct || !out_json)
@@ -636,17 +639,19 @@ cdd_c_abstract_struct_to_json(const cdd_c_abstract_struct_t *astruct,
     const cdd_c_abstract_struct_kv_t *kv = &astruct->kvs[i];
     switch (kv->value.type) {
     case CDD_C_VARIANT_TYPE_NULL:
-      (void)json_object_set_null(root_obj, kv->key);
+      jstatus = json_object_set_null(root_obj, kv->key);
       break;
     case CDD_C_VARIANT_TYPE_INT:
-      (void)json_object_set_number(root_obj, kv->key,
-                                   (double)kv->value.value.i_val);
+      jstatus = json_object_set_number(root_obj, kv->key,
+                                       (double)kv->value.value.i_val);
       break;
     case CDD_C_VARIANT_TYPE_FLOAT:
-      (void)json_object_set_number(root_obj, kv->key, kv->value.value.f_val);
+      jstatus =
+          json_object_set_number(root_obj, kv->key, kv->value.value.f_val);
       break;
     case CDD_C_VARIANT_TYPE_STRING:
-      (void)json_object_set_string(root_obj, kv->key, kv->value.value.s_val);
+      jstatus =
+          json_object_set_string(root_obj, kv->key, kv->value.value.s_val);
       break;
     case CDD_C_VARIANT_TYPE_DECIMAL: {
       char dbuf[64];
@@ -655,16 +660,17 @@ cdd_c_abstract_struct_to_json(const cdd_c_abstract_struct_t *astruct,
         (void)cdd_json_value_free(root_val);
         return C_ORM_ERROR_VALIDATION;
       }
-      (void)json_object_set_string(root_obj, kv->key, dbuf);
+      jstatus = json_object_set_string(root_obj, kv->key, dbuf);
       break;
     }
     case CDD_C_VARIANT_TYPE_BLOB:
-      (void)json_object_set_string(root_obj, kv->key, "<blob>");
+      jstatus = json_object_set_string(root_obj, kv->key, "<blob>");
       break;
     default:
       break;
     }
   }
+  (void)sizeof(jstatus);
 
   if (cdd_json_serialize_to_string(root_val, out_json) != CDD_C_SUCCESS) {
     (void)cdd_json_value_free(root_val);
@@ -1565,7 +1571,7 @@ cdd_c_inspect_schema_odbc(c_orm_db_t *db, const char *table_name,
   }
   if (cdd_c_abstract_struct_array_init(out_schema, count > 0 ? count : 4) !=
       C_ORM_OK) {
-    (void)c_orm_odbc_free_column_list(cols, count);
+    c_orm_odbc_free_column_list(cols, count);
     return C_ORM_ERROR_MEMORY;
   }
 
@@ -1577,7 +1583,7 @@ cdd_c_inspect_schema_odbc(c_orm_db_t *db, const char *table_name,
     cdd_c_variant_t v_scale;
     cdd_c_variant_t v_notnull;
 
-    (void)cdd_c_abstract_struct_init(&col_def);
+    cdd_c_abstract_struct_init(&col_def);
     v_name.type = CDD_C_VARIANT_TYPE_STRING;
     v_name.value.s_val = cols[i].name;
     v_type.type = CDD_C_VARIANT_TYPE_STRING;
@@ -1595,13 +1601,13 @@ cdd_c_inspect_schema_odbc(c_orm_db_t *db, const char *table_name,
         cdd_c_abstract_set(&col_def, "scale", &v_scale) != C_ORM_OK ||
         cdd_c_abstract_set(&col_def, "notnull", &v_notnull) != C_ORM_OK) {
       (void)cdd_c_abstract_struct_free(&col_def);
-      (void)c_orm_odbc_free_column_list(cols, count);
+      c_orm_odbc_free_column_list(cols, count);
       return C_ORM_ERROR_MEMORY;
     }
-    (void)cdd_c_abstract_struct_array_append(out_schema, &col_def);
+    cdd_c_abstract_struct_array_append(out_schema, &col_def);
   }
 
-  (void)c_orm_odbc_free_column_list(cols, count);
+  c_orm_odbc_free_column_list(cols, count);
   return C_ORM_OK;
 }
 

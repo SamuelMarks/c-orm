@@ -435,7 +435,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       const struct StructField *field = &sf->fields[j];
       char type_buf[128];
       const char *c_type = NULL;
-      (void)openapi_type_to_c_type(field, type_buf, sizeof(type_buf), &c_type);
+      openapi_type_to_c_type(field, type_buf, sizeof(type_buf), &c_type);
       fprintf(fp_h, "  %s %s;\n", c_type, field->name);
     }
     fprintf(fp_h, "};\n\n");
@@ -487,10 +487,9 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       int is_pk, is_unique, is_index;
       char type_buf[128];
       const char *c_type = NULL;
-      (void)check_db_schema(field, &is_pk, &is_unique, &is_index, NULL, 0);
+      check_db_schema(field, &is_pk, &is_unique, &is_index, NULL, 0);
       if (is_pk || is_unique || is_index) {
-        (void)openapi_type_to_c_type(field, type_buf, sizeof(type_buf),
-                                     &c_type);
+        openapi_type_to_c_type(field, type_buf, sizeof(type_buf), &c_type);
         fprintf(fp_h,
                 "c_orm_error_t get_%s_by_%s(c_orm_db_t* db, const %s %s, "
                 "struct %s** out_obj);\n",
@@ -646,9 +645,9 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       int is_pk, is_unique, is_index;
       char fk_buf[128];
       const char *sql_type = NULL;
-      (void)check_db_schema(&sf->fields[j], &is_pk, &is_unique, &is_index,
-                            fk_buf, sizeof(fk_buf));
-      (void)openapi_type_to_sql_type(&sf->fields[j], &sql_type);
+      check_db_schema(&sf->fields[j], &is_pk, &is_unique, &is_index, fk_buf,
+                      sizeof(fk_buf));
+      openapi_type_to_sql_type(&sf->fields[j], &sql_type);
       fprintf(fp_c, "%s %s", sf->fields[j].name, sql_type);
       if (is_pk) {
         fprintf(fp_c, " PRIMARY KEY");
@@ -669,8 +668,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     fprintf(fp_c, "  if (rc != C_ORM_OK) return rc;\n");
     for (j = 0; j < sf->size; ++j) {
       int is_pk, is_unique, is_index;
-      (void)check_db_schema(&sf->fields[j], &is_pk, &is_unique, &is_index, NULL,
-                            0);
+      check_db_schema(&sf->fields[j], &is_pk, &is_unique, &is_index, NULL, 0);
 
       if (is_index) {
         fprintf(fp_c,
@@ -717,11 +715,10 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       int is_pk, is_unique, is_index;
       char type_buf[128];
       const char *c_type = NULL;
-      (void)check_db_schema(field, &is_pk, &is_unique, &is_index, NULL, 0);
+      check_db_schema(field, &is_pk, &is_unique, &is_index, NULL, 0);
 
       if (is_pk || is_unique || is_index) {
-        (void)openapi_type_to_c_type(field, type_buf, sizeof(type_buf),
-                                     &c_type);
+        openapi_type_to_c_type(field, type_buf, sizeof(type_buf), &c_type);
         fprintf(fp_c,
                 "c_orm_error_t get_%s_by_%s(c_orm_db_t* db, const %s "
                 "%s, struct %s** out_obj) {\n",

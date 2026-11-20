@@ -364,7 +364,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_ebcdic_to_utf8(c_orm_codepage_t cp,
     }
     for (i = 0; i < src_len; ++i) {
       unsigned int ucp = 0;
-      (void)ebcdic_byte_to_uni(cp, src[i], &ucp);
+      ebcdic_byte_to_uni(cp, src[i], &ucp);
       rc = utf8_emit_codepoint(ucp, out_utf8, out_size, &pos);
       if (rc != C_ORM_OK) {
         return rc;
@@ -677,7 +677,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_utf8_to_utf16(const char *utf8,
       if (upos + 2U >= out_u16_cap) {
         return C_ORM_ERROR_OVERFLOW;
       }
-      (void)u16_write_slot(&out_u16[upos++], hi, big_endian);
+      u16_write_slot(&out_u16[upos++], hi, big_endian);
       rc = u16_write_slot(&out_u16[upos++], lo, big_endian);
     }
   }

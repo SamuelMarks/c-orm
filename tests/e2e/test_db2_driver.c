@@ -5,6 +5,12 @@
  */
 
 /* clang-format off */
+#if !defined(_WIN32) && !defined(_XOPEN_SOURCE)
+#define _XOPEN_SOURCE 600
+#endif
+#if !defined(_WIN32) && !defined(_DEFAULT_SOURCE)
+#define _DEFAULT_SOURCE 1
+#endif
 #include "c_orm_api.h"
 #include "c_orm_db2.h"
 #include "c_orm_decimal.h"
@@ -69,7 +75,7 @@ static int g_db2_stmt = 33;
  */
 static c_orm_error_t reset_db2_mock(void) {
   memset(&g_db2, 0, sizeof(g_db2));
-  (void)C_ORM_STRCPY(g_db2.sqlstate, sizeof(g_db2.sqlstate), "HY000");
+  C_ORM_STRCPY(g_db2.sqlstate, sizeof(g_db2.sqlstate), "HY000");
   g_db2.sqlcode = -1;
   return C_ORM_OK;
 }
@@ -164,24 +170,24 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_SetConnectAttr(
     return C_ORM_SQL_ERROR;
   }
   if (Attribute == C_ORM_SQL_ATTR_INFO_USERID && ValuePtr) {
-    (void)C_ORM_STRCPY(g_db2.wlm_userid, sizeof(g_db2.wlm_userid),
-                       (const char *)ValuePtr);
+    C_ORM_STRCPY(g_db2.wlm_userid, sizeof(g_db2.wlm_userid),
+                 (const char *)ValuePtr);
   } else if (Attribute == C_ORM_SQL_ATTR_INFO_WRKSTNNAME && ValuePtr) {
-    (void)C_ORM_STRCPY(g_db2.wlm_wrkstn, sizeof(g_db2.wlm_wrkstn),
-                       (const char *)ValuePtr);
+    C_ORM_STRCPY(g_db2.wlm_wrkstn, sizeof(g_db2.wlm_wrkstn),
+                 (const char *)ValuePtr);
   } else if (Attribute == C_ORM_SQL_ATTR_INFO_APPLNAME && ValuePtr) {
-    (void)C_ORM_STRCPY(g_db2.wlm_applname, sizeof(g_db2.wlm_applname),
-                       (const char *)ValuePtr);
+    C_ORM_STRCPY(g_db2.wlm_applname, sizeof(g_db2.wlm_applname),
+                 (const char *)ValuePtr);
   } else if (Attribute == C_ORM_SQL_ATTR_INFO_ACCTSTR && ValuePtr) {
-    (void)C_ORM_STRCPY(g_db2.wlm_acctstr, sizeof(g_db2.wlm_acctstr),
-                       (const char *)ValuePtr);
+    C_ORM_STRCPY(g_db2.wlm_acctstr, sizeof(g_db2.wlm_acctstr),
+                 (const char *)ValuePtr);
   } else if (Attribute == C_ORM_SQL_ATTR_CURRENT_SCHEMA) {
     if (g_db2.reject_schema_attr) {
       return C_ORM_SQL_ERROR;
     }
     if (ValuePtr) {
-      (void)C_ORM_STRCPY(g_db2.attr_schema, sizeof(g_db2.attr_schema),
-                         (const char *)ValuePtr);
+      C_ORM_STRCPY(g_db2.attr_schema, sizeof(g_db2.attr_schema),
+                   (const char *)ValuePtr);
     }
   } else if (Attribute == C_ORM_SQL_ATTR_TXN_ISOLATION) {
     g_db2.isolation_mask = (unsigned long)(size_t)ValuePtr;
@@ -218,8 +224,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_DriverConnect(
     return C_ORM_SQL_ERROR;
   }
   if (InConnectionString) {
-    (void)C_ORM_STRCPY(g_db2.conn_str, sizeof(g_db2.conn_str),
-                       (const char *)InConnectionString);
+    C_ORM_STRCPY(g_db2.conn_str, sizeof(g_db2.conn_str),
+                 (const char *)InConnectionString);
   }
   return C_ORM_SQL_SUCCESS;
 }
@@ -267,8 +273,8 @@ SQLDb2_Prepare(c_orm_sqlhstmt_t StatementHandle, c_orm_sqlchar_t *StatementText,
     return C_ORM_SQL_ERROR;
   }
   if (StatementText) {
-    (void)C_ORM_STRCPY(g_db2.last_sql, sizeof(g_db2.last_sql),
-                       (const char *)StatementText);
+    C_ORM_STRCPY(g_db2.last_sql, sizeof(g_db2.last_sql),
+                 (const char *)StatementText);
     if (strstr(g_db2.last_sql, "IDENTITY_VAL_LOCAL") != NULL &&
         g_db2.mode != 2 && g_db2.mode < 5) {
       g_db2.mode = 1;
@@ -294,8 +300,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_ExecDirect(
     return C_ORM_SQL_ERROR;
   }
   if (StatementText) {
-    (void)C_ORM_STRCPY(g_db2.last_sql, sizeof(g_db2.last_sql),
-                       (const char *)StatementText);
+    C_ORM_STRCPY(g_db2.last_sql, sizeof(g_db2.last_sql),
+                 (const char *)StatementText);
   }
   return C_ORM_SQL_SUCCESS;
 }
@@ -353,9 +359,9 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_BindParameter(
              ParameterType == C_ORM_SQL_VARGRAPHIC && ParameterValuePtr &&
              StrLen_or_IndPtr && *StrLen_or_IndPtr > 0) {
     size_t units = (size_t)(*StrLen_or_IndPtr) / sizeof(c_orm_sqlwchar_t);
-    (void)c_orm_utf16_to_utf8((const c_orm_sqlwchar_t *)ParameterValuePtr,
-                              units, 0, g_db2.bound_graphic_utf8,
-                              sizeof(g_db2.bound_graphic_utf8), NULL);
+    c_orm_utf16_to_utf8((const c_orm_sqlwchar_t *)ParameterValuePtr, units, 0,
+                        g_db2.bound_graphic_utf8,
+                        sizeof(g_db2.bound_graphic_utf8), NULL);
   }
   return C_ORM_SQL_SUCCESS;
 }
@@ -411,16 +417,16 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_DescribeCol(
   *NullablePtr = 1;
 
   if (g_db2.mode == 3 && ColumnNumber >= 1 && ColumnNumber <= 4) {
-    (void)C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength,
-                       names3[ColumnNumber - 1]);
+    C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength,
+                 names3[ColumnNumber - 1]);
     *NameLengthPtr = (c_orm_sqlsmallint_t)strlen((const char *)ColumnName);
     *DataTypePtr = types3[ColumnNumber - 1];
   } else if (g_db2.mode == 4) {
-    (void)C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength, "df_special");
+    C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength, "df_special");
     *NameLengthPtr = 10;
     *DataTypePtr = C_ORM_SQL_DECFLOAT;
   } else {
-    (void)C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength, "id_val");
+    C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength, "id_val");
     *NameLengthPtr = 6;
     *DataTypePtr = C_ORM_SQL_DECIMAL;
   }
@@ -462,8 +468,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_GetData(
     if (TargetType == C_ORM_SQL_C_NUMERIC) {
       return C_ORM_SQL_ERROR;
     }
-    (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
-                       "9999999999999999999999999999999");
+    C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
+                 "9999999999999999999999999999999");
     *StrLen_or_IndPtr = 31;
     return C_ORM_SQL_SUCCESS;
   }
@@ -471,8 +477,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_GetData(
     if (TargetType == C_ORM_SQL_C_NUMERIC) {
       return C_ORM_SQL_ERROR;
     }
-    (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
-                       "NOT_A_DECIMAL");
+    C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, "NOT_A_DECIMAL");
     *StrLen_or_IndPtr = 13;
     return C_ORM_SQL_SUCCESS;
   }
@@ -483,8 +488,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_GetData(
     if (TargetType == C_ORM_SQL_C_NUMERIC) {
       return C_ORM_SQL_ERROR;
     }
-    (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
-                       "987654321012");
+    C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, "987654321012");
     *StrLen_or_IndPtr = 12;
     return C_ORM_SQL_SUCCESS;
   }
@@ -495,17 +499,16 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_GetData(
   if (g_db2.mode == 3) {
     if (Col_or_Param_Num == 1) {
       /* DECFLOAT(34) scientific string */
-      (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
-                         "1.25E+4");
+      C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, "1.25E+4");
       *StrLen_or_IndPtr = 7;
       return C_ORM_SQL_SUCCESS;
     }
     if (Col_or_Param_Num == 2) {
       /* GRAPHIC UTF-16 column ("IBM_DB2_漢字") */
       size_t units = 0;
-      (void)c_orm_utf8_to_utf16("IBM_DB2_\xE6\xBC\xA2\xE5\xAD\x97", 14, 0,
-                                (c_orm_sqlwchar_t *)TargetValuePtr,
-                                (size_t)BufferLength / 2U, &units);
+      c_orm_utf8_to_utf16("IBM_DB2_\xE6\xBC\xA2\xE5\xAD\x97", 14, 0,
+                          (c_orm_sqlwchar_t *)TargetValuePtr,
+                          (size_t)BufferLength / 2U, &units);
       *StrLen_or_IndPtr = (c_orm_sqllen_t)(units * sizeof(c_orm_sqlwchar_t));
       return C_ORM_SQL_SUCCESS;
     }
@@ -518,8 +521,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_GetData(
     }
     if (Col_or_Param_Num == 4) {
       /* Db2 z/OS dash-dot timestamp */
-      (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
-                         "2026-11-17-14.35.59.123456");
+      C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
+                   "2026-11-17-14.35.59.123456");
       *StrLen_or_IndPtr = 26;
       return C_ORM_SQL_SUCCESS;
     }
@@ -528,7 +531,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_GetData(
     const char *sp = (g_db2.cur_row == 1)
                          ? "Infinity"
                          : ((g_db2.cur_row == 2) ? "-Infinity" : "sNaN");
-    (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, sp);
+    C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, sp);
     *StrLen_or_IndPtr = (c_orm_sqllen_t)strlen(sp);
     return C_ORM_SQL_SUCCESS;
   }
@@ -568,12 +571,11 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_GetDiagRec(
   (void)HandleType;
   (void)Handle;
   if (RecNumber == 1) {
-    (void)C_ORM_STRCPY((char *)SQLState, 6, g_db2.sqlstate);
+    C_ORM_STRCPY((char *)SQLState, 6, g_db2.sqlstate);
     *NativeErrorPtr = g_db2.sqlcode;
-    (void)C_ORM_SPRINTF(
-        (char *)MessageText, (size_t)BufferLength,
-        "[IBM][CLI Driver][DB2/LINUXX8664] SQL%04ldN",
-        (long)(g_db2.sqlcode < 0 ? -g_db2.sqlcode : g_db2.sqlcode));
+    C_ORM_SPRINTF((char *)MessageText, (size_t)BufferLength,
+                  "[IBM][CLI Driver][DB2/LINUXX8664] SQL%04ldN",
+                  (long)(g_db2.sqlcode < 0 ? -g_db2.sqlcode : g_db2.sqlcode));
     *TextLengthPtr = (c_orm_sqlsmallint_t)strlen((const char *)MessageText);
     return C_ORM_SQL_SUCCESS;
   }

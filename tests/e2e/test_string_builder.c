@@ -320,6 +320,8 @@ TEST test_c_orm_string_builder(void) {
   rc = c_orm_string_builder_append(sb, "World!");
   ASSERT_EQ(0, rc);
 
+  rc = c_orm_log_noop();
+  ASSERT_EQ(C_ORM_OK, rc);
   rc = c_orm_log_debug("Test %s", "log");
   ASSERT_EQ(C_ORM_OK, rc);
   rc = c_orm_log_debug(NULL);

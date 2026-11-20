@@ -590,13 +590,8 @@ TEST test_migration_load_and_free_branches(void) {
     remove("test_migs_real_dir/001_first.down.sql");
     remove("test_migs_real_dir/002_second.sql");
     remove("test_migs_real_dir/README.txt");
-#ifdef _WIN32
-    (void)system("mkdir test_migs_empty_dir 2>nul");
-    (void)system("mkdir test_migs_real_dir 2>nul");
-#else
-    (void)system("mkdir -p test_migs_empty_dir 2>/dev/null");
-    (void)system("mkdir -p test_migs_real_dir 2>/dev/null");
-#endif
+    (void)MIG_MKDIR("test_migs_empty_dir");
+    (void)MIG_MKDIR("test_migs_real_dir");
     C_ORM_FOPEN(&fp, "test_migs_real_dir/002_second.sql", "wb");
     if (fp) {
       fprintf(fp, "-- UP\nCREATE TABLE t2(id int);\n-- DOWN\nDROP TABLE t2;\n");
@@ -1207,13 +1202,8 @@ TEST test_migrate_up_down_branches(void) {
   remove("test_migs_real_dir/001_first.down.sql");
   remove("test_migs_real_dir/002_second.sql");
   remove("test_migs_real_dir/README.txt");
-#ifdef _WIN32
-  (void)system("rmdir test_migs_empty_dir 2>nul");
-  (void)system("rmdir test_migs_real_dir 2>nul");
-#else
-  (void)system("rmdir test_migs_empty_dir 2>/dev/null");
-  (void)system("rmdir test_migs_real_dir 2>/dev/null");
-#endif
+  (void)MIG_RMDIR("test_migs_empty_dir");
+  (void)MIG_RMDIR("test_migs_real_dir");
 
   db->vtable->disconnect(db);
   PASS();
@@ -1782,17 +1772,17 @@ static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_GetData(
   (void)tt;
   if (g_mig_is_applied_q) {
     const char *v = (col == 1) ? "001" : ((col == 2) ? "init" : "h");
-    (void)C_ORM_STRCPY((char *)vp, (size_t)bl, v);
+    C_ORM_STRCPY((char *)vp, (size_t)bl, v);
     *ind = (c_orm_sqllen_t)strlen(v);
     return C_ORM_SQL_SUCCESS;
   }
   if (col == 4) {
     char cn[32];
-    (void)C_ORM_SPRINTF(cn, sizeof(cn), "C_%d", g_mig_cat_row);
-    (void)C_ORM_STRCPY((char *)vp, (size_t)bl, cn);
+    C_ORM_SPRINTF(cn, sizeof(cn), "C_%d", g_mig_cat_row);
+    C_ORM_STRCPY((char *)vp, (size_t)bl, cn);
     *ind = (c_orm_sqllen_t)strlen(cn);
   } else if (col == 6) {
-    (void)C_ORM_STRCPY((char *)vp, (size_t)bl, "INTEGER");
+    C_ORM_STRCPY((char *)vp, (size_t)bl, "INTEGER");
     *ind = 7;
   } else if (col == 7) {
     *(c_orm_sqlinteger_t *)vp = 10;
@@ -1801,7 +1791,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API MigOdbc_GetData(
     *(c_orm_sqlsmallint_t *)vp = 0;
     *ind = 2;
   } else if (col == 18) {
-    (void)C_ORM_STRCPY((char *)vp, (size_t)bl, "NO");
+    C_ORM_STRCPY((char *)vp, (size_t)bl, "NO");
     *ind = 2;
   }
   return C_ORM_SQL_SUCCESS;
@@ -1975,7 +1965,7 @@ static c_orm_error_t mig_db2_get_str(c_orm_query_t *q, int idx,
     return C_ORM_ERROR_SQL;
   }
   if (idx == 0) {
-    (void)C_ORM_SPRINTF(col_buf, sizeof(col_buf), "COL_%d", g_mig_cat_row);
+    C_ORM_SPRINTF(col_buf, sizeof(col_buf), "COL_%d", g_mig_cat_row);
     *out = col_buf;
   } else {
     *out = "DECIMAL";

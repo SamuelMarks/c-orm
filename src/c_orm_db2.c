@@ -147,12 +147,12 @@ static c_orm_error_t db2_parse_bool(const char *s, int *out_flag) {
   size_t i;
   int eq = 0;
   for (i = 0; i < 4U; ++i) {
-    (void)db2_ieq(s, trues[i], &eq);
+    db2_ieq(s, trues[i], &eq);
     if (eq) {
       *out_flag = 1;
       return C_ORM_OK;
     }
-    (void)db2_ieq(s, falses[i], &eq);
+    db2_ieq(s, falses[i], &eq);
     if (eq) {
       *out_flag = 0;
       return C_ORM_OK;
@@ -182,18 +182,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_build_conn_string(
   opts.autocommit = 1;
   out_conn_str[0] = '\0';
 
-  (void)db2_istarts(url, "db2://", 6, &has_scheme);
+  db2_istarts(url, "db2://", 6, &has_scheme);
   body = has_scheme ? (url + 6) : url;
   if (body[0] == '\0') {
     return C_ORM_ERROR_VALIDATION;
   }
 
-  (void)db2_istarts(body, "DATABASE=", 9, &is_raw_kv);
+  db2_istarts(body, "DATABASE=", 9, &is_raw_kv);
   if (!is_raw_kv) {
-    (void)db2_istarts(body, "DSN=", 4, &is_raw_kv);
+    db2_istarts(body, "DSN=", 4, &is_raw_kv);
   }
   if (!is_raw_kv) {
-    (void)db2_istarts(body, "DRIVER=", 7, &is_raw_kv);
+    db2_istarts(body, "DRIVER=", 7, &is_raw_kv);
   }
   if (is_raw_kv || (!has_scheme && strchr(body, '=') != NULL)) {
     size_t blen = strlen(body);
@@ -1190,7 +1190,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_normalize_timestamp(const char *db2_ts,
 
   for (i = 0; i < 14; i++) {
     int ok = 0;
-    (void)is_dec_digit(db2_ts[digit_idx[i]], &ok);
+    is_dec_digit(db2_ts[digit_idx[i]], &ok);
     if (!ok) {
       return C_ORM_ERROR_VALIDATION;
     }
@@ -1211,7 +1211,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_normalize_timestamp(const char *db2_ts,
     }
     for (i = 20; i < len; i++) {
       int ok = 0;
-      (void)is_dec_digit(db2_ts[i], &ok);
+      is_dec_digit(db2_ts[i], &ok);
       if (!ok) {
         return C_ORM_ERROR_VALIDATION;
       }

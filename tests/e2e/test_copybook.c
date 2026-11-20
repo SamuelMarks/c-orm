@@ -3504,6 +3504,7 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
 
   /* 4. Subprocess CLI tests (cpy2c, cpy2sql, sql2cpy, --db db2://, --db
    * odbc://) */
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
   {
     char cmd[1024];
     int sys_rc;
@@ -3561,6 +3562,7 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
     remove("test_sub_out/Models.c");
     (void)CPY_RMDIR("test_sub_out");
   }
+#endif
 
   ASSERT_EQ(C_ORM_OK, c_orm_copybook_record_free(rec));
   PASS();

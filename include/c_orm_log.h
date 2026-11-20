@@ -16,9 +16,16 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/**
+ * @brief No-op logging helper for non-debug builds.
+ *
+ * @return C_ORM_OK unconditionally.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_log_noop(void);
+
 #ifndef LOG_DEBUG
 #ifdef DEBUG
-#if defined(__clang__) || defined(__GNUC__)
+#if (defined(__clang__) || defined(__GNUC__)) && !defined(__MINGW32__)
 __attribute__((__format__(__printf__, 1, 2)))
 #endif
 /**
@@ -32,7 +39,7 @@ C_ORM_EXPORT c_orm_error_t
 c_orm_log_debug(const char *fmt, ...);
 #define LOG_DEBUG c_orm_log_debug
 #else
-#if defined(__clang__) || defined(__GNUC__)
+#if (defined(__clang__) || defined(__GNUC__)) && !defined(__MINGW32__)
 __attribute__((__format__(__printf__, 1, 2)))
 #endif
 /**
@@ -44,7 +51,7 @@ __attribute__((__format__(__printf__, 1, 2)))
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_log_debug(const char *fmt, ...);
-#define LOG_DEBUG 1 ? C_ORM_OK : c_orm_log_debug
+#define LOG_DEBUG 1 ? c_orm_log_noop() : c_orm_log_debug
 #endif /* DEBUG */
 #endif /* !LOG_DEBUG */
 

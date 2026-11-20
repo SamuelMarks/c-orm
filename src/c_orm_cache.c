@@ -326,7 +326,7 @@ static c_orm_error_t c_orm_cache_mutex_lock(void *lock) {
 static c_orm_error_t c_orm_cache_mutex_unlock(void *lock) {
 #ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_cache_unlock_fail) {
-    (void)c_orm_mutex_unlock_ptr((pthread_mutex_t *)lock);
+    c_orm_mutex_unlock_ptr((pthread_mutex_t *)lock);
     return C_ORM_ERROR_BUSY;
   }
   return c_orm_mutex_unlock_ptr((pthread_mutex_t *)lock);

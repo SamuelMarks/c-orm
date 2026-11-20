@@ -9,9 +9,6 @@
 #include "c_orm_log.h"
 #include <stdio.h>
 #include <stdlib.h>
-#if defined(__EMSCRIPTEN__)
-#include <emscripten.h>
-#endif
 /* clang-format on */
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -41,25 +38,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_random_bytes(unsigned char *out_bytes,
   if (!out_bytes) {
     return C_ORM_ERROR_NULL_POINTER;
   }
-#if defined(__EMSCRIPTEN__)
-  EM_ASM(
-      {
-        var n = $1;
-        var arr = new Uint8Array(n);
-        if (typeof crypto != = 'undefined' && crypto.getRandomValues) {
-          crypto.getRandomValues(arr);
-        } else {
-          for (var i = 0; i < n; i++) {
-            arr[i] = Math.floor(Math.random() * 256);
-          }
-        }
-        for (var j = 0; j < n; j++) {
-          setValue($0 + j, arr[j], 'i8');
-        }
-      },
-      out_bytes, (int)len);
-  return C_ORM_OK;
-#elif defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32) || defined(_WIN64)
   if (!SystemFunction036(out_bytes, (unsigned long)len)) {
     return C_ORM_ERROR_CRYPTO;
   }

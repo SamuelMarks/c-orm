@@ -147,8 +147,8 @@ static c_orm_error_t reset_dialect_mock(void) {
 static c_orm_error_t dm_prepare(c_orm_db_t *db, const char *sql,
                                 c_orm_query_t **out_query) {
   (void)db;
-  (void)C_ORM_STRCPY(g_dm.prev_sql, sizeof(g_dm.prev_sql), g_dm.last_sql);
-  (void)C_ORM_STRCPY(g_dm.last_sql, sizeof(g_dm.last_sql), sql ? sql : "");
+  C_ORM_STRCPY(g_dm.prev_sql, sizeof(g_dm.prev_sql), g_dm.last_sql);
+  C_ORM_STRCPY(g_dm.last_sql, sizeof(g_dm.last_sql), sql ? sql : "");
   g_dm.step_row = 0;
   if (strstr(g_dm.last_sql, "SYSCAT.COLUMNS") != NULL &&
       g_dm.catalog_mode != 0) {
@@ -263,7 +263,7 @@ static c_orm_error_t dm_bind_string(c_orm_query_t *query, int index,
                                     const char *val) {
   (void)query;
   (void)index;
-  (void)C_ORM_STRCPY(g_dm.bound_str, sizeof(g_dm.bound_str), val ? val : "");
+  C_ORM_STRCPY(g_dm.bound_str, sizeof(g_dm.bound_str), val ? val : "");
   return C_ORM_OK;
 }
 
@@ -547,9 +547,9 @@ SQLDial_Prepare(c_orm_sqlhstmt_t StatementHandle,
                 c_orm_sqlchar_t *StatementText, c_orm_sqlinteger_t TextLength) {
   (void)StatementHandle;
   (void)TextLength;
-  (void)C_ORM_STRCPY(g_dm.prev_sql, sizeof(g_dm.prev_sql), g_dm.last_sql);
-  (void)C_ORM_STRCPY(g_dm.last_sql, sizeof(g_dm.last_sql),
-                     StatementText ? (const char *)StatementText : "");
+  C_ORM_STRCPY(g_dm.prev_sql, sizeof(g_dm.prev_sql), g_dm.last_sql);
+  C_ORM_STRCPY(g_dm.last_sql, sizeof(g_dm.last_sql),
+               StatementText ? (const char *)StatementText : "");
   if (strstr(g_dm.last_sql, "WHERE 1 = 0") != NULL ||
       strstr(g_dm.last_sql, "SYSCAT.COLUMNS") != NULL ||
       strstr(g_dm.last_sql, "SYSIBM.SYSCOLUMNS") != NULL) {
@@ -677,11 +677,11 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDial_GetData(
   (void)TargetType;
   if (Col_or_Param_Num == 4) {
     const char *s = (g_cli_col_row == 1) ? "ACCT_ID" : "BAL";
-    (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, s);
+    C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, s);
     *StrLen_or_IndPtr = (c_orm_sqllen_t)strlen(s);
   } else if (Col_or_Param_Num == 6) {
     const char *s = (g_cli_col_row == 1) ? "BIGINT" : "DECIMAL";
-    (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, s);
+    C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, s);
     *StrLen_or_IndPtr = (c_orm_sqllen_t)strlen(s);
   } else if (Col_or_Param_Num == 7) {
     *(c_orm_sqlinteger_t *)TargetValuePtr = (g_cli_col_row == 1) ? 19 : 15;
@@ -691,7 +691,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDial_GetData(
     *StrLen_or_IndPtr = (c_orm_sqllen_t)sizeof(c_orm_sqlsmallint_t);
   } else if (Col_or_Param_Num == 18) {
     const char *s = (g_cli_col_row == 1) ? "NO" : "YES";
-    (void)C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, s);
+    C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, s);
     *StrLen_or_IndPtr = (c_orm_sqllen_t)strlen(s);
   }
   return C_ORM_SQL_SUCCESS;

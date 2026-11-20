@@ -20,7 +20,7 @@
    (Now provided by cdd-c master directly)
  */
 
-#if defined(__clang__) || defined(__GNUC__)
+#if (defined(__clang__) || defined(__GNUC__)) && !defined(__MINGW32__)
 __attribute__((__format__(__printf__, 1, 2)))
 #endif
 /**
@@ -51,7 +51,7 @@ C_ORM_EXPORT c_orm_error_t C_CDD_LOG_DEBUG(const char *fmt, ...) {
 C_ORM_EXPORT int c_orm_mock_safe_crt_countdown = -1;
 #endif /* C_ORM_TEST_ALLOCATOR */
 
-#if defined(__clang__) || defined(__GNUC__)
+#if (defined(__clang__) || defined(__GNUC__)) && !defined(__MINGW32__)
 __attribute__((__format__(__printf__, 3, 4)))
 #endif
 /**

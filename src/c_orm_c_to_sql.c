@@ -233,7 +233,7 @@ C_ORM_EXPORT c_orm_error_t write_struct_to_sql_create_table(
     int is_unique = 0;
     int is_notnull = f->required;
 
-    (void)c_type_to_sql_type(f->type, dialect, &sql_type);
+    c_type_to_sql_type(f->type, dialect, &sql_type);
 
     if (strcmp(f->name, "id") == 0 || strcmp(f->name, "ID") == 0 ||
         strcmp(f->name, "Id") == 0) {
@@ -1306,8 +1306,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_table_meta_to_cdd_meta(
     }
     for (i = 0; i < table_meta->num_columns; i++) {
       props[i].name = table_meta->columns[i].name;
-      (void)map_col_type_to_cdd_str(table_meta->columns[i].type,
-                                    &props[i].type);
+      map_col_type_to_cdd_str(table_meta->columns[i].type, &props[i].type);
       props[i].offset = table_meta->columns[i].offset;
       props[i].is_secure = table_meta->columns[i].is_secure ? 1 : 0;
     }
@@ -1428,7 +1427,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_cdd_meta_to_table_meta(
     }
     for (i = 0; i < cdd_meta->num_props; ++i) {
       cols[i].name = cdd_meta->props[i].name;
-      (void)map_cdd_str_to_col_type(cdd_meta->props[i].type, &cols[i].type);
+      map_cdd_str_to_col_type(cdd_meta->props[i].type, &cols[i].type);
       cols[i].offset = cdd_meta->props[i].offset;
       cols[i].is_pk = (cdd_meta->props[i].name &&
                        strcmp(cdd_meta->props[i].name, "id") == 0)

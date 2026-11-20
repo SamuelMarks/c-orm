@@ -14,13 +14,6 @@
 #if defined(_MSC_VER)
 #define C_ORM_FMT_SIZE_T "%I64u"
 #define C_ORM_CAST_SIZE_T(x) ((unsigned __int64)(x))
-#elif defined(_WIN64) && (defined(__GNUC__) || defined(__clang__))
-#if defined(__USE_MINGW_ANSI_STDIO) && __USE_MINGW_ANSI_STDIO
-#define C_ORM_FMT_SIZE_T "%llu"
-#else
-#define C_ORM_FMT_SIZE_T "%I64u"
-#endif
-#define C_ORM_CAST_SIZE_T(x) ((unsigned __int64)(x))
 #else
 #define C_ORM_FMT_SIZE_T "%lu"
 #define C_ORM_CAST_SIZE_T(x) ((unsigned long)(x))

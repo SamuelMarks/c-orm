@@ -1594,10 +1594,10 @@ static c_orm_sqlreturn_t C_ORM_SQL_API ASMock_GetData(
   (void)h;
   (void)tt;
   if (col == 4) {
-    (void)C_ORM_STRCPY((char *)vp, (size_t)bl, "AMT");
+    C_ORM_STRCPY((char *)vp, (size_t)bl, "AMT");
     *ind = 3;
   } else if (col == 6) {
-    (void)C_ORM_STRCPY((char *)vp, (size_t)bl, "DECIMAL");
+    C_ORM_STRCPY((char *)vp, (size_t)bl, "DECIMAL");
     *ind = 7;
   } else if (col == 7) {
     *(c_orm_sqlinteger_t *)vp = 11;
@@ -1606,7 +1606,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API ASMock_GetData(
     *(c_orm_sqlsmallint_t *)vp = 2;
     *ind = 2;
   } else if (col == 18) {
-    (void)C_ORM_STRCPY((char *)vp, (size_t)bl, g_as_row == 1 ? "NO" : "YES");
+    C_ORM_STRCPY((char *)vp, (size_t)bl, g_as_row == 1 ? "NO" : "YES");
     *ind = g_as_row == 1 ? 2 : 3;
   }
   return C_ORM_SQL_SUCCESS;

@@ -180,7 +180,7 @@ static c_orm_error_t sqlite_prepare(c_orm_db_t *db, const char *sql,
 
   if (sqlite3_prepare_v2(db_data->db, sql, -1, &q_data->stmt, NULL) !=
       SQLITE_OK) {
-    (void)set_error(db, NULL);
+    set_error(db, NULL);
     (void)c_orm_system_free(q_data);
     (void)c_orm_system_free(stmt_handle);
     LOG_DEBUG("sqlite_prepare: prepare failed");
@@ -218,7 +218,7 @@ static c_orm_error_t sqlite_bind_int32(c_orm_query_t *query, int index,
                                        index, val);
 
   if (rc != SQLITE_OK) {
-    (void)set_error(((sqlite_stmt_t *)query)->data->db, NULL);
+    set_error(((sqlite_stmt_t *)query)->data->db, NULL);
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
@@ -249,7 +249,7 @@ static c_orm_error_t sqlite_bind_int64(c_orm_query_t *query, int index,
   rc = (c_orm_error_t)sqlite3_bind_int64(((sqlite_stmt_t *)query)->data->stmt,
                                          index, val);
   if (rc != SQLITE_OK) {
-    (void)set_error(((sqlite_stmt_t *)query)->data->db, NULL);
+    set_error(((sqlite_stmt_t *)query)->data->db, NULL);
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
   }
@@ -280,7 +280,7 @@ static c_orm_error_t sqlite_bind_double(c_orm_query_t *query, int index,
   rc = (c_orm_error_t)sqlite3_bind_double(((sqlite_stmt_t *)query)->data->stmt,
                                           index, val);
   if (rc != SQLITE_OK) {
-    (void)set_error(((sqlite_stmt_t *)query)->data->db, NULL);
+    set_error(((sqlite_stmt_t *)query)->data->db, NULL);
     LOG_DEBUG("sqlite_bind_double: bind failed");
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
@@ -312,7 +312,7 @@ static c_orm_error_t sqlite_bind_string(c_orm_query_t *query, int index,
   rc = (c_orm_error_t)sqlite3_bind_text(((sqlite_stmt_t *)query)->data->stmt,
                                         index, val, -1, SQLITE_TRANSIENT);
   if (rc != SQLITE_OK) {
-    (void)set_error(((sqlite_stmt_t *)query)->data->db, NULL);
+    set_error(((sqlite_stmt_t *)query)->data->db, NULL);
     LOG_DEBUG("sqlite_bind_string: bind failed");
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
@@ -345,7 +345,7 @@ static c_orm_error_t sqlite_bind_blob(c_orm_query_t *query, int index,
       (c_orm_error_t)sqlite3_bind_blob(((sqlite_stmt_t *)query)->data->stmt,
                                        index, val, (int)size, SQLITE_TRANSIENT);
   if (rc != SQLITE_OK) {
-    (void)set_error(((sqlite_stmt_t *)query)->data->db, NULL);
+    set_error(((sqlite_stmt_t *)query)->data->db, NULL);
     LOG_DEBUG("sqlite_bind_blob: bind failed");
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
@@ -374,7 +374,7 @@ static c_orm_error_t sqlite_bind_null(c_orm_query_t *query, int index) {
   rc = (c_orm_error_t)sqlite3_bind_null(((sqlite_stmt_t *)query)->data->stmt,
                                         index);
   if (rc != SQLITE_OK) {
-    (void)set_error(((sqlite_stmt_t *)query)->data->db, NULL);
+    set_error(((sqlite_stmt_t *)query)->data->db, NULL);
     LOG_DEBUG("sqlite_bind_null: bind failed");
     rc = C_ORM_ERROR_BIND;
     return (c_orm_error_t)rc;
@@ -476,7 +476,7 @@ static c_orm_error_t sqlite_step(c_orm_query_t *query, int *out_has_row) {
     return (c_orm_error_t)rc;
   }
 
-  (void)set_error(((sqlite_stmt_t *)query)->data->db, NULL);
+  set_error(((sqlite_stmt_t *)query)->data->db, NULL);
   rc = C_ORM_ERROR_STEP;
   LOG_DEBUG("sqlite_step: step failed");
   return (c_orm_error_t)rc;

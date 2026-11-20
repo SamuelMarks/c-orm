@@ -232,8 +232,8 @@ find_or_insert_migration_slot(c_orm_migration_t **arr, size_t *count,
   }
   *out_entry = &(*arr)[*count];
   memset(*out_entry, 0, sizeof(c_orm_migration_t));
-  (void)C_ORM_STRCPY((*out_entry)->version, sizeof((*out_entry)->version), ver);
-  (void)C_ORM_STRCPY((*out_entry)->name, sizeof((*out_entry)->name), name);
+  C_ORM_STRCPY((*out_entry)->version, sizeof((*out_entry)->version), ver);
+  C_ORM_STRCPY((*out_entry)->name, sizeof((*out_entry)->name), name);
   (*count)++;
   return C_ORM_OK;
 }
@@ -355,7 +355,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
 #else
     if (c_orm_strdup(raw_path, &utf8_name) != C_ORM_OK) {
       cfs_dir_itr_close(it);
-      (void)c_orm_migration_free_array(migs, count);
+      c_orm_migration_free_array(migs, count);
       return C_ORM_ERROR_MEMORY;
     }
 #endif
@@ -371,7 +371,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
         C_ORM_OK) {
       (void)c_orm_system_free(utf8_name);
       cfs_dir_itr_close(it);
-      (void)c_orm_migration_free_array(migs, count);
+      c_orm_migration_free_array(migs, count);
       return C_ORM_ERROR_MEMORY;
     }
     memcpy(full_path, dir_path, dlen);
@@ -380,15 +380,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
 
     if (flen > 7 && strcmp(utf8_name + flen - 7, ".up.sql") == 0) {
       char *sql_text = NULL;
-      (void)split_stem_version_name(utf8_name, flen - 7, ver_buf,
-                                    sizeof(ver_buf), name_buf,
-                                    sizeof(name_buf));
+      split_stem_version_name(utf8_name, flen - 7, ver_buf, sizeof(ver_buf),
+                              name_buf, sizeof(name_buf));
       (void)c_orm_system_free(utf8_name);
       rc = read_sql_file_alloc(full_path, &sql_text);
       (void)c_orm_system_free(full_path);
       if (rc != C_ORM_OK) {
         cfs_dir_itr_close(it);
-        (void)c_orm_migration_free_array(migs, count);
+        c_orm_migration_free_array(migs, count);
         return rc;
       }
       rc = find_or_insert_migration_slot(&migs, &count, &cap, ver_buf, name_buf,
@@ -396,7 +395,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
       if (rc != C_ORM_OK) {
         (void)c_orm_system_free(sql_text);
         cfs_dir_itr_close(it);
-        (void)c_orm_migration_free_array(migs, count);
+        c_orm_migration_free_array(migs, count);
         return rc;
       }
       if (slot->up_sql) {
@@ -405,15 +404,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
       slot->up_sql = sql_text;
     } else if (flen > 9 && strcmp(utf8_name + flen - 9, ".down.sql") == 0) {
       char *sql_text = NULL;
-      (void)split_stem_version_name(utf8_name, flen - 9, ver_buf,
-                                    sizeof(ver_buf), name_buf,
-                                    sizeof(name_buf));
+      split_stem_version_name(utf8_name, flen - 9, ver_buf, sizeof(ver_buf),
+                              name_buf, sizeof(name_buf));
       (void)c_orm_system_free(utf8_name);
       rc = read_sql_file_alloc(full_path, &sql_text);
       (void)c_orm_system_free(full_path);
       if (rc != C_ORM_OK) {
         cfs_dir_itr_close(it);
-        (void)c_orm_migration_free_array(migs, count);
+        c_orm_migration_free_array(migs, count);
         return rc;
       }
       rc = find_or_insert_migration_slot(&migs, &count, &cap, ver_buf, name_buf,
@@ -421,7 +419,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
       if (rc != C_ORM_OK) {
         (void)c_orm_system_free(sql_text);
         cfs_dir_itr_close(it);
-        (void)c_orm_migration_free_array(migs, count);
+        c_orm_migration_free_array(migs, count);
         return rc;
       }
       if (slot->down_sql) {
@@ -430,15 +428,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
       slot->down_sql = sql_text;
     } else {
       struct MigrationStatements stmts;
-      (void)split_stem_version_name(utf8_name, flen - 4, ver_buf,
-                                    sizeof(ver_buf), name_buf,
-                                    sizeof(name_buf));
+      split_stem_version_name(utf8_name, flen - 4, ver_buf, sizeof(ver_buf),
+                              name_buf, sizeof(name_buf));
       (void)c_orm_system_free(utf8_name);
       rc = parse_migration_file(full_path, &stmts);
       (void)c_orm_system_free(full_path);
       if (rc != C_ORM_OK) {
         cfs_dir_itr_close(it);
-        (void)c_orm_migration_free_array(migs, count);
+        c_orm_migration_free_array(migs, count);
         return rc;
       }
       rc = find_or_insert_migration_slot(&migs, &count, &cap, ver_buf, name_buf,
@@ -446,7 +443,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
       if (rc != C_ORM_OK) {
         (void)migration_statements_free(&stmts);
         cfs_dir_itr_close(it);
-        (void)c_orm_migration_free_array(migs, count);
+        c_orm_migration_free_array(migs, count);
         return rc;
       }
       if (stmts.up_statement) {
@@ -470,8 +467,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_load_dir(
   cfs_dir_itr_close(it);
 
   for (i = 0; i < count; i++) {
-    (void)compute_sql_fnv1a_hex(migs[i].up_sql, migs[i].hash,
-                                sizeof(migs[i].hash));
+    compute_sql_fnv1a_hex(migs[i].up_sql, migs[i].hash, sizeof(migs[i].hash));
   }
 
   if (count > 1) {
@@ -578,10 +574,10 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
               : "SELECT id FROM _c_orm_migrations WHERE version = ?";
       if (db->vtable->prepare(db, chk_sql, &q) == C_ORM_OK) {
         if (db->vtable->bind_string) {
-          (void)db->vtable->bind_string(q, 1, mig->version);
+          db->vtable->bind_string(q, 1, mig->version);
         }
-        (void)db->vtable->step(q, &has_row);
-        (void)db->vtable->finalize(q);
+        db->vtable->step(q, &has_row);
+        db->vtable->finalize(q);
         q = NULL;
       }
     }
@@ -594,7 +590,7 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
       char log_msg[1024];
       C_ORM_SPRINTF(log_msg, sizeof(log_msg), "Applying migration %s: %s",
                     mig->version, mig->name);
-      (void)options->log_cb(log_msg);
+      options->log_cb(log_msg);
     }
 
     if (options && options->dry_run) {
@@ -633,8 +629,8 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
       rc = c_orm_execute_raw(db, mig->up_sql);
       if (rc != C_ORM_OK) {
         LOG_DEBUG("c_orm_migrate_all: up_sql error");
-        (void)c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step");
-        (void)c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step");
+        c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step");
+        c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step");
         unlock_rc = c_orm_migration_unlock(db);
         if (unlock_rc != C_ORM_OK) {
           LOG_DEBUG("c_orm_migrate_all: unlock failed during up_sql error");
@@ -672,8 +668,8 @@ c_orm_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
     }
     if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_migrate_all: insert migration error");
-      (void)c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step");
-      (void)c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step");
+      c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step");
+      c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step");
       unlock_rc = c_orm_migration_unlock(db);
       if (unlock_rc != C_ORM_OK) {
         LOG_DEBUG(
@@ -789,7 +785,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
       char log_msg[1024];
       C_ORM_SPRINTF(log_msg, sizeof(log_msg), "Rolling back migration %s: %s",
                     mig->version, mig->name);
-      (void)options->log_cb(log_msg);
+      options->log_cb(log_msg);
     }
 
     if (options && options->dry_run) {
@@ -810,8 +806,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
       rc = c_orm_execute_raw(db, mig->down_sql);
       if (rc != C_ORM_OK) {
         LOG_DEBUG("c_orm_migrate_rollback: down_sql error");
-        (void)c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step_rb");
-        (void)c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step_rb");
+        c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step_rb");
+        c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step_rb");
         break;
       }
     }
@@ -836,8 +832,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
     }
     if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_migrate_rollback: delete migration error");
-      (void)c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step_rb");
-      (void)c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step_rb");
+      c_orm_execute_raw(db, "ROLLBACK TO SAVEPOINT c_orm_mig_step_rb");
+      c_orm_execute_raw(db, "RELEASE SAVEPOINT c_orm_mig_step_rb");
       break;
     }
 
@@ -850,7 +846,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migrate_rollback(
   }
 
   if (applied) {
-    (void)c_orm_migration_free_array(applied, applied_count);
+    c_orm_migration_free_array(applied, applied_count);
   }
 
   unlock_rc = c_orm_migration_unlock(db);
@@ -946,7 +942,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
         fin_rc = db->vtable->finalize(q);
         return (fin_rc != C_ORM_OK) ? fin_rc : C_ORM_ERROR_MEMORY;
       }
-      (void)C_ORM_STRCPY(meta_name, strlen(table_name) + 1, table_name);
+      C_ORM_STRCPY(meta_name, strlen(table_name) + 1, table_name);
       meta->name = meta_name;
       meta->size = 0;
       meta->num_props = 0;
@@ -1023,7 +1019,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
     if (c_orm_system_malloc(sizeof(cdd_c_meta_t), (void **)&meta) != C_ORM_OK ||
         c_orm_strdup(table_name, &meta_name) != C_ORM_OK) {
       (void)c_orm_system_free(meta);
-      (void)c_orm_odbc_free_column_list(odbc_cols, odbc_count);
+      c_orm_odbc_free_column_list(odbc_cols, odbc_count);
       return C_ORM_ERROR_MEMORY;
     }
     meta->name = meta_name;
@@ -1035,7 +1031,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
                             (void **)&props_arr) != C_ORM_OK) {
       (void)c_orm_system_free(meta_name);
       (void)c_orm_system_free(meta);
-      (void)c_orm_odbc_free_column_list(odbc_cols, odbc_count);
+      c_orm_odbc_free_column_list(odbc_cols, odbc_count);
       return C_ORM_ERROR_MEMORY;
     }
     meta->props = props_arr;
@@ -1048,15 +1044,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_fetch_table_schema(
           c_orm_strdup(odbc_cols[idx].type_name, &ptype) != C_ORM_OK) {
         (void)c_orm_system_free(pname);
         (void)c_orm_system_free(ptype);
-        (void)c_orm_odbc_free_column_list(odbc_cols, odbc_count);
-        (void)c_orm_migration_free_table_schema(meta);
+        c_orm_odbc_free_column_list(odbc_cols, odbc_count);
+        c_orm_migration_free_table_schema(meta);
         return C_ORM_ERROR_MEMORY;
       }
       props_arr[meta->num_props].name = pname;
       props_arr[meta->num_props].type = ptype;
       meta->num_props++;
     }
-    (void)c_orm_odbc_free_column_list(odbc_cols, odbc_count);
+    c_orm_odbc_free_column_list(odbc_cols, odbc_count);
     *out_schema = meta;
     return C_ORM_OK;
   }
@@ -1314,7 +1310,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
     rc = db->vtable->step(q, &has_row);
     if (rc != C_ORM_OK) {
       c_orm_error_t fin_rc = c_orm_finalize_cached(db, q);
-      (void)c_orm_migration_free_array(migs, count);
+      c_orm_migration_free_array(migs, count);
       if (fin_rc != C_ORM_OK) {
         return fin_rc;
       }
@@ -1327,7 +1323,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
     rc = db->vtable->get_string(q, 0, &version);
     if (rc != C_ORM_OK) {
       c_orm_error_t fin_rc = c_orm_finalize_cached(db, q);
-      (void)c_orm_migration_free_array(migs, count);
+      c_orm_migration_free_array(migs, count);
       if (fin_rc != C_ORM_OK) {
         return fin_rc;
       }
@@ -1336,7 +1332,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
     rc = db->vtable->get_string(q, 1, &name);
     if (rc != C_ORM_OK) {
       c_orm_error_t fin_rc = c_orm_finalize_cached(db, q);
-      (void)c_orm_migration_free_array(migs, count);
+      c_orm_migration_free_array(migs, count);
       if (fin_rc != C_ORM_OK) {
         return fin_rc;
       }
@@ -1345,7 +1341,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
     rc = db->vtable->get_string(q, 2, &hash);
     if (rc != C_ORM_OK) {
       c_orm_error_t fin_rc = c_orm_finalize_cached(db, q);
-      (void)c_orm_migration_free_array(migs, count);
+      c_orm_migration_free_array(migs, count);
       if (fin_rc != C_ORM_OK) {
         return fin_rc;
       }
@@ -1358,7 +1354,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
       if (c_orm_system_realloc(migs, cap * sizeof(c_orm_migration_t),
                                (void **)&new_migs) != C_ORM_OK) {
         LOG_DEBUG("c_orm_migration_get_applied: OOM during realloc");
-        (void)c_orm_migration_free_array(migs, count);
+        c_orm_migration_free_array(migs, count);
         {
           c_orm_error_t _fin = c_orm_finalize_cached(db, q);
           if (_fin != C_ORM_OK) {
@@ -1386,7 +1382,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_migration_get_applied(
   {
     c_orm_error_t fin_rc = c_orm_finalize_cached(db, q);
     if (fin_rc != C_ORM_OK) {
-      (void)c_orm_migration_free_array(migs, count);
+      c_orm_migration_free_array(migs, count);
       return fin_rc;
     }
   }

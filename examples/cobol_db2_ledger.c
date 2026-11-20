@@ -246,8 +246,7 @@ static c_orm_error_t run_cobol_ledger_on_db(c_orm_db_t *db, const char *db_url,
     return rc;
   }
 
-  (void)c_orm_decimal_to_str(&persisted.acct_bal, bal_str, sizeof(bal_str),
-                             NULL);
+  c_orm_decimal_to_str(&persisted.acct_bal, bal_str, sizeof(bal_str), NULL);
   printf("Ledger account %d (%s) updated to %s (%s) [" C_ORM_FMT_SIZE_T
          " IBM037 wire bytes]\n",
          (int)persisted.acct_id, persisted.acct_holder, bal_str,
@@ -273,7 +272,7 @@ c_orm_error_t run_cobol_ledger_workflow(const char *db_url) {
     return C_ORM_ERROR_NULL_POINTER;
   }
 
-  (void)build_ledger_copybook_source(ledger_cpy, sizeof(ledger_cpy));
+  build_ledger_copybook_source(ledger_cpy, sizeof(ledger_cpy));
 
   rc = c_orm_connect_url(db_url, &db);
   if (rc != C_ORM_OK) {
@@ -298,7 +297,7 @@ static c_orm_error_t run_cobol_ledger_from_env(void) {
   const char *url = "sqlite://:memory:";
 
   env_url[0] = '\0';
-  (void)C_ORM_GETENV(env_url, sizeof(env_url), "C_ORM_EXAMPLE_DB_URL");
+  C_ORM_GETENV(env_url, sizeof(env_url), "C_ORM_EXAMPLE_DB_URL");
   if (env_url[0] != '\0') {
     url = env_url;
   }
