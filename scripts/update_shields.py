@@ -458,8 +458,10 @@ def get_doc_coverage():
                     if line[:1].isspace():
                         continue
                     stripped = line.strip()
+                    if stripped.startswith("#"):
+                        continue
                     if "_API " in stripped or stripped.startswith(decl_prefixes):
-                        if stripped.endswith(";") and "(" not in stripped and "typedef" not in stripped:
+                        if ";" in stripped and "(" not in stripped and "typedef" not in stripped:
                             continue
                         total_decls += 1
                         j = i - 1

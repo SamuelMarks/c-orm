@@ -66,12 +66,15 @@ typedef unsigned char bool;
 
 #define CMP_SECURE_FIELD true
 
+#if defined(_MSC_VER) && _MSC_VER >= 1700
 /**
  * @brief Error status codes returned and percolated by all c-orm functions.
  */
-#if defined(_MSC_VER) && _MSC_VER >= 1700
 typedef _Check_return_ enum {
 #else
+/**
+ * @brief Error status codes returned and percolated by all c-orm functions.
+ */
 typedef enum {
 #endif
   C_ORM_OK = 0,
@@ -188,6 +191,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_reset_allocators(void);
 C_ORM_EXPORT c_orm_error_t c_orm_strdup(const char *s, char **out);
 #define C_ORM_STRDUP c_orm_strdup
 
+/**
+ * @brief Column and variant data type discriminators supported by c-orm.
+ */
 typedef enum {
   C_ORM_TYPE_INT32,
   C_ORM_TYPE_INT64,

@@ -516,12 +516,18 @@ TEST test_c_orm_async_coverage(void) {
   {
     c_orm_db_t *real_db = NULL;
     c_orm_column_meta_t col;
+    /** @brief Single-column test row payload for async SQLite insert. */
     struct {
+      /** @brief Primary key integer value. */
       int32_t id;
     } row_in;
+    /** @brief Generic dynamic array output container for async find_all. */
     struct {
+      /** @brief Allocated element buffer pointer. */
       void *data;
+      /** @brief Number of hydrated rows in data. */
       size_t length;
+      /** @brief Allocated row capacity of data. */
       size_t capacity;
     } arr_out;
     memset(&col, 0, sizeof(col));

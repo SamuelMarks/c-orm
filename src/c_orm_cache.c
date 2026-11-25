@@ -131,14 +131,33 @@ typedef struct c_orm_win32_critical_section {
   size_t SpinCount;
 } c_orm_win32_critical_section_t;
 
+/**
+ * @brief Initializes a Win32 critical section object without windows.h.
+ * @param lpCriticalSection Pointer to the critical section object.
+ */
 __declspec(dllimport) void __stdcall InitializeCriticalSection(
-    c_orm_win32_critical_section_t *);
+    c_orm_win32_critical_section_t *lpCriticalSection);
+
+/**
+ * @brief Waits for ownership of the specified Win32 critical section object.
+ * @param lpCriticalSection Pointer to the critical section object.
+ */
 __declspec(dllimport) void __stdcall EnterCriticalSection(
-    c_orm_win32_critical_section_t *);
+    c_orm_win32_critical_section_t *lpCriticalSection);
+
+/**
+ * @brief Releases ownership of the specified Win32 critical section object.
+ * @param lpCriticalSection Pointer to the critical section object.
+ */
 __declspec(dllimport) void __stdcall LeaveCriticalSection(
-    c_orm_win32_critical_section_t *);
+    c_orm_win32_critical_section_t *lpCriticalSection);
+
+/**
+ * @brief Releases all resources used by an unowned Win32 critical section.
+ * @param lpCriticalSection Pointer to the critical section object.
+ */
 __declspec(dllimport) void __stdcall DeleteCriticalSection(
-    c_orm_win32_critical_section_t *);
+    c_orm_win32_critical_section_t *lpCriticalSection);
 
 /**
  * @brief Allocates and initializes a Windows CRITICAL_SECTION mutex.

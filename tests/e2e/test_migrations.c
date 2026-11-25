@@ -2748,7 +2748,7 @@ TEST test_migrations_db2_odbc_and_dir_exhaustive(void) {
               C_ORM_FOPEN(&fp, "test_migs_ex_dir/nounderscore.sql", "wb"));
     fputs("-- DOWN\nSELECT 30;\n", fp);
     fclose(fp);
-#if !defined(_WIN32) && !defined(_MSC_VER)
+#if !defined(_WIN32) && !defined(_MSC_VER) && !defined(__CYGWIN__)
     ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, "test_migs_ex_dir/a\\b", "wb"));
     fclose(fp);
 #else
@@ -2807,7 +2807,8 @@ TEST test_migrations_db2_odbc_and_dir_exhaustive(void) {
       fclose(fp);
     }
 
-#if !defined(_WIN32) && !defined(_MSC_VER)
+#if !defined(_WIN32) && !defined(_MSC_VER) && !defined(__EMSCRIPTEN__) &&      \
+    !defined(__CYGWIN__)
     ASSERT(geteuid() != 0);
     ASSERT_EQ(0, chmod("test_migs_ex_dir/001_z.up.sql", 0));
     ASSERT_EQ(C_ORM_ERROR_IO, c_orm_migration_load_dir(mdir, &migs, &mcnt));

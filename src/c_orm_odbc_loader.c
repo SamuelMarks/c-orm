@@ -18,143 +18,512 @@
 #if !defined(C_ORM_NO_THREADS) && defined(_MSC_VER)
 #include <intrin.h>
 #endif
-extern __declspec(dllimport) void *__stdcall LoadLibraryA(
-    const char *lpLibFileName);
-extern __declspec(dllimport) void *__stdcall LoadLibraryW(
-    const unsigned short *lpLibFileName);
-extern __declspec(dllimport) void *__stdcall GetProcAddress(
-    void *hModule, const char *lpProcName);
-extern __declspec(dllimport) int __stdcall FreeLibrary(void *hLibModule);
 #elif !defined(__EMSCRIPTEN__)
 #include <dlfcn.h>
 #endif
 /* clang-format on */
 
+#if defined(_WIN32)
+/**
+ * @brief Loads an ANSI-named Win32 dynamic-link library into the process.
+ * @param lpLibFileName Null-terminated ANSI library path or module name.
+ * @return Module handle on success, or NULL on failure.
+ */
+extern __declspec(dllimport) void *__stdcall LoadLibraryA(
+    const char *lpLibFileName);
+
+/**
+ * @brief Loads a UTF-16-named Win32 dynamic-link library into the process.
+ * @param lpLibFileName Null-terminated UTF-16 library path or module name.
+ * @return Module handle on success, or NULL on failure.
+ */
+extern __declspec(dllimport) void *__stdcall LoadLibraryW(
+    const unsigned short *lpLibFileName);
+
+/**
+ * @brief Retrieves the address of an exported function from a Win32 DLL.
+ * @param hModule Handle to the loaded DLL module.
+ * @param lpProcName Null-terminated ASCII symbol name.
+ * @return Symbol address on success, or NULL on failure.
+ */
+extern __declspec(dllimport) void *__stdcall GetProcAddress(
+    void *hModule, const char *lpProcName);
+
+/**
+ * @brief Decrements the reference count of a loaded Win32 DLL module.
+ * @param hLibModule Handle to the loaded DLL module.
+ * @return Non-zero on success, or 0 on failure.
+ */
+extern __declspec(dllimport) int __stdcall FreeLibrary(void *hLibModule);
+#endif
+
 #if defined(C_ORM_LINK_ODBC) || defined(C_ORM_LINK_DB2)
+/**
+ * @brief Allocates an ODBC environment, connection, statement, or descriptor.
+ * @param HandleType Type of handle to allocate.
+ * @param InputHandle Parent handle context, or SQL_NULL_HANDLE.
+ * @param OutputHandlePtr Output pointer receiving the allocated handle.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLAllocHandle(c_orm_sqlsmallint_t HandleType, c_orm_sqlhandle_t InputHandle,
                c_orm_sqlhandle_t *OutputHandlePtr);
+
+/**
+ * @brief Frees resources associated with an ODBC handle.
+ * @param HandleType Type of handle to free.
+ * @param Handle Handle instance to release.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLFreeHandle(c_orm_sqlsmallint_t HandleType, c_orm_sqlhandle_t Handle);
+
+/**
+ * @brief Sets an attribute governing ODBC environment behavior.
+ * @param EnvironmentHandle Target ODBC environment handle.
+ * @param Attribute Environment attribute identifier.
+ * @param ValuePtr Value or integer cast associated with Attribute.
+ * @param StringLength Byte length of ValuePtr or indicator flag.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLSetEnvAttr(c_orm_sqlhenv_t EnvironmentHandle, c_orm_sqlinteger_t Attribute,
               c_orm_sqlpointer_t ValuePtr, c_orm_sqlinteger_t StringLength);
+
+/**
+ * @brief Sets an ANSI connection attribute on an ODBC connection handle.
+ * @param ConnectionHandle Target ODBC connection handle.
+ * @param Attribute Connection attribute identifier.
+ * @param ValuePtr Attribute value buffer or integer cast.
+ * @param StringLength Byte length of ValuePtr or indicator flag.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLSetConnectAttr(
     c_orm_sqlhdbc_t ConnectionHandle, c_orm_sqlinteger_t Attribute,
     c_orm_sqlpointer_t ValuePtr, c_orm_sqlinteger_t StringLength);
+
+/**
+ * @brief Sets a UTF-16 connection attribute on an ODBC connection handle.
+ * @param ConnectionHandle Target ODBC connection handle.
+ * @param Attribute Connection attribute identifier.
+ * @param ValuePtr Attribute value buffer or integer cast.
+ * @param StringLength Byte length of ValuePtr or indicator flag.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLSetConnectAttrW(
     c_orm_sqlhdbc_t ConnectionHandle, c_orm_sqlinteger_t Attribute,
     c_orm_sqlpointer_t ValuePtr, c_orm_sqlinteger_t StringLength);
+
+/**
+ * @brief Queries the current value of an ODBC connection attribute.
+ * @param ConnectionHandle Target ODBC connection handle.
+ * @param Attribute Connection attribute identifier.
+ * @param ValuePtr Output buffer receiving the attribute value.
+ * @param BufferLength Capacity of ValuePtr in bytes.
+ * @param StringLengthPtr Output pointer receiving actual byte count.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLGetConnectAttr(
     c_orm_sqlhdbc_t ConnectionHandle, c_orm_sqlinteger_t Attribute,
     c_orm_sqlpointer_t ValuePtr, c_orm_sqlinteger_t BufferLength,
     c_orm_sqlinteger_t *StringLengthPtr);
+
+/**
+ * @brief Establishes an ODBC connection using an ANSI connection string.
+ * @param ConnectionHandle Target ODBC connection handle.
+ * @param WindowHandle Optional parent window handle.
+ * @param InConnectionString Input ANSI connection string.
+ * @param StringLength1 Length of InConnectionString or SQL_NTS.
+ * @param OutConnectionString Optional output buffer for completed string.
+ * @param BufferLength Capacity of OutConnectionString.
+ * @param StringLength2Ptr Output pointer receiving completed string length.
+ * @param DriverCompletion Prompting mode flag (e.g. SQL_DRIVER_NOPROMPT).
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLDriverConnect(
     c_orm_sqlhdbc_t ConnectionHandle, c_orm_sqlhwnd_t WindowHandle,
     c_orm_sqlchar_t *InConnectionString, c_orm_sqlsmallint_t StringLength1,
     c_orm_sqlchar_t *OutConnectionString, c_orm_sqlsmallint_t BufferLength,
     c_orm_sqlsmallint_t *StringLength2Ptr,
     c_orm_sqlusmallint_t DriverCompletion);
+
+/**
+ * @brief Establishes an ODBC connection using a UTF-16 connection string.
+ * @param ConnectionHandle Target ODBC connection handle.
+ * @param WindowHandle Optional parent window handle.
+ * @param InConnectionString Input UTF-16 connection string.
+ * @param StringLength1 Length of InConnectionString in characters or SQL_NTS.
+ * @param OutConnectionString Optional output UTF-16 buffer.
+ * @param BufferLength Capacity of OutConnectionString in characters.
+ * @param StringLength2Ptr Output pointer receiving completed character length.
+ * @param DriverCompletion Prompting mode flag (e.g. SQL_DRIVER_NOPROMPT).
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLDriverConnectW(
     c_orm_sqlhdbc_t ConnectionHandle, c_orm_sqlhwnd_t WindowHandle,
     c_orm_sqlwchar_t *InConnectionString, c_orm_sqlsmallint_t StringLength1,
     c_orm_sqlwchar_t *OutConnectionString, c_orm_sqlsmallint_t BufferLength,
     c_orm_sqlsmallint_t *StringLength2Ptr,
     c_orm_sqlusmallint_t DriverCompletion);
+
+/**
+ * @brief Connects to a DSN using ANSI server, user, and password strings.
+ * @param ConnectionHandle Target ODBC connection handle.
+ * @param ServerName Data source name string.
+ * @param NameLength1 Length of ServerName or SQL_NTS.
+ * @param UserName User identifier string.
+ * @param NameLength2 Length of UserName or SQL_NTS.
+ * @param Authentication Password or authentication token string.
+ * @param NameLength3 Length of Authentication or SQL_NTS.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLConnect(c_orm_sqlhdbc_t ConnectionHandle, c_orm_sqlchar_t *ServerName,
            c_orm_sqlsmallint_t NameLength1, c_orm_sqlchar_t *UserName,
            c_orm_sqlsmallint_t NameLength2, c_orm_sqlchar_t *Authentication,
            c_orm_sqlsmallint_t NameLength3);
+
+/**
+ * @brief Closes the connection associated with an ODBC connection handle.
+ * @param ConnectionHandle Target ODBC connection handle.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLDisconnect(c_orm_sqlhdbc_t ConnectionHandle);
+
+/**
+ * @brief Commits or rolls back an active transaction on an ODBC handle.
+ * @param HandleType Handle type (environment or connection).
+ * @param Handle Target environment or connection handle.
+ * @param CompletionType SQL_COMMIT or SQL_ROLLBACK.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLEndTran(c_orm_sqlsmallint_t HandleType, c_orm_sqlhandle_t Handle,
            c_orm_sqlsmallint_t CompletionType);
+
+/**
+ * @brief Sets an attribute on an ODBC statement handle.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param Attribute Statement attribute identifier.
+ * @param ValuePtr Attribute value pointer or integer cast.
+ * @param StringLength Byte length of ValuePtr or indicator flag.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLSetStmtAttr(c_orm_sqlhstmt_t StatementHandle, c_orm_sqlinteger_t Attribute,
                c_orm_sqlpointer_t ValuePtr, c_orm_sqlinteger_t StringLength);
+
+/**
+ * @brief Prepares an ANSI SQL statement string for execution.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param StatementText ANSI SQL text buffer.
+ * @param TextLength Length of StatementText or SQL_NTS.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLPrepare(c_orm_sqlhstmt_t StatementHandle, c_orm_sqlchar_t *StatementText,
            c_orm_sqlinteger_t TextLength);
+
+/**
+ * @brief Prepares a UTF-16 SQL statement string for execution.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param StatementText UTF-16 SQL text buffer.
+ * @param TextLength Length of StatementText in characters or SQL_NTS.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLPrepareW(c_orm_sqlhstmt_t StatementHandle, c_orm_sqlwchar_t *StatementText,
             c_orm_sqlinteger_t TextLength);
+
+/**
+ * @brief Executes a prepared ODBC statement.
+ * @param StatementHandle Target ODBC statement handle.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLExecute(c_orm_sqlhstmt_t StatementHandle);
+
+/**
+ * @brief Directly executes an ANSI SQL statement string.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param StatementText ANSI SQL text buffer.
+ * @param TextLength Length of StatementText or SQL_NTS.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLExecDirect(c_orm_sqlhstmt_t StatementHandle, c_orm_sqlchar_t *StatementText,
               c_orm_sqlinteger_t TextLength);
+
+/**
+ * @brief Binds a parameter buffer to a parameter marker in an SQL statement.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param ParameterNumber 1-based parameter ordinal.
+ * @param InputOutputType Parameter direction (e.g. SQL_PARAM_INPUT).
+ * @param ValueType C data type identifier of ParameterValuePtr.
+ * @param ParameterType SQL data type identifier of the parameter marker.
+ * @param ColumnSize Precision or column size of the parameter marker.
+ * @param DecimalDigits Scale of the parameter marker.
+ * @param ParameterValuePtr Pointer to parameter data buffer.
+ * @param BufferLength Byte capacity of ParameterValuePtr.
+ * @param StrLen_or_IndPtr Pointer to byte length or indicator (e.g.
+ * SQL_NULL_DATA).
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLBindParameter(
     c_orm_sqlhstmt_t StatementHandle, c_orm_sqlusmallint_t ParameterNumber,
     c_orm_sqlsmallint_t InputOutputType, c_orm_sqlsmallint_t ValueType,
     c_orm_sqlsmallint_t ParameterType, c_orm_sqlulen_t ColumnSize,
     c_orm_sqlsmallint_t DecimalDigits, c_orm_sqlpointer_t ParameterValuePtr,
     c_orm_sqllen_t BufferLength, c_orm_sqllen_t *StrLen_or_IndPtr);
+
+/**
+ * @brief Returns the number of columns in a result set.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param ColumnCountPtr Output pointer receiving result column count.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLNumResultCols(
     c_orm_sqlhstmt_t StatementHandle, c_orm_sqlsmallint_t *ColumnCountPtr);
+
+/**
+ * @brief Describes an ANSI result column's name, type, size, scale, and
+ * nullability.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param ColumnNumber 1-based column ordinal.
+ * @param ColumnName Output buffer receiving ANSI column name.
+ * @param BufferLength Capacity of ColumnName buffer.
+ * @param NameLengthPtr Output pointer receiving column name length.
+ * @param DataTypePtr Output pointer receiving SQL data type code.
+ * @param ColumnSizePtr Output pointer receiving column precision/size.
+ * @param DecimalDigitsPtr Output pointer receiving decimal scale.
+ * @param NullablePtr Output pointer receiving nullability indicator.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLDescribeCol(
     c_orm_sqlhstmt_t StatementHandle, c_orm_sqlusmallint_t ColumnNumber,
     c_orm_sqlchar_t *ColumnName, c_orm_sqlsmallint_t BufferLength,
     c_orm_sqlsmallint_t *NameLengthPtr, c_orm_sqlsmallint_t *DataTypePtr,
     c_orm_sqlulen_t *ColumnSizePtr, c_orm_sqlsmallint_t *DecimalDigitsPtr,
     c_orm_sqlsmallint_t *NullablePtr);
+
+/**
+ * @brief Describes a UTF-16 result column's metadata.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param ColumnNumber 1-based column ordinal.
+ * @param ColumnName Output buffer receiving UTF-16 column name.
+ * @param BufferLength Capacity of ColumnName in characters.
+ * @param NameLengthPtr Output pointer receiving column name character count.
+ * @param DataTypePtr Output pointer receiving SQL data type code.
+ * @param ColumnSizePtr Output pointer receiving column precision/size.
+ * @param DecimalDigitsPtr Output pointer receiving decimal scale.
+ * @param NullablePtr Output pointer receiving nullability indicator.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLDescribeColW(
     c_orm_sqlhstmt_t StatementHandle, c_orm_sqlusmallint_t ColumnNumber,
     c_orm_sqlwchar_t *ColumnName, c_orm_sqlsmallint_t BufferLength,
     c_orm_sqlsmallint_t *NameLengthPtr, c_orm_sqlsmallint_t *DataTypePtr,
     c_orm_sqlulen_t *ColumnSizePtr, c_orm_sqlsmallint_t *DecimalDigitsPtr,
     c_orm_sqlsmallint_t *NullablePtr);
+
+/**
+ * @brief Returns descriptor information for a column in a result set.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param ColumnNumber 1-based column ordinal.
+ * @param FieldIdentifier Descriptor field identifier.
+ * @param CharacterAttributePtr Output buffer for string attributes.
+ * @param BufferLength Capacity of CharacterAttributePtr in bytes.
+ * @param StringLengthPtr Output pointer receiving byte length.
+ * @param NumericAttributePtr Output pointer receiving numeric attribute.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLColAttribute(
     c_orm_sqlhstmt_t StatementHandle, c_orm_sqlusmallint_t ColumnNumber,
     c_orm_sqlusmallint_t FieldIdentifier,
     c_orm_sqlpointer_t CharacterAttributePtr, c_orm_sqlsmallint_t BufferLength,
     c_orm_sqlsmallint_t *StringLengthPtr, c_orm_sqllen_t *NumericAttributePtr);
+
+/**
+ * @brief Fetches the next rowset of data from a result set.
+ * @param StatementHandle Target ODBC statement handle.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLFetch(c_orm_sqlhstmt_t StatementHandle);
+
+/**
+ * @brief Retrieves data for a single column in the current result row.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param Col_or_Param_Num 1-based column ordinal.
+ * @param TargetType Desired C data type identifier.
+ * @param TargetValuePtr Output buffer receiving converted column value.
+ * @param BufferLength Byte capacity of TargetValuePtr.
+ * @param StrLen_or_IndPtr Output pointer receiving byte length or
+ * SQL_NULL_DATA.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLGetData(
     c_orm_sqlhstmt_t StatementHandle, c_orm_sqlusmallint_t Col_or_Param_Num,
     c_orm_sqlsmallint_t TargetType, c_orm_sqlpointer_t TargetValuePtr,
     c_orm_sqllen_t BufferLength, c_orm_sqllen_t *StrLen_or_IndPtr);
+
+/**
+ * @brief Sends part or all of a data-at-execution parameter value.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param DataPtr Input chunk buffer pointer.
+ * @param StrLen_or_Ind Chunk byte length or SQL_NULL_DATA.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLPutData(c_orm_sqlhstmt_t StatementHandle, c_orm_sqlpointer_t DataPtr,
            c_orm_sqllen_t StrLen_or_Ind);
+
+/**
+ * @brief Advances data-at-execution parameter streaming to the next parameter.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param ValuePtrPtr Output pointer receiving application parameter token.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLParamData(c_orm_sqlhstmt_t StatementHandle, c_orm_sqlpointer_t *ValuePtrPtr);
+
+/**
+ * @brief Returns the number of rows affected by an UPDATE, INSERT, or DELETE.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param RowCountPtr Output pointer receiving affected row count.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLRowCount(c_orm_sqlhstmt_t StatementHandle, c_orm_sqllen_t *RowCountPtr);
+
+/**
+ * @brief Determines whether more result sets are available on a statement.
+ * @param StatementHandle Target ODBC statement handle.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLMoreResults(c_orm_sqlhstmt_t StatementHandle);
+
+/**
+ * @brief Stops processing associated with a statement, closes cursors, or
+ * unbinds.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param Option Operation code (e.g. SQL_CLOSE, SQL_RESET_PARAMS).
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLFreeStmt(c_orm_sqlhstmt_t StatementHandle, c_orm_sqlusmallint_t Option);
+
+/**
+ * @brief Closes an open cursor on a statement handle and discards pending rows.
+ * @param StatementHandle Target ODBC statement handle.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLCloseCursor(c_orm_sqlhstmt_t StatementHandle);
+
+/**
+ * @brief Retrieves ANSI diagnostic record fields for an ODBC handle.
+ * @param HandleType Type of handle being inspected.
+ * @param Handle Target ODBC handle.
+ * @param RecNumber 1-based diagnostic record number.
+ * @param SQLState Output 5-character ANSI SQLSTATE buffer.
+ * @param NativeErrorPtr Output pointer receiving driver native error code.
+ * @param MessageText Output buffer receiving diagnostic message text.
+ * @param BufferLength Capacity of MessageText buffer.
+ * @param TextLengthPtr Output pointer receiving message length.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLGetDiagRec(
     c_orm_sqlsmallint_t HandleType, c_orm_sqlhandle_t Handle,
     c_orm_sqlsmallint_t RecNumber, c_orm_sqlchar_t *SQLState,
     c_orm_sqlinteger_t *NativeErrorPtr, c_orm_sqlchar_t *MessageText,
     c_orm_sqlsmallint_t BufferLength, c_orm_sqlsmallint_t *TextLengthPtr);
+
+/**
+ * @brief Retrieves UTF-16 diagnostic record fields for an ODBC handle.
+ * @param HandleType Type of handle being inspected.
+ * @param Handle Target ODBC handle.
+ * @param RecNumber 1-based diagnostic record number.
+ * @param SQLState Output 5-character UTF-16 SQLSTATE buffer.
+ * @param NativeErrorPtr Output pointer receiving driver native error code.
+ * @param MessageText Output buffer receiving UTF-16 diagnostic message text.
+ * @param BufferLength Capacity of MessageText in characters.
+ * @param TextLengthPtr Output pointer receiving message character length.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API SQLGetDiagRecW(
     c_orm_sqlsmallint_t HandleType, c_orm_sqlhandle_t Handle,
     c_orm_sqlsmallint_t RecNumber, c_orm_sqlwchar_t *SQLState,
     c_orm_sqlinteger_t *NativeErrorPtr, c_orm_sqlwchar_t *MessageText,
     c_orm_sqlsmallint_t BufferLength, c_orm_sqlsmallint_t *TextLengthPtr);
+
+/**
+ * @brief Returns general driver and data source information for a connection.
+ * @param ConnectionHandle Target ODBC connection handle.
+ * @param InfoType Information type code.
+ * @param InfoValuePtr Output buffer receiving requested information.
+ * @param BufferLength Byte capacity of InfoValuePtr.
+ * @param StringLengthPtr Output pointer receiving returned byte count.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLGetInfo(c_orm_sqlhdbc_t ConnectionHandle, c_orm_sqlusmallint_t InfoType,
            c_orm_sqlpointer_t InfoValuePtr, c_orm_sqlsmallint_t BufferLength,
            c_orm_sqlsmallint_t *StringLengthPtr);
+
+/**
+ * @brief Queries catalog table, view, or schema names into a result set.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param CatalogName Catalog filter pattern or NULL.
+ * @param NameLength1 Length of CatalogName or SQL_NTS.
+ * @param SchemaName Schema filter pattern or NULL.
+ * @param NameLength2 Length of SchemaName or SQL_NTS.
+ * @param TableName Table name filter pattern or NULL.
+ * @param NameLength3 Length of TableName or SQL_NTS.
+ * @param TableType Table type list filter or NULL.
+ * @param NameLength4 Length of TableType or SQL_NTS.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLTables(c_orm_sqlhstmt_t StatementHandle, c_orm_sqlchar_t *CatalogName,
           c_orm_sqlsmallint_t NameLength1, c_orm_sqlchar_t *SchemaName,
           c_orm_sqlsmallint_t NameLength2, c_orm_sqlchar_t *TableName,
           c_orm_sqlsmallint_t NameLength3, c_orm_sqlchar_t *TableType,
           c_orm_sqlsmallint_t NameLength4);
+
+/**
+ * @brief Queries column metadata for tables matching catalog/schema filters.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param CatalogName Catalog filter pattern or NULL.
+ * @param NameLength1 Length of CatalogName or SQL_NTS.
+ * @param SchemaName Schema filter pattern or NULL.
+ * @param NameLength2 Length of SchemaName or SQL_NTS.
+ * @param TableName Table name filter pattern or NULL.
+ * @param NameLength3 Length of TableName or SQL_NTS.
+ * @param ColumnName Column name filter pattern or NULL.
+ * @param NameLength4 Length of ColumnName or SQL_NTS.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLColumns(c_orm_sqlhstmt_t StatementHandle, c_orm_sqlchar_t *CatalogName,
            c_orm_sqlsmallint_t NameLength1, c_orm_sqlchar_t *SchemaName,
            c_orm_sqlsmallint_t NameLength2, c_orm_sqlchar_t *TableName,
            c_orm_sqlsmallint_t NameLength3, c_orm_sqlchar_t *ColumnName,
            c_orm_sqlsmallint_t NameLength4);
+
+/**
+ * @brief Queries primary-key column names for a specified table.
+ * @param StatementHandle Target ODBC statement handle.
+ * @param CatalogName Catalog name or NULL.
+ * @param NameLength1 Length of CatalogName or SQL_NTS.
+ * @param SchemaName Schema name or NULL.
+ * @param NameLength2 Length of SchemaName or SQL_NTS.
+ * @param TableName Table name string.
+ * @param NameLength3 Length of TableName or SQL_NTS.
+ * @return ODBC SQLRETURN status code.
+ */
 extern c_orm_sqlreturn_t C_ORM_SQL_API
 SQLPrimaryKeys(c_orm_sqlhstmt_t StatementHandle, c_orm_sqlchar_t *CatalogName,
                c_orm_sqlsmallint_t NameLength1, c_orm_sqlchar_t *SchemaName,

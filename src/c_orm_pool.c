@@ -13,12 +13,18 @@
 #include "c_orm_log.h"
 #include <stdlib.h>
 #include <string.h>
-#if defined(_WIN32) || defined(_WIN64)
-extern __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
-#else
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <time.h>
 #endif
 /* clang-format on */
+
+#if defined(_WIN32) || defined(_WIN64)
+/**
+ * @brief Suspends execution of the current Win32 thread for an interval.
+ * @param dwMilliseconds Duration to sleep in milliseconds.
+ */
+extern __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
+#endif
 
 /**
  * @brief Internal structure representing a managed connection pool.

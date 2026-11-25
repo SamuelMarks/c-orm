@@ -18,31 +18,70 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
-
-#if defined(_MSC_VER)
-
-typedef struct _CRYPTOAPI_BLOB {
-  unsigned long cbData;
-  unsigned char *pbData;
-} DATA_BLOB;
-
-__declspec(dllimport) void * __stdcall LoadLibraryA(const char *lpLibFileName);
-typedef int(__stdcall *FARPROC_t)(void);
-__declspec(dllimport) FARPROC_t __stdcall GetProcAddress(void *hModule, const char *lpProcName);
-__declspec(dllimport) int __stdcall FreeLibrary(void *hLibModule);
-
-typedef int(__stdcall *CryptProtectData_t)(DATA_BLOB *, const wchar_t *, DATA_BLOB *, void *, void *, unsigned long, DATA_BLOB *);
-typedef int(__stdcall *CryptUnprotectData_t)(DATA_BLOB *, const wchar_t **, DATA_BLOB *, void *, void *, unsigned long, DATA_BLOB *);
-
-__declspec(dllimport) void * __stdcall LocalFree(void *hMem);
-
-#define C_ORM_CRYPTPROTECT_UI_FORBIDDEN 0x1
-#elif !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(_MSC_VER) && !defined(_WIN32) && !defined(__EMSCRIPTEN__)
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
 /* clang-format on */
+
+#if defined(_MSC_VER)
+/**
+ * @brief Win32 DPAPI binary data blob layout without including windows.h.
+ * @var cbData Size of pbData buffer in bytes.
+ * @var pbData Pointer to raw byte buffer.
+ */
+typedef struct _CRYPTOAPI_BLOB {
+  /** @brief Count of bytes in pbData. */
+  unsigned long cbData;
+  /** @brief Pointer to the block of data bytes. */
+  unsigned char *pbData;
+} DATA_BLOB;
+
+/**
+ * @brief Loads the specified Win32 dynamic-link library into the process.
+ * @param lpLibFileName Null-terminated library file name.
+ * @return Module handle on success, or NULL on failure.
+ */
+__declspec(dllimport) void *__stdcall LoadLibraryA(const char *lpLibFileName);
+
+/** @brief Generic Win32 procedure pointer type returned by GetProcAddress. */
+typedef int(__stdcall *FARPROC_t)(void);
+
+/**
+ * @brief Retrieves the address of an exported function from a Win32 DLL.
+ * @param hModule Handle to the loaded DLL module.
+ * @param lpProcName Null-terminated exported symbol name.
+ * @return Function pointer on success, or NULL on failure.
+ */
+__declspec(dllimport)
+FARPROC_t __stdcall GetProcAddress(void *hModule, const char *lpProcName);
+
+/**
+ * @brief Frees a loaded Win32 dynamic-link library module.
+ * @param hLibModule Handle to the loaded library module.
+ * @return Non-zero on success, or 0 on failure.
+ */
+__declspec(dllimport) int __stdcall FreeLibrary(void *hLibModule);
+
+/** @brief Function pointer signature for Win32 CryptProtectData. */
+typedef int(__stdcall *CryptProtectData_t)(DATA_BLOB *, const wchar_t *,
+                                           DATA_BLOB *, void *, void *,
+                                           unsigned long, DATA_BLOB *);
+/** @brief Function pointer signature for Win32 CryptUnprotectData. */
+typedef int(__stdcall *CryptUnprotectData_t)(DATA_BLOB *, const wchar_t **,
+                                             DATA_BLOB *, void *, void *,
+                                             unsigned long, DATA_BLOB *);
+
+/**
+ * @brief Frees a local memory object allocated by Win32 DPAPI routines.
+ * @param hMem Handle to the local memory object.
+ * @return NULL on success, or hMem on failure.
+ */
+__declspec(dllimport) void *__stdcall LocalFree(void *hMem);
+
+#define C_ORM_CRYPTPROTECT_UI_FORBIDDEN 0x1
+#endif
 
 /**
  * @brief Constant-time string equality check to prevent timing side-channels.

@@ -29,7 +29,8 @@ extern "C" {
 typedef c_orm_error_t (*cdd_c_specific_hydrator_fn)(
     void *out_struct, const cdd_c_abstract_struct_t *row);
 
-struct cdd_c_meta; /* Forward decl */
+/** @brief Forward declaration of cdd-c metadata descriptor. */
+struct cdd_c_meta;
 
 /**
  * @brief Mapping entry to associate a dynamic query hash/ID with its specific

@@ -19,9 +19,22 @@
 
 #if defined(_MSC_VER)
 #if defined(_WIN32) || defined(_WIN64)
-extern __declspec(dllimport) void *__stdcall GetModuleHandleA(const char *);
-extern
-    __declspec(dllimport) void *__stdcall GetProcAddress(void *, const char *);
+/**
+ * @brief Retrieves a module handle for the specified loaded Win32 module.
+ * @param lpModuleName Null-terminated module name.
+ * @return Module handle on success, or NULL on failure.
+ */
+extern __declspec(dllimport) void *__stdcall GetModuleHandleA(
+    const char *lpModuleName);
+
+/**
+ * @brief Retrieves the address of an exported symbol from a Win32 DLL.
+ * @param hModule Handle to the DLL module.
+ * @param lpProcName Null-terminated exported symbol name.
+ * @return Symbol address on success, or NULL on failure.
+ */
+extern __declspec(dllimport) void *__stdcall GetProcAddress(
+    void *hModule, const char *lpProcName);
 #endif
 /**
  * @brief Custom MSVC invalid parameter handler suppressing debug dialog boxes.

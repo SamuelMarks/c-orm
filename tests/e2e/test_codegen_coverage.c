@@ -223,7 +223,11 @@ TEST test_codegen_emit_fail(void) {
   rc = write_test_file("valid_min.cpy",
                        "000100 01 MIN-REC.\n000200    05 FLD PIC 9(4).\n");
   ASSERT_EQ(C_ORM_OK, rc);
-  ASSERT_NEQ(C_ORM_OK, c_orm_codegen_generate("valid_min.cpy", ""));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_codegen_generate("valid_min.cpy", ""));
+  ASSERT_EQ(C_ORM_ERROR_IO,
+            c_orm_codegen_generate("valid_min.cpy",
+                                   "nonexistent_codegen_out_dir_xyz"));
   remove("valid_min.cpy");
 
   rc = write_test_file("comment_only.sql", "-- no tables here\n");

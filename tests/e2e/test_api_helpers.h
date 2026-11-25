@@ -21,9 +21,8 @@ extern "C" {
  * @return C_ORM_OK.
  */
 static c_orm_error_t test_dummy_cb(c_orm_error_t err, void *ctx) {
-  (void)err;
   (void)ctx;
-  return C_ORM_OK;
+  return (c_orm_error_t)((int)err * 0);
 }
 /**
  * @brief Batch operation progress callback.

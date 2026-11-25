@@ -13,26 +13,50 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if defined(_WIN32) || defined(_WIN64)
-typedef union _MEM_LARGE_INTEGER {
-  struct {
-    unsigned long LowPart;
-    long HighPart;
-  } u;
-#if defined(_MSC_VER)
-  __int64 QuadPart;
-#else
-  c_orm_int64_t QuadPart;
-#endif
-} MEM_LARGE_INTEGER;
-__declspec(dllimport) int __stdcall QueryPerformanceCounter(
-    MEM_LARGE_INTEGER *lpPerformanceCount);
-__declspec(dllimport) int __stdcall QueryPerformanceFrequency(
-    MEM_LARGE_INTEGER *lpFrequency);
-#else
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <sys/time.h>
 #endif
 /* clang-format on */
+
+#if defined(_WIN32) || defined(_WIN64)
+/**
+ * @brief Win32 64-bit performance counter union without including windows.h.
+ * @var u Split 32-bit low/high halves.
+ * @var QuadPart Signed 64-bit counter value.
+ */
+typedef union _MEM_LARGE_INTEGER {
+  /** @brief Split 32-bit low and high halves. */
+  struct {
+    /** @brief Low-order 32 bits. */
+    unsigned long LowPart;
+    /** @brief High-order 32 bits. */
+    long HighPart;
+  } u; /**< @brief Split 32-bit low and high halves. */
+#if defined(_MSC_VER)
+  /** @brief Signed 64-bit integer tick value. */
+  __int64 QuadPart;
+#else
+  /** @brief Signed 64-bit integer tick value. */
+  c_orm_int64_t QuadPart;
+#endif
+} MEM_LARGE_INTEGER;
+
+/**
+ * @brief Retrieves the current value of the Win32 performance counter.
+ * @param lpPerformanceCount Output pointer receiving the counter value.
+ * @return Non-zero on success, or 0 on failure.
+ */
+__declspec(dllimport) int __stdcall QueryPerformanceCounter(
+    MEM_LARGE_INTEGER *lpPerformanceCount);
+
+/**
+ * @brief Retrieves the frequency of the Win32 performance counter.
+ * @param lpFrequency Output pointer receiving ticks per second.
+ * @return Non-zero on success, or 0 on failure.
+ */
+__declspec(dllimport) int __stdcall QueryPerformanceFrequency(
+    MEM_LARGE_INTEGER *lpFrequency);
+#endif
 
 #ifdef C_ORM_TEST_ALLOCATOR
 /** @brief Optional simulated step duration in ms for slow-query telemetry

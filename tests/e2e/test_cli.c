@@ -174,7 +174,15 @@ static c_orm_error_t mock_cli_fopen(FILE **fp_ptr, const char *filename,
     return C_ORM_ERROR_UNKNOWN;
   }
   g_cli_fopen_cd--;
+#if defined(_MSC_VER) && defined(C_ORM_SHARED) && !defined(_DLL)
+  return ((fp_ptr) && (filename) && (mode) && (filename)[0] != '\0' &&
+          (mode)[0] != '\0' && fopen_s(fp_ptr, filename, mode) == 0)
+             ? C_ORM_OK
+             : ((fp_ptr) ? (*fp_ptr = NULL, C_ORM_ERROR_UNKNOWN)
+                         : C_ORM_ERROR_UNKNOWN);
+#else
   return c_orm_fopen(fp_ptr, filename, mode);
+#endif
 }
 #undef C_ORM_FOPEN
 #define C_ORM_FOPEN(fp_ptr, filename, mode)                                    \
@@ -507,6 +515,7 @@ TEST test_cli_generate(void) {
     long_dir[l] = 'd';
     long_dir[l + 1] = '\0';
     rc = (c_orm_error_t)c_orm_cli_main(7, (char **)(size_t)argv_long_dir);
+    ASSERT_NEQ(C_ORM_OK, rc);
   }
 
   /* Clean up generated files in gen_dir */

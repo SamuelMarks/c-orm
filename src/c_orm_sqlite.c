@@ -10,30 +10,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#if defined(_WIN32) || defined(_WIN64)
-typedef union _LARGE_INTEGER {
-    struct {
-        unsigned long LowPart;
-        long HighPart;
-    } u;
-#if defined(_MSC_VER)
-    __int64 QuadPart;
-#else
-    c_orm_int64_t QuadPart;
-#endif
-} LARGE_INTEGER;
-__declspec(dllimport) int __stdcall QueryPerformanceCounter(LARGE_INTEGER *lpPerformanceCount);
-__declspec(dllimport) int __stdcall QueryPerformanceFrequency(LARGE_INTEGER *lpFrequency);
-#else
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <sys/time.h>
 #endif
 #ifdef C_ORM_ENABLE_SQLITE
 #ifdef C_ORM_SQLITE_DYNAMIC
-#if defined(_WIN32) || defined(_WIN64)
-__declspec(dllimport) void *__stdcall LoadLibraryA(const char *lpLibFileName);
-__declspec(dllimport) void *__stdcall GetProcAddress(void *hModule,
-                                                     const char *lpProcName);
-#else
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <dlfcn.h>
 #endif
 #else
@@ -42,9 +24,67 @@ __declspec(dllimport) void *__stdcall GetProcAddress(void *hModule,
 #endif
 /* clang-format on */
 
+#if defined(_WIN32) || defined(_WIN64)
+/**
+ * @brief Win32 64-bit performance counter union without including windows.h.
+ * @var u Split 32-bit low/high halves.
+ * @var QuadPart Signed 64-bit tick count.
+ */
+typedef union _LARGE_INTEGER {
+  /** @brief Split 32-bit low and high halves. */
+  struct {
+    /** @brief Low-order 32 bits. */
+    unsigned long LowPart;
+    /** @brief High-order 32 bits. */
+    long HighPart;
+  } u; /**< @brief Split 32-bit low and high halves. */
+#if defined(_MSC_VER)
+  /** @brief Signed 64-bit integer tick value. */
+  __int64 QuadPart;
+#else
+  /** @brief Signed 64-bit integer tick value. */
+  c_orm_int64_t QuadPart;
+#endif
+} LARGE_INTEGER;
+
+/**
+ * @brief Retrieves the current value of the Win32 performance counter.
+ * @param lpPerformanceCount Output pointer receiving counter ticks.
+ * @return Non-zero on success, or 0 on failure.
+ */
+__declspec(dllimport) int __stdcall QueryPerformanceCounter(
+    LARGE_INTEGER *lpPerformanceCount);
+
+/**
+ * @brief Retrieves the frequency of the Win32 performance counter.
+ * @param lpFrequency Output pointer receiving ticks per second.
+ * @return Non-zero on success, or 0 on failure.
+ */
+__declspec(dllimport) int __stdcall QueryPerformanceFrequency(
+    LARGE_INTEGER *lpFrequency);
+#endif
+
 #ifdef C_ORM_ENABLE_SQLITE
 
 #ifdef C_ORM_SQLITE_DYNAMIC
+#if defined(_WIN32) || defined(_WIN64)
+/**
+ * @brief Loads the specified Win32 dynamic-link library into the process.
+ * @param lpLibFileName Null-terminated library file name.
+ * @return Module handle on success, or NULL on failure.
+ */
+__declspec(dllimport) void *__stdcall LoadLibraryA(const char *lpLibFileName);
+
+/**
+ * @brief Retrieves the address of an exported function from a Win32 DLL.
+ * @param hModule Handle to the loaded DLL module.
+ * @param lpProcName Null-terminated exported symbol name.
+ * @return Symbol address on success, or NULL on failure.
+ */
+__declspec(dllimport) void *__stdcall GetProcAddress(void *hModule,
+                                                     const char *lpProcName);
+#endif
+
 typedef struct sqlite3 sqlite3;
 typedef struct sqlite3_stmt sqlite3_stmt;
 typedef struct sqlite3_blob sqlite3_blob;
@@ -66,41 +106,73 @@ typedef void (*sqlite3_destructor_type)(void *);
  * incremental BLOB streaming APIs.
  */
 typedef struct sqlite_api {
+  /** @brief Opens a new SQLite database connection. */
   int (*sqlite3_open)(const char *, sqlite3 **);
+  /** @brief Closes an SQLite database connection (v1). */
   int (*sqlite3_close)(sqlite3 *);
+  /** @brief Closes an SQLite database connection (v2). */
   int (*sqlite3_close_v2)(sqlite3 *);
+  /** @brief Returns the latest UTF-8 error message for the connection. */
   const char *(*sqlite3_errmsg)(sqlite3 *);
+  /** @brief Iterates prepared statements associated with a connection. */
   sqlite3_stmt *(*sqlite3_next_stmt)(sqlite3 *, sqlite3_stmt *);
+  /** @brief Compiles an SQL statement into byte-code. */
   int (*sqlite3_prepare_v2)(sqlite3 *, const char *, int, sqlite3_stmt **,
                             const char **);
+  /** @brief Destroys a prepared statement object. */
   int (*sqlite3_finalize)(sqlite3_stmt *);
+  /** @brief Resets a prepared statement back to its initial state. */
   int (*sqlite3_reset)(sqlite3_stmt *);
+  /** @brief Resets all host parameter bindings to NULL. */
   int (*sqlite3_clear_bindings)(sqlite3_stmt *);
+  /** @brief Evaluates the next step of a prepared statement. */
   int (*sqlite3_step)(sqlite3_stmt *);
+  /** @brief Retrieves the original SQL text of a prepared statement. */
   const char *(*sqlite3_sql)(sqlite3_stmt *);
+  /** @brief Binds a 32-bit integer parameter. */
   int (*sqlite3_bind_int)(sqlite3_stmt *, int, int);
+  /** @brief Binds a 64-bit integer parameter. */
   int (*sqlite3_bind_int64)(sqlite3_stmt *, int, sqlite3_int64);
+  /** @brief Binds an IEEE-754 double parameter. */
   int (*sqlite3_bind_double)(sqlite3_stmt *, int, double);
+  /** @brief Binds a UTF-8 text string parameter. */
   int (*sqlite3_bind_text)(sqlite3_stmt *, int, const char *, int,
                            sqlite3_destructor_type);
+  /** @brief Binds a binary BLOB buffer parameter. */
   int (*sqlite3_bind_blob)(sqlite3_stmt *, int, const void *, int,
                            sqlite3_destructor_type);
+  /** @brief Binds an SQL NULL parameter. */
   int (*sqlite3_bind_null)(sqlite3_stmt *, int);
+  /** @brief Queries the fundamental datatype code of a result column. */
   int (*sqlite3_column_type)(sqlite3_stmt *, int);
+  /** @brief Extracts a 32-bit integer result column value. */
   int (*sqlite3_column_int)(sqlite3_stmt *, int);
+  /** @brief Extracts a 64-bit integer result column value. */
   sqlite3_int64 (*sqlite3_column_int64)(sqlite3_stmt *, int);
+  /** @brief Extracts a double-precision result column value. */
   double (*sqlite3_column_double)(sqlite3_stmt *, int);
+  /** @brief Extracts a UTF-8 text pointer for a result column. */
   const unsigned char *(*sqlite3_column_text)(sqlite3_stmt *, int);
+  /** @brief Extracts a raw BLOB pointer for a result column. */
   const void *(*sqlite3_column_blob)(sqlite3_stmt *, int);
+  /** @brief Queries the byte length of a text or BLOB result column. */
   int (*sqlite3_column_bytes)(sqlite3_stmt *, int);
+  /** @brief Queries the number of columns in the result set. */
   int (*sqlite3_column_count)(sqlite3_stmt *);
+  /** @brief Queries the name assigned to a result column. */
   const char *(*sqlite3_column_name)(sqlite3_stmt *, int);
+  /** @brief Returns the rowid of the most recent successful INSERT. */
   sqlite3_int64 (*sqlite3_last_insert_rowid)(sqlite3 *);
+  /** @brief Opens an incremental BLOB handle for streaming I/O. */
   int (*sqlite3_blob_open)(sqlite3 *, const char *, const char *, const char *,
                            sqlite3_int64, int, sqlite3_blob **);
+  /** @brief Reads data incrementally from an open BLOB handle. */
   int (*sqlite3_blob_read)(sqlite3_blob *, void *, int, int);
+  /** @brief Writes data incrementally into an open BLOB handle. */
   int (*sqlite3_blob_write)(sqlite3_blob *, const void *, int, int);
+  /** @brief Queries the size in bytes of an open BLOB handle. */
   int (*sqlite3_blob_bytes)(sqlite3_blob *);
+  /** @brief Closes an open incremental BLOB handle. */
   int (*sqlite3_blob_close)(sqlite3_blob *);
 } sqlite_api_t;
 
@@ -332,7 +404,9 @@ struct sqlite_db_data {
  * @brief Internal SQLite query data structure.
  */
 struct sqlite_query_data {
+  /** @brief Underlying compiled SQLite3 statement handle. */
   sqlite3_stmt *stmt;
+  /** @brief Owning c-orm database connection handle. */
   c_orm_db_t *db;
 };
 
@@ -422,6 +496,7 @@ static c_orm_error_t sqlite_disconnect(c_orm_db_t *db) {
  * @brief Internal query structure wrapping SQLite query data.
  */
 typedef struct sqlite_stmt_handle {
+  /** @brief Pointer to allocated SQLite query execution state. */
   struct sqlite_query_data *data;
 } sqlite_stmt_t;
 

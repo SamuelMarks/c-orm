@@ -23,10 +23,6 @@
 #include <time.h>
 
 #if defined(_WIN32) || defined(_WIN64)
-extern __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
-extern __declspec(dllimport) void *__stdcall GetModuleHandleA(const char *);
-extern __declspec(dllimport) void *__stdcall GetProcAddress(void *,
-                                                            const char *);
 #include <direct.h>
 #define MKDIR(path) _mkdir(path)
 #if defined(_MSC_VER) && defined(_DEBUG)
@@ -37,6 +33,33 @@ extern __declspec(dllimport) void *__stdcall GetProcAddress(void *,
 #define MKDIR(path) mkdir(path, 0777)
 #endif
 /* clang-format on */
+
+#if defined(_WIN32) || defined(_WIN64)
+/**
+ * @brief Controls whether the system or process handles Win32 error dialogs.
+ * @param uMode Process error mode bitmask.
+ * @return Previous state of the error-mode bit flags.
+ */
+extern __declspec(dllimport) unsigned int __stdcall SetErrorMode(
+    unsigned int uMode);
+
+/**
+ * @brief Retrieves a module handle for the specified loaded Win32 module.
+ * @param lpModuleName Null-terminated module name, or NULL for main executable.
+ * @return Module handle on success, or NULL on failure.
+ */
+extern __declspec(dllimport) void *__stdcall GetModuleHandleA(
+    const char *lpModuleName);
+
+/**
+ * @brief Retrieves the address of an exported symbol from a Win32 DLL.
+ * @param hModule Handle to the DLL module.
+ * @param lpProcName Null-terminated function or variable name.
+ * @return Address of the exported symbol, or NULL on failure.
+ */
+extern __declspec(dllimport) void *__stdcall GetProcAddress(
+    void *hModule, const char *lpProcName);
+#endif
 
 /**
  * @brief Prints the usage information and returns unknown command status.

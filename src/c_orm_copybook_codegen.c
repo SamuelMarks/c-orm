@@ -1345,6 +1345,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_generate_c_files(
   if (!rec || !rec->c_struct_name || !output_dir) {
     return C_ORM_ERROR_NULL_POINTER;
   }
+  if (output_dir[0] == '\0') {
+    return C_ORM_ERROR_VALIDATION;
+  }
   dlen = strlen(output_dir);
   rc = c_orm_system_malloc(dlen + 16, (void **)&h_path);
   if (rc != C_ORM_OK) {

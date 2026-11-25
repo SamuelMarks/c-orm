@@ -22,26 +22,10 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #endif
-
-#if defined(_WIN32) || defined(_WIN64)
-extern __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
-extern __declspec(dllimport) void *__stdcall GetModuleHandleA(const char *);
-extern __declspec(dllimport) void *__stdcall GetProcAddress(void *, const char *);
-#endif
 #include <stdlib.h>
 #include <string.h>
 #include "test_greatest_coverage.h"
 #include "test_assert_zero_branch.h"
-
-#if defined(_MSC_VER)
-
-
-
-
-static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_t* function, const wchar_t* file, unsigned int line, size_t pReserved) {
-    (void)expression; (void)function; (void)file; (void)line; (void)pReserved;
-}
-#endif
 #if defined(_MSC_VER) && defined(_DEBUG)
 #include <crtdbg.h>
 #endif
@@ -51,10 +35,55 @@ static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_
 #ifdef bool
 #undef bool
 #endif
-
-
-/* #include "abstract_struct.h" */
 /* clang-format on */
+
+#if defined(_WIN32) || defined(_WIN64)
+/**
+ * @brief Controls whether the system or process handles Win32 error dialogs.
+ * @param uMode Process error mode bitmask.
+ * @return Previous state of the error-mode bit flags.
+ */
+extern __declspec(dllimport) unsigned int __stdcall SetErrorMode(
+    unsigned int uMode);
+
+/**
+ * @brief Retrieves a module handle for the specified loaded Win32 module.
+ * @param lpModuleName Null-terminated module name.
+ * @return Module handle on success, or NULL on failure.
+ */
+extern __declspec(dllimport) void *__stdcall GetModuleHandleA(
+    const char *lpModuleName);
+
+/**
+ * @brief Retrieves the address of an exported symbol from a Win32 DLL.
+ * @param hModule Handle to the DLL module.
+ * @param lpProcName Null-terminated exported symbol name.
+ * @return Symbol address on success, or NULL on failure.
+ */
+extern __declspec(dllimport) void *__stdcall GetProcAddress(
+    void *hModule, const char *lpProcName);
+#endif
+
+#if defined(_MSC_VER)
+/**
+ * @brief Custom MSVC invalid parameter handler suppressing debug dialog boxes.
+ * @param expression Wide-string expression that failed validation.
+ * @param function Wide-string CRT function name.
+ * @param file Wide-string source file path.
+ * @param line Source line number.
+ * @param pReserved Reserved uintptr parameter.
+ */
+static void my_invalid_parameter_handler(const wchar_t *expression,
+                                         const wchar_t *function,
+                                         const wchar_t *file, unsigned int line,
+                                         size_t pReserved) {
+  (void)expression;
+  (void)function;
+  (void)file;
+  (void)line;
+  (void)pReserved;
+}
+#endif
 
 static c_orm_db_t *db = NULL;
 
@@ -1586,6 +1615,12 @@ static void run_all_suites(void) {
 static int g_argc;
 static char **g_argv;
 
+/**
+ * @brief Asynchronous IDBFS initialization callback invoking the e2e test
+ * suite.
+ * @param err Initialization status code passed from c_orm_wasm_init_fs.
+ * @return C_ORM_OK if execution returns without process exit.
+ */
 static c_orm_error_t emscripten_test_callback(c_orm_error_t err) {
   int argc = g_argc;
   char **argv = g_argv;

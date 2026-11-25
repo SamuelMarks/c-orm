@@ -460,7 +460,10 @@ TEST test_quote_identifier_and_safe_crt(void) {
   c_orm_mock_safe_crt_countdown = -1;
 #endif
   ASSERT_EQ(C_ORM_ERROR_OVERFLOW, c_orm_getenv_s(buf, 0, "PATH"));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_sprintf(buf, 4, "hello_overflow"));
   ASSERT_EQ(C_ORM_OK, c_orm_setenv("C_ORM_TEST_SAFE_ENV", "hello_env"));
+  ASSERT_EQ(C_ORM_ERROR_OVERFLOW,
+            c_orm_getenv_s(buf, 4, "C_ORM_TEST_SAFE_ENV"));
   ASSERT_EQ(C_ORM_OK, c_orm_getenv_s(buf, sizeof(buf), "C_ORM_TEST_SAFE_ENV"));
   ASSERT_STR_EQ("hello_env", buf);
   ASSERT_EQ(C_ORM_OK, c_orm_unsetenv("C_ORM_TEST_SAFE_ENV"));

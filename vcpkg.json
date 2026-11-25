@@ -4,13 +4,8 @@
   "homepage": "https://github.com/SamuelMarks/c-orm",
   "description": "C Object-Relational Mapping library",
   "dependencies": [
-    "civetweb",
     "libmariadb",
     "libpq",
-    "sqlite3",
-    {
-      "name": "curl",
-      "platform": "!windows"
-    }
+    "sqlite3"
   ]
 }

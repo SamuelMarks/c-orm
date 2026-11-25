@@ -85,7 +85,7 @@ c_orm_sprintf(char *buf, size_t size, const char *format, ...) {
   ret = c89stringutils_vsnprintf(buf, size, format, args);
 #endif
   va_end(args);
-  return (ret < 0) ? C_ORM_ERROR_UNKNOWN : C_ORM_OK;
+  return ((ret < 0) | ((size_t)ret >= size)) ? C_ORM_ERROR_UNKNOWN : C_ORM_OK;
 }
 
 /**
@@ -459,7 +459,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_getenv_s(char *dest, size_t dest_size,
       dest[0] = '\0';
       return C_ORM_OK;
     }
-    rc = c_orm_strncpy_s(dest, dest_size, val, dest_size - 1);
+    rc = c_orm_strcpy_s(dest, dest_size, val);
     free(val);
     return rc;
   }
@@ -470,7 +470,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_getenv_s(char *dest, size_t dest_size,
       dest[0] = '\0';
       return C_ORM_OK;
     }
-    return c_orm_strncpy_s(dest, dest_size, val, dest_size - 1);
+    return c_orm_strcpy_s(dest, dest_size, val);
   }
 #endif
 }

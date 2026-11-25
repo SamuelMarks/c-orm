@@ -13,9 +13,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if !defined(_WIN32) && !defined(_WIN64)
+#include <sys/time.h>
+#endif
+/* clang-format on */
+
 #if defined(_WIN32) || defined(_WIN64)
 /**
  * @brief Minimal Win32 64-bit performance counter union without <windows.h>.
+ * @var u Split 32-bit low/high halves.
+ * @var QuadPart Signed 64-bit tick count.
  */
 typedef union c_orm_odbc_qpc_val {
   /** @brief Split 32-bit low/high halves. */
@@ -24,18 +31,27 @@ typedef union c_orm_odbc_qpc_val {
     unsigned long LowPart;
     /** @brief High 32 bits. */
     long HighPart;
-  } u;
+  } u; /**< @brief Split 32-bit low/high halves. */
   /** @brief Signed 64-bit tick count. */
   c_orm_int64_t QuadPart;
 } c_orm_odbc_qpc_t;
+
+/**
+ * @brief Retrieves the current value of the Win32 performance counter.
+ * @param lpPerformanceCount Output pointer receiving counter ticks.
+ * @return Non-zero on success, or 0 on failure.
+ */
 extern __declspec(dllimport) int __stdcall QueryPerformanceCounter(
     c_orm_odbc_qpc_t *lpPerformanceCount);
+
+/**
+ * @brief Retrieves the frequency of the Win32 performance counter.
+ * @param lpFrequency Output pointer receiving ticks per second.
+ * @return Non-zero on success, or 0 on failure.
+ */
 extern __declspec(dllimport) int __stdcall QueryPerformanceFrequency(
     c_orm_odbc_qpc_t *lpFrequency);
-#else
-#include <sys/time.h>
 #endif
-/* clang-format on */
 
 /** @brief Magic tag identifying an ODBC/Db2 driver_data payload. */
 #define C_ORM_ODBC_CONN_MAGIC 0x4F444243UL

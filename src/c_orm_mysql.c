@@ -12,23 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef C_ORM_ENABLE_MYSQL
-#if defined(_WIN32) || defined(_WIN64)
-typedef union _MY_LARGE_INTEGER {
-  struct {
-    unsigned long LowPart;
-    long HighPart;
-  } u;
-#if defined(_MSC_VER)
-  __int64 QuadPart;
-#else
-  c_orm_int64_t QuadPart;
-#endif
-} MY_LARGE_INTEGER;
-__declspec(dllimport) int __stdcall QueryPerformanceCounter(
-    MY_LARGE_INTEGER *lpPerformanceCount);
-__declspec(dllimport) int __stdcall QueryPerformanceFrequency(
-    MY_LARGE_INTEGER *lpFrequency);
-#else
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <sys/time.h>
 #endif
 #if !defined(C_ORM_NO_THREADS) && !defined(_WIN32)
@@ -36,21 +20,89 @@ __declspec(dllimport) int __stdcall QueryPerformanceFrequency(
 #endif
 #ifdef C_ORM_MYSQL_DYNAMIC
 #if defined(_WIN32)
-__declspec(dllimport) void *__stdcall LoadLibraryA(const char *lpLibFileName);
-__declspec(dllimport) void *__stdcall GetProcAddress(void *hModule,
-                                                     const char *lpProcName);
 #if !defined(C_ORM_NO_THREADS) && defined(_MSC_VER)
 #include <intrin.h>
 #endif
 #else
 #include <dlfcn.h>
 #endif
+#else
+#include <mysql.h>
+#endif
+#endif
+/* clang-format on */
+
+#ifdef C_ORM_ENABLE_MYSQL
+#if defined(_WIN32) || defined(_WIN64)
+/**
+ * @brief Win32 64-bit performance counter union without including windows.h.
+ * @var u Split 32-bit low/high halves.
+ * @var QuadPart Signed 64-bit tick count.
+ */
+typedef union _MY_LARGE_INTEGER {
+  /** @brief Split 32-bit low and high halves. */
+  struct {
+    /** @brief Low-order 32 bits. */
+    unsigned long LowPart;
+    /** @brief High-order 32 bits. */
+    long HighPart;
+  } u; /**< @brief Split 32-bit low and high halves. */
+#if defined(_MSC_VER)
+  /** @brief Signed 64-bit integer tick value. */
+  __int64 QuadPart;
+#else
+  /** @brief Signed 64-bit integer tick value. */
+  c_orm_int64_t QuadPart;
+#endif
+} MY_LARGE_INTEGER;
+
+/**
+ * @brief Retrieves the current value of the Win32 performance counter.
+ * @param lpPerformanceCount Output pointer receiving counter ticks.
+ * @return Non-zero on success, or 0 on failure.
+ */
+__declspec(dllimport) int __stdcall QueryPerformanceCounter(
+    MY_LARGE_INTEGER *lpPerformanceCount);
+
+/**
+ * @brief Retrieves the frequency of the Win32 performance counter.
+ * @param lpFrequency Output pointer receiving ticks per second.
+ * @return Non-zero on success, or 0 on failure.
+ */
+__declspec(dllimport) int __stdcall QueryPerformanceFrequency(
+    MY_LARGE_INTEGER *lpFrequency);
+#endif
+
+#ifdef C_ORM_MYSQL_DYNAMIC
+#if defined(_WIN32)
+/**
+ * @brief Loads the specified Win32 dynamic-link library into the process.
+ * @param lpLibFileName Null-terminated library file name.
+ * @return Module handle on success, or NULL on failure.
+ */
+__declspec(dllimport) void *__stdcall LoadLibraryA(const char *lpLibFileName);
+
+/**
+ * @brief Retrieves the address of an exported function from a Win32 DLL.
+ * @param hModule Handle to the loaded DLL module.
+ * @param lpProcName Null-terminated exported symbol name.
+ * @return Symbol address on success, or NULL on failure.
+ */
+__declspec(dllimport) void *__stdcall GetProcAddress(void *hModule,
+                                                     const char *lpProcName);
+#endif
 typedef struct st_mysql MYSQL;
 typedef struct st_mysql_stmt MYSQL_STMT;
 typedef struct st_mysql_res MYSQL_RES;
+
+/**
+ * @brief Minimal MySQL/MariaDB result column metadata descriptor.
+ */
 typedef struct st_mysql_field {
+  /** @brief Null-terminated result column identifier. */
   char *name;
 } MYSQL_FIELD;
+
 typedef char my_bool;
 enum enum_field_types {
   MYSQL_TYPE_DECIMAL,
@@ -81,33 +133,52 @@ enum enum_field_types {
   MYSQL_TYPE_STRING = 254,
   MYSQL_TYPE_GEOMETRY = 255
 };
+
+/**
+ * @brief ABI-compatible MySQL/MariaDB parameter and result bind structure.
+ */
 typedef struct st_mysql_bind {
+  /** @brief Pointer to actual byte length output/input variable. */
   unsigned long *length;
+  /** @brief Pointer to SQL NULL indicator flag. */
   my_bool *is_null;
+  /** @brief Data buffer pointer for bound parameter or result column. */
   void *buffer;
+  /** @brief Pointer to truncation/conversion error flag. */
   my_bool *error;
+  /** @brief Internal client-library current row byte pointer. */
   unsigned char *row_ptr;
+  /** @brief Internal client-library parameter serialization hook. */
   void (*store_param_func)(void *net, struct st_mysql_bind *param);
+  /** @brief Internal client-library column fetch conversion hook. */
   void (*fetch_result)(struct st_mysql_bind *, void *, unsigned char **row);
+  /** @brief Internal client-library column skip hook. */
   void (*skip_result)(struct st_mysql_bind *, void *, unsigned char **row);
+  /** @brief Byte capacity of buffer. */
   unsigned long buffer_length;
+  /** @brief Byte offset for incremental column fetching. */
   unsigned long offset;
+  /** @brief Internal embedded length value storage. */
   unsigned long length_value;
+  /** @brief Internal parameter ordinal index. */
   unsigned int param_number;
+  /** @brief Internal wire packet pack length. */
   unsigned int pack_length;
+  /** @brief MySQL field/buffer wire type enum. */
   enum enum_field_types buffer_type;
+  /** @brief Non-zero when integer buffer is unsigned. */
   my_bool is_unsigned;
+  /** @brief Non-zero when parameter data was streamed via send_long_data. */
   my_bool long_data_used;
+  /** @brief Internal embedded NULL flag value storage. */
   my_bool is_null_value;
+  /** @brief Reserved extension pointer for connector internals. */
   void *extension;
 } MYSQL_BIND;
 #define MYSQL_NO_DATA 100
 #define MYSQL_DATA_TRUNCATED 101
-#else
-#include <mysql.h>
 #endif
 #endif
-/* clang-format on */
 
 /**
  * @brief Parses a `mysql://` or `mariadb://` connection URL into structured
@@ -310,7 +381,7 @@ static MYSQL *(*dyn_mysql_real_connect)(MYSQL *mysql, const char *host,
                                         unsigned long clientflag);
 static void (*dyn_mysql_close)(MYSQL *sock);
 static const char *(*dyn_mysql_error)(MYSQL *mysql);
-static unsigned long long (*dyn_mysql_insert_id)(MYSQL *mysql);
+static c_orm_uint64_t (*dyn_mysql_insert_id)(MYSQL *mysql);
 static MYSQL_STMT *(*dyn_mysql_stmt_init)(MYSQL *mysql);
 static int (*dyn_mysql_stmt_prepare)(MYSQL_STMT *stmt, const char *query,
                                      unsigned long length);
@@ -760,7 +831,12 @@ static c_orm_error_t mysql_drv_prepare(c_orm_db_t *db, const char *sql,
   return C_ORM_OK;
 }
 
-/** @brief Binds a NULL value to a query parameter. */
+/**
+ * @brief Binds an SQL NULL value to a MySQL prepared statement parameter.
+ * @param query Prepared MySQL statement handle.
+ * @param index 1-based parameter ordinal.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_BIND on invalid index/handle.
+ */
 static c_orm_error_t mysql_drv_bind_null(c_orm_query_t *query, int index) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
   int i;
@@ -778,7 +854,13 @@ static c_orm_error_t mysql_drv_bind_null(c_orm_query_t *query, int index) {
   return C_ORM_OK;
 }
 
-/** @brief Binds a 32-bit integer to a query parameter. */
+/**
+ * @brief Binds a 32-bit signed integer to a MySQL prepared statement parameter.
+ * @param query Prepared MySQL statement handle.
+ * @param index 1-based parameter ordinal.
+ * @param val 32-bit integer value to bind.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t mysql_drv_bind_int32(c_orm_query_t *query, int index,
                                           int32_t val) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
@@ -804,7 +886,13 @@ static c_orm_error_t mysql_drv_bind_int32(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Binds a 64-bit integer to a query parameter. */
+/**
+ * @brief Binds a 64-bit signed integer to a MySQL prepared statement parameter.
+ * @param query Prepared MySQL statement handle.
+ * @param index 1-based parameter ordinal.
+ * @param val 64-bit integer value to bind.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t mysql_drv_bind_int64(c_orm_query_t *query, int index,
                                           int64_t val) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
@@ -830,7 +918,14 @@ static c_orm_error_t mysql_drv_bind_int64(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Binds a double to a query parameter. */
+/**
+ * @brief Binds a double-precision float to a MySQL prepared statement
+ * parameter.
+ * @param query Prepared MySQL statement handle.
+ * @param index 1-based parameter ordinal.
+ * @param val Double-precision value to bind.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t mysql_drv_bind_double(c_orm_query_t *query, int index,
                                            double val) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
@@ -856,7 +951,13 @@ static c_orm_error_t mysql_drv_bind_double(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Binds a string to a query parameter (routes NULL to bind_null). */
+/**
+ * @brief Binds a UTF-8 string to a MySQL parameter (routes NULL to bind_null).
+ * @param query Prepared MySQL statement handle.
+ * @param index 1-based parameter ordinal.
+ * @param val Null-terminated string to bind, or NULL for SQL NULL.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t mysql_drv_bind_string(c_orm_query_t *query, int index,
                                            const char *val) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
@@ -878,8 +979,11 @@ static c_orm_error_t mysql_drv_bind_string(c_orm_query_t *query, int index,
 
   b->buffer_type = MYSQL_TYPE_STRING;
   if (b->buffer) {
-    c_orm_system_free(b->buffer);
+    rc = c_orm_system_free(b->buffer);
     b->buffer = NULL;
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
   }
 
   rc = c_orm_system_malloc(len + 1, &b->buffer);
@@ -897,7 +1001,14 @@ static c_orm_error_t mysql_drv_bind_string(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Binds a BLOB to a query parameter. */
+/**
+ * @brief Binds a binary BLOB buffer to a MySQL prepared statement parameter.
+ * @param query Prepared MySQL statement handle.
+ * @param index 1-based parameter ordinal.
+ * @param val Pointer to raw byte buffer, or NULL when size is 0.
+ * @param size Byte length of val.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t mysql_drv_bind_blob(c_orm_query_t *query, int index,
                                          const void *val, size_t size) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
@@ -917,8 +1028,11 @@ static c_orm_error_t mysql_drv_bind_blob(c_orm_query_t *query, int index,
 
   b->buffer_type = MYSQL_TYPE_BLOB;
   if (b->buffer) {
-    c_orm_system_free(b->buffer);
+    rc = c_orm_system_free(b->buffer);
     b->buffer = NULL;
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
   }
 
   rc = c_orm_system_malloc(size > 0 ? size : 1, &b->buffer);
@@ -935,7 +1049,11 @@ static c_orm_error_t mysql_drv_bind_blob(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Initializes result binds and column names for a query. */
+/**
+ * @brief Allocates and binds result buffers and column metadata for a query.
+ * @param q_data Active MySQL query execution state.
+ * @return C_ORM_OK on success, or an allocation/bind error code.
+ */
 static c_orm_error_t init_result_binds(struct mysql_query_data *q_data) {
   MYSQL_RES *meta;
   int i;
@@ -1020,7 +1138,12 @@ static c_orm_error_t init_result_binds(struct mysql_query_data *q_data) {
   return C_ORM_OK;
 }
 
-/** @brief Steps execution of a query. */
+/**
+ * @brief Executes or fetches the next row of a prepared MySQL statement.
+ * @param query Prepared MySQL statement handle.
+ * @param out_has_row Output flag set to 1 if a row was fetched, or 0 if done.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_STEP on execution/fetch failure.
+ */
 static c_orm_error_t mysql_drv_step(c_orm_query_t *query, int *out_has_row) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
   struct mysql_query_data *q_data;
@@ -1140,8 +1263,11 @@ static c_orm_error_t mysql_drv_step(c_orm_query_t *query, int *out_has_row) {
       int col_i;
       for (col_i = 0; col_i < q_data->result_col_count; col_i++) {
         if (q_data->result_buffers[col_i]) {
-          c_orm_system_free(q_data->result_buffers[col_i]);
+          c_orm_error_t frc = c_orm_system_free(q_data->result_buffers[col_i]);
           q_data->result_buffers[col_i] = NULL;
+          if (frc != C_ORM_OK) {
+            return frc;
+          }
         }
         if (!q_data->result_is_null[col_i]) {
           unsigned long len = q_data->result_length[col_i];
@@ -1185,7 +1311,13 @@ static c_orm_error_t mysql_drv_step(c_orm_query_t *query, int *out_has_row) {
   return C_ORM_ERROR_STEP;
 }
 
-/** @brief Gets a 32-bit integer from a query result. */
+/**
+ * @brief Retrieves a 32-bit signed integer from the current MySQL result row.
+ * @param query Prepared MySQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_val Output pointer receiving the 32-bit integer value.
+ * @return C_ORM_OK on success, or an error code on invalid state/column.
+ */
 static c_orm_error_t mysql_drv_get_int32(c_orm_query_t *query, int index,
                                          int32_t *out_val) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
@@ -1204,7 +1336,13 @@ static c_orm_error_t mysql_drv_get_int32(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Gets a 64-bit integer from a query result. */
+/**
+ * @brief Retrieves a 64-bit signed integer from the current MySQL result row.
+ * @param query Prepared MySQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_val Output pointer receiving the 64-bit integer value.
+ * @return C_ORM_OK on success, or an error code on invalid state/column.
+ */
 static c_orm_error_t mysql_drv_get_int64(c_orm_query_t *query, int index,
                                          int64_t *out_val) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
@@ -1227,7 +1365,13 @@ static c_orm_error_t mysql_drv_get_int64(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Gets a double from a query result. */
+/**
+ * @brief Retrieves a double-precision float from the current MySQL result row.
+ * @param query Prepared MySQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_val Output pointer receiving the double value.
+ * @return C_ORM_OK on success, or an error code on invalid state/column.
+ */
 static c_orm_error_t mysql_drv_get_double(c_orm_query_t *query, int index,
                                           double *out_val) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
@@ -1246,7 +1390,13 @@ static c_orm_error_t mysql_drv_get_double(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Gets a string from a query result. */
+/**
+ * @brief Retrieves a UTF-8 string pointer from the current MySQL result row.
+ * @param query Prepared MySQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_val Output pointer receiving the string pointer (or NULL).
+ * @return C_ORM_OK on success, or an error code on invalid state/column.
+ */
 static c_orm_error_t mysql_drv_get_string(c_orm_query_t *query, int index,
                                           const char **out_val) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
@@ -1262,7 +1412,14 @@ static c_orm_error_t mysql_drv_get_string(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Gets a BLOB from a query result. */
+/**
+ * @brief Retrieves a binary BLOB slice from the current MySQL result row.
+ * @param query Prepared MySQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_val Output pointer receiving the raw buffer pointer (or NULL).
+ * @param out_size Output pointer receiving the byte length.
+ * @return C_ORM_OK on success, or an error code on invalid state/column.
+ */
 static c_orm_error_t mysql_drv_get_blob(c_orm_query_t *query, int index,
                                         const void **out_val,
                                         size_t *out_size) {
@@ -1284,7 +1441,13 @@ static c_orm_error_t mysql_drv_get_blob(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Checks if a column in a query result is NULL. */
+/**
+ * @brief Checks whether a column in the current MySQL result row is SQL NULL.
+ * @param query Prepared MySQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_is_null Output flag set to 1 if NULL, or 0 otherwise.
+ * @return C_ORM_OK on success, or an error code on invalid state/column.
+ */
 static c_orm_error_t mysql_drv_is_null(c_orm_query_t *query, int index,
                                        int *out_is_null) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
@@ -1298,9 +1461,15 @@ static c_orm_error_t mysql_drv_is_null(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Finalizes a query and releases its resources. */
+/**
+ * @brief Finalizes a MySQL prepared statement and frees its buffers.
+ * @param query Prepared MySQL statement handle to release.
+ * @return C_ORM_OK on success, or the first encountered allocator error.
+ */
 static c_orm_error_t mysql_drv_finalize(c_orm_query_t *query) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
+  c_orm_error_t rc = C_ORM_OK;
+  c_orm_error_t frc;
   int i;
 
   if (!stmt) {
@@ -1314,35 +1483,78 @@ static c_orm_error_t mysql_drv_finalize(c_orm_query_t *query) {
     if (stmt->data->param_count > 0) {
       for (i = 0; i < stmt->data->param_count; i++) {
         if (stmt->data->bind_params[i].buffer) {
-          c_orm_system_free(stmt->data->bind_params[i].buffer);
+          frc = c_orm_system_free(stmt->data->bind_params[i].buffer);
+          if (frc != C_ORM_OK && rc == C_ORM_OK) {
+            rc = frc;
+          }
         }
       }
-      c_orm_system_free(stmt->data->bind_params);
-      c_orm_system_free(stmt->data->param_is_null);
+      frc = c_orm_system_free(stmt->data->bind_params);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
+      frc = c_orm_system_free(stmt->data->param_is_null);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
     }
     if (stmt->data->result_col_count > 0) {
       for (i = 0; i < stmt->data->result_col_count; i++) {
         if (stmt->data->result_buffers) {
-          c_orm_system_free(stmt->data->result_buffers[i]);
+          frc = c_orm_system_free(stmt->data->result_buffers[i]);
+          if (frc != C_ORM_OK && rc == C_ORM_OK) {
+            rc = frc;
+          }
         }
         if (stmt->data->result_col_names) {
-          c_orm_system_free(stmt->data->result_col_names[i]);
+          frc = c_orm_system_free(stmt->data->result_col_names[i]);
+          if (frc != C_ORM_OK && rc == C_ORM_OK) {
+            rc = frc;
+          }
         }
       }
-      c_orm_system_free(stmt->data->result_buffers);
-      c_orm_system_free(stmt->data->result_col_names);
-      c_orm_system_free(stmt->data->result_binds);
-      c_orm_system_free(stmt->data->result_is_null);
-      c_orm_system_free(stmt->data->result_length);
+      frc = c_orm_system_free(stmt->data->result_buffers);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
+      frc = c_orm_system_free(stmt->data->result_col_names);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
+      frc = c_orm_system_free(stmt->data->result_binds);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
+      frc = c_orm_system_free(stmt->data->result_is_null);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
+      frc = c_orm_system_free(stmt->data->result_length);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
     }
-    c_orm_system_free(stmt->data);
+    frc = c_orm_system_free(stmt->data);
+    if (frc != C_ORM_OK && rc == C_ORM_OK) {
+      rc = frc;
+    }
   }
-  return c_orm_system_free(stmt);
+  frc = c_orm_system_free(stmt);
+  if (frc != C_ORM_OK && rc == C_ORM_OK) {
+    rc = frc;
+  }
+  return rc;
 }
 
-/** @brief Resets a query to be executed again. */
+/**
+ * @brief Resets a prepared MySQL statement so it can be executed again.
+ * @param query Prepared MySQL statement handle.
+ * @return C_ORM_OK on success, or an allocator error code.
+ */
 static c_orm_error_t mysql_drv_reset(c_orm_query_t *query) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
+  c_orm_error_t rc = C_ORM_OK;
+  c_orm_error_t frc;
   int i;
 
   if (!stmt || !stmt->data) {
@@ -1354,17 +1566,38 @@ static c_orm_error_t mysql_drv_reset(c_orm_query_t *query) {
     if (stmt->data->result_col_count > 0) {
       for (i = 0; i < stmt->data->result_col_count; i++) {
         if (stmt->data->result_buffers) {
-          c_orm_system_free(stmt->data->result_buffers[i]);
+          frc = c_orm_system_free(stmt->data->result_buffers[i]);
+          if (frc != C_ORM_OK && rc == C_ORM_OK) {
+            rc = frc;
+          }
         }
         if (stmt->data->result_col_names) {
-          c_orm_system_free(stmt->data->result_col_names[i]);
+          frc = c_orm_system_free(stmt->data->result_col_names[i]);
+          if (frc != C_ORM_OK && rc == C_ORM_OK) {
+            rc = frc;
+          }
         }
       }
-      c_orm_system_free(stmt->data->result_buffers);
-      c_orm_system_free(stmt->data->result_col_names);
-      c_orm_system_free(stmt->data->result_binds);
-      c_orm_system_free(stmt->data->result_is_null);
-      c_orm_system_free(stmt->data->result_length);
+      frc = c_orm_system_free(stmt->data->result_buffers);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
+      frc = c_orm_system_free(stmt->data->result_col_names);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
+      frc = c_orm_system_free(stmt->data->result_binds);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
+      frc = c_orm_system_free(stmt->data->result_is_null);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
+      frc = c_orm_system_free(stmt->data->result_length);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
       stmt->data->result_buffers = NULL;
       stmt->data->result_col_names = NULL;
       stmt->data->result_binds = NULL;
@@ -1374,10 +1607,15 @@ static c_orm_error_t mysql_drv_reset(c_orm_query_t *query) {
     }
     stmt->data->has_result = 0;
   }
-  return C_ORM_OK;
+  return rc;
 }
 
-/** @brief Retrieves the last error message from the database. */
+/**
+ * @brief Retrieves the latest MySQL driver error message.
+ * @param db Active MySQL database handle.
+ * @param out_message Output pointer receiving the null-terminated error string.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN on invalid handle.
+ */
 static c_orm_error_t mysql_drv_get_last_error(c_orm_db_t *db,
                                               const char **out_message) {
   struct mysql_db_data *data;
@@ -1395,7 +1633,12 @@ static c_orm_error_t mysql_drv_get_last_error(c_orm_db_t *db,
   return C_ORM_OK;
 }
 
-/** @brief Retrieves the last stack trace from the database. */
+/**
+ * @brief Retrieves a formatted MySQL diagnostic trace string.
+ * @param db Active MySQL database handle.
+ * @param out_trace Output pointer receiving the diagnostic trace string.
+ * @return C_ORM_OK on success, or a formatting error code.
+ */
 static c_orm_error_t mysql_drv_get_last_trace(c_orm_db_t *db,
                                               const char **out_trace) {
   if (out_trace) {
@@ -1415,7 +1658,12 @@ static c_orm_error_t mysql_drv_get_last_trace(c_orm_db_t *db,
   return C_ORM_OK;
 }
 
-/** @brief Retrieves the last inserted row ID. */
+/**
+ * @brief Retrieves the last auto-incremented row ID via mysql_insert_id.
+ * @param db Active MySQL database handle.
+ * @param out_id Output pointer receiving the 64-bit inserted row identifier.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on invalid arguments.
+ */
 static c_orm_error_t mysql_drv_get_last_insert_rowid(c_orm_db_t *db,
                                                      int64_t *out_id) {
   struct mysql_db_data *data;
@@ -1429,7 +1677,12 @@ static c_orm_error_t mysql_drv_get_last_insert_rowid(c_orm_db_t *db,
   return C_ORM_OK;
 }
 
-/** @brief Gets result column count for a prepared MySQL statement. */
+/**
+ * @brief Queries the result column count for a prepared MySQL statement.
+ * @param query Prepared MySQL statement handle.
+ * @param out_count Output pointer receiving the column count.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on invalid arguments.
+ */
 static c_orm_error_t mysql_drv_get_column_count(c_orm_query_t *query,
                                                 int *out_count) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;
@@ -1450,7 +1703,13 @@ static c_orm_error_t mysql_drv_get_column_count(c_orm_query_t *query,
   return C_ORM_OK;
 }
 
-/** @brief Gets result column name for a prepared MySQL statement. */
+/**
+ * @brief Queries a result column name for a prepared MySQL statement.
+ * @param query Prepared MySQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_name Output pointer receiving the column name string.
+ * @return C_ORM_OK on success, or an error code on invalid state/index.
+ */
 static c_orm_error_t mysql_drv_get_column_name(c_orm_query_t *query, int index,
                                                const char **out_name) {
   mysql_stmt_t *stmt = (mysql_stmt_t *)query;

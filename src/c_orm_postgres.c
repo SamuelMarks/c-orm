@@ -12,23 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef C_ORM_ENABLE_POSTGRESQL
-#if defined(_WIN32) || defined(_WIN64)
-typedef union _PG_LARGE_INTEGER {
-  struct {
-    unsigned long LowPart;
-    long HighPart;
-  } u;
-#if defined(_MSC_VER)
-  __int64 QuadPart;
-#else
-  c_orm_int64_t QuadPart;
-#endif
-} PG_LARGE_INTEGER;
-__declspec(dllimport) int __stdcall QueryPerformanceCounter(
-    PG_LARGE_INTEGER *lpPerformanceCount);
-__declspec(dllimport) int __stdcall QueryPerformanceFrequency(
-    PG_LARGE_INTEGER *lpFrequency);
-#else
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <sys/time.h>
 #endif
 #if !defined(C_ORM_NO_THREADS) && !defined(_WIN32)
@@ -36,14 +20,77 @@ __declspec(dllimport) int __stdcall QueryPerformanceFrequency(
 #endif
 #ifdef C_ORM_POSTGRESQL_DYNAMIC
 #if defined(_WIN32)
-__declspec(dllimport) void *__stdcall LoadLibraryA(const char *lpLibFileName);
-__declspec(dllimport) void *__stdcall GetProcAddress(void *hModule,
-                                                     const char *lpProcName);
 #if !defined(C_ORM_NO_THREADS) && defined(_MSC_VER)
 #include <intrin.h>
 #endif
 #else
 #include <dlfcn.h>
+#endif
+#else
+#include <libpq-fe.h>
+#include <libpq/libpq-fs.h>
+#endif
+#endif
+/* clang-format on */
+
+#ifdef C_ORM_ENABLE_POSTGRESQL
+#if defined(_WIN32) || defined(_WIN64)
+/**
+ * @brief Win32 64-bit performance counter union without including windows.h.
+ * @var u Split 32-bit low/high halves.
+ * @var QuadPart Signed 64-bit tick count.
+ */
+typedef union _PG_LARGE_INTEGER {
+  /** @brief Split 32-bit low and high halves. */
+  struct {
+    /** @brief Low-order 32 bits. */
+    unsigned long LowPart;
+    /** @brief High-order 32 bits. */
+    long HighPart;
+  } u; /**< @brief Split 32-bit low and high halves. */
+#if defined(_MSC_VER)
+  /** @brief Signed 64-bit integer tick value. */
+  __int64 QuadPart;
+#else
+  /** @brief Signed 64-bit integer tick value. */
+  c_orm_int64_t QuadPart;
+#endif
+} PG_LARGE_INTEGER;
+
+/**
+ * @brief Retrieves the current value of the Win32 performance counter.
+ * @param lpPerformanceCount Output pointer receiving counter ticks.
+ * @return Non-zero on success, or 0 on failure.
+ */
+__declspec(dllimport) int __stdcall QueryPerformanceCounter(
+    PG_LARGE_INTEGER *lpPerformanceCount);
+
+/**
+ * @brief Retrieves the frequency of the Win32 performance counter.
+ * @param lpFrequency Output pointer receiving ticks per second.
+ * @return Non-zero on success, or 0 on failure.
+ */
+__declspec(dllimport) int __stdcall QueryPerformanceFrequency(
+    PG_LARGE_INTEGER *lpFrequency);
+#endif
+
+#ifdef C_ORM_POSTGRESQL_DYNAMIC
+#if defined(_WIN32)
+/**
+ * @brief Loads the specified Win32 dynamic-link library into the process.
+ * @param lpLibFileName Null-terminated library file name.
+ * @return Module handle on success, or NULL on failure.
+ */
+__declspec(dllimport) void *__stdcall LoadLibraryA(const char *lpLibFileName);
+
+/**
+ * @brief Retrieves the address of an exported function from a Win32 DLL.
+ * @param hModule Handle to the loaded DLL module.
+ * @param lpProcName Null-terminated exported symbol name.
+ * @return Symbol address on success, or NULL on failure.
+ */
+__declspec(dllimport) void *__stdcall GetProcAddress(void *hModule,
+                                                     const char *lpProcName);
 #endif
 typedef struct pg_conn PGconn;
 typedef struct pg_result PGresult;
@@ -54,12 +101,8 @@ typedef unsigned int Oid;
 #define PGRES_TUPLES_OK 2
 #define INV_WRITE 0x00020000
 #define INV_READ 0x00040000
-#else
-#include <libpq-fe.h>
-#include <libpq/libpq-fs.h>
 #endif
 #endif
-/* clang-format on */
 
 /**
  * @brief Checks if a character is valid inside a PostgreSQL dollar-quote tag.
@@ -521,7 +564,12 @@ static c_orm_error_t set_error(c_orm_db_t *db, const char *msg) {
   return C_ORM_OK;
 }
 
-/** @brief Postgres connect */
+/**
+ * @brief Connects to a PostgreSQL database using a connection URL or conninfo.
+ * @param url PostgreSQL connection URL or libpq keyword/value string.
+ * @param out_db Output pointer receiving the allocated database handle.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
                                                   c_orm_db_t **out_db) {
   c_orm_error_t rc;
@@ -607,7 +655,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_connect(const char *url,
   return C_ORM_OK;
 }
 
-/** @brief Postgres disconnect */
+/**
+ * @brief Disconnects from a PostgreSQL database and releases its handle.
+ * @param db Database connection handle to close.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t postgres_disconnect(c_orm_db_t *db) {
   c_orm_error_t rc;
   c_orm_error_t frc;
@@ -652,7 +704,13 @@ static c_orm_error_t postgres_disconnect(c_orm_db_t *db) {
   return C_ORM_OK;
 }
 
-/** @brief Postgres prepare */
+/**
+ * @brief Prepares a parameterized SQL statement on a PostgreSQL connection.
+ * @param db Active PostgreSQL database handle.
+ * @param sql SQL query string with ? or $N placeholders.
+ * @param out_query Output pointer receiving the prepared statement handle.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t postgres_prepare(c_orm_db_t *db, const char *sql,
                                       c_orm_query_t **out_query) {
   c_orm_error_t rc;
@@ -818,7 +876,13 @@ static c_orm_error_t free_param(struct postgres_query_data *q_data, int index) {
   return rc;
 }
 
-/** @brief Bind int32 */
+/**
+ * @brief Binds a 32-bit signed integer parameter to a PostgreSQL statement.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param index 1-based parameter ordinal.
+ * @param val 32-bit integer value to bind.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t postgres_bind_int32(c_orm_query_t *query, int index,
                                          int32_t val) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -832,11 +896,20 @@ static c_orm_error_t postgres_bind_int32(c_orm_query_t *query, int index,
   if (rc != C_ORM_OK) {
     return rc;
   }
-  C_ORM_SPRINTF(buf, sizeof(buf), "%d", (int)val);
+  rc = C_ORM_SPRINTF(buf, sizeof(buf), "%d", (int)val);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
   return c_orm_strdup(buf, &stmt->data->param_values[index - 1]);
 }
 
-/** @brief Bind int64 */
+/**
+ * @brief Binds a 64-bit signed integer parameter to a PostgreSQL statement.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param index 1-based parameter ordinal.
+ * @param val 64-bit integer value to bind.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t postgres_bind_int64(c_orm_query_t *query, int index,
                                          int64_t val) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -850,11 +923,20 @@ static c_orm_error_t postgres_bind_int64(c_orm_query_t *query, int index,
   if (rc != C_ORM_OK) {
     return rc;
   }
-  C_ORM_SPRINTF(buf, sizeof(buf), C_ORM_INT64_FORMAT, (c_orm_int64_t)val);
+  rc = C_ORM_SPRINTF(buf, sizeof(buf), C_ORM_INT64_FORMAT, (c_orm_int64_t)val);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
   return c_orm_strdup(buf, &stmt->data->param_values[index - 1]);
 }
 
-/** @brief Bind double */
+/**
+ * @brief Binds a double-precision float parameter to a PostgreSQL statement.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param index 1-based parameter ordinal.
+ * @param val Double-precision value to bind.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t postgres_bind_double(c_orm_query_t *query, int index,
                                           double val) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -868,11 +950,20 @@ static c_orm_error_t postgres_bind_double(c_orm_query_t *query, int index,
   if (rc != C_ORM_OK) {
     return rc;
   }
-  C_ORM_SPRINTF(buf, sizeof(buf), "%.17g", val);
+  rc = C_ORM_SPRINTF(buf, sizeof(buf), "%.17g", val);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
   return c_orm_strdup(buf, &stmt->data->param_values[index - 1]);
 }
 
-/** @brief Bind string */
+/**
+ * @brief Binds a UTF-8 string parameter to a PostgreSQL statement.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param index 1-based parameter ordinal.
+ * @param val Null-terminated string value, or NULL to bind SQL NULL.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t postgres_bind_string(c_orm_query_t *query, int index,
                                           const char *val) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -891,7 +982,14 @@ static c_orm_error_t postgres_bind_string(c_orm_query_t *query, int index,
   return c_orm_strdup(val, &stmt->data->param_values[index - 1]);
 }
 
-/** @brief Bind blob */
+/**
+ * @brief Binds a binary BLOB buffer parameter to a PostgreSQL statement.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param index 1-based parameter ordinal.
+ * @param val Pointer to raw byte buffer, or NULL when size is 0.
+ * @param size Byte length of val.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t postgres_bind_blob(c_orm_query_t *query, int index,
                                         const void *val, size_t size) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -920,7 +1018,12 @@ static c_orm_error_t postgres_bind_blob(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Bind null */
+/**
+ * @brief Binds an SQL NULL parameter to a PostgreSQL statement.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param index 1-based parameter ordinal.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t postgres_bind_null(c_orm_query_t *query, int index) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
 
@@ -930,7 +1033,12 @@ static c_orm_error_t postgres_bind_null(c_orm_query_t *query, int index) {
   return free_param(stmt->data, index);
 }
 
-/** @brief Step query */
+/**
+ * @brief Executes or advances a prepared PostgreSQL statement by one row.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param out_has_row Output flag set to 1 if a row is available, or 0 if done.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_STEP on execution error.
+ */
 static c_orm_error_t postgres_step(c_orm_query_t *query, int *out_has_row) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
   struct postgres_query_data *q_data;
@@ -1025,7 +1133,13 @@ static c_orm_error_t postgres_step(c_orm_query_t *query, int *out_has_row) {
   return C_ORM_OK;
 }
 
-/** @brief Get int32 */
+/**
+ * @brief Retrieves a 32-bit signed integer from the current PostgreSQL row.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_val Output pointer receiving the 32-bit integer value.
+ * @return C_ORM_OK on success, or an error code on invalid state/column.
+ */
 static c_orm_error_t postgres_get_int32(c_orm_query_t *query, int index,
                                         int32_t *out_val) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -1048,7 +1162,13 @@ static c_orm_error_t postgres_get_int32(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Get int64 */
+/**
+ * @brief Retrieves a 64-bit signed integer from the current PostgreSQL row.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_val Output pointer receiving the 64-bit integer value.
+ * @return C_ORM_OK on success, or an error code on invalid state/column.
+ */
 static c_orm_error_t postgres_get_int64(c_orm_query_t *query, int index,
                                         int64_t *out_val) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -1077,7 +1197,13 @@ static c_orm_error_t postgres_get_int64(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Get double */
+/**
+ * @brief Retrieves a double-precision float from the current PostgreSQL row.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_val Output pointer receiving the double value.
+ * @return C_ORM_OK on success, or an error code on invalid state/column.
+ */
 static c_orm_error_t postgres_get_double(c_orm_query_t *query, int index,
                                          double *out_val) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -1100,7 +1226,13 @@ static c_orm_error_t postgres_get_double(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Get string */
+/**
+ * @brief Retrieves a UTF-8 string pointer from the current PostgreSQL row.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_val Output pointer receiving the string pointer (or NULL).
+ * @return C_ORM_OK on success, or an error code on invalid state/column.
+ */
 static c_orm_error_t postgres_get_string(c_orm_query_t *query, int index,
                                          const char **out_val) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -1121,7 +1253,14 @@ static c_orm_error_t postgres_get_string(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Get blob */
+/**
+ * @brief Retrieves a binary BLOB slice from the current PostgreSQL row.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_val Output pointer receiving the raw data pointer (or NULL).
+ * @param out_size Output pointer receiving the byte length.
+ * @return C_ORM_OK on success, or an error code on invalid state/column.
+ */
 static c_orm_error_t postgres_get_blob(c_orm_query_t *query, int index,
                                        const void **out_val, size_t *out_size) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -1145,7 +1284,13 @@ static c_orm_error_t postgres_get_blob(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Is null */
+/**
+ * @brief Checks whether a column in the current PostgreSQL row is SQL NULL.
+ * @param query Prepared PostgreSQL statement handle.
+ * @param index 0-based result column ordinal.
+ * @param out_is_null Output flag set to 1 if NULL, or 0 otherwise.
+ * @return C_ORM_OK on success, or an error code on invalid state/column.
+ */
 static c_orm_error_t postgres_is_null(c_orm_query_t *query, int index,
                                       int *out_is_null) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -1163,9 +1308,15 @@ static c_orm_error_t postgres_is_null(c_orm_query_t *query, int index,
   return C_ORM_OK;
 }
 
-/** @brief Finalize and DEALLOCATE server-side statement */
+/**
+ * @brief Finalizes a PostgreSQL statement and DEALLOCATEs its server plan.
+ * @param query Prepared PostgreSQL statement handle to destroy.
+ * @return C_ORM_OK on success, or the first encountered allocator/format error.
+ */
 static c_orm_error_t postgres_finalize(c_orm_query_t *query) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
+  c_orm_error_t rc = C_ORM_OK;
+  c_orm_error_t frc;
   int i;
 
   if (!stmt) {
@@ -1181,10 +1332,14 @@ static c_orm_error_t postgres_finalize(c_orm_query_t *query) {
           (struct postgres_db_data *)stmt->data->db->driver_data;
       if (db_data->conn) {
         char dealloc_sql[128];
-        PGresult *dres;
-        C_ORM_SPRINTF(dealloc_sql, sizeof(dealloc_sql), "DEALLOCATE %s",
-                      stmt->data->stmt_name);
-        dres = PQexec(db_data->conn, dealloc_sql);
+        PGresult *dres = NULL;
+        frc = C_ORM_SPRINTF(dealloc_sql, sizeof(dealloc_sql), "DEALLOCATE %s",
+                            stmt->data->stmt_name);
+        if (frc == C_ORM_OK) {
+          dres = PQexec(db_data->conn, dealloc_sql);
+        } else if (rc == C_ORM_OK) {
+          rc = frc;
+        }
         if (dres) {
           PQclear(dres);
         }
@@ -1193,22 +1348,48 @@ static c_orm_error_t postgres_finalize(c_orm_query_t *query) {
     if (stmt->data->param_count > 0) {
       for (i = 0; i < stmt->data->param_count; i++) {
         c_orm_error_t prc = free_param(stmt->data, i + 1);
-        if (prc != C_ORM_OK) {
-          return prc;
+        if (prc != C_ORM_OK && rc == C_ORM_OK) {
+          rc = prc;
         }
       }
-      c_orm_system_free(stmt->data->param_values);
-      c_orm_system_free(stmt->data->param_lengths);
-      c_orm_system_free(stmt->data->param_formats);
+      frc = c_orm_system_free(stmt->data->param_values);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
+      frc = c_orm_system_free(stmt->data->param_lengths);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
+      frc = c_orm_system_free(stmt->data->param_formats);
+      if (frc != C_ORM_OK && rc == C_ORM_OK) {
+        rc = frc;
+      }
     }
-    c_orm_system_free(stmt->data->stmt_name);
-    c_orm_system_free(stmt->data->query_string);
-    c_orm_system_free(stmt->data);
+    frc = c_orm_system_free(stmt->data->stmt_name);
+    if (frc != C_ORM_OK && rc == C_ORM_OK) {
+      rc = frc;
+    }
+    frc = c_orm_system_free(stmt->data->query_string);
+    if (frc != C_ORM_OK && rc == C_ORM_OK) {
+      rc = frc;
+    }
+    frc = c_orm_system_free(stmt->data);
+    if (frc != C_ORM_OK && rc == C_ORM_OK) {
+      rc = frc;
+    }
   }
-  return c_orm_system_free(stmt);
+  frc = c_orm_system_free(stmt);
+  if (frc != C_ORM_OK && rc == C_ORM_OK) {
+    rc = frc;
+  }
+  return rc;
 }
 
-/** @brief Reset */
+/**
+ * @brief Resets a prepared PostgreSQL statement for re-execution.
+ * @param query Prepared PostgreSQL statement handle.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 static c_orm_error_t postgres_reset(c_orm_query_t *query) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
   int i;
@@ -1231,7 +1412,12 @@ static c_orm_error_t postgres_reset(c_orm_query_t *query) {
   return C_ORM_OK;
 }
 
-/** @brief Get last error */
+/**
+ * @brief Retrieves the latest PostgreSQL driver error message.
+ * @param db Active PostgreSQL database handle.
+ * @param out_message Output pointer receiving the null-terminated error string.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN on invalid handle.
+ */
 static c_orm_error_t postgres_get_last_error(c_orm_db_t *db,
                                              const char **out_message) {
   struct postgres_db_data *data;
@@ -1248,7 +1434,12 @@ static c_orm_error_t postgres_get_last_error(c_orm_db_t *db,
   return C_ORM_OK;
 }
 
-/** @brief Get last trace */
+/**
+ * @brief Retrieves a formatted PostgreSQL diagnostic trace string.
+ * @param db Active PostgreSQL database handle.
+ * @param out_trace Output pointer receiving the diagnostic trace string.
+ * @return C_ORM_OK on success, or a formatting error code.
+ */
 static c_orm_error_t postgres_get_last_trace(c_orm_db_t *db,
                                              const char **out_trace) {
   if (out_trace) {
@@ -1269,7 +1460,12 @@ static c_orm_error_t postgres_get_last_trace(c_orm_db_t *db,
   return C_ORM_OK;
 }
 
-/** @brief Get last insert rowid */
+/**
+ * @brief Queries the last generated sequence value via SELECT LASTVAL().
+ * @param db Active PostgreSQL database handle.
+ * @param out_id Output pointer receiving the 64-bit inserted row identifier.
+ * @return C_ORM_OK on success, or an SQL/conversion error code.
+ */
 static c_orm_error_t postgres_get_last_insert_rowid(c_orm_db_t *db,
                                                     int64_t *out_id) {
   struct postgres_db_data *data;
@@ -1304,7 +1500,12 @@ static c_orm_error_t postgres_get_last_insert_rowid(c_orm_db_t *db,
   return C_ORM_OK;
 }
 
-/** @brief Get result column count via PQnfields. */
+/**
+ * @brief Queries the result column count via PQnfields.
+ * @param query Prepared PostgreSQL statement handle with active result set.
+ * @param out_count Output pointer receiving the column count.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on invalid arguments.
+ */
 static c_orm_error_t postgres_get_column_count(c_orm_query_t *query,
                                                int *out_count) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -1315,7 +1516,13 @@ static c_orm_error_t postgres_get_column_count(c_orm_query_t *query,
   return C_ORM_OK;
 }
 
-/** @brief Get result column name via PQfname. */
+/**
+ * @brief Queries a result column name via PQfname.
+ * @param query Prepared PostgreSQL statement handle with active result set.
+ * @param index 0-based column ordinal.
+ * @param out_name Output pointer receiving the column name string.
+ * @return C_ORM_OK on success, or an error code on invalid state/index.
+ */
 static c_orm_error_t postgres_get_column_name(c_orm_query_t *query, int index,
                                               const char **out_name) {
   postgres_stmt_t *stmt = (postgres_stmt_t *)query;
@@ -1402,7 +1609,11 @@ static c_orm_driver_vtable_t postgres_vtable = {c_orm_postgres_connect,
                                                 postgres_bind_decimal,
                                                 postgres_get_decimal};
 
-/** @brief Get Postgres vtable */
+/**
+ * @brief Retrieves the static PostgreSQL driver dispatch vtable.
+ * @param out_vtable Output pointer receiving the PostgreSQL vtable pointer.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN if out_vtable is NULL.
+ */
 C_ORM_EXPORT c_orm_error_t
 c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   if (!out_vtable) {
@@ -1412,7 +1623,12 @@ c_orm_postgres_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   return C_ORM_OK;
 }
 
-/** @brief Postgres large object create */
+/**
+ * @brief Creates a new PostgreSQL Large Object and returns its OID.
+ * @param db Active PostgreSQL database handle.
+ * @param out_oid Output pointer receiving the newly created Large Object OID.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
                                                     unsigned int *out_oid) {
   struct postgres_db_data *data;
@@ -1430,7 +1646,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_create(c_orm_db_t *db,
   return C_ORM_OK;
 }
 
-/** @brief Postgres large object open */
+/**
+ * @brief Opens an existing PostgreSQL Large Object for streaming I/O.
+ * @param db Active PostgreSQL database handle.
+ * @param oid Object identifier of the Large Object.
+ * @param mode Access mode bitmask (e.g. INV_READ, INV_WRITE).
+ * @param out_fd Output pointer receiving the opaque Large Object descriptor.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
                                                   unsigned int oid, int mode,
                                                   void **out_fd) {
@@ -1449,7 +1672,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_open(c_orm_db_t *db,
   return C_ORM_OK;
 }
 
-/** @brief Postgres large object read */
+/**
+ * @brief Reads bytes from an open PostgreSQL Large Object descriptor.
+ * @param db Active PostgreSQL database handle.
+ * @param fd Opaque Large Object descriptor returned by c_orm_postgres_lo_open.
+ * @param buffer Destination byte buffer.
+ * @param len Maximum number of bytes to read.
+ * @param out_read Output pointer receiving actual bytes read.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_read(c_orm_db_t *db, void *fd,
                                                   void *buffer, size_t len,
                                                   size_t *out_read) {
@@ -1468,7 +1699,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_read(c_orm_db_t *db, void *fd,
   return C_ORM_OK;
 }
 
-/** @brief Postgres large object write */
+/**
+ * @brief Writes bytes to an open PostgreSQL Large Object descriptor.
+ * @param db Active PostgreSQL database handle.
+ * @param fd Opaque Large Object descriptor returned by c_orm_postgres_lo_open.
+ * @param buffer Source byte buffer to write.
+ * @param len Number of bytes to write.
+ * @param out_written Output pointer receiving actual bytes written.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
                                                    const void *buffer,
                                                    size_t len,
@@ -1489,7 +1728,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_write(c_orm_db_t *db, void *fd,
   return C_ORM_OK;
 }
 
-/** @brief Postgres large object close */
+/**
+ * @brief Closes an open PostgreSQL Large Object descriptor.
+ * @param db Active PostgreSQL database handle.
+ * @param fd Opaque Large Object descriptor to close.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_postgres_lo_close(c_orm_db_t *db, void *fd) {
   struct postgres_db_data *data;
   int close_rc;

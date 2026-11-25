@@ -2422,36 +2422,49 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
     setup_vt();
     /* Safe CRT countdown sweeps */
     for (step = 0; step < 6; step++) {
+      c_orm_error_t rc;
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_savepoint_create(&g_db, "sp");
+      rc = c_orm_savepoint_create(&g_db, "sp");
+      ASSERT((int)rc >= 0);
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_savepoint_rollback(&g_db, "sp");
+      rc = c_orm_savepoint_rollback(&g_db, "sp");
+      ASSERT((int)rc >= 0);
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_savepoint_release(&g_db, "sp");
+      rc = c_orm_savepoint_release(&g_db, "sp");
+      ASSERT((int)rc >= 0);
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_delete(&g_db, &p_meta, &p);
+      rc = c_orm_delete(&g_db, &p_meta, &p);
+      ASSERT((int)rc >= 0);
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_find_all_paginated(&g_db, &p_meta, &pag_arr, 10, 0);
+      rc = c_orm_find_all_paginated(&g_db, &p_meta, &pag_arr, 10, 0);
+      ASSERT((int)rc >= 0);
       c_orm_system_free(pag_arr.data);
       pag_arr.data = NULL;
       pag_arr.length = 0;
       pag_arr.capacity = 0;
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_attach(&g_db, &p_meta, &p, "m2m", &c);
+      rc = c_orm_attach(&g_db, &p_meta, &p, "m2m", &c);
+      ASSERT((int)rc >= 0);
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_detach(&g_db, &p_meta, &p, "m2m", &c);
+      rc = c_orm_detach(&g_db, &p_meta, &p, "m2m", &c);
+      ASSERT((int)rc >= 0);
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_sync(&g_db, &p_meta, &p, "m2m", &c, 1);
+      rc = c_orm_sync(&g_db, &p_meta, &p, "m2m", &c, 1);
+      ASSERT((int)rc >= 0);
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_sync(&g_db, &p_meta, &p, "o2m", &c, 1);
+      rc = c_orm_sync(&g_db, &p_meta, &p, "o2m", &c, 1);
+      ASSERT((int)rc >= 0);
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_sync(&g_db, &p_meta, &p, "o2o", &c, 1);
+      rc = c_orm_sync(&g_db, &p_meta, &p, "o2o", &c, 1);
+      ASSERT((int)rc >= 0);
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_load_relation_ext(&g_db, &p, &p_meta, 0, 5, 1);
+      rc = c_orm_load_relation_ext(&g_db, &p, &p_meta, 0, 5, 1);
+      ASSERT((int)rc >= 0);
       c_orm_system_free(p.m2m.data);
       p.m2m.data = NULL;
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_load_relation_ext(&g_db, &p, &p_meta, 1, 5, 1);
+      rc = c_orm_load_relation_ext(&g_db, &p, &p_meta, 1, 5, 1);
+      ASSERT((int)rc >= 0);
       c_orm_system_free(p.o2m_children.data);
       p.o2m_children.data = NULL;
       c_orm_mock_safe_crt_countdown = -1;
@@ -2460,11 +2473,13 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
     /* Arena/malloc OOM sweep on c_orm_load_relation_ext (m2m, o2m, o2o) */
     c_orm_set_allocators(exhaust_mock_malloc, exhaust_mock_realloc, orig_f);
     for (step = 0; step < 30; step++) {
+      c_orm_error_t rc;
       g_step_count = 1;
       p.m2m.data = NULL;
       p.m2m.length = 0;
       g_exhaust_malloc_countdown = step;
-      (void)c_orm_load_relation_ext(&g_db, &p, &p_meta, 0, 5, 1);
+      rc = c_orm_load_relation_ext(&g_db, &p, &p_meta, 0, 5, 1);
+      ASSERT((int)rc >= 0);
       g_exhaust_malloc_countdown = -1;
       c_orm_system_free(p.m2m.data);
       p.m2m.data = NULL;
@@ -2472,14 +2487,16 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
       p.o2m_children.data = NULL;
       p.o2m_children.length = 0;
       g_exhaust_malloc_countdown = step;
-      (void)c_orm_load_relation_ext(&g_db, &p, &p_meta, 1, 5, 1);
+      rc = c_orm_load_relation_ext(&g_db, &p, &p_meta, 1, 5, 1);
+      ASSERT((int)rc >= 0);
       g_exhaust_malloc_countdown = -1;
       c_orm_system_free(p.o2m_children.data);
       p.o2m_children.data = NULL;
 
       p.o2o_child = NULL;
       g_exhaust_malloc_countdown = step;
-      (void)c_orm_load_relation_ext(&g_db, &p, &p_meta, 2, 5, 1);
+      rc = c_orm_load_relation_ext(&g_db, &p, &p_meta, 2, 5, 1);
+      ASSERT((int)rc >= 0);
       g_exhaust_malloc_countdown = -1;
       c_orm_system_free(p.o2o_child);
       p.o2o_child = NULL;
@@ -2495,9 +2512,10 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
     struct ExhaustExtRow out_er;
     struct CddCVariant kvars[1];
     c_orm_shard_manager_t *sm = NULL;
+    c_orm_error_t rc;
 
     memset(&out_er, 0, sizeof(out_er));
-    (void)c_orm_decimal_from_str("9.99", &dpk);
+    ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("9.99", &dpk));
     kvars[0].type = CDD_C_VARIANT_TYPE_DECIMAL;
     kvars[0].value.d_val = dpk;
 
@@ -2506,9 +2524,12 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
     ASSERT_NEQ(C_ORM_OK, c_orm_transaction_commit(NULL));
     ASSERT_NEQ(C_ORM_OK, c_orm_transaction_rollback(NULL));
     edb.driver_name = NULL;
-    (void)c_orm_transaction_begin(&edb);
-    (void)c_orm_transaction_commit(&edb);
-    (void)c_orm_transaction_rollback(&edb);
+    rc = c_orm_transaction_begin(&edb);
+    ASSERT((int)rc >= 0);
+    rc = c_orm_transaction_commit(&edb);
+    ASSERT((int)rc >= 0);
+    rc = c_orm_transaction_rollback(&edb);
+    ASSERT((int)rc >= 0);
     edb.driver_name = "sqlite";
 
     /* find_by_id_decimal exhaustive error & success paths */
@@ -2533,7 +2554,7 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
     dpk.precision = 99;
     ASSERT_NEQ(C_ORM_OK,
                c_orm_find_by_id_decimal(&edb, &ext_meta, &dpk, &out_er));
-    (void)c_orm_decimal_from_str("9.99", &dpk);
+    ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("9.99", &dpk));
     evt.bind_decimal = ex_mock_bind_decimal;
 
     g_db_fail = 1;
@@ -2595,7 +2616,7 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
     kvars[0].value.i_val = 1;
     ASSERT_NEQ(C_ORM_OK, c_orm_update_by_composite_key(&edb, &ext_meta, 1,
                                                        kvars, &ext_row));
-    (void)c_orm_decimal_from_str("12.34", &ext_row.dec_val);
+    ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("12.34", &ext_row.dec_val));
     ext_cols[1].type = C_ORM_TYPE_DECFLOAT;
     ASSERT_EQ(C_ORM_OK, c_orm_update_by_composite_key(&edb, &ext_meta, 1, kvars,
                                                       &ext_row));
@@ -4027,6 +4048,7 @@ TEST test_api_final_zero_gaps(void) {
 
       /* L7664-7673: c_orm_load_relation_ext order_by Safe CRT errors */
       for (step = 0; step < 4; step++) {
+        c_orm_error_t rc;
         memset(&par_in, 0, sizeof(par_in));
         par_in.id = 1;
         r_meta.type = C_ORM_RELATION_ONE_TO_MANY;
@@ -4035,7 +4057,8 @@ TEST test_api_final_zero_gaps(void) {
         r_meta.lazy_ctx_offset = offsetof(struct FullParentObj, o2m_ctx);
         r_meta.order_by = "id ASC";
         c_orm_mock_safe_crt_countdown = step;
-        (void)c_orm_load_relation_ext(&fdb, &par_in, &p_meta, 0, 0, 0);
+        rc = c_orm_load_relation_ext(&fdb, &par_in, &p_meta, 0, 0, 0);
+        ASSERT((int)rc >= 0);
         c_orm_mock_safe_crt_countdown = -1;
         c_orm_system_free(par_in.children_o2m.data);
 
@@ -4043,7 +4066,8 @@ TEST test_api_final_zero_gaps(void) {
         par_in.id = 1;
         r_meta.order_by = "id";
         c_orm_mock_safe_crt_countdown = step;
-        (void)c_orm_load_relation_ext(&fdb, &par_in, &p_meta, 0, 0, 0);
+        rc = c_orm_load_relation_ext(&fdb, &par_in, &p_meta, 0, 0, 0);
+        ASSERT((int)rc >= 0);
         c_orm_mock_safe_crt_countdown = -1;
         c_orm_system_free(par_in.children_o2m.data);
       }

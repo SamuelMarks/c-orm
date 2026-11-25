@@ -169,7 +169,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_strncat_s(char *dest, size_t dest_size,
  * @param dest_size Capacity of `dest` in bytes.
  * @param var_name Environment variable name.
  * @return C_ORM_OK on success, C_ORM_ERROR_NULL_POINTER on NULL args, or
- * C_ORM_ERROR_OVERFLOW if `dest_size == 0`.
+ * C_ORM_ERROR_OVERFLOW if `dest_size == 0` or value length `>= dest_size`.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_getenv_s(char *dest, size_t dest_size,
                                           const char *var_name);

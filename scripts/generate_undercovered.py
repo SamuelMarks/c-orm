@@ -90,12 +90,27 @@ def find_and_init_libclang():
             continue
 
 
+PARENT_TU_MAP = {
+    "tests/e2e/test_abstract_struct_oom.h": "tests/e2e/test_abstract_struct.c",
+    "tests/e2e/test_cdd_c_ir_oom.h": "tests/e2e/test_cdd_c_ir.c",
+    "tests/e2e/test_api_helpers.h": "tests/e2e/test_api_coverage.c",
+    "tests/e2e/test_api_collections.h": "tests/e2e/test_api_coverage.c",
+    "tests/e2e/test_api_crud.h": "tests/e2e/test_api_coverage.c",
+    "tests/e2e/test_api_exhaust.h": "tests/e2e/test_api_coverage.c",
+    "tests/e2e/test_api_hydration.h": "tests/e2e/test_api_coverage.c",
+    "tests/e2e/test_api_relations.h": "tests/e2e/test_api_coverage.c",
+    "tests/e2e/test_api_transactions.h": "tests/e2e/test_api_coverage.c",
+}
+
+
 def get_compile_args():
     """Build libclang compilation flags including dependency include directories.
 
     Returns:
         List of compiler argument strings for clang.cindex.Index.parse.
     """
+    import clang.cindex
+
     compile_args = [
         "-Iinclude",
         "-Isrc",
@@ -106,17 +121,45 @@ def get_compile_args():
         "-x",
         "c",
         "-DC_ORM_TEST_ALLOCATOR",
+        "-DC_ORM_ENABLE_ODBC",
+        "-DC_ORM_ENABLE_DB2",
+        "-DC_ORM_ENABLE_COPYBOOK",
+        "-DC_ORM_ENABLE_SQLITE",
+        "-DC_ORM_SQLITE_DYNAMIC",
+        "-DC_ORM_ENABLE_POSTGRESQL",
+        "-DC_ORM_POSTGRESQL_DYNAMIC",
+        "-DC_ORM_ENABLE_MYSQL",
+        "-DC_ORM_MYSQL_DYNAMIC",
         "-D_GNU_SOURCE",
         "-fparse-all-comments",
     ]
+    lib_file = clang.cindex.Config.library_file
+    if lib_file:
+        res_dirs = sorted(
+            glob.glob(os.path.join(os.path.dirname(lib_file), "clang", "*"))
+        )
+        if res_dirs:
+            compile_args.extend(["-resource-dir", res_dirs[-1]])
+
     seen_inc = set()
     for bdir in ("build", "build_cov", "build_gcc", "build_clang"):
         for sub in (
             "_deps/cdd_c-src/include",
+            "_deps/cdd_c-src/include/c_cdd",
             "_deps/cdd_c-src/src",
+            "_deps/cdd_c-src/src/mocks",
+            "_deps/cdd_c-build/src",
             "_deps/cfs-src/include",
             "_deps/c_str_span-src/include",
+            "_deps/c_str_span-src/c_str_span",
+            "_deps/c_str_span-build/c_str_span",
             "_deps/c89stringutils-src/include",
+            "_deps/c89stringutils-src/c89stringutils",
+            "_deps/c89stringutils-build",
+            "_deps/greatest-src",
+            "_deps/parson-src",
+            "_deps/c-abstract-http-src/include",
+            "tests/e2e",
         ):
             dep_inc = os.path.join(bdir, sub)
             if os.path.isdir(dep_inc) and sub not in seen_inc:
@@ -171,15 +214,24 @@ def analyze_file(filepath, idx, compile_args):
     with open(filepath, "r", encoding="utf-8", errors="ignore") as fp:
         content = fp.read()
 
-    has_file_doc = bool(
-        re.search(r"/\*\*[\s\S]*?@file[\s\S]*?\*/", content)
-    ) or bool(re.search(r"/\*[\s\S]*?@file[\s\S]*?\*/", content))
+    comment_blocks = re.findall(r"/\*[\s\S]*?\*/", content)
+    has_file_doc = any(
+        re.search(r"[@\\]file\b", block) for block in comment_blocks
+    )
 
-    has_module_doc = bool(
-        re.search(r"/\*\*?[\s\S]*?@(defgroup|addtogroup|module)[\s\S]*?\*/", content)
-    ) or has_file_doc
+    has_module_doc = (
+        any(
+            re.search(r"[@\\](defgroup|addtogroup|module)\b", block)
+            for block in comment_blocks
+        )
+        or has_file_doc
+    )
 
-    tu = idx.parse(filepath, args=compile_args)
+    norm_rel = filepath.replace("\\", "/")
+    parse_target = PARENT_TU_MAP.get(norm_rel, filepath)
+    if not os.path.exists(parse_target):
+        parse_target = filepath
+    tu = idx.parse(parse_target, args=compile_args)
 
     struct_defs = {}
     func_decls = {}
@@ -218,7 +270,13 @@ def analyze_file(filepath, idx, compile_args):
     for c in struct_defs.values():
         total_items += 1
         s_doc = bool(c.raw_comment and c.raw_comment.strip())
-        sname = c.spelling or f"anonymous_struct_l{c.location.line}"
+        sname = c.spelling
+        if (
+            not sname
+            or sname.startswith("struct (unnamed")
+            or sname.startswith("union (unnamed")
+        ):
+            sname = f"anonymous_struct_l{c.location.line}"
         if s_doc:
             covered_items += 1
         else:
@@ -229,6 +287,19 @@ def analyze_file(filepath, idx, compile_args):
                 total_items += 1
                 fname = child.spelling or f"field_l{child.location.line}"
                 f_doc = bool(child.raw_comment and child.raw_comment.strip())
+                if not f_doc:
+                    for sub in child.get_children():
+                        if (
+                            sub.kind
+                            in (
+                                clang.cindex.CursorKind.STRUCT_DECL,
+                                clang.cindex.CursorKind.UNION_DECL,
+                            )
+                            and sub.raw_comment
+                            and sub.raw_comment.strip()
+                        ):
+                            f_doc = True
+                            break
                 if (
                     not f_doc
                     and s_doc
@@ -254,12 +325,12 @@ def analyze_file(filepath, idx, compile_args):
             missing_items.append(f"func `{fname}`")
 
         fn_comment = c.raw_comment or ""
-        for arg in c.get_arguments():
+        for idx_arg, arg in enumerate(c.get_arguments()):
             aname = arg.spelling
-            if not aname:
-                continue
             total_items += 1
-            if fn_doc and re.search(
+            if not aname:
+                missing_items.append(f"param `{fname}(arg#{idx_arg + 1} unnamed)`")
+            elif fn_doc and re.search(
                 r"(@param(\[[^\]]*\])?|@arg|:param)\s+" + re.escape(aname) + r"\b",
                 fn_comment,
             ):
@@ -676,6 +747,15 @@ def generate_test_report(
     )
 
     def fmt_entry(key, checked):
+        """Format a single file's line/function/branch coverage checkbox line.
+
+        Args:
+            key: Repository-relative file path key in cov_map.
+            checked: True to render a checked box, False for unchecked.
+
+        Returns:
+            Formatted Markdown checkbox list entry string.
+        """
         v = cov_map[key]
         lp = f"{v['line_percent']:.1f}% ({v['line_covered']}/{v['line_total']})"
         fp = f"{v['function_percent']:.1f}% ({v['function_covered']}/{v['function_total']})"
