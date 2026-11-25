@@ -8,6 +8,7 @@
 #include "c_orm_ebcdic.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -260,9 +261,7 @@ TEST test_utf16_graphic_transcoders(void) {
  */
 static c_orm_error_t ebcdic_fail_malloc(size_t size, void **out_ptr) {
   (void)size;
-  if (out_ptr) {
-    *out_ptr = NULL;
-  }
+  *out_ptr = NULL;
   return C_ORM_ERROR_MEMORY;
 }
 #endif
@@ -306,6 +305,8 @@ TEST test_ebcdic_exhaustive_errors_and_oom(void) {
             c_orm_ebcdic_to_utf8(C_ORM_CP_IBM037, raw, 0, out, 0, NULL));
   ASSERT_EQ(C_ORM_ERROR_NULL_POINTER,
             c_orm_ebcdic_to_utf8(C_ORM_CP_IBM037, NULL, 2, out, 8, NULL));
+  ASSERT_EQ(C_ORM_ERROR_CODEPAGE,
+            c_orm_ebcdic_to_utf8((c_orm_codepage_t)77, raw, 0, out, 8, NULL));
   ASSERT_EQ(C_ORM_ERROR_CODEPAGE,
             c_orm_ebcdic_to_utf8((c_orm_codepage_t)77, raw, 1, out, 8, NULL));
 
@@ -357,6 +358,8 @@ TEST test_ebcdic_exhaustive_errors_and_oom(void) {
             c_orm_utf8_to_ebcdic(C_ORM_CP_ASCII, "ABC", 3, raw, 2, NULL));
   ASSERT_EQ(C_ORM_ERROR_NULL_POINTER,
             c_orm_utf8_to_ebcdic(C_ORM_CP_ASCII, NULL, 2, raw, 8, NULL));
+  ASSERT_EQ(C_ORM_ERROR_CODEPAGE,
+            c_orm_utf8_to_ebcdic((c_orm_codepage_t)77, "", 0, raw, 8, NULL));
   ASSERT_EQ(C_ORM_ERROR_CODEPAGE,
             c_orm_utf8_to_ebcdic((c_orm_codepage_t)77, "A", 1, raw, 8, NULL));
 
@@ -498,6 +501,9 @@ TEST test_ebcdic_exhaustive_errors_and_oom(void) {
       ASSERT_EQ(C_ORM_OK, c_orm_ebcdic_to_ascii_inplace(cps4[k], raw, 2));
       ASSERT_EQ(0, memcmp(raw, "AZ", 2));
     }
+    raw[0] = 0x9FU;
+    ASSERT_EQ(C_ORM_OK, c_orm_ascii_to_ebcdic_inplace(C_ORM_CP_IBM037, raw, 1));
+    ASSERT_EQ(0xFFU, (unsigned int)raw[0]);
   }
 
   /* COBOL alpha: empty UTF-8 pad, 4B emoji truncated to width 1 & 2, all-space

@@ -3,6 +3,10 @@
  * @brief Unit tests for C-ORM code generator error paths and edge cases.
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include "c_orm_api.h"
 #include "c_orm_safe_crt.h"
@@ -10,6 +14,7 @@
 #include "c_orm_codegen.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +28,7 @@
 #define TEST_MKDIR(p) mkdir(p, 0777)
 #define TEST_RMDIR(p) rmdir(p)
 #endif
+/* clang-format on */
 
 /** @brief Counter decremented to trigger mock allocation failure. */
 static int mock_malloc_fail_count = -1;
@@ -31,54 +37,7 @@ static int mock_malloc_fail_count = -1;
 static int mock_malloc_calls = 0;
 
 /**
- * @brief Mock malloc returning NULL at targeted call count.
- * @param size Requested allocation size.
- * @return Allocated pointer or NULL on target count.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; }                              \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; }                              \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++; if (!((cond) != 0)) { fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); return GREATEST_TEST_RES_FAIL; }                                 \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++; if (strcmp((exp), (got)) != 0) { fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__, (exp), (got)); return GREATEST_TEST_RES_FAIL; }                   \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++; if (!((exp) != (got))) { fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; }                              \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do { enum greatest_test_res _rc = (res); greatest_info.assertions++; if (_rc != GREATEST_TEST_RES_PASS) { return _rc; } } while ((void)0, 0);             \
-  } while ((void)0, 0)
-
-
-/**
- * @brief Executes mock_malloc.
+ * @brief Mock malloc returning error at targeted call count.
  * @param size Parameter size.
  * @param out_ptr Output pointer receiving allocated address.
  * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
@@ -91,8 +50,7 @@ static c_orm_error_t mock_malloc(size_t size, void **out_ptr) {
     }
     return C_ORM_ERROR_MEMORY;
   }
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /**
@@ -115,8 +73,6 @@ static c_orm_error_t write_test_file(const char *path, const char *content) {
   }
   return rc;
 }
-
-/* clang-format on */
 
 /**
  * @brief Tests codegen error handling when SQL schema parsing fails.
@@ -200,7 +156,12 @@ TEST test_codegen_malloc_fail(void) {
   c_orm_malloc_fn_t old_malloc;
 
   old_malloc = c_orm_malloc;
-  c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(mock_malloc, c_orm_realloc, c_orm_free));
+  mock_malloc_calls = 0;
+  mock_malloc_fail_count = 1;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, mock_malloc(16, NULL));
+
   rc = write_test_file("dummy.sql", "CREATE TABLE t (id INT);\n");
   ASSERT_EQ(C_ORM_OK, rc);
   TEST_MKDIR("test_out");
@@ -218,7 +179,8 @@ TEST test_codegen_malloc_fail(void) {
     ASSERT(rc != C_ORM_OK);
   }
   mock_malloc_fail_count = -1;
-  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free));
   PASS();
 }
 
@@ -258,6 +220,11 @@ TEST test_codegen_emit_fail(void) {
              c_orm_codegen_generate("nonexistent_test.CPY", "test_out"));
   ASSERT_NEQ(C_ORM_OK,
              c_orm_codegen_generate("nonexistent_test.COB", "test_out"));
+  rc = write_test_file("valid_min.cpy",
+                       "000100 01 MIN-REC.\n000200    05 FLD PIC 9(4).\n");
+  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_NEQ(C_ORM_OK, c_orm_codegen_generate("valid_min.cpy", ""));
+  remove("valid_min.cpy");
 
   rc = write_test_file("comment_only.sql", "-- no tables here\n");
   ASSERT_EQ(C_ORM_OK, rc);
@@ -277,18 +244,14 @@ TEST test_codegen_emit_fail(void) {
  * @param codegen_coverage_suite Suite runner function name.
  */
 SUITE(codegen_coverage_suite) {
-  static int recursed = 0;
   RUN_TEST(test_codegen_parse_fail);
   RUN_TEST(test_codegen_fread_fail);
   RUN_TEST(test_codegen_fopen_h_fail);
   RUN_TEST(test_codegen_fopen_c_fail);
   RUN_TEST(test_codegen_malloc_fail);
   RUN_TEST(test_codegen_emit_fail);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    codegen_coverage_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */

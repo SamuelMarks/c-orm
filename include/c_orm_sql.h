@@ -69,6 +69,7 @@ enum SqlConstraintType {
 struct sql_constraint_t {
   /** @brief Constraint type discriminator */
   enum SqlConstraintType type;
+  char *column_name;      /**< Local column name for table-level FOREIGN KEY */
   char *reference_table;  /**< For FOREIGN KEY */
   char *reference_column; /**< For FOREIGN KEY */
   char *default_value;    /**< For DEFAULT */

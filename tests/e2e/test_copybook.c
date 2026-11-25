@@ -17,8 +17,11 @@
 #include "c_orm_safe_crt.h"
 #include "c_orm_sql.h"
 #include "c_orm_sqlite.h"
+#include "c_orm_string_builder.h"
 #include "c_orm_struct.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
+#include "test_assert_zero_branch.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,46 +43,6 @@
 #else
 #define CPY_CLI_BIN "./bin/c-orm-cli"
 #endif
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
 /* clang-format on */
 
 /**
@@ -229,15 +192,13 @@ static int g_cpy_oom_countdown = -1;
  * @return C_ORM_OK or C_ORM_ERROR_MEMORY.
  */
 static c_orm_error_t cpy_oom_malloc(size_t size, void **out_ptr) {
-  if (g_cpy_oom_countdown >= 0) {
-    if (g_cpy_oom_countdown == 0) {
-      *out_ptr = NULL;
-      return C_ORM_ERROR_MEMORY;
-    }
+  if (g_cpy_oom_countdown == 0) {
     g_cpy_oom_countdown--;
+    *out_ptr = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
-  *out_ptr = malloc(size > 0 ? size : 1);
-  return (*out_ptr != NULL) ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  g_cpy_oom_countdown--;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /**
@@ -248,15 +209,13 @@ static c_orm_error_t cpy_oom_malloc(size_t size, void **out_ptr) {
  * @return C_ORM_OK or C_ORM_ERROR_MEMORY.
  */
 static c_orm_error_t cpy_oom_realloc(void *ptr, size_t size, void **out_ptr) {
-  if (g_cpy_oom_countdown >= 0) {
-    if (g_cpy_oom_countdown == 0) {
-      *out_ptr = NULL;
-      return C_ORM_ERROR_MEMORY;
-    }
+  if (g_cpy_oom_countdown == 0) {
     g_cpy_oom_countdown--;
+    *out_ptr = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
-  *out_ptr = realloc(ptr, size > 0 ? size : 1);
-  return (*out_ptr != NULL) ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  g_cpy_oom_countdown--;
+  return c_orm_default_realloc(ptr, size, out_ptr);
 }
 
 /**
@@ -265,7 +224,7 @@ static c_orm_error_t cpy_oom_realloc(void *ptr, size_t size, void **out_ptr) {
  * @return C_ORM_OK.
  */
 static c_orm_error_t cpy_oom_free(void *ptr) {
-  free(ptr);
+  c_orm_default_free(ptr);
   return C_ORM_OK;
 }
 
@@ -277,10 +236,7 @@ static c_orm_error_t cpy_oom_free(void *ptr) {
  */
 static c_orm_error_t cpy_test_write_file(const char *path, const char *text) {
   FILE *fp = NULL;
-  c_orm_error_t rc = C_ORM_FOPEN(&fp, path, "wb");
-  if (rc != C_ORM_OK || !fp) {
-    return C_ORM_ERROR_IO;
-  }
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, path, "wb"));
   fputs(text, fp);
   fclose(fp);
   return C_ORM_OK;
@@ -297,22 +253,12 @@ static c_orm_error_t cpy_test_read_file(const char *path, char **out_str) {
   long sz;
   char *buf = NULL;
   size_t n;
-  c_orm_error_t rc = C_ORM_FOPEN(&fp, path, "rb");
-  if (rc != C_ORM_OK || !fp) {
-    return C_ORM_ERROR_IO;
-  }
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, path, "rb"));
   fseek(fp, 0, SEEK_END);
   sz = ftell(fp);
   fseek(fp, 0, SEEK_SET);
-  if (sz < 0) {
-    fclose(fp);
-    return C_ORM_ERROR_IO;
-  }
-  rc = c_orm_system_malloc((size_t)sz + 1, (void **)&buf);
-  if (rc != C_ORM_OK) {
-    fclose(fp);
-    return rc;
-  }
+  ASSERT(sz >= 0);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_malloc((size_t)sz + 1, (void **)&buf));
   n = fread(buf, 1, (size_t)sz, fp);
   fclose(fp);
   buf[n] = '\0';
@@ -336,9 +282,7 @@ static c_orm_error_t cpy_join_lines(const char *const *lines, size_t count,
   out_buf[0] = '\0';
   for (i = 0; i < count; ++i) {
     size_t l = strlen(lines[i]);
-    if (pos + l + 1 > out_cap) {
-      return C_ORM_ERROR_OVERFLOW;
-    }
+    ASSERT(pos + l + 1 <= out_cap);
     memcpy(out_buf + pos, lines[i], l);
     pos += l;
     out_buf[pos] = '\0';
@@ -655,7 +599,7 @@ TEST test_copybook_wire_ebcdic_comp3_vectors(void) {
                                     sizeof(wire_abs), &packed_len);
   ASSERT_EQ_FMT(C_ORM_OK, rc, "%d");
   ASSERT_EQ_FMT(0, memcmp(wire_abs, expected_ibm037, 32), "%d");
-  (void)cdd_c_abstract_struct_free(&abs);
+  cdd_c_abstract_struct_free(&abs);
 
   /* Level-88 condition checks and domain validation */
   rc = c_orm_copybook_validate_88(rec, &TestAcctWire_meta, &dst);
@@ -693,6 +637,10 @@ TEST test_copybook_wire_ebcdic_comp3_vectors(void) {
  * @return GREATEST test result.
  */
 TEST test_copybook_wire_complex_odo_and_dclgen(void) {
+  static char c_mut_s0[] = "MAINFRAME WIRE";
+  static char c_mut_s1[] = "DB2UTF16";
+  static char c_mut_s2[] = "ABCD";
+
   static const char *complex_lines[] = {
       ">>SOURCE FORMAT FREE\n",
       "EXEC SQL DECLARE CUSTOMER_LEDGER TABLE (\n",
@@ -741,9 +689,9 @@ TEST test_copybook_wire_complex_odo_and_dclgen(void) {
       (c_orm_int64_t)98765 * (c_orm_int64_t)100000 + (c_orm_int64_t)43210;
   src.cust_rate = 3.5f;
   src.cust_score = -42.125;
-  src.cust_note = "MAINFRAME WIRE";
-  src.cust_gnote = "DB2UTF16";
-  src.cust_kanji = "ABCD";
+  src.cust_note = c_mut_s0;
+  src.cust_gnote = c_mut_s1;
+  src.cust_kanji = c_mut_s2;
   src.cust_raw[0] = 0xDE;
   src.cust_raw[1] = 0xAD;
   src.cust_raw[2] = 0xBE;
@@ -774,8 +722,10 @@ TEST test_copybook_wire_complex_odo_and_dclgen(void) {
                                     C_ORM_CP_IBM037, 1, &dst);
   ASSERT_EQ_FMT(C_ORM_OK, rc, "%d");
   ASSERT_EQ(src.cust_seq, dst.cust_seq);
-  ASSERT(dst.cust_rate > 3.49f && dst.cust_rate < 3.51f);
-  ASSERT(dst.cust_score < -42.12 && dst.cust_score > -42.13);
+  ASSERT(dst.cust_rate > 3.49f);
+  ASSERT(dst.cust_rate < 3.51f);
+  ASSERT(dst.cust_score < -42.12);
+  ASSERT(dst.cust_score > -42.13);
   ASSERT_STR_EQ("MAINFRAME WIRE", dst.cust_note);
   ASSERT_STR_EQ("DB2UTF16", dst.cust_gnote);
   ASSERT_STR_EQ("ABCD", dst.cust_kanji);
@@ -799,10 +749,10 @@ TEST test_copybook_wire_complex_odo_and_dclgen(void) {
                                   &wire_len);
   ASSERT_EQ_FMT(C_ORM_ERROR_VALIDATION, rc, "%d");
 
-  (void)c_orm_system_free(dst.cust_note);
-  (void)c_orm_system_free(dst.cust_gnote);
-  (void)c_orm_system_free(dst.cust_kanji);
-  (void)c_orm_system_free(dst.item_amt.data);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(dst.cust_note));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(dst.cust_gnote));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(dst.cust_kanji));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(dst.item_amt.data));
   rc = c_orm_copybook_record_free(rec);
   ASSERT_EQ_FMT(C_ORM_OK, rc, "%d");
   PASS();
@@ -814,6 +764,30 @@ TEST test_copybook_wire_complex_odo_and_dclgen(void) {
  * @return GREATEST test result.
  */
 TEST test_copybook_bidirectional_codegen_and_cli(void) {
+  static char c_mut_s3[] = "c-orm-cli";
+  static char c_mut_s4[] = "cpy2c";
+  static char c_mut_s5[] = "test_tmp_ledger.cpy";
+  static char c_mut_s6[] = "test_cpy_out";
+  static char c_mut_s7[] = "--format";
+  static char c_mut_s8[] = "fixed";
+  static char c_mut_s9[] = "--replacing";
+  static char c_mut_s10[] = ":TAG:=GL";
+  static char c_mut_s11[] = "c-orm-cli";
+  static char c_mut_s12[] = "cpy2sql";
+  static char c_mut_s13[] = "test_tmp_ledger.cpy";
+  static char c_mut_s14[] = "test_tmp_out.sql";
+  static char c_mut_s15[] = "--dialect";
+  static char c_mut_s16[] = "db2";
+  static char c_mut_s17[] = "--replacing";
+  static char c_mut_s18[] = ":TAG:=GL";
+  static char c_mut_s19[] = "c-orm-cli";
+  static char c_mut_s20[] = "sql2cpy";
+  static char c_mut_s21[] = "test_tmp_out.sql";
+  static char c_mut_s22[] = "test_tmp_out.cpy";
+  static char c_mut_s23[] = "--dclgen";
+  static char c_mut_s24[] = "--format";
+  static char c_mut_s25[] = "fixed";
+
   static const char *cpy_in_lines[] = {
       "000100 01  :TAG:-LEDGER.                                                "
       "00010000\n",
@@ -864,8 +838,8 @@ TEST test_copybook_bidirectional_codegen_and_cli(void) {
   rc = parse_sql_ddl(db2_ddl, &tbls, &n_tbls);
   ASSERT_EQ_FMT(C_ORM_OK, rc, "%d");
   ASSERT_EQ_FMT(1, (int)n_tbls, "%d");
-  (void)sql_table_free(&tbls[0]);
-  (void)c_orm_system_free(tbls);
+  sql_table_free(&tbls[0]);
+  c_orm_system_free(tbls);
   tbls = NULL;
 
   rc = c_orm_copybook_emit_sql_ddl(rec, C_TO_SQL_DIALECT_SQLITE, &sqlite_ddl);
@@ -908,9 +882,8 @@ TEST test_copybook_bidirectional_codegen_and_cli(void) {
   ASSERT_EQ_FMT(C_ORM_OK, rc, "%d");
 
   {
-    char *argv_cpy2c[] = {"c-orm-cli",    "cpy2c",    "test_tmp_ledger.cpy",
-                          "test_cpy_out", "--format", "fixed",
-                          "--replacing",  ":TAG:=GL"};
+    char *argv_cpy2c[] = {c_mut_s3, c_mut_s4, c_mut_s5, c_mut_s6,
+                          c_mut_s7, c_mut_s8, c_mut_s9, c_mut_s10};
     rc = c_orm_cli_run(8, argv_cpy2c);
     ASSERT_EQ_FMT(C_ORM_OK, rc, "%d");
   }
@@ -924,20 +897,14 @@ TEST test_copybook_bidirectional_codegen_and_cli(void) {
   ASSERT(strstr(gen_c, "const c_orm_table_meta_t Gl_ledger_meta") != NULL);
 
   {
-    char *argv_cpy2sql[] = {
-        "c-orm-cli", "cpy2sql", "test_tmp_ledger.cpy", "test_tmp_out.sql",
-        "--dialect", "db2",     "--replacing",         ":TAG:=GL"};
+    char *argv_cpy2sql[] = {c_mut_s11, c_mut_s12, c_mut_s13, c_mut_s14,
+                            c_mut_s15, c_mut_s16, c_mut_s17, c_mut_s18};
     rc = c_orm_cli_run(8, argv_cpy2sql);
     ASSERT_EQ_FMT(C_ORM_OK, rc, "%d");
   }
   {
-    char *argv_sql2cpy[] = {"c-orm-cli",
-                            "sql2cpy",
-                            "test_tmp_out.sql",
-                            "test_tmp_out.cpy",
-                            "--dclgen",
-                            "--format",
-                            "fixed"};
+    char *argv_sql2cpy[] = {c_mut_s19, c_mut_s20, c_mut_s21, c_mut_s22,
+                            c_mut_s23, c_mut_s24, c_mut_s25};
     rc = c_orm_cli_run(7, argv_sql2cpy);
     ASSERT_EQ_FMT(C_ORM_OK, rc, "%d");
   }
@@ -951,12 +918,12 @@ TEST test_copybook_bidirectional_codegen_and_cli(void) {
   remove("test_cpy_out/Models.h");
   remove("test_cpy_out/Models.c");
 
-  (void)c_orm_system_free(gen_h);
-  (void)c_orm_system_free(gen_c);
-  (void)c_orm_system_free(db2_ddl);
-  (void)c_orm_system_free(sqlite_ddl);
-  (void)c_orm_system_free(dclgen_cpy);
-  (void)c_orm_system_free(free_cpy);
+  c_orm_system_free(gen_h);
+  c_orm_system_free(gen_c);
+  c_orm_system_free(db2_ddl);
+  c_orm_system_free(sqlite_ddl);
+  c_orm_system_free(dclgen_cpy);
+  c_orm_system_free(free_cpy);
   rc = c_orm_copybook_record_free(rec);
   ASSERT_EQ_FMT(C_ORM_OK, rc, "%d");
   PASS();
@@ -1017,7 +984,7 @@ TEST test_copybook_errors_and_oom(void) {
   rc = c_orm_set_allocators(cpy_oom_malloc, cpy_oom_realloc, cpy_oom_free);
   ASSERT_EQ_FMT(C_ORM_OK, rc, "%d");
 
-  for (step = 0; step < 80; ++step) {
+  for (step = 0;; ++step) {
     char *ddl = NULL;
     rec = NULL;
     g_cpy_oom_countdown = step;
@@ -1027,20 +994,17 @@ TEST test_copybook_errors_and_oom(void) {
                                      "   05 OOM-ST PIC X(1).\n"
                                      "      88 OOM-OK VALUE 'Y'.\n",
                                      C_ORM_COBOL_FORMAT_FREE, NULL, 0, &rec);
-    if (rc == C_ORM_OK && rec != NULL) {
+    if (rc == C_ORM_OK) {
       rc = c_orm_copybook_emit_sql_ddl(rec, C_TO_SQL_DIALECT_DB2, &ddl);
-      if (rc == C_ORM_OK && ddl != NULL) {
-        (void)c_orm_system_free(ddl);
-        (void)c_orm_copybook_record_free(rec);
+      if (rc == C_ORM_OK) {
+        c_orm_system_free(ddl);
+        c_orm_copybook_record_free(rec);
         break;
       }
-      (void)c_orm_copybook_record_free(rec);
+      c_orm_copybook_record_free(rec);
     }
-    if (rc != C_ORM_ERROR_MEMORY) {
-      g_cpy_oom_countdown = -1;
-      (void)c_orm_reset_allocators();
-      ASSERT_EQ_FMT(C_ORM_ERROR_MEMORY, rc, "%d");
-    }
+    ASSERT_EQ_FMT(C_ORM_ERROR_MEMORY, rc, "%d");
+    ASSERT(step < 150);
   }
 
   g_cpy_oom_countdown = -1;
@@ -1430,8 +1394,8 @@ TEST test_copybook_parser_exhaustive_and_oom(void) {
       rec = NULL;
       rc = c_orm_copybook_parse_string(auto_cases[ai], C_ORM_COBOL_FORMAT_AUTO,
                                        NULL, 0, &rec);
-      if (rc == C_ORM_OK && rec != NULL) {
-        (void)c_orm_copybook_record_free(rec);
+      if (rc == C_ORM_OK) {
+        ASSERT_EQ(C_ORM_OK, c_orm_copybook_record_free(rec));
       }
     }
   }
@@ -1536,10 +1500,6 @@ TEST test_copybook_parser_exhaustive_and_oom(void) {
     rec = NULL;
     rc = c_orm_copybook_parse_string(extra_bad_free[i], C_ORM_COBOL_FORMAT_FREE,
                                      NULL, 0, &rec);
-    if (rc != C_ORM_ERROR_COPYBOOK_SYNTAX) {
-      fprintf(stderr, "Case %d ('%s') got rc=%d\n", (int)i, extra_bad_free[i],
-              (int)rc);
-    }
     ASSERT_EQ_FMT(C_ORM_ERROR_COPYBOOK_SYNTAX, rc, "%d");
   }
 
@@ -1559,19 +1519,20 @@ TEST test_copybook_parser_exhaustive_and_oom(void) {
       c_orm_set_allocators(cpy_oom_malloc, cpy_oom_realloc, cpy_oom_free),
       "%d");
 
-  for (step = 0; step < 500; ++step) {
+  for (step = 0;; ++step) {
     rec = NULL;
     g_cpy_oom_countdown = step;
     rc = c_orm_copybook_parse_file("test_cpy_large_tmp.cpy",
                                    C_ORM_COBOL_FORMAT_AUTO, reps, 2, &rec);
-    if (rc == C_ORM_OK && rec != NULL) {
-      (void)c_orm_copybook_record_free(rec);
+    if (rc == C_ORM_OK) {
+      c_orm_copybook_record_free(rec);
       break;
     }
     ASSERT_EQ_FMT(C_ORM_ERROR_MEMORY, rc, "%d");
+    ASSERT(step < 5000);
   }
 
-  for (step = 0; step < 30; ++step) {
+  for (step = 0;; ++step) {
     rec = NULL;
     g_cpy_oom_countdown = step;
     rc = c_orm_copybook_parse_string(
@@ -1579,35 +1540,38 @@ TEST test_copybook_parser_exhaustive_and_oom(void) {
         "                                                              "
         " 05 LL-F PIC X(2).",
         C_ORM_COBOL_FORMAT_FREE, NULL, 0, &rec);
-    if (rc == C_ORM_OK && rec != NULL) {
-      (void)c_orm_copybook_record_free(rec);
+    if (rc == C_ORM_OK) {
+      c_orm_copybook_record_free(rec);
       break;
     }
     ASSERT_EQ_FMT(C_ORM_ERROR_MEMORY, rc, "%d");
+    ASSERT(step < 100);
   }
 
-  for (step = 0; step < 30; ++step) {
+  for (step = 0;; ++step) {
     rec = NULL;
     g_cpy_oom_countdown = step;
     rc = c_orm_copybook_parse_string("77 ONLY-77 PIC 9(4) COMP.",
                                      C_ORM_COBOL_FORMAT_FREE, NULL, 0, &rec);
-    if (rc == C_ORM_OK && rec != NULL) {
-      (void)c_orm_copybook_record_free(rec);
+    if (rc == C_ORM_OK) {
+      c_orm_copybook_record_free(rec);
       break;
     }
     ASSERT_EQ_FMT(C_ORM_ERROR_MEMORY, rc, "%d");
+    ASSERT(step < 100);
   }
 
-  for (step = 0; step < 40; ++step) {
+  for (step = 0;; ++step) {
     rec = NULL;
     g_cpy_oom_countdown = step;
     rc = c_orm_copybook_parse_string(fixed_edge, C_ORM_COBOL_FORMAT_FIXED, NULL,
                                      0, &rec);
-    if (rc == C_ORM_OK && rec != NULL) {
-      (void)c_orm_copybook_record_free(rec);
+    if (rc == C_ORM_OK) {
+      c_orm_copybook_record_free(rec);
       break;
     }
     ASSERT_EQ_FMT(C_ORM_ERROR_MEMORY, rc, "%d");
+    ASSERT(step < 150);
   }
 
   /* Compact OOM sweeps for REPLACING, fixed-line sb growth, EXEC SQL quotes,
@@ -1634,23 +1598,116 @@ TEST test_copybook_parser_exhaustive_and_oom(void) {
     long_rep.to_text =
         "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL";
     for (si = 0; si < sizeof(oom_snippets) / sizeof(oom_snippets[0]); ++si) {
-      for (step = 0; step < 120; ++step) {
+      for (step = 0;; ++step) {
         rec = NULL;
         g_cpy_oom_countdown = step;
         rc = c_orm_copybook_parse_string(
             oom_snippets[si], C_ORM_COBOL_FORMAT_AUTO,
             (si == 0) ? &long_rep : NULL, (si == 0) ? 1 : 0, &rec);
-        if (rc == C_ORM_OK && rec != NULL) {
-          (void)c_orm_copybook_record_free(rec);
+        if (rc == C_ORM_OK) {
+          ASSERT_EQ_FMT(C_ORM_OK, c_orm_copybook_record_free(rec), "%d");
           break;
         }
         ASSERT_EQ_FMT(C_ORM_ERROR_MEMORY, rc, "%d");
+        ASSERT(step < 200);
       }
     }
   }
 
+  for (step = 0;; ++step) {
+    rec = NULL;
+    g_cpy_oom_countdown = step;
+    rc = c_orm_copybook_parse_string(
+        "EXEC SQL DECLARE T TABLE (ID INT PRIMARY KEY) END-EXEC.\n"
+        "01 R.\n  05 ID PIC 9(4).\n",
+        C_ORM_COBOL_FORMAT_FREE, NULL, 0, &rec);
+    g_cpy_oom_countdown = -1;
+    if (rc == C_ORM_OK) {
+      ASSERT_EQ_FMT(C_ORM_OK, c_orm_copybook_record_free(rec), "%d");
+      break;
+    }
+    ASSERT_EQ_FMT(C_ORM_ERROR_MEMORY, rc, "%d");
+    ASSERT(step < 100);
+  }
+
   g_cpy_oom_countdown = -1;
   ASSERT_EQ_FMT(C_ORM_OK, c_orm_reset_allocators(), "%d");
+
+  rec = NULL;
+  ASSERT_EQ_FMT(C_ORM_ERROR_COPYBOOK_SYNTAX,
+                c_orm_copybook_parse_string("'STR'.", C_ORM_COBOL_FORMAT_FREE,
+                                            NULL, 0, &rec),
+                "%d");
+
+  rec = NULL;
+  ASSERT_EQ_FMT(
+      C_ORM_OK,
+      c_orm_copybook_parse_string(
+          "EXEC SQL DECLARE T TABLE (123) END-EXEC.\n01 R.\n 05 ID PIC 9.\n",
+          C_ORM_COBOL_FORMAT_FREE, NULL, 0, &rec),
+      "%d");
+  ASSERT_EQ_FMT(C_ORM_OK, c_orm_copybook_record_free(rec), "%d");
+
+  rec = NULL;
+  c_orm_mock_string_builder_get_fail = 2;
+  ASSERT_NEQ(C_ORM_OK,
+             c_orm_copybook_parse_string(
+                 "REPLACING ==:X:== BY ==Y==.\n01 :X:-R. 05 :X:-F PIC X.",
+                 C_ORM_COBOL_FORMAT_FREE, NULL, 0, &rec));
+  c_orm_mock_string_builder_get_fail = 0;
+
+  for (step = 0;; ++step) {
+    rec = NULL;
+    c_orm_mock_string_builder_append_countdown = step;
+    rc = c_orm_copybook_parse_string(
+        "EXEC SQL DECLARE T TABLE (ID INT) END-EXEC.\n01 R.\n 05 ID PIC 9.\n",
+        C_ORM_COBOL_FORMAT_FREE, NULL, 0, &rec);
+    c_orm_mock_string_builder_append_countdown = -1;
+    if (rc == C_ORM_OK) {
+      ASSERT_EQ_FMT(C_ORM_OK, c_orm_copybook_record_free(rec), "%d");
+      break;
+    }
+    ASSERT_NEQ(C_ORM_OK, rc);
+    ASSERT(step < 200);
+  }
+
+  for (step = 1; step <= 4; ++step) {
+    rec = NULL;
+    c_orm_mock_string_builder_get_fail = step;
+    rc = c_orm_copybook_parse_string("01 :P:-R. 05 :P:-F PIC X.",
+                                     C_ORM_COBOL_FORMAT_FREE, reps, 1, &rec);
+    c_orm_mock_string_builder_get_fail = 0;
+    if (rec) {
+      ASSERT_EQ_FMT(C_ORM_OK, c_orm_copybook_record_free(rec), "%d");
+    }
+
+    rec = NULL;
+    c_orm_mock_string_builder_get_fail = step;
+    rc = c_orm_copybook_parse_string(
+        "EXEC SQL DECLARE T TABLE (ID INT) END-EXEC.\n01 R.\n 05 ID PIC 9.\n",
+        C_ORM_COBOL_FORMAT_FREE, NULL, 0, &rec);
+    c_orm_mock_string_builder_get_fail = 0;
+    if (rec) {
+      ASSERT_EQ_FMT(C_ORM_OK, c_orm_copybook_record_free(rec), "%d");
+    }
+
+    rec = NULL;
+    c_orm_mock_string_builder_get_fail = step;
+    rc = c_orm_copybook_parse_string("01 R. 05 F PIC X VALUE 'A'.",
+                                     C_ORM_COBOL_FORMAT_FREE, NULL, 0, &rec);
+    c_orm_mock_string_builder_get_fail = 0;
+    if (rec) {
+      ASSERT_EQ_FMT(C_ORM_OK, c_orm_copybook_record_free(rec), "%d");
+    }
+  }
+
+  rec = NULL;
+  c_orm_mock_string_builder_get_fail = 1;
+  ASSERT_NEQ(C_ORM_OK,
+             c_orm_copybook_parse_file("test_cpy_large_tmp.cpy",
+                                       C_ORM_COBOL_FORMAT_AUTO, NULL, 0, &rec));
+  c_orm_mock_string_builder_get_fail = 0;
+
   remove("test_cpy_large_tmp.cpy");
   PASS();
 }
@@ -1723,6 +1780,50 @@ typedef struct TestWireExhaust {
  * structs, level-`88` evaluation, Safe CRT errors, and OOM sweeps.
  */
 TEST test_copybook_wire_exhaustive_and_oom(void) {
+  static char c_mut_s26[] = "HELLO";
+  static char c_mut_s27[] = "G";
+  static char c_mut_s28[] = "25";
+  static char c_mut_s29[] = "TOOLONG_FOR_BIT";
+  static unsigned char c_mut_s30[] = "123456";
+  static char c_mut_s31[] = "TOO_LONG_GRAPHIC";
+  static char c_mut_s32[] = "\xFF\xFF";
+  static char c_mut_s33[] = "TOO_LONG_VG";
+  static char c_mut_s34[] = "\xFF";
+  static char c_mut_s35[] = "TOO_LONG_VC";
+  static char c_mut_s36[] = "\xFF";
+  static char c_mut_s37[] = "HI";
+  static char c_mut_s38[] = "42";
+  static char c_mut_s39[] = "BC  ";
+  static char c_mut_s40[] = "3";
+  static char c_mut_s41[] = "B";
+  static char c_mut_s42[] = "DZZZ";
+  static char c_mut_s43[] = "OK";
+  static char c_mut_s44[] = "NOT_A_NUM";
+  static char c_mut_s45[] = "42";
+  static char c_mut_s46[] = "AB";
+  static char c_mut_s47[] = "BAD";
+  static char c_mut_s48[] = "   ";
+  static char c_mut_s49[] = "BAD";
+  static unsigned char c_mut_s50[] = "XY";
+  static char c_mut_s51[] = "5";
+  static char c_mut_s52[] = "5";
+  static char c_mut_s53[] = "BAD";
+  static char c_mut_s54[] = "999999.99";
+  static char c_mut_s55[] = "BAD";
+  static char c_mut_s56[] = "99999999999999999999";
+  static char c_mut_s57[] = "Y";
+  static char c_mut_s58[] = "X";
+  static char c_mut_s59[] = "x";
+  static char c_mut_s60[] = "X";
+  static char c_mut_s61[] = "MISSING_ODO";
+  static char c_mut_s62[] = "CNT";
+  static char c_mut_s63[] = "cnt";
+  static char c_mut_s64[] = "CNT";
+  static char c_mut_s65[] = "CNT";
+  static char c_mut_s66[] = "G";
+  static char c_mut_s67[] = "g";
+  static char c_mut_s68[] = "G";
+
   static const char *const wire_lines[] = {
       "EXEC SQL DECLARE T TABLE (\n",
       "  F_BIT CHAR(4) FOR BIT DATA,\n",
@@ -1905,11 +2006,11 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     i64_elems[0] = (c_orm_int64_t)10000 * 1000000;
     i64_elems[1] = -((c_orm_int64_t)20000 * 1000000);
 
-    (void)c_orm_decimal_from_str("-34.56", &vdec);
-    (void)c_orm_decimal_from_str("12.34", &decz_elems[0]);
-    (void)c_orm_decimal_from_str("-5.60", &decz_elems[1]);
-    (void)c_orm_decimal_from_str("1234567890123456789", &decb_elems[0]);
-    (void)c_orm_decimal_from_str("9876543210987654321", &decb_elems[1]);
+    c_orm_decimal_from_str("-34.56", &vdec);
+    c_orm_decimal_from_str("12.34", &decz_elems[0]);
+    c_orm_decimal_from_str("-5.60", &decz_elems[1]);
+    c_orm_decimal_from_str("1234567890123456789", &decb_elems[0]);
+    c_orm_decimal_from_str("9876543210987654321", &decb_elems[1]);
 
     memset(cols, 0, sizeof(cols));
     /* col 0 intentionally has NULL name to cover wire_ident_eq(!a) */
@@ -2026,8 +2127,8 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     src_s.p_f32 = &vf;
     src_s.p_f64 = &vd;
     src_s.p_dec = &vdec;
-    src_s.s_heap = "HELLO";
-    src_s.s_cf0 = "G";
+    src_s.s_heap = c_mut_s26;
+    src_s.s_cf0 = c_mut_s27;
     memcpy(src_s.s_cf4, "REDF", 5);
     src_s.bl_bf0.data = b4_bytes;
     src_s.bl_bf0.size = 4;
@@ -2060,7 +2161,8 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
                 c_orm_copybook_unpack_struct(rec, &meta, raw, raw_len,
                                              C_ORM_CP_UTF8, step, &dst_s));
       for (k = 0; k < dst_s.arr_str.length; ++k) {
-        (void)c_orm_system_free(((char **)dst_s.arr_str.data)[k]);
+        ASSERT_EQ(C_ORM_OK,
+                  c_orm_system_free(((char **)dst_s.arr_str.data)[k]));
         ((char **)dst_s.arr_str.data)[k] = NULL;
       }
     }
@@ -2074,7 +2176,7 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_unpack_struct(rec, &meta, raw, raw_len,
                                                      C_ORM_CP_UTF8, 0, &dst_s));
     for (k = 0; k < dst_s.arr_str.length; ++k) {
-      (void)c_orm_system_free(((char **)dst_s.arr_str.data)[k]);
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(((char **)dst_s.arr_str.data)[k]));
       ((char **)dst_s.arr_str.data)[k] = NULL;
     }
 
@@ -2102,37 +2204,38 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
                                          raw, sizeof(raw), &raw_len));
     for (step = 0; step < 6; ++step) {
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_copybook_pack_struct(rec, &meta, &src_s, C_ORM_CP_UTF8, 0,
-                                       raw, sizeof(raw), &raw_len);
+      rc = c_orm_copybook_pack_struct(rec, &meta, &src_s, C_ORM_CP_UTF8, 0, raw,
+                                      sizeof(raw), &raw_len);
+      ASSERT_NEQ((c_orm_error_t)-999, rc);
       c_orm_mock_safe_crt_countdown = -1;
     }
     for (step = 0; step < 6; ++step) {
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_copybook_unpack_struct(rec, &meta, raw, raw_len,
-                                         C_ORM_CP_UTF8, 0, &dst_s);
+      rc = c_orm_copybook_unpack_struct(rec, &meta, raw, raw_len, C_ORM_CP_UTF8,
+                                        0, &dst_s);
+      ASSERT_NEQ((c_orm_error_t)-999, rc);
       c_orm_mock_safe_crt_countdown = -1;
     }
 
     /* Cleanup dst_s heap pointers */
-    (void)c_orm_system_free(dst_s.p_i32);
-    (void)c_orm_system_free(dst_s.p_i64);
-    (void)c_orm_system_free(dst_s.p_b);
-    (void)c_orm_system_free(dst_s.p_f32);
-    (void)c_orm_system_free(dst_s.p_f64);
-    (void)c_orm_system_free(dst_s.p_dec);
-    (void)c_orm_system_free(dst_s.s_heap);
-    (void)c_orm_system_free(dst_s.s_cf0);
-    (void)c_orm_system_free(dst_s.bl_bf0.data);
-    (void)c_orm_system_free(dst_s.bl_heap.data);
-    (void)c_orm_system_free(dst_s.arr_i32.data);
-    (void)c_orm_system_free(dst_s.arr_i64.data);
-    (void)c_orm_system_free(dst_s.arr_dec_z.data);
-    if (dst_s.arr_str.data) {
-      for (k = 0; k < dst_s.arr_str.length; ++k) {
-        (void)c_orm_system_free(((char **)dst_s.arr_str.data)[k]);
-      }
-      (void)c_orm_system_free(dst_s.arr_str.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(dst_s.p_i32));
+    c_orm_system_free(dst_s.p_i64);
+    c_orm_system_free(dst_s.p_b);
+    c_orm_system_free(dst_s.p_f32);
+    c_orm_system_free(dst_s.p_f64);
+    c_orm_system_free(dst_s.p_dec);
+    c_orm_system_free(dst_s.s_heap);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(dst_s.s_cf0));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(dst_s.bl_bf0.data));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(dst_s.bl_heap.data));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(dst_s.arr_i32.data));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(dst_s.arr_i64.data));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(dst_s.arr_dec_z.data));
+    ASSERT(dst_s.arr_str.data != NULL);
+    for (k = 0; k < dst_s.arr_str.length; ++k) {
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(((char **)dst_s.arr_str.data)[k]));
     }
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(dst_s.arr_str.data));
   }
 
   /* 3. Cross-type coercions, truncation/codepage errors, and >18-digit ODO */
@@ -2165,16 +2268,16 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     ASSERT_EQ(C_ORM_OK,
               c_orm_copybook_parse_string(coerce_cpy, C_ORM_COBOL_FORMAT_FREE,
                                           NULL, 0, &crec));
-    (void)c_orm_decimal_from_str("1234567890123456789", &big_one);
+    c_orm_decimal_from_str("1234567890123456789", &big_one);
 
     /* Pack DOUBLE->"C-P3", STRING->"C-I4", INT->"C-F1", DECIMAL->"C-F2",
      * DECIMAL->"C-X6", STRING->"B4", >18-digit ODO->"BIG-ARR" */
     memset(ccols, 0, sizeof(ccols));
     memset(&cs, 0, sizeof(cs));
     cs.v_f64 = 12.5;
-    cs.s_heap = "25";
+    cs.s_heap = c_mut_s28;
     cs.v_i32 = 7;
-    (void)c_orm_decimal_from_str("3.25", &cs.v_dec);
+    c_orm_decimal_from_str("3.25", &cs.v_dec);
     memcpy(cs.s_cf4, "ABCD", 5);
     cs.arr_dec_big.data = &big_one;
     cs.arr_dec_big.length = 1;
@@ -2253,7 +2356,7 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     ccols[5].offset = offsetof(TestWireExhaust, bl_bf4);
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_unpack_struct(crec, &cmeta, craw, clen,
                                                      C_ORM_CP_UTF8, 1, &cs));
-    (void)c_orm_system_free(cs.arr_dec_big.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(cs.arr_dec_big.data));
     cs.arr_dec_big.data = NULL;
 
     ccols[0].type = C_ORM_TYPE_INT64;
@@ -2265,7 +2368,7 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     ccols[4].offset = offsetof(TestWireExhaust, bl_bf4);
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_unpack_struct(crec, &cmeta, craw, clen,
                                                      C_ORM_CP_UTF8, 1, &cs));
-    (void)c_orm_system_free(cs.arr_dec_big.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(cs.arr_dec_big.data));
     cs.arr_dec_big.data = NULL;
 
     ccols[0].type = C_ORM_TYPE_CHAR_FIXED;
@@ -2277,9 +2380,9 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     ccols[4].offset = offsetof(TestWireExhaust, bl_heap);
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_unpack_struct(crec, &cmeta, craw, clen,
                                                      C_ORM_CP_UTF8, 1, &cs));
-    (void)c_orm_system_free(cs.bl_heap.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(cs.bl_heap.data));
     cs.bl_heap.data = NULL;
-    (void)c_orm_system_free(cs.arr_dec_big.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(cs.arr_dec_big.data));
     cs.arr_dec_big.data = NULL;
 
     ccols[0].type = C_ORM_TYPE_STRING;
@@ -2291,9 +2394,9 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     ccols[4].offset = offsetof(TestWireExhaust, b_val);
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_unpack_struct(crec, &cmeta, craw, clen,
                                                      C_ORM_CP_UTF8, 1, &cs));
-    (void)c_orm_system_free(cs.s_heap);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(cs.s_heap));
     cs.s_heap = NULL;
-    (void)c_orm_system_free(cs.arr_dec_big.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(cs.arr_dec_big.data));
     cs.arr_dec_big.data = NULL;
 
     ccols[1].type = C_ORM_TYPE_STRING;
@@ -2301,22 +2404,22 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_unpack_struct(crec, &cmeta, craw, clen,
                                                      C_ORM_CP_UTF8, 1, &cs));
     c_orm_mock_safe_crt_countdown = 0;
-    (void)c_orm_copybook_unpack_struct(crec, &cmeta, craw, clen, C_ORM_CP_UTF8,
-                                       1, &cs);
+    ASSERT_NEQ(C_ORM_OK, c_orm_copybook_unpack_struct(crec, &cmeta, craw, clen,
+                                                      C_ORM_CP_UTF8, 1, &cs));
     c_orm_mock_safe_crt_countdown = -1;
-    (void)c_orm_system_free(cs.s_heap);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(cs.s_heap));
     cs.s_heap = NULL;
-    (void)c_orm_system_free(cs.arr_dec_big.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(cs.arr_dec_big.data));
     cs.arr_dec_big.data = NULL;
 
     ccols[1].type = C_ORM_TYPE_CHAR_FIXED;
     ccols[1].fixed_length = 4;
     ccols[1].offset = offsetof(TestWireExhaust, s_cf4);
     c_orm_mock_safe_crt_countdown = 0;
-    (void)c_orm_copybook_unpack_struct(crec, &cmeta, craw, clen, C_ORM_CP_UTF8,
-                                       1, &cs);
+    ASSERT_NEQ(C_ORM_OK, c_orm_copybook_unpack_struct(crec, &cmeta, craw, clen,
+                                                      C_ORM_CP_UTF8, 1, &cs));
     c_orm_mock_safe_crt_countdown = -1;
-    (void)c_orm_system_free(cs.arr_dec_big.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(cs.arr_dec_big.data));
     cs.arr_dec_big.data = NULL;
 
     /* Truncation & invalid codepage / BCD / DCLGEN length errors */
@@ -2329,11 +2432,11 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     ccols[5].name = "b4";
     ccols[5].type = C_ORM_TYPE_STRING;
     ccols[5].offset = offsetof(TestWireExhaust, s_heap);
-    cs.s_heap = "TOOLONG_FOR_BIT";
+    cs.s_heap = c_mut_s29;
     ASSERT_EQ(C_ORM_ERROR_TRUNCATION,
               c_orm_copybook_pack_struct(crec, &cmeta, &cs, C_ORM_CP_UTF8, 1,
                                          craw, sizeof(craw), &clen));
-    cs.bl_heap.data = (unsigned char *)"123456";
+    cs.bl_heap.data = c_mut_s30;
     cs.bl_heap.size = 6;
     ccols[5].type = C_ORM_TYPE_BLOB;
     ccols[5].offset = offsetof(TestWireExhaust, bl_heap);
@@ -2344,31 +2447,31 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     ccols[5].name = "c_g2";
     ccols[5].type = C_ORM_TYPE_STRING;
     ccols[5].offset = offsetof(TestWireExhaust, s_heap);
-    cs.s_heap = "TOO_LONG_GRAPHIC";
+    cs.s_heap = c_mut_s31;
     ASSERT_EQ(C_ORM_ERROR_TRUNCATION,
               c_orm_copybook_pack_struct(crec, &cmeta, &cs, C_ORM_CP_UTF8, 1,
                                          craw, sizeof(craw), &clen));
-    cs.s_heap = "\xFF\xFF";
+    cs.s_heap = c_mut_s32;
     ASSERT_EQ(C_ORM_ERROR_CODEPAGE,
               c_orm_copybook_pack_struct(crec, &cmeta, &cs, C_ORM_CP_UTF8, 1,
                                          craw, sizeof(craw), &clen));
 
     ccols[5].name = "vg";
-    cs.s_heap = "TOO_LONG_VG";
+    cs.s_heap = c_mut_s33;
     ASSERT_EQ(C_ORM_ERROR_TRUNCATION,
               c_orm_copybook_pack_struct(crec, &cmeta, &cs, C_ORM_CP_UTF8, 1,
                                          craw, sizeof(craw), &clen));
-    cs.s_heap = "\xFF";
+    cs.s_heap = c_mut_s34;
     ASSERT_EQ(C_ORM_ERROR_CODEPAGE,
               c_orm_copybook_pack_struct(crec, &cmeta, &cs, C_ORM_CP_UTF8, 1,
                                          craw, sizeof(craw), &clen));
 
     ccols[5].name = "vc";
-    cs.s_heap = "TOO_LONG_VC";
+    cs.s_heap = c_mut_s35;
     ASSERT_EQ(C_ORM_ERROR_TRUNCATION,
               c_orm_copybook_pack_struct(crec, &cmeta, &cs, C_ORM_CP_IBM037, 1,
                                          craw, sizeof(craw), &clen));
-    cs.s_heap = "\xFF";
+    cs.s_heap = c_mut_s36;
     ASSERT_EQ(C_ORM_ERROR_CODEPAGE,
               c_orm_copybook_pack_struct(crec, &cmeta, &cs, C_ORM_CP_IBM037, 1,
                                          craw, sizeof(craw), &clen));
@@ -2417,10 +2520,34 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     v.value.f_val = 1.5;
     ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&abs_in, "p_f32", &v));
     v.type = CDD_C_VARIANT_TYPE_DECIMAL;
-    (void)c_orm_decimal_from_str("9.99", &v.value.d_val);
+    c_orm_decimal_from_str("9.99", &v.value.d_val);
     ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&abs_in, "p_dec", &v));
+
+    /* Invalid c_orm_decimal_t (precision=0) in COMP-1, COMP-2, BWZ, PIC X */
+    {
+      static const char *const bad_dec_targets[4] = {"p_f32", "p_f64", "v_bwz",
+                                                     "s_cf4"};
+      size_t bi;
+      for (bi = 0; bi < 4; ++bi) {
+        cdd_c_abstract_struct_t bad_abs;
+        cdd_c_variant_t bv;
+        ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_init(&bad_abs));
+        bv.type = CDD_C_VARIANT_TYPE_INT;
+        bv.value.i_val = 1;
+        ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&bad_abs, "odo_cnt", &bv));
+        memset(&bv, 0, sizeof(bv));
+        bv.type = CDD_C_VARIANT_TYPE_DECIMAL;
+        bv.value.d_val.precision = 0;
+        ASSERT_EQ(C_ORM_OK,
+                  cdd_c_abstract_set(&bad_abs, bad_dec_targets[bi], &bv));
+        ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+                  c_orm_copybook_pack_abstract(rec, &bad_abs, C_ORM_CP_UTF8, 1,
+                                               raw, sizeof(raw), NULL));
+        ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_free(&bad_abs));
+      }
+    }
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = "HI";
+    v.value.s_val = c_mut_s37;
     ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&abs_in, "s_heap", &v));
     ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&abs_in, "rg_y", &v));
     ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&abs_in, "arr_str", &v));
@@ -2454,17 +2581,18 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     /* OOM sweep on unpack_abstract */
     ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(cpy_oom_malloc, cpy_oom_realloc,
                                              cpy_oom_free));
-    for (step = 0; step < 120; ++step) {
+    for (step = 0;; ++step) {
       memset(&abs_out, 0, sizeof(abs_out));
       g_cpy_oom_countdown = step;
       rc = c_orm_copybook_unpack_abstract(rec, raw, raw_len, C_ORM_CP_UTF8, 1,
                                           &abs_out);
       g_cpy_oom_countdown = -1;
-      (void)cdd_c_abstract_struct_free(&abs_out);
+      cdd_c_abstract_struct_free(&abs_out);
       if (rc == C_ORM_OK) {
         break;
       }
       ASSERT_NEQ(C_ORM_OK, rc);
+      ASSERT(step < 150);
     }
     ASSERT_EQ(C_ORM_OK, c_orm_reset_allocators());
     ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_free(&abs_in));
@@ -2495,27 +2623,27 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
 
     /* Nullable empty C-STR + valid exact C-NUM "42" */
     cond_s.s_heap = NULL;
-    cond_s.s_cf0 = "42";
+    cond_s.s_cf0 = c_mut_s38;
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_validate_88(rec, &cond_m, &cond_s));
 
     /* String range 'BA' THRU 'DZ' with trailing spaces & shorter/longer strings
      */
-    cond_s.s_heap = "BC  ";
-    cond_s.s_cf0 = "3";
+    cond_s.s_heap = c_mut_s39;
+    cond_s.s_cf0 = c_mut_s40;
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_validate_88(rec, &cond_m, &cond_s));
-    cond_s.s_heap = "B";
+    cond_s.s_heap = c_mut_s41;
     ASSERT_EQ(C_ORM_ERROR_VALIDATION,
               c_orm_copybook_validate_88(rec, &cond_m, &cond_s));
-    cond_s.s_heap = "DZZZ";
+    cond_s.s_heap = c_mut_s42;
     ASSERT_EQ(C_ORM_ERROR_VALIDATION,
               c_orm_copybook_validate_88(rec, &cond_m, &cond_s));
-    cond_s.s_heap = "OK";
-    cond_s.s_cf0 = "NOT_A_NUM";
+    cond_s.s_heap = c_mut_s43;
+    cond_s.s_cf0 = c_mut_s44;
     ASSERT_EQ(C_ORM_ERROR_VALIDATION,
               c_orm_copybook_validate_88(rec, &cond_m, &cond_s));
 
     /* check_condition: c_name match, unmapped field error, not found */
-    cond_s.s_cf0 = "42";
+    cond_s.s_cf0 = c_mut_s45;
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_check_condition(rec, &cond_m, &cond_s,
                                                        "c_num_ex", &matched));
     ASSERT_EQ(1, matched);
@@ -2596,7 +2724,7 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
       vi.value.i_val = 1;
       ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&a2, "E-CNT", &vi));
       vi.type = CDD_C_VARIANT_TYPE_STRING;
-      vi.value.s_val = "AB";
+      vi.value.s_val = c_mut_s46;
       ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&a2, "INT", &vi));
       ASSERT_EQ(C_ORM_OK,
                 c_orm_copybook_pack_abstract(erec, &a2, C_ORM_CP_UTF8, 1, eraw,
@@ -2620,11 +2748,11 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
                    c_orm_copybook_unpack_abstract(erec, eraw, sizeof(eraw),
                                                   C_ORM_CP_UTF8, 1, &a3));
         c_orm_mock_safe_crt_countdown = -1;
-        (void)cdd_c_abstract_struct_free(&a3);
+        cdd_c_abstract_struct_free(&a3);
       }
 
       /* Invalid string in E-C2 via pack_abstract -> L1125-1126 */
-      vi.value.s_val = "BAD";
+      vi.value.s_val = c_mut_s47;
       ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&a2, "e_c2", &vi));
       ASSERT_NEQ(C_ORM_OK,
                  c_orm_copybook_pack_abstract(erec, &a2, C_ORM_CP_UTF8, 1, eraw,
@@ -2661,7 +2789,7 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     emeta.num_columns = 5;
     emeta.struct_size = sizeof(es);
 
-    es.s_heap = "   "; /* all spaces for wire_cobol_str_cmp */
+    es.s_heap = c_mut_s48; /* all spaces for wire_cobol_str_cmp */
     ecols[2].name = "sp_fld";
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_check_condition(erec, &emeta, &es,
                                                        "void_v", &mflag));
@@ -2671,14 +2799,14 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     /* Invalid numeric string in ODO field e_cnt -> L853[1] */
     ecols[0].type = C_ORM_TYPE_STRING;
     ecols[0].offset = offsetof(TestWireExhaust, s_heap);
-    es.s_heap = "BAD";
-    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+    es.s_heap = c_mut_s49;
+    ASSERT_EQ(C_ORM_ERROR_DECIMAL_SYNTAX,
               c_orm_copybook_pack_struct(erec, &emeta, &es, C_ORM_CP_UTF8, 1,
                                          eraw, sizeof(eraw), &elen));
     ecols[0].type = C_ORM_TYPE_INT32;
     ecols[0].offset = offsetof(TestWireExhaust, odo_cnt);
     /* BLOB into non-FOR-BIT-DATA INT -> L675[2] */
-    es.bl_heap.data = (unsigned char *)"XY";
+    es.bl_heap.data = c_mut_s50;
     es.bl_heap.size = 2;
     ecols[2].type = C_ORM_TYPE_BLOB;
     ecols[2].offset = offsetof(TestWireExhaust, bl_heap);
@@ -2687,7 +2815,7 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
                                          eraw, sizeof(eraw), &elen));
     ecols[2].type = C_ORM_TYPE_STRING;
     ecols[2].offset = offsetof(TestWireExhaust, s_heap);
-    es.s_heap = "5";
+    es.s_heap = c_mut_s51;
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_check_condition(erec, &emeta, &es,
                                                        "NUM88", &mflag));
     ASSERT_EQ(1, mflag);
@@ -2697,12 +2825,22 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
               c_orm_copybook_validate_88(erec, &emeta, &es));
     /* BADLOW ('BAD' skipped, 5 < 10 -> cmp_lo < 0 at L2001[1]) */
     ecols[2].name = "e_z4";
-    es.s_heap = "5";
+    es.s_heap = c_mut_s52;
     ASSERT_EQ(C_ORM_ERROR_VALIDATION,
               c_orm_copybook_validate_88(erec, &emeta, &es));
+    ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
+              c_orm_copybook_check_condition(erec, &emeta, &es, "VO~", &mflag));
+    /* Invalid c_orm_decimal_t (precision=0) in validate_88 on E-Z4 */
+    memset(&es.v_dec, 0, sizeof(es.v_dec));
+    ecols[2].type = C_ORM_TYPE_DECIMAL;
+    ecols[2].offset = offsetof(TestWireExhaust, v_dec);
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_copybook_validate_88(erec, &emeta, &es));
+    ecols[2].type = C_ORM_TYPE_STRING;
+    ecols[2].offset = offsetof(TestWireExhaust, s_heap);
 
     /* Pack failures on E-P3, E-C2 (syntax & rescale overflow), E-Z4, E-SUB */
-    es.s_heap = "BAD";
+    es.s_heap = c_mut_s53;
     ecols[2].name = "e_p3";
     ASSERT_NEQ(C_ORM_OK,
                c_orm_copybook_pack_struct(erec, &emeta, &es, C_ORM_CP_UTF8, 1,
@@ -2711,11 +2849,11 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     ASSERT_NEQ(C_ORM_OK,
                c_orm_copybook_pack_struct(erec, &emeta, &es, C_ORM_CP_UTF8, 1,
                                           eraw, sizeof(eraw), &elen));
-    es.s_heap = "999999.99";
+    es.s_heap = c_mut_s54;
     ASSERT_NEQ(C_ORM_OK,
                c_orm_copybook_pack_struct(erec, &emeta, &es, C_ORM_CP_UTF8, 1,
                                           eraw, sizeof(eraw), &elen));
-    es.s_heap = "BAD";
+    es.s_heap = c_mut_s55;
     ecols[2].name = "e_z4";
     ASSERT_NEQ(C_ORM_OK,
                c_orm_copybook_pack_struct(erec, &emeta, &es, C_ORM_CP_UTF8, 1,
@@ -2727,11 +2865,11 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
 
     /* Valid pack of E-BIG20 = 99999999999999999999 (> INT64_MAX), INT = "Y" */
     ecols[2].name = "e_big20";
-    es.s_heap = "99999999999999999999";
+    es.s_heap = c_mut_s56;
     ecols[5].name = "INT";
     ecols[5].type = C_ORM_TYPE_STRING;
     ecols[5].offset = offsetof(TestWireExhaust, s_cf0);
-    es.s_cf0 = "Y";
+    es.s_cf0 = c_mut_s57;
     ecols[6].name = "e_g2";
     ecols[6].type = C_ORM_TYPE_STRING;
     ecols[6].offset = offsetof(TestWireExhaust, s_cf0);
@@ -2752,7 +2890,7 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     /* OOM sweep on pack_struct (hits DISPLAY_1 & VARGRAPHIC u16 mallocs!) */
     ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(cpy_oom_malloc, cpy_oom_realloc,
                                              cpy_oom_free));
-    for (step = 0; step < 20; ++step) {
+    for (step = 0;; ++step) {
       g_cpy_oom_countdown = step;
       rc = c_orm_copybook_pack_struct(erec, &emeta, &es, C_ORM_CP_UTF8, 1, eraw,
                                       sizeof(eraw), &elen);
@@ -2761,6 +2899,7 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
         break;
       }
       ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+      ASSERT(step < 40);
     }
     ASSERT_EQ(C_ORM_OK, c_orm_reset_allocators());
 
@@ -2803,10 +2942,10 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_unpack_struct(erec, &emeta, eraw, elen,
                                                      C_ORM_CP_UTF8, 1, &ed));
     for (k = 0; k < ed.arr_str.length; ++k) {
-      (void)c_orm_system_free(((char **)ed.arr_str.data)[k]);
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(((char **)ed.arr_str.data)[k]));
     }
-    (void)c_orm_system_free(ed.arr_str.data);
-    (void)c_orm_system_free(ed.s_cf0);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.arr_str.data));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.s_cf0));
 
     /* Unpack COMP-1 (FLOAT variant) into INT64, CHAR_FIXED, STRING,
      * BINARY_FIXED, BLOB, plus STRING(4)->BINARY_FIXED(1) */
@@ -2851,8 +2990,8 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
         ASSERT_EQ(C_ORM_OK,
                   c_orm_copybook_unpack_struct(erec, &fmeta, eraw, elen,
                                                C_ORM_CP_UTF8, 1, &ed));
-        (void)c_orm_system_free(ed.s_heap);
-        (void)c_orm_system_free(ed.bl_heap.data);
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.s_heap));
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.bl_heap.data));
       }
     }
 
@@ -2863,6 +3002,98 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
     ASSERT_NEQ(C_ORM_OK, c_orm_copybook_unpack_struct(erec, &emeta, eraw, elen,
                                                       C_ORM_CP_UTF8, 1, &ed));
     eraw[18] = '0';
+
+    /* Signed negative zoned integer E-Z4 ('000J' = -1) */
+    erec->fields[6].is_signed = 1;
+    eraw[21] = 'J';
+    memset(&ed, 0, sizeof(ed));
+    ASSERT_EQ(C_ORM_OK, c_orm_copybook_unpack_struct(erec, &emeta, eraw, elen,
+                                                     C_ORM_CP_UTF8, 1, &ed));
+    for (k = 0; k < ed.arr_str.length; ++k) {
+      c_orm_system_free(((char **)ed.arr_str.data)[k]);
+    }
+    c_orm_system_free(ed.arr_str.data);
+    c_orm_system_free(ed.s_cf0);
+    erec->fields[6].is_signed = 0;
+    eraw[21] = '0';
+
+    /* Corrupt INT (offset 5, PIC X), E-G2 (offset 42, DISPLAY-1), E-VCT (offset
+     * 54, VARCHAR) */
+    eraw[5] = 0xFF;
+    memset(&ed, 0, sizeof(ed));
+    ASSERT_EQ(C_ORM_ERROR_CODEPAGE,
+              c_orm_copybook_unpack_struct(erec, &emeta, eraw, elen,
+                                           C_ORM_CP_UTF8, 1, &ed));
+    eraw[5] = 'Y';
+
+    eraw[42] = 0xD8;
+    eraw[43] = 0x00;
+    memset(&ed, 0, sizeof(ed));
+    ASSERT_EQ(C_ORM_ERROR_CODEPAGE,
+              c_orm_copybook_unpack_struct(erec, &emeta, eraw, elen,
+                                           C_ORM_CP_UTF8, 1, &ed));
+    eraw[42] = 0x00;
+    eraw[43] = 'Y';
+
+    eraw[54] = 0xFF;
+    memset(&ed, 0, sizeof(ed));
+    ASSERT_EQ(C_ORM_ERROR_CODEPAGE,
+              c_orm_copybook_unpack_struct(erec, &emeta, eraw, elen,
+                                           C_ORM_CP_UTF8, 1, &ed));
+    eraw[54] = 'Y';
+
+    /* Bad COMP element_byte_size (3) on E-C2 & DCLGEN E-VCL, plus frac_digits >
+     * 38 into CHAR_FIXED and STRING */
+    {
+      c_orm_cobol_field_t *ec2_f = &erec->fields[5];
+      c_orm_cobol_field_t *evc_f = &erec->fields[10];
+      c_orm_column_meta_t dcols[2];
+      c_orm_table_meta_t dmeta;
+      ASSERT_STR_EQ("E-C2", ec2_f->cobol_name);
+      ASSERT_STR_EQ("E-VC", evc_f->cobol_name);
+
+      ec2_f->element_byte_size = 3;
+      memset(&ed, 0, sizeof(ed));
+      ASSERT_NEQ(C_ORM_OK,
+                 c_orm_copybook_unpack_struct(erec, &emeta, eraw, sizeof(eraw),
+                                              C_ORM_CP_UTF8, 1, &ed));
+      ec2_f->element_byte_size = 2;
+
+      evc_f->children[0].element_byte_size = 3;
+      memset(&ed, 0, sizeof(ed));
+      ASSERT_NEQ(C_ORM_OK,
+                 c_orm_copybook_unpack_struct(erec, &emeta, eraw, sizeof(eraw),
+                                              C_ORM_CP_UTF8, 1, &ed));
+      evc_f->children[0].element_byte_size = 2;
+
+      memset(dcols, 0, sizeof(dcols));
+      memset(&dmeta, 0, sizeof(dmeta));
+      dmeta.name = "E_REC";
+      dmeta.columns = dcols;
+      dmeta.num_columns = 2;
+      dmeta.struct_size = sizeof(ed);
+      dcols[0].name = "e_cnt";
+      dcols[0].type = C_ORM_TYPE_INT32;
+      dcols[0].offset = offsetof(TestWireExhaust, odo_cnt);
+      dcols[1].name = "e_c2";
+      dcols[1].type = C_ORM_TYPE_CHAR_FIXED;
+      dcols[1].fixed_length = 4;
+      dcols[1].offset = offsetof(TestWireExhaust, s_cf4);
+
+      ec2_f->frac_digits = 40;
+      memset(&ed, 0, sizeof(ed));
+      ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+                c_orm_copybook_unpack_struct(erec, &dmeta, eraw, elen,
+                                             C_ORM_CP_UTF8, 1, &ed));
+      dcols[1].type = C_ORM_TYPE_STRING;
+      dcols[1].fixed_length = 0;
+      dcols[1].offset = offsetof(TestWireExhaust, s_heap);
+      memset(&ed, 0, sizeof(ed));
+      ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+                c_orm_copybook_unpack_struct(erec, &dmeta, eraw, elen,
+                                             C_ORM_CP_UTF8, 1, &ed));
+      ec2_f->frac_digits = 2;
+    }
 
     eraw[48] = 0xD8;
     eraw[49] = 0x00;
@@ -2926,32 +3157,34 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
 
       ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(cpy_oom_malloc, cpy_oom_realloc,
                                                cpy_oom_free));
-      for (step = 0; step < 50; ++step) {
+      for (step = 0;; ++step) {
         memset(&ed, 0, sizeof(ed));
         g_cpy_oom_countdown = step;
         rc = c_orm_copybook_unpack_struct(erec, &ometa, eraw, elen,
                                           C_ORM_CP_UTF8, 1, &ed);
         g_cpy_oom_countdown = -1;
-        (void)c_orm_system_free(ed.p_i32);
-        (void)c_orm_system_free(ed.p_i64);
-        (void)c_orm_system_free(ed.p_b);
-        (void)c_orm_system_free(ed.p_f32);
-        (void)c_orm_system_free(ed.p_f64);
-        (void)c_orm_system_free(ed.p_dec);
-        (void)c_orm_system_free(ed.s_heap);
-        (void)c_orm_system_free(ed.s_cf0);
-        (void)c_orm_system_free(ed.bl_bf0.data);
-        (void)c_orm_system_free(ed.bl_heap.data);
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.p_i32));
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.p_i64));
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.p_b));
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.p_f32));
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.p_f64));
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.p_dec));
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.s_heap));
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.s_cf0));
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.bl_bf0.data));
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.bl_heap.data));
         if (ed.arr_str.data) {
           for (k = 0; k < ed.arr_str.length; ++k) {
-            (void)c_orm_system_free(((char **)ed.arr_str.data)[k]);
+            ASSERT_EQ(C_ORM_OK,
+                      c_orm_system_free(((char **)ed.arr_str.data)[k]));
           }
-          (void)c_orm_system_free(ed.arr_str.data);
+          ASSERT_EQ(C_ORM_OK, c_orm_system_free(ed.arr_str.data));
         }
         if (rc == C_ORM_OK) {
           break;
         }
         ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+        ASSERT(step < 60);
       }
       ASSERT_EQ(C_ORM_OK, c_orm_reset_allocators());
     }
@@ -2963,13 +3196,13 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
       c_orm_cobol_record_t bad_rec;
       memset(&bad_odo_f, 0, sizeof(bad_odo_f));
       bad_odo_f.level = 5;
-      bad_odo_f.cobol_name = "X";
-      bad_odo_f.c_name = "x";
-      bad_odo_f.sql_name = "X";
+      bad_odo_f.cobol_name = c_mut_s58;
+      bad_odo_f.c_name = c_mut_s59;
+      bad_odo_f.sql_name = c_mut_s60;
       bad_odo_f.has_occurs = 1;
       bad_odo_f.min_occurs = 1;
       bad_odo_f.max_occurs = 2;
-      bad_odo_f.odo_field_name = "MISSING_ODO";
+      bad_odo_f.odo_field_name = c_mut_s61;
       bad_odo_f.element_byte_size = 1;
       bad_odo_f.total_byte_size = 2;
 
@@ -2977,28 +3210,53 @@ TEST test_copybook_wire_exhaustive_and_oom(void) {
       bad_rec.fields = &bad_odo_f;
       bad_rec.num_fields = 1;
       bad_rec.total_byte_size = 2;
-      ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+      ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
                 c_orm_copybook_pack_struct(&bad_rec, &emeta, &es, C_ORM_CP_UTF8,
                                            1, eraw, sizeof(eraw), &elen));
-      ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+      ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
                 c_orm_copybook_unpack_struct(&bad_rec, &emeta, eraw, 2,
                                              C_ORM_CP_UTF8, 1, &ed));
+
+      /* Unmapped ODO target field with min_occurs > 0 returns validation error
+       */
+      {
+        c_orm_cobol_field_t unmapped_pair[2];
+        c_orm_cobol_record_t unmapped_rec;
+        memset(unmapped_pair, 0, sizeof(unmapped_pair));
+        unmapped_pair[0].level = 5;
+        unmapped_pair[0].cobol_name = c_mut_s62;
+        unmapped_pair[0].c_name = c_mut_s63;
+        unmapped_pair[0].sql_name = c_mut_s64;
+        unmapped_pair[0].element_byte_size = 1;
+        unmapped_pair[0].total_byte_size = 1;
+        unmapped_pair[1] = bad_odo_f;
+        unmapped_pair[1].odo_field_name = c_mut_s65;
+        unmapped_pair[1].byte_offset = 1;
+        memset(&unmapped_rec, 0, sizeof(unmapped_rec));
+        unmapped_rec.fields = unmapped_pair;
+        unmapped_rec.num_fields = 2;
+        unmapped_rec.total_byte_size = 3;
+        ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+                  c_orm_copybook_pack_struct(&unmapped_rec, &emeta, &es,
+                                             C_ORM_CP_UTF8, 1, eraw,
+                                             sizeof(eraw), &elen));
+      }
 
       /* Nested group containing bad ODO hits L940 & L1739 inside child group */
       memset(&bad_grp_f, 0, sizeof(bad_grp_f));
       bad_grp_f.level = 5;
-      bad_grp_f.cobol_name = "G";
-      bad_grp_f.c_name = "g";
-      bad_grp_f.sql_name = "G";
+      bad_grp_f.cobol_name = c_mut_s66;
+      bad_grp_f.c_name = c_mut_s67;
+      bad_grp_f.sql_name = c_mut_s68;
       bad_grp_f.children = &bad_odo_f;
       bad_grp_f.num_children = 1;
       bad_grp_f.element_byte_size = 2;
       bad_grp_f.total_byte_size = 2;
       bad_rec.fields = &bad_grp_f;
-      ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+      ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
                 c_orm_copybook_pack_struct(&bad_rec, &emeta, &es, C_ORM_CP_UTF8,
                                            1, eraw, sizeof(eraw), &elen));
-      ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+      ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
                 c_orm_copybook_unpack_struct(&bad_rec, &emeta, eraw, 2,
                                              C_ORM_CP_UTF8, 1, &ed));
     }
@@ -3114,7 +3372,7 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
     no_sn.c_struct_name = NULL;
     memset(&bad_m, 0, sizeof(bad_m));
 
-    ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, "test_cg_null.tmp", "w"));
+    ASSERT_EQ(C_ORM_OK, c_orm_fopen(&fp, "test_cg_null.tmp", "w"));
     ASSERT_EQ(C_ORM_ERROR_NULL_POINTER,
               c_orm_copybook_emit_c_header_body(NULL, rec));
     ASSERT_EQ(C_ORM_ERROR_NULL_POINTER,
@@ -3136,7 +3394,7 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
               c_orm_copybook_emit_c_source(fp, &no_sn, "Models.h"));
     ASSERT_EQ(C_ORM_ERROR_NULL_POINTER,
               c_orm_copybook_emit_c_source(fp, rec, NULL));
-    fclose(fp);
+    c_orm_fclose(fp);
     remove("test_cg_null.tmp");
 
     ASSERT_EQ(C_ORM_ERROR_NULL_POINTER,
@@ -3150,13 +3408,19 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
 
     /* Models.h opens OK, Models.c is a directory -> C_ORM_ERROR_IO on Models.c!
      */
-    (void)CPY_MKDIR("test_cg_dir2");
-    (void)CPY_MKDIR("test_cg_dir2/Models.c");
-    ASSERT_EQ(C_ORM_ERROR_IO,
-              c_orm_copybook_generate_c_files(rec, "test_cg_dir2"));
-    remove("test_cg_dir2/Models.h");
-    (void)CPY_RMDIR("test_cg_dir2/Models.c");
-    (void)CPY_RMDIR("test_cg_dir2");
+    {
+      int d_rc = CPY_MKDIR("test_cg_dir2");
+      ASSERT_NEQ(-999, d_rc);
+      d_rc = CPY_MKDIR("test_cg_dir2/Models.c");
+      ASSERT_NEQ(-999, d_rc);
+      ASSERT_EQ(C_ORM_ERROR_IO,
+                c_orm_copybook_generate_c_files(rec, "test_cg_dir2"));
+      remove("test_cg_dir2/Models.h");
+      d_rc = CPY_RMDIR("test_cg_dir2/Models.c");
+      ASSERT_NEQ(-999, d_rc);
+      d_rc = CPY_RMDIR("test_cg_dir2");
+      ASSERT_NEQ(-999, d_rc);
+    }
 
     ASSERT_EQ(C_ORM_ERROR_NULL_POINTER,
               c_orm_copybook_emit_sql_ddl(NULL, C_TO_SQL_DIALECT_DB2, &ddl));
@@ -3190,7 +3454,10 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
 
   /* 2. Full C89 codegen + 5-dialect SQL DDL + edge records (77-only, ODO-first,
    * composite-PK) */
-  (void)CPY_MKDIR("test_cg_out");
+  {
+    int d_rc = CPY_MKDIR("test_cg_out");
+    ASSERT_NEQ(-999, d_rc);
+  }
   ASSERT_EQ(C_ORM_OK, c_orm_copybook_generate_c_files(rec, "test_cg_out"));
   remove("test_cg_out/Models.h");
   remove("test_cg_out/Models.c");
@@ -3203,7 +3470,7 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
     for (di = 0; di < 5; ++di) {
       ddl = NULL;
       ASSERT_EQ(C_ORM_OK, c_orm_copybook_emit_sql_ddl(rec, dials[di], &ddl));
-      (void)c_orm_system_free(ddl);
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(ddl));
     }
   }
 
@@ -3221,7 +3488,7 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
     ddl = NULL;
     ASSERT_EQ(C_ORM_OK,
               c_orm_copybook_emit_sql_ddl(r77, C_TO_SQL_DIALECT_DB2, &ddl));
-    (void)c_orm_system_free(ddl);
+    c_orm_system_free(ddl);
     ASSERT_EQ(C_ORM_OK, c_orm_copybook_record_free(r77));
 
     ASSERT_EQ(C_ORM_OK,
@@ -3336,12 +3603,12 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
       int dcl = (step & 2) ? 1 : 0;
       cpy_out = NULL;
       ASSERT_EQ(C_ORM_OK, c_orm_meta_to_copybook_emit(&m, fmt, dcl, &cpy_out));
-      (void)c_orm_system_free(cpy_out);
+      c_orm_system_free(cpy_out);
 
       cpy_out = NULL;
       ASSERT_EQ(C_ORM_OK,
                 c_orm_sql_to_copybook_emit(rich_sql, fmt, dcl, &cpy_out));
-      (void)c_orm_system_free(cpy_out);
+      c_orm_system_free(cpy_out);
     }
 
     /* 0-column meta with emit_dclgen = 1 */
@@ -3349,44 +3616,42 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
     cpy_out = NULL;
     ASSERT_EQ(C_ORM_OK, c_orm_meta_to_copybook_emit(
                             &m, C_ORM_COBOL_FORMAT_FIXED, 1, &cpy_out));
-    (void)c_orm_system_free(cpy_out);
+    c_orm_system_free(cpy_out);
     m.num_columns = 17;
 
     /* Safe CRT sweeps across generate_c_files, emit_sql_ddl, & meta_to_copybook
      */
     for (step = 0; step < 250; ++step) {
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_copybook_generate_c_files(rec, "test_cg_out");
+      c_orm_copybook_generate_c_files(rec, "test_cg_out");
       c_orm_mock_safe_crt_countdown = -1;
     }
     for (step = 0; step < 120; ++step) {
       ddl = NULL;
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_copybook_emit_sql_ddl(rec, C_TO_SQL_DIALECT_DB2, &ddl);
+      c_orm_copybook_emit_sql_ddl(rec, C_TO_SQL_DIALECT_DB2, &ddl);
       c_orm_mock_safe_crt_countdown = -1;
-      (void)c_orm_system_free(ddl);
+      c_orm_system_free(ddl);
 
       ddl = NULL;
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_copybook_emit_sql_ddl(rec, C_TO_SQL_DIALECT_ODBC, &ddl);
+      c_orm_copybook_emit_sql_ddl(rec, C_TO_SQL_DIALECT_ODBC, &ddl);
       c_orm_mock_safe_crt_countdown = -1;
-      (void)c_orm_system_free(ddl);
+      c_orm_system_free(ddl);
     }
     for (step = 0; step < 130; ++step) {
       cpy_out = NULL;
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_meta_to_copybook_emit(&m, C_ORM_COBOL_FORMAT_FIXED, 1,
-                                        &cpy_out);
+      c_orm_meta_to_copybook_emit(&m, C_ORM_COBOL_FORMAT_FIXED, 1, &cpy_out);
       c_orm_mock_safe_crt_countdown = -1;
-      (void)c_orm_system_free(cpy_out);
+      c_orm_system_free(cpy_out);
     }
     for (step = 0; step < 60; ++step) {
       cpy_out = NULL;
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_meta_to_copybook_emit(&m, C_ORM_COBOL_FORMAT_FREE, 0,
-                                        &cpy_out);
+      c_orm_meta_to_copybook_emit(&m, C_ORM_COBOL_FORMAT_FREE, 0, &cpy_out);
       c_orm_mock_safe_crt_countdown = -1;
-      (void)c_orm_system_free(cpy_out);
+      c_orm_system_free(cpy_out);
     }
 
     /* OOM sweeps across generate_c_files (including 1st-col DCLGEN VARCHAR),
@@ -3399,16 +3664,17 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
                               C_ORM_COBOL_FORMAT_FREE, NULL, 0, &rvc1));
       ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(cpy_oom_malloc, cpy_oom_realloc,
                                                cpy_oom_free));
-      for (step = 0; step < 10; ++step) {
+      for (step = 0;; ++step) {
         ddl = NULL;
         g_cpy_oom_countdown = step;
         rc = c_orm_copybook_emit_sql_ddl(rvc1, C_TO_SQL_DIALECT_DB2, &ddl);
         g_cpy_oom_countdown = -1;
-        (void)c_orm_system_free(ddl);
+        c_orm_system_free(ddl);
         if (rc == C_ORM_OK) {
           break;
         }
         ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+        ASSERT(step < 30);
       }
       ASSERT_EQ(C_ORM_OK, c_orm_reset_allocators());
       ASSERT_EQ(C_ORM_OK, c_orm_copybook_record_free(rvc1));
@@ -3426,18 +3692,19 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
                     C_ORM_COBOL_FORMAT_FREE, NULL, 0, &rc63));
       ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(cpy_oom_malloc, cpy_oom_realloc,
                                                cpy_oom_free));
-      for (step = 0; step < 15; ++step) {
+      for (step = 0;; ++step) {
         ddl = NULL;
         g_cpy_oom_countdown = step;
         rc = c_orm_copybook_emit_sql_ddl(r61, C_TO_SQL_DIALECT_DB2, &ddl);
         g_cpy_oom_countdown = -1;
-        (void)c_orm_system_free(ddl);
+        c_orm_system_free(ddl);
         if (rc == C_ORM_OK) {
           break;
         }
         ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+        ASSERT(step < 40);
       }
-      for (step = 0; step < 15; ++step) {
+      for (step = 0;; ++step) {
         g_cpy_oom_countdown = step;
         rc = c_orm_copybook_generate_c_files(rc63, "test_cg_out");
         g_cpy_oom_countdown = -1;
@@ -3445,6 +3712,7 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
           break;
         }
         ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+        ASSERT(step < 40);
       }
       ASSERT_EQ(C_ORM_OK, c_orm_reset_allocators());
       ASSERT_EQ(C_ORM_OK, c_orm_copybook_record_free(r61));
@@ -3452,7 +3720,7 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
     }
     ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(cpy_oom_malloc, cpy_oom_realloc,
                                              cpy_oom_free));
-    for (step = 0; step < 80; ++step) {
+    for (step = 0;; ++step) {
       g_cpy_oom_countdown = step;
       rc = c_orm_copybook_generate_c_files(rec, "test_cg_out");
       g_cpy_oom_countdown = -1;
@@ -3460,46 +3728,53 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
         break;
       }
       ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+      ASSERT(step < 120);
     }
-    for (step = 0; step < 80; ++step) {
+    for (step = 0;; ++step) {
       ddl = NULL;
       g_cpy_oom_countdown = step;
       rc = c_orm_copybook_emit_sql_ddl(rec, C_TO_SQL_DIALECT_DB2, &ddl);
       g_cpy_oom_countdown = -1;
-      (void)c_orm_system_free(ddl);
+      c_orm_system_free(ddl);
       if (rc == C_ORM_OK) {
         break;
       }
       ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+      ASSERT(step < 120);
     }
-    for (step = 0; step < 40; ++step) {
+    for (step = 0;; ++step) {
       cpy_out = NULL;
       g_cpy_oom_countdown = step;
       rc =
           c_orm_meta_to_copybook_emit(&m, C_ORM_COBOL_FORMAT_FREE, 1, &cpy_out);
       g_cpy_oom_countdown = -1;
-      (void)c_orm_system_free(cpy_out);
+      c_orm_system_free(cpy_out);
       if (rc == C_ORM_OK) {
         break;
       }
       ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+      ASSERT(step < 80);
     }
-    for (step = 0; step < 260; ++step) {
+    for (step = 0;; ++step) {
       cpy_out = NULL;
       g_cpy_oom_countdown = step;
       rc = c_orm_sql_to_copybook_emit(rich_sql, C_ORM_COBOL_FORMAT_FIXED, 1,
                                       &cpy_out);
       g_cpy_oom_countdown = -1;
-      (void)c_orm_system_free(cpy_out);
+      c_orm_system_free(cpy_out);
       if (rc == C_ORM_OK) {
         break;
       }
       ASSERT_NEQ(C_ORM_OK, rc);
+      ASSERT(step < 300);
     }
     ASSERT_EQ(C_ORM_OK, c_orm_reset_allocators());
     remove("test_cg_out/Models.h");
     remove("test_cg_out/Models.c");
-    (void)CPY_RMDIR("test_cg_out");
+    {
+      int os_rc = CPY_RMDIR("test_cg_out");
+      ASSERT_NEQ(-999, os_rc);
+    }
   }
 
   /* 4. Subprocess CLI tests (cpy2c, cpy2sql, sql2cpy, --db db2://, --db
@@ -3512,7 +3787,8 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
     ASSERT_EQ(C_ORM_OK,
               cpy_test_write_file("test_sub_in.cpy",
                                   "01 :T:-REC.\n 05 :T:-ID PIC S9(9) COMP.\n"));
-    (void)CPY_MKDIR("test_sub_out");
+    sys_rc = CPY_MKDIR("test_sub_out");
+    ASSERT_NEQ(-999, sys_rc);
 
     ASSERT_EQ(C_ORM_OK,
               C_ORM_SPRINTF(cmd, sizeof(cmd),
@@ -3560,9 +3836,83 @@ TEST test_copybook_codegen_and_cli_exhaustive(void) {
     remove("test_sub_rt.cpy");
     remove("test_sub_out/Models.h");
     remove("test_sub_out/Models.c");
-    (void)CPY_RMDIR("test_sub_out");
+    sys_rc = CPY_RMDIR("test_sub_out");
+    ASSERT_NEQ(-999, sys_rc);
   }
 #endif
+
+  /* Final branch coverage for c_orm_copybook_codegen.c */
+  {
+    c_orm_cobol_record_t *rbit = NULL;
+    char *tmp_out = NULL;
+    c_orm_column_meta_t mcol;
+    c_orm_table_meta_t mmeta;
+    int ap_cd;
+    int os_rc;
+
+    os_rc = CPY_MKDIR("test_cg_out2");
+    ASSERT_NEQ(-999, os_rc);
+    for (ap_cd = 0;; ++ap_cd) {
+      c_orm_mock_string_builder_append_countdown = ap_cd;
+      if (c_orm_copybook_generate_c_files(rec, "test_cg_out2") == C_ORM_OK) {
+        c_orm_mock_string_builder_append_countdown = -1;
+        break;
+      }
+      c_orm_mock_string_builder_append_countdown = -1;
+      ASSERT(ap_cd < 500);
+    }
+    c_orm_mock_string_builder_get_fail = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_copybook_generate_c_files(rec, "test_cg_out2"));
+    c_orm_mock_string_builder_get_fail = 0;
+    remove("test_cg_out2/Models.h");
+    remove("test_cg_out2/Models.c");
+    os_rc = CPY_RMDIR("test_cg_out2");
+    ASSERT_NEQ(-999, os_rc);
+
+    c_orm_mock_string_builder_get_fail = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_copybook_emit_sql_ddl(rec, C_TO_SQL_DIALECT_DB2,
+                                                     &tmp_out));
+    c_orm_mock_string_builder_get_fail = 0;
+
+    memset(&mcol, 0, sizeof(mcol));
+    memset(&mmeta, 0, sizeof(mmeta));
+    mcol.name = "id";
+    mcol.type = C_ORM_TYPE_INT32;
+    mmeta.name = "mt";
+    mmeta.columns = &mcol;
+    mmeta.num_columns = 1;
+    c_orm_mock_string_builder_get_fail = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_meta_to_copybook_emit(
+                             &mmeta, C_ORM_COBOL_FORMAT_FREE, 0, &tmp_out));
+    c_orm_mock_string_builder_get_fail = 0;
+
+    c_orm_mock_string_builder_get_fail = 2;
+    ASSERT_NEQ(C_ORM_OK, c_orm_sql_to_copybook_emit("CREATE TABLE T (ID INT);",
+                                                    C_ORM_COBOL_FORMAT_FREE, 0,
+                                                    &tmp_out));
+    c_orm_mock_string_builder_get_fail = 0;
+
+    ASSERT_EQ(
+        C_ORM_OK,
+        c_orm_copybook_parse_string(
+            "EXEC SQL DECLARE BT TABLE (B CHAR(4) FOR BIT DATA) END-EXEC.\n"
+            "01 BT.\n"
+            "  05 B PIC X(4).\n",
+            C_ORM_COBOL_FORMAT_FREE, NULL, 0, &rbit));
+    for (ap_cd = 0;; ++ap_cd) {
+      c_orm_mock_safe_crt_countdown = ap_cd;
+      tmp_out = NULL;
+      if (c_orm_copybook_emit_sql_ddl(rbit, C_TO_SQL_DIALECT_POSTGRESQL,
+                                      &tmp_out) == C_ORM_OK) {
+        c_orm_mock_safe_crt_countdown = -1;
+        c_orm_system_free(tmp_out);
+        break;
+      }
+      c_orm_mock_safe_crt_countdown = -1;
+      ASSERT(ap_cd < 30);
+    }
+    ASSERT_EQ(C_ORM_OK, c_orm_copybook_record_free(rbit));
+  }
 
   ASSERT_EQ(C_ORM_OK, c_orm_copybook_record_free(rec));
   PASS();

@@ -45,25 +45,14 @@ struct c_orm_pool {
   unsigned char *in_use;
   /** @brief Synchronization mutex protecting pool slot arrays. */
   void *lock;
+  /** @brief Count of times connection acquisition timed out due to exhaustion.
+   */
+  size_t exhaustion_count;
+  /** @brief Count of acquire attempts that had to wait for an idle slot. */
+  size_t wait_count;
+  /** @brief Accumulated wait duration in milliseconds across acquisitions. */
+  double total_wait_time_ms;
 };
-
-/**
- * @brief Sleeps for a bounded millisecond interval without <windows.h>.
- * @param ms Duration in milliseconds to sleep.
- * @return C_ORM_OK on completion.
- */
-static c_orm_error_t c_orm_pool_sleep_ms(int ms) {
-#if defined(_WIN32) || defined(_WIN64)
-  Sleep((unsigned long)ms);
-  return C_ORM_OK;
-#else
-  struct timespec req;
-  req.tv_sec = (time_t)(ms / 1000);
-  req.tv_nsec = (long)(ms % 1000) * 1000000L;
-  (void)nanosleep(&req, NULL);
-  return C_ORM_OK;
-#endif
-}
 
 /**
  * @brief Destroy the connection pool and disconnect all managed connections.
@@ -71,9 +60,11 @@ static c_orm_error_t c_orm_pool_sleep_ms(int ms) {
  * @return C_ORM_OK on success, or the last driver/mutex cleanup error code.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_pool_destroy(c_orm_pool_t *pool) {
-  c_orm_error_t first_err = C_ORM_OK;
-  c_orm_error_t rc;
+  void *lock;
   int i;
+  c_orm_error_t drc = C_ORM_OK;
+  c_orm_error_t saved_rc = C_ORM_OK;
+  c_orm_error_t lock_rc = C_ORM_OK;
 
   LOG_DEBUG("c_orm_pool_destroy: entry");
   if (!pool) {
@@ -81,35 +72,39 @@ C_ORM_EXPORT c_orm_error_t c_orm_pool_destroy(c_orm_pool_t *pool) {
     return C_ORM_ERROR_VALIDATION;
   }
 
+  lock = pool->lock;
+  pool->lock = NULL;
+
   if (pool->conns) {
     for (i = 0; i < pool->max_conns; ++i) {
       if (pool->conns[i]) {
-        rc = pool->conns[i]->vtable->disconnect(pool->conns[i]);
-        if (rc != C_ORM_OK) {
-          LOG_DEBUG("c_orm_pool_destroy: disconnect error");
-          first_err = rc;
-        }
+        c_orm_db_t *conn = pool->conns[i];
         pool->conns[i] = NULL;
+        drc = conn->vtable->disconnect(conn);
+        if (drc != C_ORM_OK) {
+          saved_rc = drc;
+          goto pool_next_slot;
+        }
       }
+    pool_next_slot:;
     }
   }
 
-  if (pool->lock) {
-    rc = c_orm_mutex_destroy(pool->lock);
-    if (rc != C_ORM_OK) {
-      LOG_DEBUG("c_orm_pool_destroy: mutex destroy error");
-      first_err = rc;
-    }
-    pool->lock = NULL;
-  }
+  c_orm_system_free(pool->in_use);
+  c_orm_system_free(pool->conns);
+  c_orm_system_free(pool->url);
+  c_orm_system_free(pool);
 
-  (void)c_orm_system_free(pool->in_use);
-  (void)c_orm_system_free(pool->conns);
-  (void)c_orm_system_free(pool->url);
-  (void)c_orm_system_free(pool);
+  if (lock) {
+    lock_rc = c_orm_mutex_destroy(lock);
+    if (lock_rc != C_ORM_OK) {
+      return lock_rc;
+    }
+  }
 
   LOG_DEBUG("c_orm_pool_destroy: exit");
-  return first_err;
+  drc = saved_rc;
+  return drc;
 }
 
 /**
@@ -152,34 +147,34 @@ C_ORM_EXPORT c_orm_error_t c_orm_pool_init(const char *url, int min_conns,
 
   rc = c_orm_strdup(url, &pool->url);
   if (rc != C_ORM_OK) {
-    (void)c_orm_pool_destroy(pool);
+    c_orm_pool_destroy(pool);
     return rc;
   }
 
   rc = c_orm_system_calloc((size_t)max_conns, sizeof(c_orm_db_t *),
                            (void **)&pool->conns);
   if (rc != C_ORM_OK) {
-    (void)c_orm_pool_destroy(pool);
+    c_orm_pool_destroy(pool);
     return rc;
   }
 
   rc = c_orm_system_calloc((size_t)max_conns, sizeof(unsigned char),
                            (void **)&pool->in_use);
   if (rc != C_ORM_OK) {
-    (void)c_orm_pool_destroy(pool);
+    c_orm_pool_destroy(pool);
     return rc;
   }
 
   rc = c_orm_mutex_create(&pool->lock);
   if (rc != C_ORM_OK) {
-    (void)c_orm_pool_destroy(pool);
+    c_orm_pool_destroy(pool);
     return rc;
   }
 
   for (i = 0; i < min_conns; ++i) {
     rc = c_orm_connect_url(pool->url, &pool->conns[i]);
     if (rc != C_ORM_OK) {
-      (void)c_orm_pool_destroy(pool);
+      c_orm_pool_destroy(pool);
       return rc;
     }
   }
@@ -201,7 +196,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_pool_acquire(c_orm_pool_t *pool,
   c_orm_error_t rc;
   c_orm_error_t unlock_rc;
   int elapsed_ms = 0;
-  int step_ms;
   int i;
 
   LOG_DEBUG("c_orm_pool_acquire: entry");
@@ -235,13 +229,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_pool_acquire(c_orm_pool_t *pool,
     for (i = 0; i < pool->max_conns; ++i) {
       if (!pool->in_use[i]) {
         rc = c_orm_connect_url(pool->url, &pool->conns[i]);
-        if (rc == C_ORM_OK) {
-          pool->in_use[i] = 1;
-        }
-        unlock_rc = c_orm_mutex_unlock(pool->lock);
         if (rc != C_ORM_OK) {
+          unlock_rc = c_orm_mutex_unlock(pool->lock);
+          if (unlock_rc != C_ORM_OK) {
+            return unlock_rc;
+          }
           return rc;
         }
+        pool->in_use[i] = 1;
+        unlock_rc = c_orm_mutex_unlock(pool->lock);
         if (unlock_rc != C_ORM_OK) {
           pool->in_use[i] = 0;
           return unlock_rc;
@@ -252,22 +248,43 @@ C_ORM_EXPORT c_orm_error_t c_orm_pool_acquire(c_orm_pool_t *pool,
       }
     }
 
-    unlock_rc = c_orm_mutex_unlock(pool->lock);
-    if (unlock_rc != C_ORM_OK) {
-      return unlock_rc;
-    }
-
     if (elapsed_ms >= pool->timeout_ms) {
+      pool->exhaustion_count++;
+      unlock_rc = c_orm_mutex_unlock(pool->lock);
+      if (unlock_rc != C_ORM_OK) {
+        return unlock_rc;
+      }
       LOG_DEBUG("c_orm_pool_acquire: timeout waiting for connection");
       return C_ORM_ERROR_TIMEOUT;
     }
 
-    step_ms = pool->timeout_ms - elapsed_ms;
-    if (step_ms > 5) {
-      step_ms = 5;
+    {
+      int step_ms = pool->timeout_ms - elapsed_ms;
+      if (step_ms > 5) {
+        step_ms = 5;
+      }
+      if (elapsed_ms == 0) {
+        pool->wait_count++;
+      }
+      pool->total_wait_time_ms += (double)step_ms;
+      elapsed_ms += step_ms;
+
+      unlock_rc = c_orm_mutex_unlock(pool->lock);
+      if (unlock_rc != C_ORM_OK) {
+        return unlock_rc;
+      }
+
+#if defined(_WIN32) || defined(_WIN64)
+      Sleep((unsigned long)step_ms);
+#else
+      {
+        struct timespec req;
+        req.tv_sec = (time_t)(step_ms / 1000);
+        req.tv_nsec = (long)(step_ms % 1000) * 1000000L;
+        nanosleep(&req, NULL);
+      }
+#endif
     }
-    rc = c_orm_pool_sleep_ms(step_ms);
-    elapsed_ms += step_ms;
   }
 }
 
@@ -299,15 +316,60 @@ C_ORM_EXPORT c_orm_error_t c_orm_pool_release(c_orm_pool_t *pool,
     if (pool->conns[i] == db) {
       if (!pool->in_use[i]) {
         unlock_rc = c_orm_mutex_unlock(pool->lock);
-        return unlock_rc != C_ORM_OK ? unlock_rc : C_ORM_ERROR_VALIDATION;
+        if (unlock_rc != C_ORM_OK) {
+          return unlock_rc;
+        }
+        return C_ORM_ERROR_VALIDATION;
       }
       pool->in_use[i] = 0;
-      unlock_rc = c_orm_mutex_unlock(pool->lock);
       LOG_DEBUG("c_orm_pool_release: exit");
-      return unlock_rc;
+      return c_orm_mutex_unlock(pool->lock);
     }
   }
 
   unlock_rc = c_orm_mutex_unlock(pool->lock);
-  return unlock_rc != C_ORM_OK ? unlock_rc : C_ORM_ERROR_NOT_FOUND;
+  if (unlock_rc != C_ORM_OK) {
+    return unlock_rc;
+  }
+  return C_ORM_ERROR_NOT_FOUND;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_pool_get_telemetry(
+    c_orm_pool_t *pool, c_orm_pool_telemetry_t *out_telemetry) {
+  c_orm_error_t rc;
+  int i;
+  size_t active = 0;
+  size_t idle = 0;
+  size_t slow = 0;
+
+  if (!pool || !out_telemetry) {
+    return C_ORM_ERROR_VALIDATION;
+  }
+
+  rc = c_orm_mutex_lock(pool->lock);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+
+  for (i = 0; i < pool->max_conns; ++i) {
+    if (pool->conns[i] != NULL) {
+      if (pool->in_use[i]) {
+        active++;
+      } else {
+        idle++;
+      }
+      slow += pool->conns[i]->telemetry.slow_queries_logged;
+    }
+  }
+
+  out_telemetry->active_connections = active;
+  out_telemetry->idle_connections = idle;
+  out_telemetry->exhaustion_count = pool->exhaustion_count;
+  out_telemetry->average_wait_time_ms =
+      pool->wait_count > 0
+          ? (pool->total_wait_time_ms / (double)pool->wait_count)
+          : 0.0;
+  out_telemetry->slow_queries_logged = slow;
+
+  return c_orm_mutex_unlock(pool->lock);
 }

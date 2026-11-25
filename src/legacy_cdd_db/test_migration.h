@@ -21,84 +21,8 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include "test_assert_zero_branch.h"
 /* clang-format on */
-
-/**
- * @brief Tests parsing a valid migration file containing both UP and DOWN
- * sections.
- * @return GREATEST test result.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
 
 /**
  * @brief Executes test_parse_migration_file_valid.
@@ -261,23 +185,22 @@ TEST test_parse_migration_file_errors(void) {
 }
 
 /**
- * @brief Tests fallback migration runner stub functions.
+ * @brief Tests migration runner validation and unset-environment error paths.
  * @return GREATEST test result.
  */
 TEST test_migration_runner_stubs(void) {
-#if defined(__EMSCRIPTEN__) ||                                                 \
-    (!defined(USE_LIBPQ_LINKED) && !defined(USE_LIBPQ_DYNAMIC))
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, apply_migration("dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, rollback_migration("dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, run_pending_migrations("dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, rollback_last_migration("dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED,
-            create_migration_file("dummy", "dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, reset_database("dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, dump_schema("dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, setup_test_database("dummy", "dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, seed_database("dummy"));
-#endif
+  ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("DATABASE_URL"));
+  ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("C_ORM_DB_URL"));
+
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, apply_migration(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rollback_migration(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, run_pending_migrations("dummy"));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rollback_last_migration("dummy"));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, create_migration_file(NULL, "dummy"));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, reset_database("dummy"));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, dump_schema("dummy"));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, setup_test_database(NULL, "dummy"));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, seed_database(NULL));
   PASS();
 }
 
@@ -298,8 +221,7 @@ static c_orm_error_t mock_malloc_migration(size_t size, void **out_ptr) {
     return C_ORM_ERROR_MEMORY;
   }
   alloc_countdown--;
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /**
@@ -321,17 +243,24 @@ TEST test_parse_migration_file_oom(void) {
   rc = (c_orm_error_t)fs_write_to_file(filename, content);
   ASSERT_EQ(C_ORM_OK, rc);
 
-  /* Force OOM on first alloc (up) */
+  /* Force OOM on file_data (0), up_stmt (1), and down_stmt (2) */
   alloc_countdown = 0;
-  (void)c_orm_set_allocators(mock_malloc_migration, c_orm_realloc, c_orm_free);
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(mock_malloc_migration, c_orm_realloc,
+                                           c_orm_free));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
 
-  /* Force OOM on second alloc (down) */
   alloc_countdown = 1;
-  (void)c_orm_set_allocators(mock_malloc_migration, c_orm_realloc, c_orm_free);
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(mock_malloc_migration, c_orm_realloc,
+                                           c_orm_free));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
 
-  (void)c_orm_set_allocators(orig_malloc_migration, c_orm_realloc, c_orm_free);
+  alloc_countdown = 2;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(mock_malloc_migration, c_orm_realloc,
+                                           c_orm_free));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
+
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(orig_malloc_migration, c_orm_realloc,
+                                           c_orm_free));
   remove(filename);
   PASS();
 }
@@ -390,7 +319,6 @@ TEST test_parse_migration_file_empty_blocks(void) {
  * @param migration_suite Suite runner function name.
  */
 SUITE(migration_suite) {
-  static int recursed = 0;
   RUN_TEST(test_parse_migration_file_empty_blocks);
   RUN_TEST(test_parse_migration_file_valid);
   RUN_TEST(test_parse_migration_file_no_down);
@@ -400,13 +328,6 @@ SUITE(migration_suite) {
   RUN_TEST(test_parse_migration_file_errors);
   RUN_TEST(test_migration_runner_stubs);
   RUN_TEST(test_parse_migration_file_oom);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    migration_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }
 
 #ifdef __cplusplus

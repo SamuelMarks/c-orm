@@ -24,18 +24,15 @@ static int g_db2_vtable_init = 0;
  * @param s Input string.
  * @param p Prefix string.
  * @param n Prefix length.
- * @param out_eq Output set to 1 if matching, 0 otherwise.
- * @return C_ORM_OK on success.
+ * @return 1 if matching, 0 otherwise.
  */
-static c_orm_error_t db2_istarts(const char *s, const char *p, size_t n,
-                                 int *out_eq) {
+static int db2_calc_istarts(const char *s, const char *p, size_t n) {
   size_t i;
   for (i = 0; i < n; i++) {
     char a = s[i];
     char b = p[i];
     if (a == '\0') {
-      *out_eq = 0;
-      return C_ORM_OK;
+      return 0;
     }
     if (a >= 'A' && a <= 'Z') {
       a = (char)(a + ('a' - 'A'));
@@ -44,29 +41,37 @@ static c_orm_error_t db2_istarts(const char *s, const char *p, size_t n,
       b = (char)(b + ('a' - 'A'));
     }
     if (a != b) {
-      *out_eq = 0;
-      return C_ORM_OK;
+      return 0;
     }
   }
-  *out_eq = 1;
-  return C_ORM_OK;
+  return 1;
 }
 
 /**
  * @brief Case-insensitive exact ASCII match helper.
  * @param a First string.
  * @param b Second string.
- * @param out_eq Output set to 1 if equal, 0 otherwise.
- * @return C_ORM_OK on success.
+ * @return 1 if equal, 0 otherwise.
  */
-static c_orm_error_t db2_ieq(const char *a, const char *b, int *out_eq) {
+static int db2_calc_ieq(const char *a, const char *b) {
   size_t la = strlen(a);
   size_t lb = strlen(b);
   if (la != lb) {
-    *out_eq = 0;
-    return C_ORM_OK;
+    return 0;
   }
-  return db2_istarts(a, b, la, out_eq);
+  return db2_calc_istarts(a, b, la);
+}
+
+/**
+ * @brief Parses a base-10 integer string via `c_orm_strtoint64`.
+ * @param s Input string.
+ * @param out_endp Output end pointer.
+ * @param out_val Output parsed 64-bit value.
+ * @return 1 on parse success, 0 otherwise.
+ */
+static int db2_calc_parse_i64(const char *s, const char **out_endp,
+                              int64_t *out_val) {
+  return c_orm_strtoint64(s, out_endp, 10, out_val) == C_ORM_OK;
 }
 
 /**
@@ -110,24 +115,19 @@ static c_orm_error_t db2_append_kv(char *dst, size_t cap, size_t *io_pos,
  */
 static c_orm_error_t parse_db2_isolation(const char *s,
                                          c_orm_db2_isolation_t *out_iso) {
-  int eq = 0;
-  db2_ieq(s, "UR", &eq);
-  if (eq) {
+  if (db2_calc_ieq(s, "UR")) {
     *out_iso = C_ORM_DB2_ISOLATION_UR;
     return C_ORM_OK;
   }
-  db2_ieq(s, "CS", &eq);
-  if (eq) {
+  if (db2_calc_ieq(s, "CS")) {
     *out_iso = C_ORM_DB2_ISOLATION_CS;
     return C_ORM_OK;
   }
-  db2_ieq(s, "RS", &eq);
-  if (eq) {
+  if (db2_calc_ieq(s, "RS")) {
     *out_iso = C_ORM_DB2_ISOLATION_RS;
     return C_ORM_OK;
   }
-  db2_ieq(s, "RR", &eq);
-  if (eq) {
+  if (db2_calc_ieq(s, "RR")) {
     *out_iso = C_ORM_DB2_ISOLATION_RR;
     return C_ORM_OK;
   }
@@ -145,15 +145,12 @@ static c_orm_error_t db2_parse_bool(const char *s, int *out_flag) {
   static const char *const trues[4] = {"1", "true", "yes", "on"};
   static const char *const falses[4] = {"0", "false", "no", "off"};
   size_t i;
-  int eq = 0;
   for (i = 0; i < 4U; ++i) {
-    db2_ieq(s, trues[i], &eq);
-    if (eq) {
+    if (db2_calc_ieq(s, trues[i])) {
       *out_flag = 1;
       return C_ORM_OK;
     }
-    db2_ieq(s, falses[i], &eq);
-    if (eq) {
+    if (db2_calc_ieq(s, falses[i])) {
       *out_flag = 0;
       return C_ORM_OK;
     }
@@ -182,19 +179,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_build_conn_string(
   opts.autocommit = 1;
   out_conn_str[0] = '\0';
 
-  db2_istarts(url, "db2://", 6, &has_scheme);
+  has_scheme = db2_calc_istarts(url, "db2://", 6);
   body = has_scheme ? (url + 6) : url;
   if (body[0] == '\0') {
     return C_ORM_ERROR_VALIDATION;
   }
 
-  db2_istarts(body, "DATABASE=", 9, &is_raw_kv);
-  if (!is_raw_kv) {
-    db2_istarts(body, "DSN=", 4, &is_raw_kv);
-  }
-  if (!is_raw_kv) {
-    db2_istarts(body, "DRIVER=", 7, &is_raw_kv);
-  }
+  is_raw_kv = db2_calc_istarts(body, "DATABASE=", 9) ||
+              db2_calc_istarts(body, "DSN=", 4) ||
+              db2_calc_istarts(body, "DRIVER=", 7);
   if (is_raw_kv || (!has_scheme && strchr(body, '=') != NULL)) {
     size_t blen = strlen(body);
     size_t i;
@@ -325,8 +318,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_build_conn_string(
         if (rc != C_ORM_OK) {
           return rc;
         }
-        if (c_orm_strtoint64(port_dec, &endp, 10, &pnum) != C_ORM_OK ||
-            *endp != '\0' || pnum < 1 || pnum > 65535) {
+        if (!db2_calc_parse_i64(port_dec, &endp, &pnum) || *endp != '\0' ||
+            pnum < 1 || pnum > 65535) {
           return C_ORM_ERROR_VALIDATION;
         }
         has_port = 1;
@@ -357,8 +350,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_build_conn_string(
         const char *eqp = NULL;
         char qkey[128];
         char qval[512];
-        int m1 = 0;
-        int m2 = 0;
 
         for (i = 0; i < pair_len; i++) {
           if (cur[i] == '=') {
@@ -381,9 +372,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_build_conn_string(
           return rc;
         }
 
-        db2_ieq(qkey, "schema", &m1);
-        db2_ieq(qkey, "currentschema", &m2);
-        if (m1 || m2) {
+        if (db2_calc_ieq(qkey, "schema") ||
+            db2_calc_ieq(qkey, "currentschema")) {
           rc = C_ORM_STRCPY(opts.schema, sizeof(opts.schema), qval);
           if (rc != C_ORM_OK) {
             return rc;
@@ -393,115 +383,76 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_build_conn_string(
           if (rc != C_ORM_OK) {
             return rc;
           }
+        } else if (db2_calc_ieq(qkey, "isolation")) {
+          rc = parse_db2_isolation(qval, &opts.isolation);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
+          opts.has_isolation = 1;
+        } else if (db2_calc_ieq(qkey, "ssl")) {
+          rc = db2_parse_bool(qval, &use_ssl);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
+        } else if (db2_calc_ieq(qkey, "userid") ||
+                   db2_calc_ieq(qkey, "client_userid")) {
+          rc = C_ORM_STRCPY(opts.info_userid, sizeof(opts.info_userid), qval);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
+        } else if (db2_calc_ieq(qkey, "wrkstn") ||
+                   db2_calc_ieq(qkey, "wrkstnname")) {
+          rc = C_ORM_STRCPY(opts.info_wrkstn, sizeof(opts.info_wrkstn), qval);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
+        } else if (db2_calc_ieq(qkey, "applname")) {
+          rc = C_ORM_STRCPY(opts.info_applname, sizeof(opts.info_applname),
+                            qval);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
+        } else if (db2_calc_ieq(qkey, "acctstr")) {
+          rc = C_ORM_STRCPY(opts.info_acctstr, sizeof(opts.info_acctstr), qval);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
+        } else if (db2_calc_ieq(qkey, "uid")) {
+          rc = C_ORM_STRCPY(user_dec, sizeof(user_dec), qval);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
+          has_user = 1;
+        } else if (db2_calc_ieq(qkey, "pwd")) {
+          rc = C_ORM_STRCPY(pass_dec, sizeof(pass_dec), qval);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
+          has_pass = 1;
+        } else if (db2_calc_ieq(qkey, "timeout") ||
+                   db2_calc_ieq(qkey, "login_timeout")) {
+          int64_t tv = 0;
+          const char *endp = NULL;
+          if (!db2_calc_parse_i64(qval, &endp, &tv) || *endp != '\0' ||
+              tv < 0 || tv > 86400) {
+            return C_ORM_ERROR_VALIDATION;
+          }
+          opts.login_timeout = (int)tv;
+        } else if (db2_calc_ieq(qkey, "autocommit")) {
+          rc = db2_parse_bool(qval, &opts.autocommit);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
+        } else if (db2_calc_ieq(qkey, "driver")) {
+          rc = C_ORM_STRCPY(driver_override, sizeof(driver_override), qval);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
         } else {
-          db2_ieq(qkey, "isolation", &m1);
-          if (m1) {
-            rc = parse_db2_isolation(qval, &opts.isolation);
-            if (rc != C_ORM_OK) {
-              return rc;
-            }
-            opts.has_isolation = 1;
-          } else {
-            db2_ieq(qkey, "ssl", &m1);
-            if (m1) {
-              rc = db2_parse_bool(qval, &use_ssl);
-              if (rc != C_ORM_OK) {
-                return rc;
-              }
-            } else {
-              db2_ieq(qkey, "userid", &m1);
-              db2_ieq(qkey, "client_userid", &m2);
-              if (m1 || m2) {
-                rc = C_ORM_STRCPY(opts.info_userid, sizeof(opts.info_userid),
-                                  qval);
-                if (rc != C_ORM_OK) {
-                  return rc;
-                }
-              } else {
-                db2_ieq(qkey, "wrkstn", &m1);
-                db2_ieq(qkey, "wrkstnname", &m2);
-                if (m1 || m2) {
-                  rc = C_ORM_STRCPY(opts.info_wrkstn, sizeof(opts.info_wrkstn),
-                                    qval);
-                  if (rc != C_ORM_OK) {
-                    return rc;
-                  }
-                } else {
-                  db2_ieq(qkey, "applname", &m1);
-                  if (m1) {
-                    rc = C_ORM_STRCPY(opts.info_applname,
-                                      sizeof(opts.info_applname), qval);
-                    if (rc != C_ORM_OK) {
-                      return rc;
-                    }
-                  } else {
-                    db2_ieq(qkey, "acctstr", &m1);
-                    if (m1) {
-                      rc = C_ORM_STRCPY(opts.info_acctstr,
-                                        sizeof(opts.info_acctstr), qval);
-                      if (rc != C_ORM_OK) {
-                        return rc;
-                      }
-                    } else {
-                      db2_ieq(qkey, "uid", &m1);
-                      if (m1) {
-                        rc = C_ORM_STRCPY(user_dec, sizeof(user_dec), qval);
-                        if (rc != C_ORM_OK) {
-                          return rc;
-                        }
-                        has_user = 1;
-                      } else {
-                        db2_ieq(qkey, "pwd", &m1);
-                        if (m1) {
-                          rc = C_ORM_STRCPY(pass_dec, sizeof(pass_dec), qval);
-                          if (rc != C_ORM_OK) {
-                            return rc;
-                          }
-                          has_pass = 1;
-                        } else {
-                          db2_ieq(qkey, "timeout", &m1);
-                          db2_ieq(qkey, "login_timeout", &m2);
-                          if (m1 || m2) {
-                            int64_t tv = 0;
-                            const char *endp = NULL;
-                            if (c_orm_strtoint64(qval, &endp, 10, &tv) !=
-                                    C_ORM_OK ||
-                                *endp != '\0' || tv < 0 || tv > 86400) {
-                              return C_ORM_ERROR_VALIDATION;
-                            }
-                            opts.login_timeout = (int)tv;
-                          } else {
-                            db2_ieq(qkey, "autocommit", &m1);
-                            if (m1) {
-                              rc = db2_parse_bool(qval, &opts.autocommit);
-                              if (rc != C_ORM_OK) {
-                                return rc;
-                              }
-                            } else {
-                              db2_ieq(qkey, "driver", &m1);
-                              if (m1) {
-                                rc =
-                                    C_ORM_STRCPY(driver_override,
-                                                 sizeof(driver_override), qval);
-                                if (rc != C_ORM_OK) {
-                                  return rc;
-                                }
-                              } else {
-                                rc = db2_append_kv(extra_kv, sizeof(extra_kv),
-                                                   &extra_pos, qkey, qval);
-                                if (rc != C_ORM_OK) {
-                                  return rc;
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
+          rc =
+              db2_append_kv(extra_kv, sizeof(extra_kv), &extra_pos, qkey, qval);
+          if (rc != C_ORM_OK) {
+            return rc;
           }
         }
 
@@ -585,6 +536,36 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_build_conn_string(
 }
 
 /**
+ * @brief Finalizes `q` during error cleanup.
+ * @param db Database connection handle.
+ * @param q Prepared query handle.
+ * @return C_ORM_OK on success, or driver finalize error code.
+ */
+static c_orm_error_t db2_stmt_cleanup_free(c_orm_db_t *db, c_orm_query_t *q) {
+  return db->vtable->finalize(q);
+}
+
+/**
+ * @brief Disconnects `db` during error cleanup.
+ * @param db Database connection handle.
+ * @return C_ORM_OK on success, or driver disconnect error code.
+ */
+static c_orm_error_t db2_conn_cleanup_free(c_orm_db_t *db) {
+  return db->vtable->disconnect(db);
+}
+
+/**
+ * @brief Copies `src` into `dst` if it fits in `cap`.
+ * @param dst Destination buffer.
+ * @param cap Buffer capacity.
+ * @param src Source string.
+ * @return 1 if copied successfully, 0 otherwise.
+ */
+static int db2_calc_strcpy_opt(char *dst, size_t cap, const char *src) {
+  return C_ORM_STRCPY(dst, cap, src) == C_ORM_OK;
+}
+
+/**
  * @brief Executes a parameterless DDL/DCL command directly on `db`.
  * @param db Active Db2 connection.
  * @param sql SQL statement text.
@@ -600,8 +581,11 @@ static c_orm_error_t db2_exec_simple(c_orm_db_t *db, const char *sql) {
     return rc;
   }
   rc = db->vtable->step(q, &has_row);
-  db->vtable->finalize(q);
-  return rc;
+  if (rc != C_ORM_OK) {
+    db2_stmt_cleanup_free(db, q);
+    return rc;
+  }
+  return db->vtable->finalize(q);
 }
 
 /**
@@ -689,30 +673,37 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_set_current_schema(c_orm_db_t *db,
     return rc;
   }
   rc = c_orm_string_builder_append(sb, "SET CURRENT SCHEMA = ");
-  if (rc == C_ORM_OK) {
-    rc = c_orm_quote_identifier(sb, schema, '"');
-  }
   if (rc != C_ORM_OK) {
-    (void)c_orm_string_builder_free(sb);
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  rc = c_orm_quote_identifier(sb, schema, '"');
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
     return rc;
   }
 
   if (api->SQLSetConnectAttr) {
     char schema_mut[256];
-    if (C_ORM_STRCPY(schema_mut, sizeof(schema_mut), schema) == C_ORM_OK &&
+    if (db2_calc_strcpy_opt(schema_mut, sizeof(schema_mut), schema) &&
         C_ORM_SQL_SUCCEEDED(api->SQLSetConnectAttr(
             hdbc, C_ORM_SQL_ATTR_CURRENT_SCHEMA, schema_mut, C_ORM_SQL_NTS))) {
-      (void)c_orm_string_builder_free(sb);
+      c_orm_string_builder_free(sb);
       return C_ORM_OK;
     }
   }
 
   rc = c_orm_string_builder_get(sb, &sql);
-  if (rc == C_ORM_OK) {
-    rc = db2_exec_simple(db, sql);
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
   }
-  (void)c_orm_string_builder_free(sb);
-  return rc;
+  rc = db2_exec_simple(db, sql);
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  return c_orm_string_builder_free(sb);
 }
 
 C_ORM_EXPORT c_orm_error_t
@@ -764,32 +755,42 @@ static c_orm_error_t db2_get_last_insert_rowid(c_orm_db_t *db,
     return rc;
   }
   rc = db->vtable->step(q, &has_row);
-  if (rc == C_ORM_OK && has_row) {
+  if (rc != C_ORM_OK) {
+    goto rowid_err;
+  }
+  if (has_row) {
     rc = db->vtable->is_null(q, 0, &is_null);
-    if (rc == C_ORM_OK && !is_null) {
+    if (rc != C_ORM_OK) {
+      goto rowid_err;
+    }
+    if (!is_null) {
       rc = db->vtable->get_decimal(q, 0, &dec);
-      if (rc == C_ORM_OK) {
-        rc = c_orm_decimal_to_int64(&dec, C_ORM_ROUND_TRUNCATE, &val);
-        if (rc == C_ORM_OK) {
-          *out_id = (int64_t)val;
-        }
+      if (rc != C_ORM_OK) {
+        goto rowid_err;
       }
+      rc = c_orm_decimal_to_int64(&dec, C_ORM_ROUND_TRUNCATE, &val);
+      if (rc != C_ORM_OK) {
+        goto rowid_err;
+      }
+      *out_id = (int64_t)val;
     }
   }
-  db->vtable->finalize(q);
+  return db->vtable->finalize(q);
+
+rowid_err:;
+  db2_stmt_cleanup_free(db, q);
   return rc;
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_db2_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
-  const c_orm_driver_vtable_t *base = NULL;
-
-  if (!out_vtable) {
-    return C_ORM_ERROR_NULL_POINTER;
+  c_orm_error_t rc;
+  rc = c_orm_odbc_get_vtable(out_vtable);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
   if (!g_db2_vtable_init) {
-    c_orm_odbc_get_vtable(&base);
-    g_db2_vtable = *base;
+    g_db2_vtable = **out_vtable;
     g_db2_vtable.connect = c_orm_db2_connect;
     g_db2_vtable.get_last_insert_rowid = db2_get_last_insert_rowid;
     g_db2_vtable_init = 1;
@@ -809,8 +810,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_connect(const char *url,
   c_orm_db_t *db = NULL;
   c_orm_error_t rc;
 
-  if (!url || !out_db) {
+  if (!url) {
     return C_ORM_ERROR_NULL_POINTER;
+  }
+  rc = c_orm_db2_get_vtable(out_db ? &vt : NULL);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
   *out_db = NULL;
 
@@ -824,8 +829,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_connect(const char *url,
   if (rc != C_ORM_OK) {
     return rc;
   }
-
-  c_orm_db2_get_vtable(&vt);
 
 #if defined(UNICODE) || defined(_UNICODE)
   prefer_wide = (api->SQLDriverConnectW != NULL) ? 1 : 0;
@@ -844,7 +847,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_connect(const char *url,
     rc = c_orm_db2_set_client_info(db, opts.info_userid, opts.info_wrkstn,
                                    opts.info_applname, opts.info_acctstr);
     if (rc != C_ORM_OK) {
-      db->vtable->disconnect(db);
+      db2_conn_cleanup_free(db);
       return rc;
     }
   }
@@ -852,7 +855,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_connect(const char *url,
   if (opts.schema[0] != '\0') {
     rc = c_orm_db2_set_current_schema(db, opts.schema);
     if (rc != C_ORM_OK) {
-      db->vtable->disconnect(db);
+      db2_conn_cleanup_free(db);
       return rc;
     }
   }
@@ -860,7 +863,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_connect(const char *url,
   if (opts.has_isolation) {
     rc = c_orm_db2_set_isolation(db, opts.isolation);
     if (rc != C_ORM_OK) {
-      db->vtable->disconnect(db);
+      db2_conn_cleanup_free(db);
       return rc;
     }
   }
@@ -892,20 +895,33 @@ static c_orm_error_t db2_exec_savepoint_cmd(c_orm_db_t *db, const char *prefix,
     return rc;
   }
   rc = c_orm_string_builder_append(sb, prefix);
-  if (rc == C_ORM_OK) {
-    rc = c_orm_quote_identifier(sb, sp_name, '"');
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
   }
-  if (rc == C_ORM_OK && suffix[0] != '\0') {
+  rc = c_orm_quote_identifier(sb, sp_name, '"');
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  if (suffix[0] != '\0') {
     rc = c_orm_string_builder_append(sb, suffix);
+    if (rc != C_ORM_OK) {
+      c_orm_string_builder_free(sb);
+      return rc;
+    }
   }
-  if (rc == C_ORM_OK) {
-    rc = c_orm_string_builder_get(sb, &sql);
+  rc = c_orm_string_builder_get(sb, &sql);
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
   }
-  if (rc == C_ORM_OK) {
-    rc = db2_exec_simple(db, sql);
+  rc = db2_exec_simple(db, sql);
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
   }
-  (void)c_orm_string_builder_free(sb);
-  return rc;
+  return c_orm_string_builder_free(sb);
 }
 
 C_ORM_EXPORT c_orm_error_t
@@ -1001,12 +1017,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_lob_get_length(c_orm_db_t *db,
   sret = api->SQLGetLength(hstmt, norm_loc, (c_orm_sqlinteger_t)locator, &slen,
                            &ind);
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt,
-                                 "SQLGetLength", C_ORM_ERROR_ODBC_DIAG);
-    (void)api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-    return rc;
+    return c_orm_odbc_harvest_diag_free_stmt(db, hstmt, "SQLGetLength",
+                                             C_ORM_ERROR_ODBC_DIAG);
   }
-  (void)api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
+  api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
   *out_length = (ind == C_ORM_SQL_NULL_DATA || slen < 0) ? 0 : slen;
   return C_ORM_OK;
 }
@@ -1074,12 +1088,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_lob_read(c_orm_db_t *db, short lob_c_type,
                               target_c, out_buf, (c_orm_sqlinteger_t)buf_len,
                               &got_len, &ind);
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt,
-                                 "SQLGetSubString", C_ORM_ERROR_ODBC_DIAG);
-    (void)api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-    return rc;
+    return c_orm_odbc_harvest_diag_free_stmt(db, hstmt, "SQLGetSubString",
+                                             C_ORM_ERROR_ODBC_DIAG);
   }
-  (void)api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
+  api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
 
   if (ind != C_ORM_SQL_NULL_DATA && got_len > 0) {
     *out_read = (size_t)got_len;
@@ -1126,11 +1138,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_lob_free_locator(c_orm_db_t *db,
       api->SQLBindParameter(hstmt, 1, C_ORM_SQL_PARAM_INPUT, norm_loc, sql_t, 4,
                             0, &loc_val, (c_orm_sqllen_t)sizeof(loc_val), &ind);
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt,
-                                 "SQLBindParameter(FREE LOCATOR)",
-                                 C_ORM_ERROR_BIND);
-    (void)api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-    return rc;
+    return c_orm_odbc_harvest_diag_free_stmt(
+        db, hstmt, "SQLBindParameter(FREE LOCATOR)", C_ORM_ERROR_BIND);
   }
 
   if (api->SQLExecDirect) {
@@ -1142,25 +1151,21 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_lob_free_locator(c_orm_db_t *db,
     }
   }
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt,
-                                 "FREE LOCATOR", C_ORM_ERROR_ODBC_DIAG);
-    (void)api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-    return rc;
+    return c_orm_odbc_harvest_diag_free_stmt(db, hstmt, "FREE LOCATOR",
+                                             C_ORM_ERROR_ODBC_DIAG);
   }
 
-  (void)api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
+  api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
   return C_ORM_OK;
 }
 
 /**
  * @brief Checks if `ch` is an ASCII decimal digit `'0'..'9'`.
  * @param ch Input character.
- * @param out_ok Output set to 1 if digit, 0 otherwise.
- * @return C_ORM_OK on completion.
+ * @return 1 if digit, 0 otherwise.
  */
-static c_orm_error_t is_dec_digit(char ch, int *out_ok) {
-  *out_ok = (ch >= '0' && ch <= '9') ? 1 : 0;
-  return C_ORM_OK;
+static int db2_calc_is_dec_digit(char ch) {
+  return (ch >= '0' && ch <= '9') ? 1 : 0;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_db2_normalize_timestamp(const char *db2_ts,
@@ -1189,9 +1194,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_normalize_timestamp(const char *db2_ts,
   }
 
   for (i = 0; i < 14; i++) {
-    int ok = 0;
-    is_dec_digit(db2_ts[digit_idx[i]], &ok);
-    if (!ok) {
+    if (!db2_calc_is_dec_digit(db2_ts[digit_idx[i]])) {
       return C_ORM_ERROR_VALIDATION;
     }
   }
@@ -1210,9 +1213,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_normalize_timestamp(const char *db2_ts,
       return C_ORM_ERROR_VALIDATION;
     }
     for (i = 20; i < len; i++) {
-      int ok = 0;
-      is_dec_digit(db2_ts[i], &ok);
-      if (!ok) {
+      if (!db2_calc_is_dec_digit(db2_ts[i])) {
         return C_ORM_ERROR_VALIDATION;
       }
     }

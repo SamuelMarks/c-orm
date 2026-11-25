@@ -947,6 +947,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_pool_release(c_orm_pool_t *pool,
 C_ORM_EXPORT c_orm_error_t c_orm_pool_destroy(c_orm_pool_t *pool);
 
 /**
+ * @brief Snapshot live telemetry metrics for a connection pool.
+ *
+ * @param pool The connection pool handle.
+ * @param out_telemetry Output structure populated with active/idle counts,
+ * exhaustion count, average wait time, and aggregated slow query count.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_VALIDATION on NULL arguments.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_pool_get_telemetry(
+    c_orm_pool_t *pool, c_orm_pool_telemetry_t *out_telemetry);
+
+/**
  * @brief Interceptor hooks for plugin architecture (Steps 194-199).
  *
  * Provides a standard callback interface injected before and after SQL queries.
@@ -1021,6 +1032,78 @@ C_ORM_EXPORT c_orm_error_t c_orm_find_all_async(c_orm_db_t *db,
                                                 const c_orm_table_meta_t *meta,
                                                 void *out_array,
                                                 c_orm_async_cb_t cb, void *ctx);
+
+/**
+ * @brief Asynchronous fetch by 32-bit integer primary key wrapper.
+ *
+ * Dispatches through `db->modality` / `db->modality_ctx` when configured, or
+ * executes inline and invokes `cb` before returning.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param id 32-bit integer primary key value.
+ * @param out_struct Output struct pointer to hydrate.
+ * @param cb Optional completion callback.
+ * @param ctx User context passed to `cb`.
+ * @return C_ORM_OK on success, or error code from `c_orm_find_by_id_int32` /
+ * `cb`.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_find_by_id_int32_async(
+    c_orm_db_t *db, const c_orm_table_meta_t *meta, int32_t id,
+    void *out_struct, c_orm_async_cb_t cb, void *ctx);
+
+/**
+ * @brief Asynchronous record update wrapper.
+ *
+ * Dispatches through `db->modality` / `db->modality_ctx` when configured, or
+ * executes inline and invokes `cb` before returning.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_struct Struct instance containing updated column values and PK.
+ * @param cb Optional completion callback.
+ * @param ctx User context passed to `cb`.
+ * @return C_ORM_OK on success, or error code from `c_orm_update` / `cb`.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_update_async(c_orm_db_t *db,
+                                              const c_orm_table_meta_t *meta,
+                                              const void *in_struct,
+                                              c_orm_async_cb_t cb, void *ctx);
+
+/**
+ * @brief Asynchronous record deletion wrapper.
+ *
+ * Dispatches through `db->modality` / `db->modality_ctx` when configured, or
+ * executes inline and invokes `cb` before returning.
+ *
+ * @param db Database connection.
+ * @param meta Table metadata.
+ * @param in_struct Struct instance identifying the row to delete.
+ * @param cb Optional completion callback.
+ * @param ctx User context passed to `cb`.
+ * @return C_ORM_OK on success, or error code from `c_orm_delete` / `cb`.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_delete_async(c_orm_db_t *db,
+                                              const c_orm_table_meta_t *meta,
+                                              const void *in_struct,
+                                              c_orm_async_cb_t cb, void *ctx);
+
+/**
+ * @brief Asynchronous raw SQL execution wrapper.
+ *
+ * Dispatches through `db->modality` / `db->modality_ctx` when configured, or
+ * executes inline and invokes `cb` before returning.
+ *
+ * @param db Database connection.
+ * @param sql Raw SQL statement string.
+ * @param cb Optional completion callback.
+ * @param ctx User context passed to `cb`.
+ * @return C_ORM_OK on success, or error code from `c_orm_execute_raw` / `cb`.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_execute_raw_async(c_orm_db_t *db,
+                                                   const char *sql,
+                                                   c_orm_async_cb_t cb,
+                                                   void *ctx);
 
 /**
  * @brief Hydrate a row, leveraging the cdd-c hydrate_router.
@@ -1423,6 +1506,11 @@ C_ORM_EXPORT extern int c_orm_mock_finalize_cached_countdown;
  * @brief Countdown counter to simulate find_relation_meta failure.
  */
 C_ORM_EXPORT extern int c_orm_mock_find_relation_meta_countdown;
+
+/**
+ * @brief Flag to simulate c_orm_fclose failure.
+ */
+C_ORM_EXPORT extern int c_orm_mock_fclose_fail;
 #endif /* C_ORM_TEST_ALLOCATOR */
 
 /**

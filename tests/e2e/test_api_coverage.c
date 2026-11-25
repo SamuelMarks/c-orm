@@ -13,34 +13,13 @@
 #include "Models.h"
 #include "c_orm_sqlite.h"
 #include "cdd_c_orm_meta.h"
+#include "hydrate_router.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions++; if (!((cond) != 0)) { fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions++; if (strcmp((exp), (got)) != 0) { fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__, (exp), (got)); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST) \
-  do { \
-    int greatest_should_run = 0; \
-    greatest_test_pre(#TEST, &greatest_should_run); \
-    if (greatest_should_run == 1) { \
-      enum greatest_test_res res = TEST(); \
-      greatest_test_post(res); \
-    } \
-  } while ((void)0, 0)
-
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 #include "test_api_helpers.h"
 #include "test_api_collections.h"
 #include "test_api_crud.h"
@@ -63,8 +42,6 @@ static void test_oom_runner(void (*test_func)(void), int max_allocs) {
     g_malloc_count = 0;
     g_step_count = 0;
     g_malloc_fail = 1;
-    printf("test_oom_runner iter %d\n", i);
-    fflush(stdout);
     test_func();
     free_tracked();
     g_malloc_fail = 0;
@@ -142,9 +119,9 @@ static void test_mock_vt(void) {
   mock_encrypt("a", 1, NULL, &out, &outs);
   g_malloc_fail = 0;
   mock_decrypt("a", 1, NULL, &out, &outs);
-  (void)c_orm_free(out);
+  c_orm_free(out);
   mock_encrypt("a", 1, NULL, &out, &outs);
-  (void)c_orm_free(out);
+  c_orm_free(out);
 }
 
 /**
@@ -214,6 +191,8 @@ static void test_c_orm_find_by_id_int32(void) {
  * @return GREATEST test result.
  */
 static void test_c_orm_find_by_composite_key(void) {
+  static char c_mut_s0[] = "test";
+
   char buf[1024];
   struct CddCVariant keys[2];
   memset(buf, 0, sizeof(buf));
@@ -221,7 +200,7 @@ static void test_c_orm_find_by_composite_key(void) {
   keys[0].type = CDD_C_VARIANT_TYPE_INT;
   keys[0].value.i_val = 1;
   keys[1].type = CDD_C_VARIANT_TYPE_STRING;
-  keys[1].value.s_val = "test";
+  keys[1].value.s_val = c_mut_s0;
   c_orm_find_by_composite_key(&g_db, &mega_meta, 2, keys, buf);
 }
 /**
@@ -229,6 +208,9 @@ static void test_c_orm_find_by_composite_key(void) {
  * @return GREATEST test result.
  */
 static void test_c_orm_update_by_composite_key(void) {
+  static char c_mut_s1[] = "test";
+  static unsigned char c_mut_s2[] = "b";
+
   char buf[1024];
   struct CddCVariant keys[5];
   c_orm_table_meta_t m = mega_meta;
@@ -258,11 +240,11 @@ static void test_c_orm_update_by_composite_key(void) {
   keys[0].type = CDD_C_VARIANT_TYPE_INT;
   keys[0].value.i_val = 1;
   keys[1].type = CDD_C_VARIANT_TYPE_STRING;
-  keys[1].value.s_val = "test";
+  keys[1].value.s_val = c_mut_s1;
   keys[2].type = CDD_C_VARIANT_TYPE_FLOAT;
   keys[2].value.f_val = 1.0;
   keys[3].type = CDD_C_VARIANT_TYPE_BLOB;
-  keys[3].value.b_val.data = (unsigned char *)"b";
+  keys[3].value.b_val.data = c_mut_s2;
   keys[3].value.b_val.size = 1;
   keys[4].type = 999; /* Unknown */
 
@@ -312,12 +294,14 @@ static void test_c_orm_update_by_composite_key(void) {
  * @return GREATEST test result.
  */
 static void test_c_orm_delete_by_composite_key(void) {
+  static char c_mut_s3[] = "test";
+
   struct CddCVariant keys[2];
   memset(keys, 0, sizeof(keys));
   keys[0].type = CDD_C_VARIANT_TYPE_INT;
   keys[0].value.i_val = 1;
   keys[1].type = CDD_C_VARIANT_TYPE_STRING;
-  keys[1].value.s_val = "test";
+  keys[1].value.s_val = c_mut_s3;
   c_orm_delete_by_composite_key(&g_db, &mega_meta, 2, keys);
 }
 /**
@@ -329,7 +313,7 @@ static void test_c_orm_find_all(void) {
   memset(&arr, 0, sizeof(arr));
   c_orm_find_all(&g_db, &mega_meta, &arr);
   if (arr.data) {
-    (void)c_orm_free(arr.data);
+    c_orm_free(arr.data);
     arr.data = NULL;
   }
 }
@@ -338,6 +322,9 @@ static void test_c_orm_find_all(void) {
  * @return GREATEST test result.
  */
 static void test_c_orm_insert(void) {
+  static char c_mut_s4[] = "Alice";
+  static char c_mut_s5[] = "2024-05-15 14:30:00";
+
   char buf[1024] = {0};
   void *void_ptr = NULL;
   char *str_ptr = NULL;
@@ -364,8 +351,8 @@ static void test_c_orm_insert(void) {
   (void)buf;
   {
     struct Users *u = (struct Users *)(void *)buf;
-    u->username = (char *)"Alice";
-    u->created_at = (char *)"2024-05-15 14:30:00";
+    u->username = c_mut_s4;
+    u->created_at = c_mut_s5;
   }
   c_orm_insert(&g_db, &mega_meta, buf);
 }
@@ -1331,7 +1318,9 @@ static void test_c_orm_to_json(void) {
   (void)int_out;
   (void)str_arr;
   (void)buf;
-  c_orm_to_json(&mega_meta, buf, &str_ptr);
+  if (c_orm_to_json(&mega_meta, buf, &str_ptr) == C_ORM_OK) {
+    c_orm_system_free(str_ptr);
+  }
 }
 /**
  * @brief Unit test for test_c_orm_from_json.
@@ -1498,8 +1487,10 @@ static void test_c_orm_deep_free(void) {
   struct cdd_c_prop_meta props[4];
   char *ptr = NULL;
   char *ptr2 = NULL;
+  c_orm_error_t mrc;
 
-  (void)c_orm_system_malloc(10, (void **)&ptr);
+  mrc = c_orm_system_malloc(10, (void **)&ptr);
+  ASSERT_NEQ((c_orm_error_t)-999, mrc);
 
   memset(&m, 0, sizeof(m));
   memset(props, 0, sizeof(props));
@@ -1530,12 +1521,15 @@ static void test_c_orm_deep_free(void) {
  * @return GREATEST test result.
  */
 static void test_c_orm_deep_copy(void) {
+  static char c_mut_s6[] = "hello";
+
   char src[1024] = {0};
   char dest[1024] = {0};
   struct cdd_c_meta m;
   struct cdd_c_prop_meta props[5];
-  char *ptr = (char *)"hello";
-  char *ptr2 = (char *)"world";
+  char *ptr = c_mut_s6;
+  int int_val = 42;
+  int *ptr2 = &int_val;
   char *ptr_null = NULL;
 
   memset(&m, 0, sizeof(m));
@@ -1565,9 +1559,7 @@ static void test_c_orm_deep_copy(void) {
   memcpy(src + 2 * sizeof(void *), &ptr_null, sizeof(void *));
 
   if (c_orm_deep_copy(&m, dest, src) == C_ORM_OK) {
-    char *dup = NULL;
-    memcpy(&dup, dest, sizeof(char *));
-    (void)c_orm_free(dup);
+    c_orm_deep_free(&m, dest);
   }
   c_orm_deep_copy(NULL, src, src);
   c_orm_deep_copy(&m, NULL, src);
@@ -2103,7 +2095,7 @@ static void test_c_orm_find_all_generic(void) {
   (void)buf;
   c_orm_find_all_generic(&g_db, &mega_meta, &void_ptr, &sz_ptr);
   if (void_ptr) {
-    (void)c_orm_free(void_ptr);
+    c_orm_free(void_ptr);
     void_ptr = NULL;
   }
 }
@@ -2375,8 +2367,9 @@ TEST test_hydrate_set_null_field(void) {
 
   vt.get_double = mock_get_double_zero;
 
-  u.username = (char *)malloc(10);
-  C_ORM_STRCPY(u.username, 10, "old");
+  u.username = NULL;
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, (void **)&u.username));
+  ASSERT_EQ(C_ORM_OK, C_ORM_STRCPY(u.username, 10, "old"));
   c_orm_hydrate_row_from(&db_mem, q, &Users_meta, &u, 0);
 
   vt.is_null = mock_is_null_false;
@@ -2393,11 +2386,11 @@ TEST test_hydrate_set_null_field(void) {
     memset(mega_buf, 0, 256);
 
     blob_ptr = (c_orm_blob_t *)(void *)(mega_buf + 64);
-    blob_ptr->data = malloc(8);
+    c_orm_system_malloc(8, &blob_ptr->data);
     blob_ptr->size = 8;
 
     poly_ptr = (c_orm_polygon_t *)(void *)(mega_buf + 80);
-    poly_ptr->points = malloc(16);
+    c_orm_system_malloc(16, (void **)&poly_ptr->points);
     poly_ptr->num_points = 2;
 
     /* Make mega_meta columns nullable so they hit the NULL freeing branch */
@@ -2409,9 +2402,9 @@ TEST test_hydrate_set_null_field(void) {
     test_free_meta_data(&mega_meta, mega_buf);
     c_orm_hydrate_row_from(&db_mem, q, &mega_meta, mega_buf, 0);
 
-    free(blob_ptr->data);
+    c_orm_system_free(blob_ptr->data);
     blob_ptr->data = NULL;
-    free(poly_ptr->points);
+    c_orm_system_free(poly_ptr->points);
     poly_ptr->points = NULL;
 
     /* Dummy data removed to fix leaks */
@@ -2427,6 +2420,8 @@ TEST test_hydrate_set_null_field(void) {
  * @return GREATEST test result.
  */
 TEST test_identity_map_coverage(void) {
+  static char c_mut_s7[] = "str_pk_val";
+
   c_orm_identity_map_t map;
   c_orm_table_meta_t table;
   int32_t val;
@@ -2499,7 +2494,7 @@ TEST test_identity_map_coverage(void) {
 
     /* 2. STRING PK (non-null) */
     h_col.type = C_ORM_TYPE_STRING;
-    h_str_obj.id = "str_pk_val";
+    h_str_obj.id = c_mut_s7;
     ASSERT_EQ(C_ORM_OK,
               c_orm_hydrate_cache_row(&g_db, &h_meta, &h_str_obj, &cached_out));
     ASSERT_EQ(&h_str_obj, cached_out);
@@ -2562,12 +2557,13 @@ TEST test_meta_free_helper(void) {
   meta.columns = cols;
   meta.num_columns = 5;
 
-  test_obj.s = (char *)malloc(16);
-  test_obj.b.data = malloc(16);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(16, (void **)&test_obj.s));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(16, &test_obj.b.data));
   test_obj.b.size = 16;
-  test_obj.p.points = (c_orm_point_t *)malloc(sizeof(c_orm_point_t));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(sizeof(c_orm_point_t),
+                                           (void **)&test_obj.p.points));
   test_obj.p.num_points = 1;
-  test_obj.null_ptr = malloc(16);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(16, &test_obj.null_ptr));
 
   test_free_meta_data(&meta, &test_obj);
   ASSERT_EQ(NULL, test_obj.s);
@@ -2597,9 +2593,11 @@ TEST test_meta_free_helper(void) {
 
   /* mock_realloc_fail with untracked ptr */
   {
-    void *untracked = malloc(10);
+    void *untracked = NULL;
     void *reallocated = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, &untracked));
     ASSERT_EQ(C_ORM_OK, mock_realloc_fail(untracked, 20, &reallocated));
+    free_tracked();
   }
 
   PASS();
@@ -2610,6 +2608,9 @@ TEST test_meta_free_helper(void) {
  * @return GREATEST test result.
  */
 TEST test_batch_coverage(void) {
+  static char c_mut_s8[] = "id1";
+  static char c_mut_s9[] = "id2";
+
   CoverageBatchItem_t items[10];
   c_orm_column_meta_t cols[2];
   c_orm_table_meta_t meta;
@@ -2772,9 +2773,9 @@ TEST test_batch_coverage(void) {
     CoverageStrBatchItem_t str_bitems[2];
     str_bmeta = meta;
     str_bcol = cols[0];
-    str_bitems[0].id = "id1";
+    str_bitems[0].id = c_mut_s8;
     str_bitems[0].val = 1;
-    str_bitems[1].id = "id2";
+    str_bitems[1].id = c_mut_s9;
     str_bitems[1].val = 2;
     str_bcol.type = C_ORM_TYPE_STRING;
     str_bmeta.columns = &str_bcol;
@@ -2845,18 +2846,37 @@ TEST test_shard_and_misc_coverage(void) {
 
   {
     FILE *tf = NULL;
+    char rbuf[32];
+    size_t rlen = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_fclose(NULL));
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+              c_orm_rewind_and_read(NULL, rbuf, sizeof(rbuf), NULL));
     ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_fopen(NULL, "dummy", "r"));
     ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_tmpfile(NULL));
     ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
               c_orm_fopen(&tf, "non_existent_dir_9999/dummy", "r"));
     ASSERT_EQ(C_ORM_OK, c_orm_tmpfile(&tf));
-    fclose(tf);
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+              c_orm_rewind_and_read(tf, NULL, sizeof(rbuf), NULL));
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_rewind_and_read(tf, rbuf, 0, NULL));
+    ASSERT_EQ(C_ORM_OK, c_orm_rewind_and_read(tf, rbuf, sizeof(rbuf), NULL));
+    ASSERT_EQ(C_ORM_OK, c_orm_rewind_and_read(tf, rbuf, sizeof(rbuf), &rlen));
+    ASSERT_EQ(C_ORM_OK, c_orm_fclose(tf));
     tf = NULL;
 
     ASSERT_EQ(C_ORM_OK, c_orm_fopen(&tf, "test_fopen_tmp.txt", "w"));
-    fclose(tf);
+    ASSERT_EQ(C_ORM_OK, c_orm_fclose(tf));
+    tf = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_fopen(&tf, "test_fopen_tmp.txt", "w"));
+    c_orm_mock_fclose_fail = 1;
+    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, c_orm_fclose(tf));
+    c_orm_mock_fclose_fail = 0;
     tf = NULL;
     remove("test_fopen_tmp.txt");
+
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, cdd_c_hydrate_router_set_last_error("mock_err"));
+    c_orm_mock_safe_crt_countdown = -1;
   }
 
   /* Shard manager init, add, route, scatter-gather, free */
@@ -2877,7 +2897,7 @@ TEST test_shard_and_misc_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_scatter_gather_generic(sm, &meta, &scatter_arr,
                                                    &scatter_cnt));
-  (void)c_orm_free(scatter_arr);
+  c_orm_free(scatter_arr);
   scatter_arr = NULL;
 
   c_orm_shard_manager_free(NULL);
@@ -3074,9 +3094,12 @@ TEST test_relations_extended_coverage(void) {
   parent_meta.query_select_all = "SELECT id, name FROM parents";
   parent_meta.query_select_by_pk = "SELECT id, name FROM parents WHERE id = ?";
 
-  /* resolve_n_plus_one with valid relation */
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
-            c_orm_resolve_n_plus_one(&g_db, &parent, &parent_meta, 0));
+  /* resolve_n_plus_one with valid relation on empty parent array */
+  {
+    struct Users_Array empty_parr = {NULL, 0, 0};
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_resolve_n_plus_one(&g_db, &empty_parr, &parent_meta, 0));
+  }
 
   /* attach error & success branches */
   ASSERT_EQ(C_ORM_ERROR_MEMORY,
@@ -3115,25 +3138,25 @@ TEST test_relations_extended_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relation(&g_db, &parent_meta,
                                                    "children", &out_arr));
-  (void)c_orm_free(out_arr.data);
+  c_orm_free(out_arr.data);
   memset(&out_arr, 0, sizeof(out_arr));
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relation(&g_db, &parent_meta, "tags",
                                                    &out_arr));
-  (void)c_orm_free(out_arr.data);
+  c_orm_free(out_arr.data);
   memset(&out_arr, 0, sizeof(out_arr));
   rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
   rels[0].data_offset = (size_t)((char *)&parent.child_ptr - (char *)&parent);
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relation(&g_db, &parent_meta,
                                                    "children", &out_arr));
-  (void)c_orm_free(out_arr.data);
+  c_orm_free(out_arr.data);
   memset(&out_arr, 0, sizeof(out_arr));
   rels[0].type = C_ORM_RELATION_BELONGS_TO;
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relation(&g_db, &parent_meta,
                                                    "children", &out_arr));
-  (void)c_orm_free(out_arr.data);
+  c_orm_free(out_arr.data);
   memset(&out_arr, 0, sizeof(out_arr));
   rels[0].type = C_ORM_RELATION_ONE_TO_MANY;
   rels[0].data_offset =
@@ -3149,19 +3172,19 @@ TEST test_relations_extended_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&g_db, &parent_meta, 1,
                                                      "children", &parent));
-  (void)c_orm_free(parent.children_arr.data);
+  ASSERT_EQ(C_ORM_OK, c_orm_free(parent.children_arr.data));
   parent.children_arr.data = NULL;
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&g_db, &parent_meta, 1,
                                                      "tags", &parent));
-  (void)c_orm_free(parent.children_arr.data);
+  ASSERT_EQ(C_ORM_OK, c_orm_free(parent.children_arr.data));
   parent.children_arr.data = NULL;
   rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
   rels[0].data_offset = (size_t)((char *)&parent.child_ptr - (char *)&parent);
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&g_db, &parent_meta, 1,
                                                      "children", &parent));
-  (void)c_orm_free(parent.child_ptr);
+  c_orm_free(parent.child_ptr);
   parent.child_ptr = NULL;
 
   /* Test HAS_MANY_THROUGH */
@@ -3193,7 +3216,7 @@ TEST test_relations_extended_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&g_db, &parent_meta, 1,
                                                      "children", &parent));
-  (void)c_orm_free(parent.child_ptr);
+  c_orm_free(parent.child_ptr);
   parent.child_ptr = NULL;
   rels[0].type = C_ORM_RELATION_ONE_TO_MANY;
   rels[0].data_offset =
@@ -3274,12 +3297,12 @@ TEST test_relations_extended_coverage(void) {
                                           &out_arr));
   ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relations(&g_db, &parent_meta,
                                                     rel_paths, 0, &out_arr));
-  (void)c_orm_free(out_arr.data);
+  c_orm_free(out_arr.data);
   memset(&out_arr, 0, sizeof(out_arr));
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relations(&g_db, &parent_meta,
                                                     rel_paths, 1, &out_arr));
-  (void)c_orm_free(out_arr.data);
+  c_orm_free(out_arr.data);
   memset(&out_arr, 0, sizeof(out_arr));
   /* find_with_relations_int32 error branches */
   ASSERT_EQ(C_ORM_ERROR_MEMORY,
@@ -3291,7 +3314,7 @@ TEST test_relations_extended_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relations_int32(&g_db, &parent_meta, 1,
                                                       rel_paths, 1, &parent));
-  (void)c_orm_free(parent.children_arr.data);
+  ASSERT_EQ(C_ORM_OK, c_orm_free(parent.children_arr.data));
   parent.children_arr.data = NULL;
   {
     const char *nested_paths[1];
@@ -3299,12 +3322,12 @@ TEST test_relations_extended_coverage(void) {
     g_step_count = 0;
     c_orm_find_with_relations_int32(&g_db, &parent_meta, 1, nested_paths, 1,
                                     &parent);
-    (void)c_orm_free(parent.children_arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_free(parent.children_arr.data));
     parent.children_arr.data = NULL;
     g_step_count = 0;
     c_orm_find_all_with_relations(&g_db, &parent_meta, nested_paths, 1,
                                   &out_arr);
-    (void)c_orm_free(out_arr.data);
+    c_orm_free(out_arr.data);
     memset(&out_arr, 0, sizeof(out_arr));
   }
 
@@ -3518,18 +3541,19 @@ TEST test_free_relations_coverage(void) {
   memset(&parent, 0, sizeof(parent));
 
   parent.single_ctx.is_loaded = 1;
-  (void)c_orm_system_malloc(sizeof(struct TargetChild),
-                            (void **)&parent.single_child);
-  (void)c_orm_system_malloc(16, (void **)&parent.single_child->name);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(sizeof(struct TargetChild),
+                                          (void **)&parent.single_child));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_system_malloc(16, (void **)&parent.single_child->name));
   C_ORM_STRCPY(parent.single_child->name, 16, "single_val");
 
   parent.multi_ctx.is_loaded = 1;
   parent.children_arr.length = 1;
   parent.children_arr.capacity = 1;
-  (void)c_orm_system_malloc(sizeof(struct TargetChild),
-                            &parent.children_arr.data);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(sizeof(struct TargetChild),
+                                          &parent.children_arr.data));
   elem = (struct TargetChild *)parent.children_arr.data;
-  (void)c_orm_system_malloc(16, (void **)&elem->name);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(16, (void **)&elem->name));
   C_ORM_STRCPY(elem->name, 16, "multi_val");
 
   ASSERT_EQ(C_ORM_OK, c_orm_free_relations(&parent_meta, &parent));
@@ -3547,6 +3571,13 @@ TEST test_free_relations_coverage(void) {
  * @return GREATEST test result.
  */
 TEST test_relation_meta_builder_coverage(void) {
+  static char c_mut_s10[] = "team_id";
+  static char c_mut_s11[] = "teams";
+  static char c_mut_s12[] = "id";
+  static char c_mut_s13[] = "roles";
+  static char c_mut_s14[] = "role_id";
+  static char c_mut_s15[] = "users";
+
   struct sql_table_t tbl;
   struct sql_column_t cols[1];
   struct sql_constraint_t col_cons[1];
@@ -3559,18 +3590,18 @@ TEST test_relation_meta_builder_coverage(void) {
   memset(col_cons, 0, sizeof(col_cons));
   memset(tbl_cons, 0, sizeof(tbl_cons));
 
-  cols[0].name = "team_id";
+  cols[0].name = c_mut_s10;
   cols[0].constraints = col_cons;
   cols[0].n_constraints = 1;
   col_cons[0].type = SQL_CONSTRAINT_FOREIGN_KEY;
-  col_cons[0].reference_table = "teams";
-  col_cons[0].reference_column = "id";
+  col_cons[0].reference_table = c_mut_s11;
+  col_cons[0].reference_column = c_mut_s12;
 
   tbl_cons[0].type = SQL_CONSTRAINT_FOREIGN_KEY;
-  tbl_cons[0].reference_table = "roles";
-  tbl_cons[0].reference_column = "role_id";
+  tbl_cons[0].reference_table = c_mut_s13;
+  tbl_cons[0].reference_column = c_mut_s14;
 
-  tbl.name = "users";
+  tbl.name = c_mut_s15;
   tbl.columns = cols;
   tbl.n_columns = 1;
   tbl.table_constraints = tbl_cons;
@@ -3595,7 +3626,7 @@ TEST test_relation_meta_builder_coverage(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_build_relation_meta(&tbl, &built_rels, &n_rels));
   ASSERT_EQ(2, n_rels);
   ASSERT(built_rels != NULL);
-  (void)c_orm_free(built_rels);
+  c_orm_free(built_rels);
 
   PASS();
 }
@@ -3776,8 +3807,8 @@ TEST test_prefix_column_hydration_coverage(void) {
   g_step_count = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_hydrate_row(&local_db, q, &parent_meta, &user_obj));
   ASSERT(user_obj.company != NULL);
-  (void)c_orm_free(user_obj.company->name);
-  (void)c_orm_free(user_obj.company);
+  c_orm_free(user_obj.company->name);
+  c_orm_free(user_obj.company);
   user_obj.company = NULL;
 
   PASS();
@@ -3859,9 +3890,9 @@ TEST test_point_polygon_secure_coverage(void) {
   ASSERT_EQ(1.23, geo_obj.pt.x);
   ASSERT_EQ(4.56, geo_obj.pt.y);
 
-  (void)c_orm_free(geo_obj.poly.points);
+  ASSERT_EQ(C_ORM_OK, c_orm_free(geo_obj.poly.points));
   geo_obj.poly.points = NULL;
-  (void)c_orm_free(geo_obj.sec_str);
+  c_orm_free(geo_obj.sec_str);
   geo_obj.sec_str = NULL;
 
   g_custom_blob_data = poly_wkb;
@@ -3872,9 +3903,9 @@ TEST test_point_polygon_secure_coverage(void) {
   ASSERT_EQ(1, geo_obj.poly.num_points);
   ASSERT(geo_obj.poly.points != NULL);
 
-  (void)c_orm_free(geo_obj.poly.points);
+  ASSERT_EQ(C_ORM_OK, c_orm_free(geo_obj.poly.points));
   geo_obj.poly.points = NULL;
-  (void)c_orm_free(geo_obj.sec_str);
+  c_orm_free(geo_obj.sec_str);
   geo_obj.sec_str = NULL;
 
   g_custom_blob_data = NULL;
@@ -4448,6 +4479,10 @@ struct TestHydrateNullPrealloc {
  * @return GREATEST test result.
  */
 TEST test_api_deep_branches(void) {
+  static char c_mut_s16[] = "my_id";
+  static char c_mut_s17[] = "";
+  static char c_mut_s18[] = "pk1";
+
   char buf[256];
   int exists;
   struct TestFreePolyStruct ps;
@@ -4491,7 +4526,8 @@ TEST test_api_deep_branches(void) {
   p_meta.columns = &p_col;
   p_meta.num_columns = 1;
   ps.poly.num_points = 2;
-  ps.poly.points = (c_orm_point_t *)malloc(sizeof(c_orm_point_t) * 2);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(sizeof(c_orm_point_t) * 2,
+                                           (void **)&ps.poly.points));
   c_orm_free_columns(&p_meta, &ps);
   ASSERT_EQ(NULL, ps.poly.points);
   ASSERT_EQ(0, ps.poly.num_points);
@@ -4524,11 +4560,12 @@ TEST test_api_deep_branches(void) {
   np_meta.num_columns = 4;
   np_meta.struct_size = sizeof(thnp);
 
-  thnp.str_val = (char *)malloc(10);
-  thnp.json_val = (char *)malloc(10);
-  thnp.blob_val.data = malloc(10);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, (void **)&thnp.str_val));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, (void **)&thnp.json_val));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, &thnp.blob_val.data));
   thnp.blob_val.size = 10;
-  thnp.i32_val = (int32_t *)malloc(sizeof(int32_t));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_default_malloc(sizeof(int32_t), (void **)&thnp.i32_val));
 
   local_vt = g_vt;
   local_vt.is_null = mock_is_null_true;
@@ -4547,6 +4584,8 @@ TEST test_api_deep_branches(void) {
   g_db.query_interceptor_ctx = &interceptor_called;
   ASSERT_EQ(C_ORM_OK, c_orm_execute_raw(&g_db, "SELECT 1"));
   ASSERT_EQ(1, interceptor_called);
+  interceptor_called = -1;
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_execute_raw(&g_db, "SELECT 1"));
   g_db.query_interceptor = NULL;
   g_db.query_interceptor_ctx = NULL;
 
@@ -4649,10 +4688,10 @@ TEST test_api_deep_branches(void) {
     str_pk_meta.query_insert = "INSERT INTO t (id) VALUES (?)";
     str_pk_meta.query_update = "UPDATE t SET id = ? WHERE id = ?";
 
-    str_obj.id = "my_id";
+    str_obj.id = c_mut_s16;
     ASSERT_EQ(C_ORM_OK, c_orm_save(&g_db, &str_pk_meta, &str_obj));
 
-    str_obj.id = "";
+    str_obj.id = c_mut_s17;
     ASSERT_EQ(C_ORM_OK, c_orm_save(&g_db, &str_pk_meta, &str_obj));
 
     str_pk_col.type = C_ORM_TYPE_INT64;
@@ -4666,7 +4705,7 @@ TEST test_api_deep_branches(void) {
     const char *up_fields[1];
     CoverageUpdateObj_t up_obj;
 
-    up_obj.id = "pk1";
+    up_obj.id = c_mut_s18;
     up_obj.count = 42;
     up_obj.score = 3.14f;
 
@@ -4696,9 +4735,10 @@ TEST test_api_deep_branches(void) {
     ASSERT_EQ(C_ORM_OK,
               c_orm_update_partial(&g_db, &up_meta, &up_obj, up_fields, 1));
 
-    /* Update float field -> not implemented */
+    /* Update float field -> now supported */
+    g_step_count = 0;
     up_fields[0] = "score";
-    ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED,
+    ASSERT_EQ(C_ORM_OK,
               c_orm_update_partial(&g_db, &up_meta, &up_obj, up_fields, 1));
 
     /* Missing PK column */
@@ -4712,6 +4752,10 @@ TEST test_api_deep_branches(void) {
     up_fields[0] = "count";
     ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
               c_orm_update_partial(&g_db, &up_meta, &up_obj, up_fields, 1));
+    c_orm_mock_finalize_cached_fail = 1;
+    ASSERT_NEQ(C_ORM_OK,
+               c_orm_update_partial(&g_db, &up_meta, &up_obj, up_fields, 1));
+    c_orm_mock_finalize_cached_fail = 0;
   }
 
   PASS();
@@ -4923,7 +4967,8 @@ TEST test_attach_detach_sync_coverage(void) {
 
   /* 9. Test set_null_field with all types: fk64 (nullable), f_val, d_val */
   rels[0].foreign_key = "fk64";
-  child.fk64 = (int64_t *)malloc(sizeof(int64_t));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_default_malloc(sizeof(int64_t), (void **)&child.fk64));
   *child.fk64 = 99;
   ASSERT_EQ(C_ORM_OK,
             c_orm_detach(&g_db, &p_meta, &parent, "children", &child));
@@ -4953,7 +4998,7 @@ TEST test_attach_detach_sync_coverage(void) {
   ASSERT_EQ(C_ORM_OK,
             c_orm_attach(&g_db, &p_meta, &parent, "children", &child));
   ASSERT_EQ(1, *child.fk64);
-  free(child.fk64);
+  c_orm_system_free(child.fk64);
   child.fk64 = NULL;
 
   /* 11. Relation not found in attach/detach/sync */
@@ -4979,12 +5024,14 @@ TEST test_attach_detach_sync_coverage(void) {
 static c_orm_error_t mock_encrypt_ok(const void *in_data, size_t in_size,
                                      void *context, void **out_data,
                                      size_t *out_size) {
+  c_orm_error_t rc;
   (void)context;
   if (!in_data)
     return C_ORM_ERROR_MEMORY;
-  *out_data = malloc(in_size);
-  if (!*out_data)
-    return C_ORM_ERROR_MEMORY;
+  *out_data = NULL;
+  rc = c_orm_system_malloc(in_size, out_data);
+  if (rc != C_ORM_OK)
+    return rc;
   memcpy(*out_data, in_data, in_size);
   *out_size = in_size;
   return C_ORM_OK;
@@ -5033,6 +5080,12 @@ struct BindRowTestObj {
  * @return GREATEST test result.
  */
 TEST test_bind_row_extended_coverage(void) {
+  static char c_mut_s19[] = "";
+  static char c_mut_s20[] = "2026-09-10 12:00:00";
+  static char c_mut_s21[] = "sensitive";
+  static char c_mut_s22[] = "blob_data";
+  static char c_mut_s23[] = "static_id";
+
   struct BindRowTestObj obj;
   c_orm_column_meta_t cols[6];
   c_orm_table_meta_t meta;
@@ -5076,10 +5129,10 @@ TEST test_bind_row_extended_coverage(void) {
   meta.query_insert = "INSERT INTO bind_test VALUES (?, ?, ?, ?, ?)";
   meta.query_update = "UPDATE bind_test SET id=? WHERE id=?";
 
-  obj.id = "";
-  obj.ts = "2026-09-10 12:00:00";
-  obj.secret_str = "sensitive";
-  obj.secret_blob.data = "blob_data";
+  obj.id = c_mut_s19;
+  obj.ts = c_mut_s20;
+  obj.secret_str = c_mut_s21;
+  obj.secret_blob.data = c_mut_s22;
   obj.secret_blob.size = 9;
   obj.null_blob.data = NULL;
   obj.null_blob.size = 0;
@@ -5091,8 +5144,24 @@ TEST test_bind_row_extended_coverage(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_insert(&g_db, &meta, &obj));
   ASSERT(obj.id != NULL);
   ASSERT(strlen(obj.id) > 0);
-  free(obj.id);
-  obj.id = "static_id";
+  c_orm_system_free(obj.id);
+  obj.id = c_mut_s23;
+  {
+    void *enc_out = NULL;
+    size_t enc_sz = 0;
+    c_orm_malloc_fn_t orig_m = c_orm_malloc;
+    c_orm_set_allocators(cov_always_null_malloc, c_orm_realloc, c_orm_free);
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              mock_encrypt_ok("abc", 3, NULL, &enc_out, &enc_sz));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              mock_test_encrypt_hook_ok("abc", 3, NULL, &enc_out, &enc_sz));
+    c_orm_set_allocators(orig_m, c_orm_realloc, c_orm_free);
+    {
+      int ok_ctx = 0;
+      ASSERT_EQ(C_ORM_OK, dummy_batch_progress(0, 0, NULL));
+      ASSERT_EQ(C_ORM_OK, dummy_batch_progress(0, 0, &ok_ctx));
+    }
+  }
 
   /* 2. Encrypt hook failure on string */
   g_db.encrypt_hook = mock_encrypt_fail;
@@ -5412,7 +5481,7 @@ TEST test_api_helpers_full_coverage(void) {
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
   rc = mock_test_encrypt_hook_ok("a", 1, NULL, &out_data, &out_size);
   ASSERT_EQ(C_ORM_OK, rc);
-  free(out_data);
+  c_orm_system_free(out_data);
 
   rc = mock_is_null_child_true(NULL, 2, &is_n);
   ASSERT_EQ(C_ORM_OK, rc);
@@ -5480,6 +5549,925 @@ TEST test_api_helpers_full_coverage(void) {
   rc = mock_step_pattern_100(NULL, &has_row);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, has_row);
+
+  PASS();
+}
+
+/**
+ * @brief Custom hydrator callback used to verify `c_orm_hydrate_routed`.
+ * @param out_struct Output `int32_t *` receiving hydrated `id`.
+ * @param row Hydrated abstract row dictionary.
+ * @return C_ORM_OK on success.
+ */
+static c_orm_error_t mock_routed_hydrator(void *out_struct,
+                                          const cdd_c_abstract_struct_t *row) {
+  cdd_c_variant_t *v = NULL;
+  c_orm_error_t rc = cdd_c_abstract_get(row, "id", &v);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+  *(int32_t *)out_struct = (int32_t)v->value.i_val;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief After-delete hook counter callback for soft-delete verification.
+ * @param obj Target object pointer.
+ * @param user_data Database handle pointer.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t mock_soft_after_delete_hook(void *obj, void *user_data) {
+  (void)obj;
+  (void)user_data;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Comprehensive branch and OOM test suite for reflection, JSON/dict
+ * serialization, routed hydration, N+1 batch resolution, timestamp &
+ * soft-delete hooks, and MySQL string escaping.
+ * @return GREATEST test result.
+ */
+TEST test_api_reflection_hooks_and_n_plus_one(void) {
+  static char c_mut_s24[] = "first";
+  static char c_mut_s25[] = "second";
+  static char c_mut_s26[] = "FIXVAL";
+  static char c_mut_s27[] = "123.45";
+  static char c_mut_s28[] = "not_num";
+  static char c_mut_s29[] = "dyn_fixed";
+  static char c_mut_s30[] = "oom";
+  static char c_mut_s31[] = "item1";
+  static char c_mut_s32[] = "P10";
+  static char c_mut_s33[] = "P20";
+  static char c_mut_s34[] = "P10";
+  static char c_mut_s35[] = "P20";
+
+  /** @brief Reflection test struct covering all column types. */
+  struct ReflFull {
+    /** @brief INT32 PK. */
+    int32_t id;
+    /** @brief INT64 value. */
+    int64_t i64;
+    /** @brief BOOL value. */
+    unsigned char flag;
+    /** @brief FLOAT value. */
+    float flt;
+    /** @brief DOUBLE value. */
+    double dbl;
+    /** @brief Heap string value. */
+    char *str;
+    /** @brief Fixed CHAR(7) buffer. */
+    char fixed_ch[8];
+    /** @brief Variable BLOB value. */
+    c_orm_blob_t blob;
+    /** @brief Exact DECIMAL value. */
+    c_orm_decimal_t dec;
+    /** @brief Nullable INT32 pointer. */
+    int32_t *null_i32;
+    /** @brief Unknown type placeholder. */
+    int32_t unk;
+  };
+  /** @brief Lifecycle hook test row with timestamps and soft-delete columns. */
+  struct LifecycleRow {
+    /** @brief Primary key. */
+    int32_t id;
+    /** @brief Row name. */
+    char *name;
+    /** @brief Created timestamp string. */
+    char *created_at;
+    /** @brief Updated epoch timestamp. */
+    int64_t updated_at;
+    /** @brief Soft-delete timestamp string. */
+    char *deleted_at;
+    /** @brief Soft-delete epoch column alternative. */
+    int64_t deleted_epoch;
+    /** @brief Soft-delete boolean flag. */
+    int32_t is_deleted;
+  };
+  /** @brief Child struct for N+1 batch resolution. */
+  struct N1Child {
+    /** @brief Child PK. */
+    int32_t id;
+    /** @brief Foreign key to parent. */
+    int32_t parent_id;
+    /** @brief String foreign key to parent. */
+    char *parent_code;
+    /** @brief Child title. */
+    char *title;
+  };
+  /** @brief Child array container for N+1 batch resolution. */
+  struct N1ChildArr {
+    /** @brief Data pointer. */
+    struct N1Child *data;
+    /** @brief Length. */
+    size_t length;
+    /** @brief Capacity. */
+    size_t capacity;
+  };
+  /** @brief ONE_TO_MANY children wrapper for N+1 batch resolution. */
+  struct N1ChildrenWrap {
+    /** @brief Children array container. */
+    struct N1ChildArr data;
+    /** @brief Lazy load context. */
+    c_orm_lazy_load_context_t lazy_ctx;
+  };
+  /** @brief ONE_TO_ONE child wrapper for N+1 batch resolution. */
+  struct N1SingleWrap {
+    /** @brief Single child pointer. */
+    struct N1Child *data;
+    /** @brief Lazy load context. */
+    c_orm_lazy_load_context_t lazy_ctx;
+  };
+  /** @brief Parent struct for N+1 batch resolution. */
+  struct N1Parent {
+    /** @brief Parent PK. */
+    int32_t id;
+    /** @brief Parent string key. */
+    char *code;
+    /** @brief ONE_TO_MANY children wrapper. */
+    struct N1ChildrenWrap children;
+    /** @brief ONE_TO_ONE child wrapper. */
+    struct N1SingleWrap primary_child;
+  };
+
+  struct ReflFull obj;
+  struct ReflFull out_obj;
+  c_orm_column_meta_t rcols[11];
+  c_orm_table_meta_t rmeta;
+  cdd_c_variant_t var;
+  cdd_c_abstract_struct_t dict;
+  char *json_str = NULL;
+  unsigned char raw_bytes[3] = {0xAA, 0xBB, 0xCC};
+  int step;
+  c_orm_malloc_fn_t orig_m = c_orm_malloc;
+  c_orm_realloc_fn_t orig_r = c_orm_realloc;
+  c_orm_free_fn_t orig_f = c_orm_free;
+
+  memset(&obj, 0, sizeof(obj));
+  memset(&out_obj, 0, sizeof(out_obj));
+  memset(rcols, 0, sizeof(rcols));
+  memset(&rmeta, 0, sizeof(rmeta));
+
+  rcols[0].name = "id";
+  rcols[0].type = C_ORM_TYPE_INT32;
+  rcols[0].offset = offsetof(struct ReflFull, id);
+  rcols[0].is_pk = 1;
+  rcols[1].name = "i64";
+  rcols[1].type = C_ORM_TYPE_INT64;
+  rcols[1].offset = offsetof(struct ReflFull, i64);
+  rcols[2].name = "flag";
+  rcols[2].type = C_ORM_TYPE_BOOL;
+  rcols[2].offset = offsetof(struct ReflFull, flag);
+  rcols[3].name = "flt";
+  rcols[3].type = C_ORM_TYPE_FLOAT;
+  rcols[3].offset = offsetof(struct ReflFull, flt);
+  rcols[4].name = "dbl";
+  rcols[4].type = C_ORM_TYPE_DOUBLE;
+  rcols[4].offset = offsetof(struct ReflFull, dbl);
+  rcols[5].name = "str";
+  rcols[5].type = C_ORM_TYPE_STRING;
+  rcols[5].offset = offsetof(struct ReflFull, str);
+  rcols[6].name = "fixed_ch";
+  rcols[6].type = C_ORM_TYPE_CHAR_FIXED;
+  rcols[6].offset = offsetof(struct ReflFull, fixed_ch);
+  rcols[6].fixed_length = 7;
+  rcols[7].name = "blob";
+  rcols[7].type = C_ORM_TYPE_BLOB;
+  rcols[7].offset = offsetof(struct ReflFull, blob);
+  rcols[8].name = "dec";
+  rcols[8].type = C_ORM_TYPE_DECIMAL;
+  rcols[8].offset = offsetof(struct ReflFull, dec);
+  rcols[9].name = "null_i32";
+  rcols[9].type = C_ORM_TYPE_INT32;
+  rcols[9].offset = offsetof(struct ReflFull, null_i32);
+  rcols[9].is_nullable = 1;
+  rcols[10].name = "unk";
+  rcols[10].type = C_ORM_TYPE_UNKNOWN;
+  rcols[10].offset = offsetof(struct ReflFull, unk);
+
+  rmeta.name = "refl_full";
+  rmeta.columns = rcols;
+  rmeta.num_columns = 11;
+  rmeta.struct_size = sizeof(struct ReflFull);
+
+  /* 1. Field reflection get/set across all types, nulls, overwrites, errors */
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_get_field_value(NULL, &obj, "id", &var));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            c_orm_get_field_value(&rmeta, NULL, "id", &var));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            c_orm_get_field_value(&rmeta, &obj, NULL, &var));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            c_orm_get_field_value(&rmeta, &obj, "id", NULL));
+  ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
+            c_orm_get_field_value(&rmeta, &obj, "missing", &var));
+
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_set_field_value(NULL, &obj, "id", &var));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            c_orm_set_field_value(&rmeta, NULL, "id", &var));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            c_orm_set_field_value(&rmeta, &obj, NULL, &var));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
+            c_orm_set_field_value(&rmeta, &obj, "id", NULL));
+  ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
+            c_orm_set_field_value(&rmeta, &obj, "missing", &var));
+
+  /* Null initial states for string, blob, nullable scalar, unknown */
+  ASSERT_EQ(C_ORM_OK, c_orm_get_field_value(&rmeta, &obj, "str", &var));
+  ASSERT_EQ(CDD_C_VARIANT_TYPE_NULL, var.type);
+  ASSERT_EQ(C_ORM_OK, c_orm_get_field_value(&rmeta, &obj, "blob", &var));
+  ASSERT_EQ(CDD_C_VARIANT_TYPE_NULL, var.type);
+  ASSERT_EQ(C_ORM_OK, c_orm_get_field_value(&rmeta, &obj, "null_i32", &var));
+  ASSERT_EQ(CDD_C_VARIANT_TYPE_NULL, var.type);
+  ASSERT_EQ(C_ORM_OK, c_orm_get_field_value(&rmeta, &obj, "unk", &var));
+  ASSERT_EQ(CDD_C_VARIANT_TYPE_NULL, var.type);
+
+  /* Set non-nullable to NULL is a safe no-op */
+  memset(&var, 0, sizeof(var));
+  var.type = CDD_C_VARIANT_TYPE_NULL;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "id", &var));
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "fixed_ch", &var));
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "str", &var));
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "blob", &var));
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "null_i32", &var));
+
+  /* Populate all fields via set_field_value */
+  var.type = CDD_C_VARIANT_TYPE_INT;
+  var.value.i_val = 77;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "id", &var));
+  var.value.i_val = 9001;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "i64", &var));
+  var.value.i_val = 1;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "flag", &var));
+  var.value.i_val = 0;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "flag", &var));
+  var.value.i_val = 1;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "flag", &var));
+  var.value.i_val = 12;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "flt", &var));
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "dbl", &var));
+  var.value.i_val = 55;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "null_i32", &var));
+  var.value.i_val = 56;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "null_i32", &var));
+
+  var.type = CDD_C_VARIANT_TYPE_FLOAT;
+  var.value.f_val = 3.5;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "flt", &var));
+  var.value.f_val = 6.25;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "dbl", &var));
+
+  var.type = CDD_C_VARIANT_TYPE_STRING;
+  var.value.s_val = c_mut_s24;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "str", &var));
+  var.value.s_val = c_mut_s25;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "str", &var));
+  var.value.s_val = c_mut_s26;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "fixed_ch", &var));
+  var.value.s_val = c_mut_s27;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "dec", &var));
+
+  var.type = CDD_C_VARIANT_TYPE_DECIMAL;
+  ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("987.65", &var.value.d_val));
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "dec", &var));
+
+  var.type = CDD_C_VARIANT_TYPE_BLOB;
+  var.value.b_val.data = raw_bytes;
+  var.value.b_val.size = 3;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "blob", &var));
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "blob", &var));
+  var.value.b_val.size = 0;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "blob", &var));
+  var.value.b_val.size = 3;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "blob", &var));
+
+  /* Type mismatches across all setters */
+  var.type = CDD_C_VARIANT_TYPE_INT;
+  var.value.i_val = 1;
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "fixed_ch", &var));
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "str", &var));
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "blob", &var));
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "dec", &var));
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "unk", &var));
+
+  var.type = CDD_C_VARIANT_TYPE_STRING;
+  var.value.s_val = NULL;
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "fixed_ch", &var));
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "str", &var));
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "dec", &var));
+  var.value.s_val = c_mut_s28;
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "id", &var));
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "i64", &var));
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "flag", &var));
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "flt", &var));
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_set_field_value(&rmeta, &obj, "dbl", &var));
+
+  /* 2. to_dict / from_dict / to_json / from_json round-trip + OOM */
+  rmeta.num_columns = 10; /* exclude unk so from_dict round-trips all fields */
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_to_dict(NULL, &obj, &dict));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_to_dict(&rmeta, NULL, &dict));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_to_dict(&rmeta, &obj, NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_to_dict(&rmeta, &obj, &dict));
+
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_from_dict(NULL, &dict, &out_obj));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_from_dict(&rmeta, NULL, &out_obj));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_from_dict(&rmeta, &dict, NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_from_dict(&rmeta, &dict, &out_obj));
+  ASSERT_EQ(77, out_obj.id);
+  ASSERT_STR_EQ("second", out_obj.str);
+  ASSERT_STR_EQ("FIXVAL", out_obj.fixed_ch);
+  ASSERT_EQ(56, *out_obj.null_i32);
+  c_orm_free_columns(&rmeta, &out_obj);
+
+  /* Abstract JSON & typed JSON round-trip */
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_abstract_to_json(&dict, NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_abstract_to_json(&dict, &json_str));
+  c_orm_system_free(json_str);
+  json_str = NULL;
+  /* Corrupt decimal precision to trigger cdd_c_abstract_struct_to_json error */
+  dict.kvs[8].value.value.d_val.precision = 99;
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_abstract_to_json(&dict, &json_str));
+  cdd_c_abstract_struct_free(&dict);
+
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_abstract_from_json(NULL, &dict));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_abstract_from_json("NOT JSON", &dict));
+  ASSERT_EQ(C_ORM_OK, c_orm_abstract_from_json("{\"id\":42}", &dict));
+  cdd_c_abstract_struct_free(&dict);
+
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_to_json(NULL, &obj, &json_str));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_to_json(&rmeta, NULL, &json_str));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_to_json(&rmeta, &obj, NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_to_json(&rmeta, &obj, &json_str));
+
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_from_json(NULL, json_str, &out_obj));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_from_json(&rmeta, NULL, &out_obj));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_from_json(&rmeta, json_str, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+            c_orm_from_json(&rmeta, "INVALID_JSON", &out_obj));
+  /* Note: JSON serializes decimal as string, blob as base64/null; test clean
+   * subset */
+  rmeta.num_columns = 7;
+  ASSERT_EQ(C_ORM_OK, c_orm_from_json(&rmeta, json_str, &out_obj));
+  ASSERT_EQ(77, out_obj.id);
+  ASSERT_STR_EQ("second", out_obj.str);
+  c_orm_free_columns(&rmeta, &out_obj);
+  c_orm_system_free(json_str);
+  json_str = NULL;
+
+  /* Trigger from_dict error cleanup when a later column fails type check, plus
+   * partial JSON missing keys */
+  ASSERT_EQ(C_ORM_OK, c_orm_from_json(&rmeta, "{\"id\":11}", &out_obj));
+  ASSERT_EQ(11, out_obj.id);
+  ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+            c_orm_from_json(&rmeta, "{\"str\":\"alloc_first\",\"id\":\"bad\"}",
+                            &out_obj));
+
+  /* CHAR_FIXED with fixed_length == 0 fallthrough + blob data != NULL, size ==
+   * 0 */
+  rmeta.num_columns = 10;
+  rcols[6].fixed_length = 0;
+  rcols[6].offset = offsetof(struct ReflFull, str);
+  ASSERT_EQ(C_ORM_OK, c_orm_get_field_value(&rmeta, &obj, "fixed_ch", &var));
+  cdd_c_variant_free(&var);
+  var.type = CDD_C_VARIANT_TYPE_STRING;
+  var.value.s_val = c_mut_s29;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "fixed_ch", &var));
+  rcols[6].fixed_length = 7;
+  rcols[6].offset = offsetof(struct ReflFull, fixed_ch);
+  {
+    void *saved_bdata = obj.blob.data;
+    size_t saved_bsz = obj.blob.size;
+    obj.blob.data = raw_bytes;
+    obj.blob.size = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_get_field_value(&rmeta, &obj, "blob", &var));
+    ASSERT_EQ(CDD_C_VARIANT_TYPE_NULL, var.type);
+    obj.blob.data = saved_bdata;
+    obj.blob.size = saved_bsz;
+  }
+
+  /* OOM sweep across to_json / get_field_value / set_field_value */
+  rmeta.num_columns = 10;
+  c_orm_set_allocators(mock_deep_malloc, mock_deep_realloc, orig_f);
+  for (step = 0; step < 25; ++step) {
+    g_deep_fail_oom = step;
+    g_deep_alloc_cnt = 0;
+    if (c_orm_to_json(&rmeta, &obj, &json_str) == C_ORM_OK) {
+      c_orm_system_free(json_str);
+      json_str = NULL;
+    }
+  }
+  {
+    struct ReflFull oom_obj;
+    memset(&oom_obj, 0, sizeof(oom_obj));
+    g_deep_fail_oom = 0;
+    g_deep_alloc_cnt = 0;
+    var.type = CDD_C_VARIANT_TYPE_STRING;
+    var.value.s_val = c_mut_s30;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_set_field_value(&rmeta, &oom_obj, "str", &var));
+    g_deep_fail_oom = 0;
+    g_deep_alloc_cnt = 0;
+    var.type = CDD_C_VARIANT_TYPE_BLOB;
+    var.value.b_val.data = raw_bytes;
+    var.value.b_val.size = 3;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_set_field_value(&rmeta, &oom_obj, "blob", &var));
+    g_deep_fail_oom = 0;
+    g_deep_alloc_cnt = 0;
+    var.type = CDD_C_VARIANT_TYPE_INT;
+    var.value.i_val = 9;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_set_field_value(&rmeta, &oom_obj, "null_i32", &var));
+  }
+  g_deep_fail_oom = -1;
+  c_orm_set_allocators(orig_m, orig_r, orig_f);
+
+  /* Set string, blob, and nullable back to NULL when non-NULL */
+  var.type = CDD_C_VARIANT_TYPE_NULL;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "str", &var));
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "blob", &var));
+  ASSERT_EQ(C_ORM_OK, c_orm_set_field_value(&rmeta, &obj, "null_i32", &var));
+  /* Also cover zero-value bool in get_field_value */
+  obj.flag = 0;
+  ASSERT_EQ(C_ORM_OK, c_orm_get_field_value(&rmeta, &obj, "flag", &var));
+  ASSERT_EQ(0, (int)var.value.i_val);
+
+  /* 3. c_orm_hydrate_routed, timestamp/soft-delete hooks, N+1, MySQL escape */
+  {
+    c_orm_db_t *sdb = NULL;
+    c_orm_query_t *sq = NULL;
+    int has_r = 0;
+    int32_t routed_id = 0;
+    cdd_c_hydrate_router_t router;
+    cdd_c_abstract_struct_t fallback_row;
+
+    ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect(":memory:", &sdb));
+    ASSERT_EQ(C_ORM_OK, c_orm_execute_raw(
+                            sdb, "CREATE TABLE rt (id INTEGER PRIMARY KEY)"));
+    ASSERT_EQ(C_ORM_OK, c_orm_execute_raw(sdb, "INSERT INTO rt VALUES (99)"));
+    ASSERT_EQ(C_ORM_OK, sdb->vtable->prepare(sdb, "SELECT id FROM rt", &sq));
+    ASSERT_EQ(C_ORM_OK, sdb->vtable->step(sq, &has_r));
+
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_hydrate_routed(NULL, sq, 0, &routed_id));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_hydrate_routed(sdb, NULL, 0, &routed_id));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_hydrate_routed(sdb, sq, 0, NULL));
+    ASSERT_EQ(C_ORM_OK, c_orm_hydrate_routed(sdb, sq, 0, &fallback_row));
+    cdd_c_abstract_struct_free(&fallback_row);
+
+    ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_init(&router));
+    ASSERT_EQ(C_ORM_OK,
+              cdd_c_hydrate_router_register(&router, (c_orm_uint64_t)0xBEEFUL,
+                                            NULL, mock_routed_hydrator));
+    sdb->hydrate_router = (struct CddCHydrateRouter *)&router;
+    ASSERT_EQ(C_ORM_OK, c_orm_hydrate_routed(sdb, sq, (c_orm_uint64_t)0xBEEFUL,
+                                             &routed_id));
+    ASSERT_EQ(99, routed_id);
+    {
+      cdd_c_abstract_struct_t empty_row;
+      ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_init(&empty_row));
+      ASSERT_NEQ(C_ORM_OK, mock_routed_hydrator(&routed_id, &empty_row));
+      ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_free(&empty_row));
+    }
+
+    /* Simulate hydration error path in c_orm_hydrate_routed */
+    c_orm_set_allocators(mock_deep_malloc, mock_deep_realloc, orig_f);
+    g_deep_fail_oom = 0;
+    g_deep_alloc_cnt = 0;
+    ASSERT_EQ(
+        C_ORM_ERROR_MEMORY,
+        c_orm_hydrate_routed(sdb, sq, (c_orm_uint64_t)0xBEEFUL, &routed_id));
+    g_deep_fail_oom = -1;
+    c_orm_set_allocators(orig_m, orig_r, orig_f);
+
+    cdd_c_hydrate_router_free(&router);
+    ASSERT_EQ(C_ORM_OK, sdb->vtable->finalize(sq));
+
+    /* Lifecycle timestamp & soft-delete hooks on live SQLite */
+    {
+      c_orm_column_meta_t lcols[7];
+      c_orm_table_meta_t lmeta;
+      struct LifecycleRow lrow;
+      memset(lcols, 0, sizeof(lcols));
+      memset(&lmeta, 0, sizeof(lmeta));
+      memset(&lrow, 0, sizeof(lrow));
+
+      lcols[0].name = "id";
+      lcols[0].type = C_ORM_TYPE_INT32;
+      lcols[0].offset = offsetof(struct LifecycleRow, id);
+      lcols[0].is_pk = 1;
+      lcols[1].name = "name";
+      lcols[1].type = C_ORM_TYPE_STRING;
+      lcols[1].offset = offsetof(struct LifecycleRow, name);
+      lcols[2].name = "created_at";
+      lcols[2].type = C_ORM_TYPE_STRING;
+      lcols[2].offset = offsetof(struct LifecycleRow, created_at);
+      lcols[3].name = "updated_at";
+      lcols[3].type = C_ORM_TYPE_INT64;
+      lcols[3].offset = offsetof(struct LifecycleRow, updated_at);
+      lcols[4].name = "deleted_at";
+      lcols[4].type = C_ORM_TYPE_STRING;
+      lcols[4].offset = offsetof(struct LifecycleRow, deleted_at);
+      lcols[5].name = "is_deleted";
+      lcols[5].type = C_ORM_TYPE_INT32;
+      lcols[5].offset = offsetof(struct LifecycleRow, is_deleted);
+
+      lmeta.name = "lc_tbl";
+      lmeta.columns = lcols;
+      lmeta.num_columns = 6;
+      lmeta.struct_size = sizeof(lrow);
+      lmeta.query_insert =
+          "INSERT INTO lc_tbl (id, name, created_at, updated_at, deleted_at, "
+          "is_deleted) VALUES (?, ?, ?, ?, ?, ?)";
+      lmeta.query_update =
+          "UPDATE lc_tbl SET id=?, name=?, created_at=?, updated_at=?, "
+          "deleted_at=?, is_deleted=? WHERE id=?";
+      lmeta.query_delete_by_pk = "DELETE FROM lc_tbl WHERE id=?";
+
+      ASSERT_EQ(C_ORM_OK, c_orm_execute_raw(
+                              sdb, "CREATE TABLE lc_tbl (id INTEGER PRIMARY "
+                                   "KEY, name TEXT, created_at TEXT, "
+                                   "updated_at INTEGER, deleted_at TEXT, "
+                                   "is_deleted INTEGER)"));
+      ASSERT_EQ(C_ORM_OK, c_orm_register_timestamp_hooks(&lmeta));
+      ASSERT_EQ(C_ORM_OK, c_orm_register_soft_delete_hook(&lmeta));
+
+      /* Validate hook error guards when invoked without active_hook_meta or obj
+       */
+      ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                lmeta.hooks[C_ORM_HOOK_BEFORE_INSERT](NULL, sdb));
+      ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                lmeta.hooks[C_ORM_HOOK_BEFORE_INSERT](&lrow, NULL));
+      ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                lmeta.hooks[C_ORM_HOOK_BEFORE_INSERT](&lrow, sdb));
+      ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                lmeta.hooks[C_ORM_HOOK_BEFORE_UPDATE](NULL, sdb));
+      ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                lmeta.hooks[C_ORM_HOOK_BEFORE_UPDATE](&lrow, NULL));
+      ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                lmeta.hooks[C_ORM_HOOK_BEFORE_UPDATE](&lrow, sdb));
+      ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                lmeta.hooks[C_ORM_HOOK_BEFORE_DELETE](NULL, sdb));
+      ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                lmeta.hooks[C_ORM_HOOK_BEFORE_DELETE](&lrow, NULL));
+      ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                lmeta.hooks[C_ORM_HOOK_BEFORE_DELETE](&lrow, sdb));
+
+      lrow.id = 1;
+      lrow.name = c_mut_s31;
+      ASSERT_EQ(C_ORM_OK, c_orm_insert(sdb, &lmeta, &lrow));
+      ASSERT(lrow.created_at != NULL);
+      ASSERT(lrow.updated_at > 0);
+      ASSERT_EQ(C_ORM_OK, c_orm_update(sdb, &lmeta, &lrow));
+
+      /* Soft delete without AFTER_DELETE, then with AFTER_DELETE, plus INT64
+       * deleted_at */
+      ASSERT_EQ(C_ORM_OK, c_orm_delete(sdb, &lmeta, &lrow));
+      ASSERT(lrow.deleted_at != NULL);
+      ASSERT_EQ(1, lrow.is_deleted);
+
+      lmeta.hooks[C_ORM_HOOK_AFTER_DELETE] = mock_soft_after_delete_hook;
+      ASSERT_EQ(C_ORM_OK, c_orm_delete(sdb, &lmeta, &lrow));
+
+      /* OOM on timestamp / soft-delete string allocation */
+      c_orm_set_allocators(mock_deep_malloc, mock_deep_realloc, orig_f);
+      g_deep_fail_oom = 0;
+      g_deep_alloc_cnt = 0;
+      ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_insert(sdb, &lmeta, &lrow));
+      g_deep_fail_oom = 0;
+      g_deep_alloc_cnt = 0;
+      ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_delete(sdb, &lmeta, &lrow));
+      g_deep_fail_oom = -1;
+      c_orm_set_allocators(orig_m, orig_r, orig_f);
+
+      c_orm_system_free(lrow.created_at);
+      c_orm_system_free(lrow.deleted_at);
+
+      /* Also cover INT64 deleted_at branch & updated_at-only register */
+      lcols[2].name = "other_col";
+      ASSERT_EQ(C_ORM_OK, c_orm_register_timestamp_hooks(&lmeta));
+      lcols[4].name = "other_del";
+      ASSERT_EQ(C_ORM_OK, c_orm_register_soft_delete_hook(&lmeta));
+      lcols[4].name = "deleted_at";
+      lcols[4].type = C_ORM_TYPE_INT64;
+      lcols[4].offset = offsetof(struct LifecycleRow, deleted_epoch);
+      lmeta.hooks[C_ORM_HOOK_AFTER_DELETE] = NULL;
+      ASSERT_EQ(C_ORM_OK, c_orm_delete(sdb, &lmeta, &lrow));
+      /* is_deleted error branch when is_deleted is STRING receiving INT */
+      lcols[5].type = C_ORM_TYPE_STRING;
+      lcols[5].offset = offsetof(struct LifecycleRow, name);
+      ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH, c_orm_delete(sdb, &lmeta, &lrow));
+    }
+
+    /* N+1 batch resolution: ONE_TO_MANY, ONE_TO_ONE, BELONGS_TO, string keys,
+     * Postgres $N, and error paths */
+    {
+      c_orm_column_meta_t ccols[4];
+      c_orm_column_meta_t pcols[2];
+      c_orm_relation_meta_t prels[3];
+      c_orm_table_meta_t cmeta;
+      c_orm_table_meta_t pmeta;
+      struct N1Parent parents[2];
+      /** @brief Generic parent array container for N+1 resolution test. */
+      struct N1ParentArr {
+        /** @brief Parent array buffer. */
+        void *data;
+        /** @brief Parent count. */
+        size_t length;
+        /** @brief Parent capacity. */
+        size_t capacity;
+      } parr;
+
+      memset(ccols, 0, sizeof(ccols));
+      memset(pcols, 0, sizeof(pcols));
+      memset(prels, 0, sizeof(prels));
+      memset(&cmeta, 0, sizeof(cmeta));
+      memset(&pmeta, 0, sizeof(pmeta));
+      memset(parents, 0, sizeof(parents));
+
+      ccols[0].name = "id";
+      ccols[0].type = C_ORM_TYPE_INT32;
+      ccols[0].offset = offsetof(struct N1Child, id);
+      ccols[0].is_pk = 1;
+      ccols[1].name = "parent_id";
+      ccols[1].type = C_ORM_TYPE_INT32;
+      ccols[1].offset = offsetof(struct N1Child, parent_id);
+      ccols[2].name = "parent_code";
+      ccols[2].type = C_ORM_TYPE_STRING;
+      ccols[2].offset = offsetof(struct N1Child, parent_code);
+      ccols[2].is_nullable = 1;
+      ccols[3].name = "title";
+      ccols[3].type = C_ORM_TYPE_STRING;
+      ccols[3].offset = offsetof(struct N1Child, title);
+      cmeta.name = "n1_child";
+      cmeta.columns = ccols;
+      cmeta.num_columns = 4;
+      cmeta.struct_size = sizeof(struct N1Child);
+
+      pcols[0].name = "id";
+      pcols[0].type = C_ORM_TYPE_INT32;
+      pcols[0].offset = offsetof(struct N1Parent, id);
+      pcols[0].is_pk = 1;
+      pcols[1].name = "code";
+      pcols[1].type = C_ORM_TYPE_STRING;
+      pcols[1].offset = offsetof(struct N1Parent, code);
+
+      prels[0].field_name = "children";
+      prels[0].type = C_ORM_RELATION_ONE_TO_MANY;
+      prels[0].target_meta = &cmeta;
+      prels[0].local_key = "id";
+      prels[0].foreign_key = "parent_id";
+      prels[0].struct_offset = offsetof(struct N1Parent, children);
+      prels[0].data_offset = offsetof(struct N1Parent, children.data);
+      prels[0].lazy_ctx_offset = offsetof(struct N1Parent, children.lazy_ctx);
+
+      prels[1].field_name = "primary_child";
+      prels[1].type = C_ORM_RELATION_ONE_TO_ONE;
+      prels[1].target_meta = &cmeta;
+      prels[1].local_key = "code";
+      prels[1].foreign_key = "parent_code";
+      prels[1].struct_offset = offsetof(struct N1Parent, primary_child);
+      prels[1].data_offset = offsetof(struct N1Parent, primary_child.data);
+      prels[1].lazy_ctx_offset =
+          offsetof(struct N1Parent, primary_child.lazy_ctx);
+
+      prels[2].field_name = "bt";
+      prels[2].type = C_ORM_RELATION_BELONGS_TO;
+      prels[2].target_meta = &cmeta;
+      prels[2].local_key = "id";
+      prels[2].foreign_key = "id";
+      prels[2].struct_offset = offsetof(struct N1Parent, primary_child);
+      prels[2].data_offset = offsetof(struct N1Parent, primary_child.data);
+      prels[2].lazy_ctx_offset =
+          offsetof(struct N1Parent, primary_child.lazy_ctx);
+
+      pmeta.name = "n1_parent";
+      pmeta.columns = pcols;
+      pmeta.num_columns = 2;
+      pmeta.struct_size = sizeof(struct N1Parent);
+      pmeta.relations = prels;
+      pmeta.num_relations = 3;
+
+      ASSERT_EQ(C_ORM_OK, c_orm_execute_raw(
+                              sdb, "CREATE TABLE n1_child (id INTEGER PRIMARY "
+                                   "KEY, parent_id INTEGER, parent_code TEXT, "
+                                   "title TEXT)"));
+      ASSERT_EQ(C_ORM_OK,
+                c_orm_execute_raw(
+                    sdb, "INSERT INTO n1_child VALUES (1, 10, 'P10', 'c1'), "
+                         "(2, 10, 'P10', 'c2'), (3, 99, 'P99', 'unmatched'), "
+                         "(4, 10, 'P10', 'c3'), (5, 10, '10', 'str10')"));
+
+      parents[0].id = 10;
+      parents[0].code = c_mut_s32;
+      parents[1].id = 20;
+      parents[1].code = NULL;
+
+      /* Empty array & NULL data array return C_ORM_OK */
+      parr.data = NULL;
+      parr.length = 0;
+      parr.capacity = 0;
+      ASSERT_EQ(C_ORM_OK, c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0));
+      parr.length = 1;
+      ASSERT_EQ(C_ORM_OK, c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0));
+
+      parr.data = parents;
+      parr.length = 2;
+      parr.capacity = 2;
+
+      /* Missing target_meta, NULL local_key, missing local_key, NULL
+       * foreign_key, oversized prefix */
+      prels[0].target_meta = NULL;
+      ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+                c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0));
+      prels[0].target_meta = &cmeta;
+      prels[0].local_key = NULL;
+      ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+                c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0));
+      prels[0].local_key = "no_such_key";
+      ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+                c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0));
+      prels[0].local_key = "id";
+      prels[0].foreign_key = NULL;
+      ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+                c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0));
+      prels[0].foreign_key = "parent_id";
+
+      /* ONE_TO_MANY resolution (4 children on parent[0] -> cap 0->2->4 &
+       * in-cap append) */
+      ASSERT_EQ(C_ORM_OK, c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0));
+      ASSERT_EQ(4, (int)parents[0].children.data.length);
+      ASSERT_EQ(0, (int)parents[1].children.data.length);
+
+      /* Variant type mismatch branch (parent id INT vs child parent_code
+       * STRING) */
+      prels[1].local_key = "id";
+      ASSERT_EQ(C_ORM_OK, c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 1));
+      prels[1].local_key = "code";
+
+      /* ONE_TO_ONE resolution (with string key, NULL parent[1].code, &
+       * duplicate child row) */
+      parents[1].code = c_mut_s33;
+      ASSERT_EQ(C_ORM_OK, c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 1));
+      ASSERT(parents[0].primary_child.data != NULL);
+      /* Run again when primary_child.data is already populated */
+      ASSERT_EQ(C_ORM_OK, c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 1));
+      c_orm_free_columns(&cmeta, parents[0].primary_child.data);
+      c_orm_system_free(parents[0].primary_child.data);
+      parents[0].primary_child.data = NULL;
+
+      /* BELONGS_TO fallback loop (both error and success) */
+      parents[0].primary_child.lazy_ctx.is_loaded = 0;
+      parents[1].primary_child.lazy_ctx.is_loaded = 0;
+      cmeta.name = "missing_n1_tbl";
+      ASSERT_NEQ(C_ORM_OK, c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 2));
+      cmeta.name = "n1_child";
+      parents[0].primary_child.lazy_ctx.is_loaded = 0;
+      parents[1].primary_child.lazy_ctx.is_loaded = 0;
+      parents[0].id = 1;
+      ASSERT_EQ(C_ORM_OK, c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 2));
+      ASSERT(parents[0].primary_child.data != NULL);
+      c_orm_free_columns(&cmeta, parents[0].primary_child.data);
+      c_orm_system_free(parents[0].primary_child.data);
+      parents[0].primary_child.data = NULL;
+      parents[0].id = 10;
+
+      /* Bind error, step/hydrate error, and foreign_key missing on child meta
+       */
+      pcols[0].type = C_ORM_TYPE_UNKNOWN;
+      ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+                c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0));
+      pcols[0].type = C_ORM_TYPE_INT32;
+
+      ccols[1].name = "renamed_fk";
+      c_orm_execute_raw(sdb,
+                        "ALTER TABLE n1_child ADD COLUMN parent_id2 INTEGER");
+      prels[0].foreign_key = "parent_id";
+      ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
+                c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0));
+      ccols[1].name = "parent_id";
+
+      ccols[0].type = C_ORM_TYPE_UNKNOWN;
+      ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
+                c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0));
+      ccols[0].type = C_ORM_TYPE_INT32;
+
+      /* OOM sweep on c_orm_resolve_n_plus_one (ONE_TO_MANY, ONE_TO_ONE,
+       * string_builder realloc, and array realloc) */
+      c_orm_free_relations(&pmeta, &parents[0]);
+      c_orm_free_relations(&pmeta, &parents[1]);
+      memset(parents, 0, sizeof(parents));
+      parents[0].id = 10;
+      parents[0].code = c_mut_s34;
+      parents[1].id = 20;
+      parents[1].code = c_mut_s35;
+      c_orm_set_allocators(mock_deep_malloc, mock_deep_realloc, orig_f);
+      for (step = 0; step < 18; ++step) {
+        g_deep_fail_oom = step;
+        g_deep_alloc_cnt = 0;
+        c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0);
+        c_orm_free_relations(&pmeta, &parents[0]);
+        c_orm_free_relations(&pmeta, &parents[1]);
+      }
+      for (step = 0; step < 18; ++step) {
+        g_deep_fail_oom = step;
+        g_deep_alloc_cnt = 0;
+        c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 1);
+        if (parents[0].primary_child.data) {
+          c_orm_free_columns(&cmeta, parents[0].primary_child.data);
+          c_orm_system_free(parents[0].primary_child.data);
+          parents[0].primary_child.data = NULL;
+        }
+      }
+      g_deep_fail_oom = -1;
+      for (step = 0; step < 6; ++step) {
+        g_deep_fail_realloc = step;
+        g_deep_realloc_cnt = 0;
+        c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0);
+        c_orm_free_relations(&pmeta, &parents[0]);
+        c_orm_free_relations(&pmeta, &parents[1]);
+      }
+      /* Force string_builder realloc failure at hdr, ", ", placeholder, and ")"
+       */
+      {
+        char long_tbl[260];
+        size_t lt;
+        for (lt = 0; lt < 252; ++lt) {
+          long_tbl[lt] = 't';
+        }
+        long_tbl[252] = '\0';
+        for (lt = 215; lt <= 252; ++lt) {
+          long_tbl[lt] = '\0';
+          cmeta.name = long_tbl;
+          for (step = 0; step < 4; ++step) {
+            g_deep_fail_realloc = step;
+            g_deep_realloc_cnt = 0;
+            c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0);
+          }
+          long_tbl[lt] = 't';
+        }
+        cmeta.name = "n1_child";
+      }
+      g_deep_fail_realloc = -1;
+      c_orm_set_allocators(orig_m, orig_r, orig_f);
+
+      /* Non-INT/non-STRING key comparison (FLOAT) + step error + NULL
+       * driver_name */
+      {
+        c_orm_db_t mdb = *sdb;
+        c_orm_driver_vtable_t mvt = *sdb->vtable;
+        float ten_f = 10.0f;
+        pcols[0].type = C_ORM_TYPE_FLOAT;
+        ccols[1].type = C_ORM_TYPE_FLOAT;
+        memcpy(&parents[0].id, &ten_f, sizeof(float));
+        c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0);
+        c_orm_free_relations(&pmeta, &parents[0]);
+        c_orm_free_relations(&pmeta, &parents[1]);
+        parents[0].id = 10;
+        pcols[0].type = C_ORM_TYPE_INT32;
+        ccols[1].type = C_ORM_TYPE_INT32;
+
+        mvt.step = mock_always_step_fail;
+        mdb.vtable = &mvt;
+        mdb.driver_name = NULL;
+        ASSERT_NEQ(C_ORM_OK, c_orm_resolve_n_plus_one(&mdb, &parr, &pmeta, 0));
+      }
+
+      /* PostgreSQL dialect branch on resolve_n_plus_one & update_partial, plus
+       * MySQL backslash escaping */
+      {
+        const char *saved_drv = sdb->driver_name;
+        char esc[16];
+        const char *pfields[1] = {"code"};
+        sdb->driver_name = "mysql";
+        ASSERT_EQ(C_ORM_OK,
+                  c_orm_escape_string(sdb, "a\\b'c", esc, sizeof(esc)));
+        ASSERT_STR_EQ("a\\\\b''c", esc);
+        sdb->driver_name = "postgres";
+        c_orm_resolve_n_plus_one(sdb, &parr, &pmeta, 0);
+        c_orm_free_relations(&pmeta, &parents[0]);
+        c_orm_free_relations(&pmeta, &parents[1]);
+        c_orm_update_partial(sdb, &pmeta, &parents[0], pfields, 1);
+        sdb->driver_name = saved_drv;
+      }
+    }
+
+    ASSERT_EQ(C_ORM_OK, sdb->vtable->disconnect(sdb));
+  }
 
   PASS();
 }
@@ -5609,12 +6597,10 @@ SUITE(api_coverage_suite) {
   RUN_TEST(test_api_db2_decimal_safe_crt_and_abstract_exhaustive);
   printf("RUNNING test_api_final_zero_gaps\n");
   RUN_TEST(test_api_final_zero_gaps);
+  printf("RUNNING test_api_reflection_hooks_and_n_plus_one\n");
+  RUN_TEST(test_api_reflection_hooks_and_n_plus_one);
 
-  printf("HELLO 1\n");
-  fflush(stdout);
   c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail, mock_free);
-  printf("HELLO 2\n");
-  fflush(stdout);
   mock_free(NULL);
 
   printf("RUNNING run_all_api\n");

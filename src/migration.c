@@ -6,15 +6,13 @@
  */
 
 /* clang-format off */
+#include "c_orm_safe_crt.h"
 #include "migration.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "c_str_span.h"
-#include "functions/parse/fs.h"
-#include "cfs/cfs.h"
-#include "c89stringutils_string_extras.h"
 #include "c_orm_meta.h"
 /* clang-format on */
 
@@ -67,6 +65,49 @@ c_orm_error_t migration_statements_free(struct MigrationStatements *out) {
 }
 
 /**
+ * @brief Reads a migration file into a c-orm heap buffer.
+ * @param filepath Path to the migration `.sql` file.
+ * @param out_data Output NUL-terminated buffer (`NULL` when empty).
+ * @param out_size Output byte length (`0` when empty).
+ * @return C_ORM_OK on success, C_ORM_ERROR_NOT_FOUND on open failure, or
+ * C_ORM_ERROR_MEMORY on allocation failure.
+ */
+static c_orm_error_t migration_read_file_text(const char *filepath,
+                                              char **out_data,
+                                              size_t *out_size) {
+  FILE *fp = NULL;
+  long flen;
+  size_t nread;
+  char *buf = NULL;
+  c_orm_error_t rc;
+
+  rc = C_ORM_FOPEN(&fp, filepath, "rb");
+  if (rc != C_ORM_OK) {
+    return C_ORM_ERROR_NOT_FOUND;
+  }
+  fseek(fp, 0, SEEK_END);
+  flen = ftell(fp);
+  rewind(fp);
+  if (flen <= 0) {
+    fclose(fp);
+    *out_data = NULL;
+    *out_size = 0;
+    return C_ORM_OK;
+  }
+  rc = c_orm_system_malloc((size_t)flen + 1, (void **)&buf);
+  if (rc != C_ORM_OK) {
+    fclose(fp);
+    return rc;
+  }
+  nread = fread(buf, 1, (size_t)flen, fp);
+  fclose(fp);
+  buf[nread] = '\0';
+  *out_data = buf;
+  *out_size = nread;
+  return C_ORM_OK;
+}
+
+/**
  * @brief Parses migration file from the given input.
  * @param filepath The path to the .sql migration file.
  * @param out The populated migration statements structure.
@@ -85,8 +126,6 @@ c_orm_error_t parse_migration_file(const char *filepath,
   size_t down_len;
   char *up_stmt;
   char *down_stmt;
-
-  enum cdd_c_error cdd_rc;
 
   file_data = NULL;
   file_size = 0;
@@ -108,13 +147,12 @@ c_orm_error_t parse_migration_file(const char *filepath,
     return rc;
   }
 
-  cdd_rc = read_to_file(filepath, "rb", &file_data, &file_size);
-  if (cdd_rc != 0) {
-    return C_ORM_ERROR_NOT_FOUND;
+  rc = migration_read_file_text(filepath, &file_data, &file_size);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
 
   if (file_size == 0) {
-    free(file_data);
     return C_ORM_OK;
   }
 
@@ -149,9 +187,9 @@ c_orm_error_t parse_migration_file(const char *filepath,
 
   if (up_start && up_len > 0) {
     rc = c_orm_system_malloc(up_len + 1, (void **)&up_stmt);
-    if (rc != C_ORM_OK || !up_stmt) {
-      free(file_data);
-      return C_ORM_ERROR_MEMORY;
+    if (rc != C_ORM_OK) {
+      c_orm_system_free(file_data);
+      return rc;
     }
     memcpy(up_stmt, up_start, up_len);
     up_stmt[up_len] = '\0';
@@ -160,19 +198,15 @@ c_orm_error_t parse_migration_file(const char *filepath,
 
   if (down_start && down_len > 0) {
     rc = c_orm_system_malloc(down_len + 1, (void **)&down_stmt);
-    if (rc != C_ORM_OK || !down_stmt) {
-      free(file_data);
-      rc = migration_statements_free(out);
-      if (rc != C_ORM_OK) {
-        return rc;
-      }
-      return C_ORM_ERROR_MEMORY;
+    if (rc != C_ORM_OK) {
+      c_orm_system_free(file_data);
+      migration_statements_free(out);
+      return rc;
     }
     memcpy(down_stmt, down_start, down_len);
     down_stmt[down_len] = '\0';
     out->down_statement = down_stmt;
   }
 
-  free(file_data);
-  return C_ORM_OK;
+  return c_orm_system_free(file_data);
 }

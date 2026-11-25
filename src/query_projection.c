@@ -29,54 +29,35 @@ c_orm_error_t cdd_c_query_projection_init(cdd_c_query_projection_t *proj) {
   return C_ORM_OK;
 }
 
-/**
- * @brief Duplicates a string using c_orm_system_malloc.
- * @param src Source null-terminated string to duplicate.
- * @param dest Output pointer where duplicated string will be stored.
- * @return C_ORM_OK on success, or error code on allocation failure.
- */
-static c_orm_error_t duplicate_string_qp(const char *src, char **dest) {
-  size_t len;
-  if (!src) {
-    *dest = NULL;
-    return C_ORM_OK;
-  }
-  len = strlen(src);
-  *dest = NULL;
-  if (c_orm_system_malloc(len + 1, (void **)dest) != C_ORM_OK || !*dest)
-    return C_ORM_ERROR_UNKNOWN;
-  memcpy(*dest, src, len + 1);
-  return C_ORM_OK;
-}
-
 c_orm_error_t
 cdd_c_query_projection_add_field(cdd_c_query_projection_t *proj,
                                  const cdd_c_query_projection_field_t *field) {
   cdd_c_query_projection_field_t *new_fields = NULL;
   size_t new_cap;
+  c_orm_error_t rc;
   if (!proj || !field)
     return C_ORM_ERROR_UNKNOWN;
 
   if (proj->n_fields >= proj->capacity) {
     new_cap = proj->capacity == 0 ? 4 : proj->capacity * 2;
-    if (c_orm_system_realloc(proj->fields,
-                             new_cap * sizeof(cdd_c_query_projection_field_t),
-                             (void **)&new_fields) != C_ORM_OK ||
-        !new_fields)
-      return C_ORM_ERROR_UNKNOWN;
+    rc = c_orm_system_realloc(proj->fields,
+                              new_cap * sizeof(cdd_c_query_projection_field_t),
+                              (void **)&new_fields);
+    if (rc != C_ORM_OK)
+      return rc;
     proj->fields = new_fields;
     proj->capacity = new_cap;
   }
 
-  if (duplicate_string_qp(field->name, &proj->fields[proj->n_fields].name) !=
-      C_ORM_OK)
-    return C_ORM_ERROR_UNKNOWN;
-  if (duplicate_string_qp(field->original_name,
-                          &proj->fields[proj->n_fields].original_name) !=
-      C_ORM_OK) {
-    (void)c_orm_system_free(proj->fields[proj->n_fields].name);
+  rc = c_orm_strdup(field->name, &proj->fields[proj->n_fields].name);
+  if (rc != C_ORM_OK)
+    return rc;
+  rc = c_orm_strdup(field->original_name,
+                    &proj->fields[proj->n_fields].original_name);
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(proj->fields[proj->n_fields].name);
     proj->fields[proj->n_fields].name = NULL;
-    return C_ORM_ERROR_UNKNOWN;
+    return rc;
   }
   proj->fields[proj->n_fields].type = field->type;
   proj->fields[proj->n_fields].is_aggregate = field->is_aggregate;

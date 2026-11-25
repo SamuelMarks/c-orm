@@ -1,20 +1,37 @@
-"""Doc coverage analyzer and undercovered markdown report generator.
+"""Test and documentation coverage analyzer and UNDERCOVERED.md generator.
 
-Analyzes doc (arg, function, struct, struct field, file, module) coverage across
-all C source and header files and generates UNDERCOVERED.md.
+Measures function, line, and branch test coverage (via gcovr) or AST-level
+Doxygen documentation coverage (via libclang, when --doc is passed) across
+all C source and header files and writes a markdown checkbox report to
+UNDERCOVERED.md.
 """
 
 import glob
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
-import clang.cindex
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+from update_shields import (
+    build_and_run_coverage,
+    get_clean_env,
+    get_gcov_candidates,
+    is_coverage_fresh,
+    parse_cmake_cache,
+)
 
 
 def find_and_init_libclang():
-    """Locate and initialize libclang across platforms."""
+    """Locate and initialize libclang across macOS, Linux, and Windows."""
+    import clang.cindex
+
     try:
         _ = clang.cindex.Config().lib
         return
@@ -61,7 +78,6 @@ def find_and_init_libclang():
         except (clang.cindex.LibclangError, OSError):
             continue
 
-    # Fallback without version checks
     for match in candidates:
         if "libclang-cpp" in match:
             continue
@@ -75,7 +91,11 @@ def find_and_init_libclang():
 
 
 def get_compile_args():
-    """Build compilation arguments including include directories and sysroot."""
+    """Build libclang compilation flags including dependency include directories.
+
+    Returns:
+        List of compiler argument strings for clang.cindex.Index.parse.
+    """
     compile_args = [
         "-Iinclude",
         "-Isrc",
@@ -89,15 +109,19 @@ def get_compile_args():
         "-D_GNU_SOURCE",
         "-fparse-all-comments",
     ]
-    for dep_inc in (
-        "build/_deps/cdd_c-src/include",
-        "build/_deps/cdd_c-src/src",
-        "build/_deps/cfs-src/include",
-        "build/_deps/c_str_span-src/include",
-        "build/_deps/c89stringutils-src/include",
-    ):
-        if os.path.isdir(dep_inc):
-            compile_args.append(f"-I{dep_inc}")
+    seen_inc = set()
+    for bdir in ("build", "build_cov", "build_gcc", "build_clang"):
+        for sub in (
+            "_deps/cdd_c-src/include",
+            "_deps/cdd_c-src/src",
+            "_deps/cfs-src/include",
+            "_deps/c_str_span-src/include",
+            "_deps/c89stringutils-src/include",
+        ):
+            dep_inc = os.path.join(bdir, sub)
+            if os.path.isdir(dep_inc) and sub not in seen_inc:
+                seen_inc.add(sub)
+                compile_args.append(f"-I{dep_inc}")
     if sys.platform == "darwin":
         try:
             sdk_path = subprocess.check_output(
@@ -111,7 +135,15 @@ def get_compile_args():
 
 
 def in_this_file(loc, filepath):
-    """Check if cursor location matches the file under evaluation."""
+    """Check whether a libclang source location belongs to filepath.
+
+    Args:
+        loc: clang.cindex.SourceLocation instance.
+        filepath: Path of the file currently being analyzed.
+
+    Returns:
+        True if loc refers to filepath, False otherwise.
+    """
     if not loc or not loc.file:
         return False
     try:
@@ -121,16 +153,28 @@ def in_this_file(loc, filepath):
 
 
 def analyze_file(filepath, idx, compile_args):
-    """Analyze documentation coverage for a single file across all 6 criteria."""
+    """Analyze Doxygen documentation coverage for a single C/H file.
+
+    Evaluates 6 criteria: file header (@file), module (@defgroup/@addtogroup/@module),
+    structs/unions, struct/union fields, functions, and function parameters.
+
+    Args:
+        filepath: Path to the C or H file to parse.
+        idx: clang.cindex.Index instance.
+        compile_args: List of clang parse flags.
+
+    Returns:
+        Dictionary summarizing covered/total items and missing item descriptions.
+    """
+    import clang.cindex
+
     with open(filepath, "r", encoding="utf-8", errors="ignore") as fp:
         content = fp.read()
 
-    # 1. file documentation (@file tag or top-level file doc comment)
     has_file_doc = bool(
         re.search(r"/\*\*[\s\S]*?@file[\s\S]*?\*/", content)
     ) or bool(re.search(r"/\*[\s\S]*?@file[\s\S]*?\*/", content))
 
-    # 2. module documentation (@defgroup / @addtogroup / @module, or @file if file is module)
     has_module_doc = bool(
         re.search(r"/\*\*?[\s\S]*?@(defgroup|addtogroup|module)[\s\S]*?\*/", content)
     ) or has_file_doc
@@ -158,7 +202,7 @@ def analyze_file(filepath, idx, compile_args):
                 func_decls[key] = c
 
     missing_items = []
-    total_items = 2  # 1 for file doc, 1 for module doc
+    total_items = 2
     covered_items = 0
 
     if has_file_doc:
@@ -171,7 +215,6 @@ def analyze_file(filepath, idx, compile_args):
     else:
         missing_items.append("module doc (`@defgroup` / `@module`)")
 
-    # 3. struct & 4. struct field documentation
     for c in struct_defs.values():
         total_items += 1
         s_doc = bool(c.raw_comment and c.raw_comment.strip())
@@ -201,7 +244,6 @@ def analyze_file(filepath, idx, compile_args):
                 else:
                     missing_items.append(f"field `{sname}.{fname}`")
 
-    # 5. function & 6. arg documentation
     for c in func_decls.values():
         total_items += 1
         fn_doc = bool(c.raw_comment and c.raw_comment.strip())
@@ -241,25 +283,37 @@ def analyze_file(filepath, idx, compile_args):
 
 
 def categorize_file(filepath):
-    """Categorize file for report organization."""
+    """Assign a repository C/H file path to a report category key.
+
+    Args:
+        filepath: Repository-relative file path.
+
+    Returns:
+        Category identifier string.
+    """
     if filepath.startswith("include/"):
         return "headers"
-    elif filepath.startswith("src/legacy_cdd_db/"):
+    if filepath.startswith("src/legacy_cdd_db/"):
         return "legacy"
-    elif filepath.startswith("src/"):
+    if filepath.startswith("src/"):
         return "src"
-    elif filepath.startswith("examples/"):
+    if filepath.startswith("examples/"):
         return "examples"
-    elif filepath.startswith("tests/benchmarks/"):
+    if filepath.startswith("tests/benchmarks/"):
         return "benchmarks"
-    elif filepath.startswith("tests/e2e/"):
+    if filepath.startswith("tests/e2e/"):
         return "e2e"
-    else:
-        return "tests_standalone"
+    return "tests_standalone"
 
 
-def generate_report():
-    """Analyze repository files and generate UNDERCOVERED.md."""
+def generate_report(output_path="UNDERCOVERED.md"):
+    """Analyze repository files for Doxygen coverage and write UNDERCOVERED.md.
+
+    Args:
+        output_path: Destination markdown report path.
+    """
+    import clang.cindex
+
     find_and_init_libclang()
     compile_args = get_compile_args()
     idx = clang.cindex.Index.create()
@@ -279,10 +333,7 @@ def generate_report():
     )
 
     print(f"Analyzing {len(c_files)} files for doc coverage...")
-    reports = []
-    for f in c_files:
-        rep = analyze_file(f, idx, compile_args)
-        reports.append(rep)
+    reports = [analyze_file(f, idx, compile_args) for f in c_files]
 
     total_files = len(reports)
     fully_covered = [r for r in reports if r["is_fully_covered"]]
@@ -308,62 +359,60 @@ def generate_report():
         cat_key = categorize_file(r["file"])
         categories[cat_key][1].append(r)
 
-    doc_lines = []
-    doc_lines.append("# Undercovered Files (< 100% Doc Coverage)")
-    doc_lines.append("")
-    doc_lines.append(
-        "This document tracks all files with less than 100% documentation coverage "
-        "across function arguments (`arg`), functions (`function`), structures (`struct`), "
-        "structure fields (`struct field`), file headers (`file`), and modules (`module`)."
-    )
-    doc_lines.append("")
-    doc_lines.append("## Documentation Coverage Summary")
-    doc_lines.append("")
-    doc_lines.append(f"- **Total Files Analyzed:** {total_files}")
-    doc_lines.append(
-        f"- **Fully Documented Files (100% doc coverage):** {len(fully_covered)} "
-        f"({len(fully_covered)*100.0/total_files:.1f}%)"
-    )
-    doc_lines.append(
-        f"- **Undercovered Files (< 100% doc coverage):** {len(undercovered)} "
-        f"({len(undercovered)*100.0/total_files:.1f}%)"
-    )
-    doc_lines.append(
-        f"- **Overall Item Coverage:** {covered_items:,} / {total_items:,} ({overall_pct:.2f}%)"
-    )
-    doc_lines.append("")
-    doc_lines.append("### Summary by Category")
-    doc_lines.append("")
-    doc_lines.append(
-        "| Category | Total Files | Fully Covered (100%) | Undercovered (< 100%) | Item Coverage |"
-    )
-    doc_lines.append(
-        "| :--- | :---: | :---: | :---: | :---: |"
-    )
+    doc_lines = [
+        "# Undercovered Files (< 100% Doc Coverage)",
+        "",
+        (
+            "This document tracks all files with less than 100% documentation coverage "
+            "across function arguments (`arg`), functions (`function`), structures (`struct`), "
+            "structure fields (`struct field`), file headers (`file`), and modules (`module`)."
+        ),
+        "",
+        "## Documentation Coverage Summary",
+        "",
+        f"- **Total Files Analyzed:** {total_files}",
+        (
+            f"- **Fully Documented Files (100% doc coverage):** {len(fully_covered)} "
+            f"({len(fully_covered) * 100.0 / total_files:.1f}%)"
+        ),
+        (
+            f"- **Undercovered Files (< 100% doc coverage):** {len(undercovered)} "
+            f"({len(undercovered) * 100.0 / total_files:.1f}%)"
+        ),
+        f"- **Overall Item Coverage:** {covered_items:,} / {total_items:,} ({overall_pct:.2f}%)",
+        "",
+        "### Summary by Category",
+        "",
+        "| Category | Total Files | Fully Covered (100%) | Undercovered (< 100%) | Item Coverage |",
+        "| :--- | :---: | :---: | :---: | :---: |",
+    ]
 
-    for cat_key, (cat_title, cat_reports) in categories.items():
+    for cat_title, cat_reports in categories.values():
         c_tot = len(cat_reports)
         c_full = sum(1 for r in cat_reports if r["is_fully_covered"])
         c_under = sum(1 for r in cat_reports if not r["is_fully_covered"])
         c_items = sum(r["total_items"] for r in cat_reports)
         c_cov = sum(r["covered_items"] for r in cat_reports)
         c_pct = (c_cov / c_items * 100.0) if c_items > 0 else 100.0
-        # Clean title for table
         clean_title = cat_title.split(" (")[0]
         doc_lines.append(
             f"| {clean_title} | {c_tot} | {c_full} | {c_under} | {c_cov}/{c_items} ({c_pct:.1f}%) |"
         )
 
-    doc_lines.append("")
-    doc_lines.append("---")
-    doc_lines.append("")
-    doc_lines.append("## Undercovered Files (< 100% Doc Coverage)")
-    doc_lines.append("")
-    doc_lines.append(
-        "The following files currently have less than 100% documentation coverage across "
-        "args, functions, structs, struct fields, file, and module definitions:"
+    doc_lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "## Undercovered Files (< 100% Doc Coverage)",
+            "",
+            (
+                "The following files currently have less than 100% documentation coverage across "
+                "args, functions, structs, struct fields, file, and module definitions:"
+            ),
+            "",
+        ]
     )
-    doc_lines.append("")
 
     if not undercovered:
         doc_lines.append(
@@ -372,11 +421,10 @@ def generate_report():
         doc_lines.append("")
 
     section_num = 1
-    for cat_key, (cat_title, cat_reports) in categories.items():
+    for cat_title, cat_reports in categories.values():
         cat_under = [r for r in cat_reports if not r["is_fully_covered"]]
         if not cat_under:
             continue
-
         doc_lines.append(f"### {section_num}. {cat_title}")
         doc_lines.append("")
         for r in cat_under:
@@ -390,22 +438,25 @@ def generate_report():
         doc_lines.append("")
         section_num += 1
 
-    doc_lines.append("---")
-    doc_lines.append("")
-    doc_lines.append("## Fully Documented Files (100% Doc Coverage)")
-    doc_lines.append("")
-    doc_lines.append(
-        "The following files currently meet 100% documentation coverage across all "
-        "functions, function arguments, structs, struct fields, and file/module headers:"
+    doc_lines.extend(
+        [
+            "---",
+            "",
+            "## Fully Documented Files (100% Doc Coverage)",
+            "",
+            (
+                "The following files currently meet 100% documentation coverage across all "
+                "functions, function arguments, structs, struct fields, and file/module headers:"
+            ),
+            "",
+        ]
     )
-    doc_lines.append("")
 
     section_num = 1
-    for cat_key, (cat_title, cat_reports) in categories.items():
+    for cat_title, cat_reports in categories.values():
         cat_full = [r for r in cat_reports if r["is_fully_covered"]]
         if not cat_full:
             continue
-
         doc_lines.append(f"### {section_num}. {cat_title}")
         doc_lines.append("")
         for r in cat_full:
@@ -416,83 +467,123 @@ def generate_report():
         doc_lines.append("")
         section_num += 1
 
-    output_path = "UNDERCOVERED.md"
-    content = "\n".join(doc_lines) + "\n"
+    nl = chr(10)
+    content = nl.join(doc_lines) + nl
     with open(output_path, "w", encoding="utf-8") as fp:
         fp.write(content)
-
     print(f"Successfully generated {output_path} ({len(content)} bytes)")
 
 
-def generate_test_report(output_path="UNDERCOVERED.md"):
-    """Generate test coverage report for UNDERCOVERED.md."""
-    import json
+def resolve_cov_dir(explicit_dir=None, force_rebuild=False, skip_build=False):
+    """Select and validate (or rebuild) the coverage build directory.
 
-    cov_dir = "build_cov" if os.path.exists("build_cov") else "build_gcc"
-    if not os.path.exists(cov_dir):
-        cmd = [
-            "cmake",
-            "-S",
-            ".",
-            "-B",
-            cov_dir,
-            "-DCMAKE_BUILD_TYPE=Debug",
-            "-DCDD_CHARSET=ANSI",
-            "-DCDD_THREADING=OFF",
-            "-DC_ORM_BUILD_TESTS=ON",
-            "-DBUILD_TESTING=ON",
-            "-DC_ORM_BUILD_BENCHMARKS=ON",
-            "-DC_ORM_BUILD_EXAMPLES=ON",
-            "-DCMAKE_C_FLAGS=--coverage",
-            "-DCMAKE_EXE_LINKER_FLAGS=--coverage",
-        ]
-        subprocess.run(cmd, check=True)
-        subprocess.run(["cmake", "--build", cov_dir, "--parallel"], check=True)
-        subprocess.run(["ctest", "--output-on-failure"], cwd=cov_dir, check=True)
+    Args:
+        explicit_dir: Optional user-specified CMake build directory.
+        force_rebuild: If True, rebuild and re-run ctest unconditionally.
+        skip_build: If True, skip building/testing and use existing coverage files.
+
+    Returns:
+        Path to the validated coverage build directory.
+    """
+    env = get_clean_env()
+    if explicit_dir:
+        cov_dir = explicit_dir
+    else:
+        cov_dir = None
+        for cand in ("build_cov", "build_gcc"):
+            if is_coverage_fresh(cand):
+                cov_dir = cand
+                break
+        if cov_dir is None:
+            for cand in ("build_cov", "build_gcc"):
+                if os.path.isdir(cand) and parse_cmake_cache(cand)[2]:
+                    cov_dir = cand
+                    break
+        if cov_dir is None:
+            cov_dir = "build_cov"
+
+    if not skip_build and (force_rebuild or not is_coverage_fresh(cov_dir)):
+        build_and_run_coverage(cov_dir, env)
+
+    return cov_dir
+
+
+def generate_test_report(
+    output_path="UNDERCOVERED.md",
+    cov_dir=None,
+    force_rebuild=False,
+    skip_build=False,
+):
+    """Generate function, line, and branch test coverage report in UNDERCOVERED.md.
+
+    Args:
+        output_path: Destination markdown report path.
+        cov_dir: Optional CMake coverage build directory override.
+        force_rebuild: If True, rebuild and re-run ctest even if .gcda files look fresh.
+        skip_build: If True, do not invoke cmake or ctest prior to running gcovr.
+    """
+    cov_dir = resolve_cov_dir(
+        explicit_dir=cov_dir, force_rebuild=force_rebuild, skip_build=skip_build
+    )
+    norm_cov = cov_dir.strip("./")
 
     gcov_exec = None
-    for cand in [
-        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-cov",
-        "/opt/homebrew/opt/llvm/bin/llvm-cov",
-    ]:
-        if os.path.exists(cand):
-            gcov_exec = f"{cand} gcov"
+    for cand in get_gcov_candidates(cov_dir):
+        prog = cand.split()[0]
+        if shutil.which(prog):
+            gcov_exec = cand
             break
     if not gcov_exec:
         gcov_exec = "gcov"
 
-    cov_json = "/tmp/cov_summary.json"
-    cmd = [
-        "gcovr",
-        "--gcov-executable",
-        gcov_exec,
-        cov_dir,
-        "--gcov-exclude-directories",
-        ".*_deps.*",
-        "--gcov-ignore-errors=all",
-        "--gcov-ignore-parse-errors=all",
-        "--exclude-unreachable-branches",
-        "--exclude-throw-branches",
-        "--filter",
-        "src/.*",
-        "--filter",
-        "examples/.*",
-        "--filter",
-        "tests/.*",
-        "--filter",
-        f"{cov_dir}/tests/.*",
-        "--json-summary",
-        cov_json,
-    ]
-    subprocess.run(cmd, check=True)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        cov_json = os.path.join(tmp_dir, "cov_summary.json")
+        cmd = [
+            "gcovr",
+            "--gcov-executable",
+            gcov_exec,
+            "-r",
+            ".",
+            cov_dir,
+            "--gcov-exclude-directories",
+            ".*_deps.*",
+            "--gcov-ignore-errors=all",
+            "--gcov-ignore-parse-errors=all",
+            "--exclude-unreachable-branches",
+            "--exclude-throw-branches",
+            "-e",
+            ".*_deps.*",
+            "-e",
+            ".*CMakeFiles.*",
+            "--filter",
+            "include/.*",
+            "--filter",
+            "src/.*",
+            "--filter",
+            "examples/.*",
+            "--filter",
+            "tests/.*",
+            "--filter",
+            f"{norm_cov}/tests/.*",
+            "--json-summary",
+            cov_json,
+        ]
+        subprocess.run(cmd, check=True)
 
-    with open(cov_json, "r", encoding="utf-8") as f:
-        d = json.load(f)
+        with open(cov_json, "r", encoding="utf-8") as f:
+            d = json.load(f)
 
     cov_map = {f["filename"]: f for f in d["files"]}
-    if "tests/e2e/Models.c" in cov_map:
-        cov_map["tests/e2e/pregen/Models.c"] = cov_map.pop("tests/e2e/Models.c")
+    for gen_models in ("tests/e2e/Models.c", f"{norm_cov}/tests/e2e/Models.c"):
+        if gen_models in cov_map:
+            if "tests/e2e/pregen/Models.c" not in cov_map:
+                cov_map["tests/e2e/pregen/Models.c"] = cov_map.pop(gen_models)
+            else:
+                cov_map.pop(gen_models)
 
+    exec_header_items = sorted(
+        [k for k in cov_map if k.startswith("include/")]
+    )
     src_items = sorted(
         [
             k
@@ -501,7 +592,11 @@ def generate_test_report(output_path="UNDERCOVERED.md"):
         ]
     )
     ex_items = sorted([k for k in cov_map if k.startswith("examples/")])
-    models_items = ["tests/e2e/pregen/Models.c"]
+    models_items = (
+        ["tests/e2e/pregen/Models.c"]
+        if "tests/e2e/pregen/Models.c" in cov_map
+        else []
+    )
     e2e_items = sorted(
         [
             k
@@ -546,8 +641,9 @@ def generate_test_report(output_path="UNDERCOVERED.md"):
         lp = v.get("line_percent", 0.0)
         fp = v.get("function_percent", 0.0)
         bp = v.get("branch_percent")
-        is_src = k.startswith("src/") and not k.startswith("src/legacy_cdd_db/")
-        if lp == 100.0 and fp == 100.0 and (not is_src or bp is None or bp == 100.0):
+        b_tot = v.get("branch_total")
+        branches_ok = b_tot is None or b_tot == 0 or bp == 100.0
+        if lp == 100.0 and fp == 100.0 and branches_ok:
             fully_covered.append(k)
         else:
             undercovered.append(k)
@@ -579,88 +675,72 @@ def generate_test_report(output_path="UNDERCOVERED.md"):
         (cov_branches * 100.0 / total_branches) if total_branches > 0 else 100.0
     )
 
-    def fmt_entry(k):
-        v = cov_map[k]
+    def fmt_entry(key, checked):
+        v = cov_map[key]
         lp = f"{v['line_percent']:.1f}% ({v['line_covered']}/{v['line_total']})"
-        fp = (
-            f"{v['function_percent']:.1f}% ({v['function_covered']}/{v['function_total']})"
-        )
+        fp = f"{v['function_percent']:.1f}% ({v['function_covered']}/{v['function_total']})"
         if v["branch_total"] is not None and v["branch_total"] > 0:
             bp = f"{v['branch_percent']:.1f}% ({v['branch_covered']}/{v['branch_total']})"
         else:
             bp = "N/A (0 branches)"
-        return f"- [x] `{k}` — **Lines:** {lp} | **Functions:** {fp} | **Branches:** {bp}"
+        box = "x" if checked else " "
+        return f"- [{box}] `{key}` — **Lines:** {lp} | **Functions:** {fp} | **Branches:** {bp}"
 
-    def fmt_under(k):
-        v = cov_map[k]
-        lp = f"{v['line_percent']:.1f}% ({v['line_covered']}/{v['line_total']})"
-        fp = (
-            f"{v['function_percent']:.1f}% ({v['function_covered']}/{v['function_total']})"
-        )
-        bp = (
-            f"{v['branch_percent']:.1f}% ({v['branch_covered']}/{v['branch_total']})"
-            if v["branch_total"] is not None
-            else "N/A"
-        )
-        return f"- [ ] `{k}` — **Lines:** {lp} | **Functions:** {fp} | **Branches:** {bp}"
-
-    doc = []
-    doc.append("# Undercovered Files (< 100% Test Coverage)")
-    doc.append("")
-    doc.append(
-        "This document tracks test coverage across functions, lines, and branches for all codebase files. "
-        "Test coverage is measured with GCC/Clang coverage instrumentation (`--coverage`) and analyzed using `gcovr` "
-        "across all test suites (`e2e_test`, `perfect`, `standalone_fixtures`, `legacy_cdd_db`, `example_blog`, "
-        "`example_dashboard`, `example_relationships`, `example_cobol_db2_ledger`, and `benchmarks`)."
+    cov_file_count = len(all_cov_files)
+    full_pct = (
+        (len(fully_covered) * 100.0 / cov_file_count) if cov_file_count > 0 else 100.0
     )
-    doc.append("")
-    doc.append("## Test Coverage Summary")
-    doc.append("")
-    doc.append(f"- **Total C/H Files in Repository:** {len(c_h_files)}")
-    doc.append(
-        f"- **Executable Source & Test Files Analyzed:** {len(all_cov_files)}"
-    )
-    doc.append(
-        f"- **Fully Covered Files (100% line & function coverage; 100% branch coverage in `src/`):** {len(fully_covered)} ({len(fully_covered)*100.0/len(all_cov_files):.1f}%)"
-    )
-    doc.append(
-        f"- **Undercovered Files (< 100% test coverage):** {len(undercovered)} ({len(undercovered)*100.0/len(all_cov_files):.1f}%)"
-    )
-    doc.append(
-        f"- **Declaration-Only Header Files (no executable code):** {len(inc_headers)}"
-    )
-    doc.append(
-        f"- **Total Executable Lines:** {cov_lines:,} / {total_lines:,} ({overall_line_pct:.1f}%)"
-    )
-    doc.append(
-        f"- **Total Executable Functions:** {cov_funcs:,} / {total_funcs:,} ({overall_func_pct:.1f}%)"
-    )
-    doc.append(
-        f"- **Total Executable Branches:** {cov_branches:,} / {total_branches:,} ({overall_branch_pct:.1f}%)"
-    )
-    doc.append("")
-    doc.append("### Summary by Category")
-    doc.append("")
-    doc.append(
-        "| Category | Files | Line Coverage | Function Coverage | Branch Coverage | Status |"
-    )
-    doc.append(
-        "| :--- | :---: | :---: | :---: | :---: | :---: |"
+    under_pct = (
+        (len(undercovered) * 100.0 / cov_file_count) if cov_file_count > 0 else 0.0
     )
 
-    categories = [
-        ("Core Library Sources (`src/`)", src_items),
-        ("Example Applications (`examples/`)", ex_items),
-        ("Generated Models (`tests/e2e/pregen/`)", models_items),
-        ("End-to-End Test Suite (`tests/e2e/`)", e2e_items),
-        ("Benchmark Suite (`tests/benchmarks/`)", bm_items),
+    doc = [
+        "# Undercovered Files (< 100% Test Coverage)",
+        "",
         (
-            "Standalone & Legacy Tests (`tests/` & `src/legacy_cdd_db/`)",
-            legacy_all,
+            "This document tracks test coverage across functions, lines, and branches for all codebase files. "
+            "Test coverage is measured with GCC/Clang coverage instrumentation (`--coverage`) and analyzed using `gcovr` "
+            "across all test suites (`e2e_test`, `perfect`, `standalone_fixtures`, `legacy_cdd_db`, `example_blog`, "
+            "`example_dashboard`, `example_relationships`, `example_cobol_db2_ledger`, and `benchmarks`)."
         ),
+        "",
+        "## Test Coverage Summary",
+        "",
+        f"- **Total C/H Files in Repository:** {len(c_h_files)}",
+        f"- **Executable Source & Test Files Analyzed:** {cov_file_count}",
+        f"- **Fully Covered Files (100% function, line, and branch coverage):** {len(fully_covered)} ({full_pct:.1f}%)",
+        f"- **Undercovered Files (< 100% test coverage):** {len(undercovered)} ({under_pct:.1f}%)",
+        f"- **Declaration-Only Header Files (no executable code):** {len(inc_headers)}",
+        f"- **Total Executable Lines:** {cov_lines:,} / {total_lines:,} ({overall_line_pct:.1f}%)",
+        f"- **Total Executable Functions:** {cov_funcs:,} / {total_funcs:,} ({overall_func_pct:.1f}%)",
+        f"- **Total Executable Branches:** {cov_branches:,} / {total_branches:,} ({overall_branch_pct:.1f}%)",
+        "",
+        "### Summary by Category",
+        "",
+        "| Category | Files | Line Coverage | Function Coverage | Branch Coverage | Status |",
+        "| :--- | :---: | :---: | :---: | :---: | :---: |",
     ]
 
+    categories = []
+    if exec_header_items:
+        categories.append(("Public API Headers (`include/`)", exec_header_items))
+    categories.extend(
+        [
+            ("Core Library Sources (`src/`)", src_items),
+            ("Example Applications (`examples/`)", ex_items),
+            ("Generated Models (`tests/e2e/pregen/`)", models_items),
+            ("End-to-End Test Suite (`tests/e2e/`)", e2e_items),
+            ("Benchmark Suite (`tests/benchmarks/`)", bm_items),
+            (
+                "Standalone & Legacy Tests (`tests/` & `src/legacy_cdd_db/`)",
+                legacy_all,
+            ),
+        ]
+    )
+
     for cat_title, items in categories:
+        if not items:
+            continue
         l_tot = sum(cov_map[k]["line_total"] for k in items)
         l_cov = sum(cov_map[k]["line_covered"] for k in items)
         f_tot = sum(cov_map[k]["function_total"] for k in items)
@@ -696,15 +776,17 @@ def generate_test_report(output_path="UNDERCOVERED.md"):
     doc.append(
         f"| Declaration-Only Headers (`include/`, `tests/`) | {len(inc_headers)} | N/A (0 lines) | N/A (0 funcs) | N/A (0 branches) | Declarations |"
     )
-    doc.append("")
-    doc.append("---")
-    doc.append("")
-    doc.append("## Undercovered Files (< 100% Test Coverage)")
-    doc.append("")
-    doc.append(
-        "The following files currently have less than 100% test coverage (all 42 `src/` core library modules are 100.0% covered across lines, functions, and branches):"
+    doc.extend(
+        [
+            "",
+            "---",
+            "",
+            "## Undercovered Files (< 100% Test Coverage)",
+            "",
+            "The following files currently have less than 100% function, line, or branch test coverage:",
+            "",
+        ]
     )
-    doc.append("")
 
     if not undercovered:
         doc.append(
@@ -713,48 +795,59 @@ def generate_test_report(output_path="UNDERCOVERED.md"):
         doc.append("")
     else:
         for k in undercovered:
-            doc.append(fmt_under(k))
+            doc.append(fmt_entry(k, checked=False))
         doc.append("")
 
-    doc.append("---")
-    doc.append("")
-    doc.append("## Fully Covered Files (100% Test Coverage)")
-    doc.append("")
-    doc.append(
-        "The following files achieve 100.0% line and function coverage (and 100.0% branch coverage across all `src/` core library modules):"
+    doc.extend(
+        [
+            "---",
+            "",
+            "## Fully Covered Files (100% Test Coverage)",
+            "",
+            "The following files achieve 100.0% function, line, and branch test coverage:",
+            "",
+        ]
     )
-    doc.append("")
 
-    sections = [
-        ("1. Core Library Source Files (`src/`)", src_items),
-        ("2. Example Applications (`examples/`)", ex_items),
-        ("3. Generated Model Definitions (`tests/e2e/pregen/`)", models_items),
-        ("4. End-to-End Test Suite Files (`tests/e2e/`)", e2e_items),
-        ("5. Benchmark Suite Files (`tests/benchmarks/`)", bm_items),
-        (
-            "6. Standalone & Legacy Test Runners and Fixtures (`tests/` & `src/legacy_cdd_db/`)",
-            legacy_all,
-        ),
-    ]
+    sections = []
+    if exec_header_items:
+        sections.append(("Public API Header Files (`include/`)", exec_header_items))
+    sections.extend(
+        [
+            ("Core Library Source Files (`src/`)", src_items),
+            ("Example Applications (`examples/`)", ex_items),
+            ("Generated Model Definitions (`tests/e2e/pregen/`)", models_items),
+            ("End-to-End Test Suite Files (`tests/e2e/`)", e2e_items),
+            ("Benchmark Suite Files (`tests/benchmarks/`)", bm_items),
+            (
+                "Standalone & Legacy Test Runners and Fixtures (`tests/` & `src/legacy_cdd_db/`)",
+                legacy_all,
+            ),
+        ]
+    )
 
+    sec_idx = 1
     for sec_title, items in sections:
         sec_covered = [k for k in items if k in fully_covered_set]
         if not sec_covered:
             continue
-        doc.append(f"### {sec_title}")
+        doc.append(f"### {sec_idx}. {sec_title}")
         doc.append("")
         for k in sec_covered:
-            doc.append(fmt_entry(k))
+            doc.append(fmt_entry(k, checked=True))
         doc.append("")
+        sec_idx += 1
 
-    doc.append("---")
-    doc.append("")
-    doc.append("## Declaration-Only Header Files (No Executable Code)")
-    doc.append("")
-    doc.append(
-        "The following header files declare public data structures, enums, macros, and API prototypes without containing executable inline function definitions or executable statements:"
+    doc.extend(
+        [
+            "---",
+            "",
+            "## Declaration-Only Header Files (No Executable Code)",
+            "",
+            "The following header files declare public data structures, enums, macros, and API prototypes without containing executable inline function definitions or executable statements:",
+            "",
+        ]
     )
-    doc.append("")
 
     for h in inc_headers:
         doc.append(
@@ -763,14 +856,30 @@ def generate_test_report(output_path="UNDERCOVERED.md"):
 
     doc.append("")
 
-    content = "\n".join(doc)
+    content = chr(10).join(doc)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(content)
     print(f"Successfully generated {output_path} ({len(content)} bytes)")
 
 
-if __name__ == "__main__":
-    if "--doc" in sys.argv:
+def main():
+    """CLI entry point for generating test or doc coverage reports."""
+    args = sys.argv[1:]
+    if "--doc" in args:
         generate_report()
-    else:
-        generate_test_report()
+        return
+
+    cov_dir = None
+    if "--build-dir" in args:
+        idx = args.index("--build-dir")
+        if idx + 1 < len(args):
+            cov_dir = args[idx + 1]
+    force_rebuild = "--rebuild" in args
+    skip_build = "--no-build" in args
+    generate_test_report(
+        cov_dir=cov_dir, force_rebuild=force_rebuild, skip_build=skip_build
+    )
+
+
+if __name__ == "__main__":
+    main()

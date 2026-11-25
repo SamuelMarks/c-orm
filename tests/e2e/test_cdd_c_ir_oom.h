@@ -6,12 +6,12 @@
 #ifndef TEST_CDD_C_IR_OOM_H
 #define TEST_CDD_C_IR_OOM_H
 
-/* clang-format off */
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
-#undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions++; if (!((cond) != 0)) { fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
+/* clang-format off */
+#include "test_assert_zero_branch.h"
 /* clang-format on */
 
 /** @brief Counter decremented before triggering simulated malloc/realloc
@@ -104,25 +104,32 @@ TEST test_cdd_c_ir_oom(void) {
   cdd_c_query_projection_t proj;
   c_orm_error_t rc;
   int i;
+  char src_tbl[] = "test";
+  char tgt_name[] = "test_map";
 
   memset(&tbl, 0, sizeof(tbl));
   rc = cdd_c_query_projection_init(&proj);
   ASSERT_EQ(C_ORM_OK, rc);
-  proj.source_table = "test";
-  proj.mapping_meta.target_name = "test_map";
+  proj.source_table = src_tbl;
+  proj.mapping_meta.target_name = tgt_name;
 
   old_malloc_ir = c_orm_malloc;
   old_realloc_ir = c_orm_realloc;
+
+  ir_oom_countdown = 0;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, mock_malloc_ir(16, NULL));
+  ir_oom_countdown = 0;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, mock_realloc_ir(NULL, 16, NULL));
 
   /* add_table realloc fail & defensive NULL realloc */
   rc = cdd_c_ir_init(&ir);
   ASSERT_EQ(C_ORM_OK, rc);
   ir_oom_countdown = 0;
   c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_table(&ir, &tbl));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, cdd_c_ir_add_table(&ir, &tbl));
 
   c_orm_set_allocators(old_malloc_ir, mock_ok_null_realloc_ir, c_orm_free);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_table(&ir, &tbl));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, cdd_c_ir_add_table(&ir, &tbl));
 
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
   rc = cdd_c_ir_free(&ir);
@@ -133,30 +140,31 @@ TEST test_cdd_c_ir_oom(void) {
   ASSERT_EQ(C_ORM_OK, rc);
   ir_oom_countdown = 0;
   c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, cdd_c_ir_add_projection(&ir, &proj));
 
   c_orm_set_allocators(old_malloc_ir, mock_ok_null_realloc_ir, c_orm_free);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, cdd_c_ir_add_projection(&ir, &proj));
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
 
   /* duplicate_projection field alloc fail */
   {
     cdd_c_query_projection_t proj_local;
     cdd_c_query_projection_field_t f;
+    char f1_name[] = "f1";
     rc = cdd_c_query_projection_init(&proj_local);
     ASSERT_EQ(C_ORM_OK, rc);
     memset(&f, 0, sizeof(f));
-    f.name = "f1";
+    f.name = f1_name;
     rc = cdd_c_query_projection_add_field(&proj_local, &f);
     ASSERT_EQ(C_ORM_OK, rc);
 
-    ir_oom_countdown = 0; /* fail duplicate_string_qp inside add_field */
+    ir_oom_countdown = 0; /* fail c_orm_strdup inside add_field */
     c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
-    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj_local));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, cdd_c_ir_add_projection(&ir, &proj_local));
 
     ir_oom_countdown = 0; /* fail new_fields realloc inside add_field */
     c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
-    ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj_local));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, cdd_c_ir_add_projection(&ir, &proj_local));
 
     c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
     rc = cdd_c_query_projection_free(&proj_local);
@@ -166,11 +174,11 @@ TEST test_cdd_c_ir_oom(void) {
   /* duplicate_projection malloc fail & defensive NULL - source_table */
   ir_oom_countdown = 0;
   c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, cdd_c_ir_add_projection(&ir, &proj));
 
   ir_oom_countdown = 0;
   c_orm_set_allocators(mock_ok_null_malloc_ir, old_realloc_ir, c_orm_free);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, cdd_c_ir_add_projection(&ir, &proj));
 
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
   rc = cdd_c_ir_free(&ir);
@@ -181,11 +189,11 @@ TEST test_cdd_c_ir_oom(void) {
   /* duplicate_projection malloc fail & defensive NULL - target_name */
   ir_oom_countdown = 1; /* skips source_table alloc */
   c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, cdd_c_ir_add_projection(&ir, &proj));
 
   ir_oom_countdown = 1;
   c_orm_set_allocators(mock_ok_null_malloc_ir, old_realloc_ir, c_orm_free);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_ir_add_projection(&ir, &proj));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, cdd_c_ir_add_projection(&ir, &proj));
 
   c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
   rc = cdd_c_ir_free(&ir);
@@ -209,7 +217,8 @@ TEST test_cdd_c_ir_oom(void) {
     ASSERT_EQ(C_ORM_OK, rc);
     ir_oom_countdown = i;
     c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
-    (void)parse_sql_into_ir("SELECT id FROM x;", &ir);
+    rc = parse_sql_into_ir("SELECT id FROM x;", &ir);
+    ASSERT((rc == C_ORM_OK) + (rc == C_ORM_ERROR_MEMORY));
     c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
     rc = cdd_c_ir_free(&ir);
     ASSERT_EQ(C_ORM_OK, rc);
@@ -218,7 +227,8 @@ TEST test_cdd_c_ir_oom(void) {
     ASSERT_EQ(C_ORM_OK, rc);
     ir_oom_countdown = i;
     c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
-    (void)parse_sql_into_ir("SELECT id FROM x;", &ir);
+    rc = parse_sql_into_ir("SELECT id FROM x;", &ir);
+    ASSERT((rc == C_ORM_OK) + (rc == C_ORM_ERROR_MEMORY));
     c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
     rc = cdd_c_ir_free(&ir);
     ASSERT_EQ(C_ORM_OK, rc);
@@ -227,7 +237,8 @@ TEST test_cdd_c_ir_oom(void) {
     ASSERT_EQ(C_ORM_OK, rc);
     ir_oom_countdown = i;
     c_orm_set_allocators(old_malloc_ir, mock_realloc_ir, c_orm_free);
-    (void)parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
+    rc = parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
+    ASSERT((rc == C_ORM_OK) + (rc == C_ORM_ERROR_MEMORY));
     c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
     rc = cdd_c_ir_free(&ir);
     ASSERT_EQ(C_ORM_OK, rc);
@@ -236,7 +247,8 @@ TEST test_cdd_c_ir_oom(void) {
     ASSERT_EQ(C_ORM_OK, rc);
     ir_oom_countdown = i;
     c_orm_set_allocators(mock_malloc_ir, old_realloc_ir, c_orm_free);
-    (void)parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
+    rc = parse_sql_into_ir("INSERT INTO x (id) VALUES (1) RETURNING id;", &ir);
+    ASSERT((rc == C_ORM_OK) + (rc == C_ORM_ERROR_MEMORY));
     c_orm_set_allocators(old_malloc_ir, old_realloc_ir, c_orm_free);
     rc = cdd_c_ir_free(&ir);
     ASSERT_EQ(C_ORM_OK, rc);
@@ -251,5 +263,9 @@ TEST test_cdd_c_ir_oom(void) {
 
   PASS();
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* TEST_CDD_C_IR_OOM_H */

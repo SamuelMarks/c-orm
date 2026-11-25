@@ -208,39 +208,47 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_set_test_dl_hooks(
 }
 #endif /* C_ORM_TEST_ALLOCATOR */
 
-/**
- * @brief Acquires the thread-safe loader lock when threading is enabled.
- * @return C_ORM_OK on success.
- */
-static c_orm_error_t loader_lock(void) {
 #if !defined(C_ORM_NO_THREADS) && !defined(__EMSCRIPTEN__)
 #if defined(_MSC_VER)
-  while (_InterlockedCompareExchange(&g_odbc_loader_spinlock, 1L, 0L) != 0L) {
-  }
+#define LOADER_LOCK()                                                          \
+  do {                                                                         \
+    while (_InterlockedCompareExchange(&g_odbc_loader_spinlock, 1L, 0L) !=     \
+           0L) {                                                               \
+    }                                                                          \
+  } while (0)
+#define LOADER_UNLOCK()                                                        \
+  do {                                                                         \
+    g_odbc_loader_spinlock = 0;                                                \
+  } while (0)
 #elif defined(_WIN32)
-  while (__sync_val_compare_and_swap(&g_odbc_loader_spinlock, 0L, 1L) != 0L) {
-  }
+#define LOADER_LOCK()                                                          \
+  do {                                                                         \
+    while (__sync_val_compare_and_swap(&g_odbc_loader_spinlock, 0L, 1L) !=     \
+           0L) {                                                               \
+    }                                                                          \
+  } while (0)
+#define LOADER_UNLOCK()                                                        \
+  do {                                                                         \
+    g_odbc_loader_spinlock = 0;                                                \
+  } while (0)
 #else
-  (void)pthread_mutex_lock(&g_odbc_loader_mutex);
+#define LOADER_LOCK()                                                          \
+  do {                                                                         \
+    pthread_mutex_lock(&g_odbc_loader_mutex);                                  \
+  } while (0)
+#define LOADER_UNLOCK()                                                        \
+  do {                                                                         \
+    pthread_mutex_unlock(&g_odbc_loader_mutex);                                \
+  } while (0)
 #endif
-#endif
-  return C_ORM_OK;
-}
-
-/**
- * @brief Releases the thread-safe loader lock when threading is enabled.
- * @return C_ORM_OK on success.
- */
-static c_orm_error_t loader_unlock(void) {
-#if !defined(C_ORM_NO_THREADS) && !defined(__EMSCRIPTEN__)
-#if defined(_WIN32)
-  g_odbc_loader_spinlock = 0;
 #else
-  (void)pthread_mutex_unlock(&g_odbc_loader_mutex);
+#define LOADER_LOCK()                                                          \
+  do {                                                                         \
+  } while (0)
+#define LOADER_UNLOCK()                                                        \
+  do {                                                                         \
+  } while (0)
 #endif
-#endif
-  return C_ORM_OK;
-}
 
 /**
  * @brief Dynamically opens a shared library by UTF-8 path without <windows.h>.
@@ -261,10 +269,12 @@ static c_orm_error_t os_open_library(const char *path, void **out_handle) {
   {
     unsigned short wpath[1024];
     size_t units = 0;
-    if (c_orm_utf8_to_utf16(path, strlen(path), 0, wpath, 1024, &units) ==
-        C_ORM_OK) {
-      h = LoadLibraryW(wpath);
+    c_orm_error_t urc =
+        c_orm_utf8_to_utf16(path, strlen(path), 0, wpath, 1024, &units);
+    if (urc != C_ORM_OK) {
+      return (urc == C_ORM_ERROR_MEMORY) ? urc : C_ORM_ERROR_DRIVER_LOAD;
     }
+    h = LoadLibraryW(wpath);
   }
 #else
   h = LoadLibraryA(path);
@@ -272,7 +282,9 @@ static c_orm_error_t os_open_library(const char *path, void **out_handle) {
 #elif !defined(__EMSCRIPTEN__)
   h = dlopen(path, RTLD_LAZY);
 #else
-  (void)path;
+  if (!path) {
+    return C_ORM_ERROR_DRIVER_LOAD;
+  }
 #endif
   if (!h) {
     return C_ORM_ERROR_DRIVER_LOAD;
@@ -300,8 +312,10 @@ static c_orm_error_t os_lookup_symbol(void *handle, const char *symbol_name,
 #elif !defined(__EMSCRIPTEN__)
   *out_fn = dlsym(handle, symbol_name);
 #else
-  (void)handle;
-  (void)symbol_name;
+  if (!handle || !symbol_name) {
+    *out_fn = NULL;
+    return C_ORM_ERROR_NULL_POINTER;
+  }
   *out_fn = NULL;
 #endif
   return C_ORM_OK;
@@ -319,9 +333,9 @@ static c_orm_error_t os_close_library(void *handle) {
   }
 #endif
 #if defined(_WIN32)
-  (void)FreeLibrary(handle);
+  FreeLibrary(handle);
 #elif !defined(__EMSCRIPTEN__)
-  (void)dlclose(handle);
+  dlclose(handle);
 #endif
   return C_ORM_OK;
 }
@@ -405,6 +419,31 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_populate_api(c_orm_odbc_sym_fn lookup_fn,
 }
 
 /**
+ * @brief Closes a dynamic library handle during error cleanup or loader reset.
+ * @param h Open dynamic library handle.
+ * @return C_ORM_OK on success, or OS close error code.
+ */
+static c_orm_error_t loader_lib_cleanup_free(void *h) {
+  return os_close_library(h);
+}
+
+/**
+ * @brief Reads an optional environment variable into `buf`.
+ * @param buf Destination buffer.
+ * @param cap Buffer capacity in bytes.
+ * @param name Environment variable name.
+ * @return 1 if present and non-empty, 0 otherwise.
+ */
+static int loader_calc_getenv_opt(char *buf, size_t cap, const char *name) {
+  buf[0] = '\0';
+  if (C_ORM_GETENV(buf, cap, name) != C_ORM_OK) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return (buf[0] != '\0') ? 1 : 0;
+}
+
+/**
  * @brief Attempts to open a candidate shared library and populate out_api.
  * @param candidate Library path or soname.
  * @param out_handle Output pointer receiving opened handle on success.
@@ -423,49 +462,63 @@ static c_orm_error_t try_load_candidate(const char *candidate,
   }
   rc = c_orm_odbc_populate_api(os_lookup_symbol, h, out_api);
   if (rc != C_ORM_OK) {
-    os_close_library(h);
+    loader_lib_cleanup_free(h);
     return rc;
   }
   *out_handle = h;
   return C_ORM_OK;
 }
 
+/**
+ * @brief Probes a single library candidate and returns 1 on successful load.
+ * @param candidate Library filename or path.
+ * @param out_handle Output handle pointer on success.
+ * @param out_api Output populated API dispatch table.
+ * @return 1 if loaded and populated, 0 otherwise.
+ */
+static int loader_calc_try_candidate(const char *candidate, void **out_handle,
+                                     c_orm_odbc_api_t *out_api) {
+  return (try_load_candidate(candidate, out_handle, out_api) == C_ORM_OK) ? 1
+                                                                          : 0;
+}
+
 C_ORM_EXPORT c_orm_error_t
 c_orm_odbc_set_mock_api(const c_orm_odbc_api_t *mock_api) {
-  loader_lock();
+  LOADER_LOCK();
   g_odbc_mock_api = mock_api;
-  loader_unlock();
+  LOADER_UNLOCK();
   return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_db2_set_mock_api(const c_orm_odbc_api_t *mock_api, int is_direct_cli) {
-  loader_lock();
+  LOADER_LOCK();
   g_db2_mock_api = mock_api;
   g_db2_mock_is_direct = is_direct_cli ? 1 : 0;
-  loader_unlock();
+  LOADER_UNLOCK();
   return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_odbc_reset_loader(void) {
-  loader_lock();
+  LOADER_LOCK();
   g_odbc_mock_api = NULL;
   g_db2_mock_api = NULL;
   g_db2_mock_is_direct = 0;
   if (g_odbc_lib_handle) {
-    os_close_library(g_odbc_lib_handle);
+    void *oh = g_odbc_lib_handle;
     g_odbc_lib_handle = NULL;
+    loader_lib_cleanup_free(oh);
   }
   memset(&g_odbc_dyn_api, 0, sizeof(g_odbc_dyn_api));
   g_odbc_dyn_loaded = 0;
-
   if (g_db2_lib_handle) {
-    os_close_library(g_db2_lib_handle);
+    void *dh = g_db2_lib_handle;
     g_db2_lib_handle = NULL;
+    loader_lib_cleanup_free(dh);
   }
   memset(&g_db2_dyn_api, 0, sizeof(g_db2_dyn_api));
   g_db2_dyn_loaded = 0;
-  loader_unlock();
+  LOADER_UNLOCK();
   return C_ORM_OK;
 }
 
@@ -498,17 +551,17 @@ c_orm_odbc_load_driver_manager(const c_orm_odbc_api_t **out_api) {
   }
   *out_api = NULL;
 
-  loader_lock();
+  LOADER_LOCK();
 
   if (g_odbc_mock_api) {
     *out_api = g_odbc_mock_api;
-    loader_unlock();
+    LOADER_UNLOCK();
     return C_ORM_OK;
   }
 
   if (g_odbc_dyn_loaded) {
     *out_api = &g_odbc_dyn_api;
-    loader_unlock();
+    LOADER_UNLOCK();
     return C_ORM_OK;
   }
 
@@ -550,33 +603,33 @@ c_orm_odbc_load_driver_manager(const c_orm_odbc_api_t **out_api) {
   g_odbc_dyn_api.SQLPrimaryKeys = SQLPrimaryKeys;
   g_odbc_dyn_loaded = 1;
   *out_api = &g_odbc_dyn_api;
-  (void)loader_unlock();
+  LOADER_UNLOCK();
   return C_ORM_OK;
 #endif
 
-  env_lib[0] = '\0';
-  C_ORM_GETENV(env_lib, sizeof(env_lib), "C_ORM_ODBC_LIB");
-  if (env_lib[0] != '\0') {
+  if (loader_calc_getenv_opt(env_lib, sizeof(env_lib), "C_ORM_ODBC_LIB")) {
     rc = try_load_candidate(env_lib, &g_odbc_lib_handle, &g_odbc_dyn_api);
-    if (rc == C_ORM_OK) {
-      g_odbc_dyn_loaded = 1;
-      *out_api = &g_odbc_dyn_api;
+    if (rc != C_ORM_OK) {
+      LOADER_UNLOCK();
+      return rc;
     }
-    loader_unlock();
-    return rc;
+    g_odbc_dyn_loaded = 1;
+    *out_api = &g_odbc_dyn_api;
+    LOADER_UNLOCK();
+    return C_ORM_OK;
   }
 
   for (i = 0; candidates[i] != NULL; i++) {
-    if (try_load_candidate(candidates[i], &g_odbc_lib_handle,
-                           &g_odbc_dyn_api) == C_ORM_OK) {
+    if (loader_calc_try_candidate(candidates[i], &g_odbc_lib_handle,
+                                  &g_odbc_dyn_api)) {
       g_odbc_dyn_loaded = 1;
       *out_api = &g_odbc_dyn_api;
-      loader_unlock();
+      LOADER_UNLOCK();
       return C_ORM_OK;
     }
   }
 
-  loader_unlock();
+  LOADER_UNLOCK();
   return C_ORM_ERROR_DRIVER_LOAD;
 }
 
@@ -605,14 +658,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_load_cli(const c_orm_odbc_api_t **out_api,
     *out_is_direct_db2_cli = 0;
   }
 
-  loader_lock();
+  LOADER_LOCK();
 
   if (g_db2_mock_api) {
     *out_api = g_db2_mock_api;
     if (out_is_direct_db2_cli) {
       *out_is_direct_db2_cli = g_db2_mock_is_direct;
     }
-    loader_unlock();
+    LOADER_UNLOCK();
     return C_ORM_OK;
   }
 
@@ -621,28 +674,26 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_load_cli(const c_orm_odbc_api_t **out_api,
     if (out_is_direct_db2_cli) {
       *out_is_direct_db2_cli = 1;
     }
-    loader_unlock();
+    LOADER_UNLOCK();
     return C_ORM_OK;
   }
 
-  env_lib[0] = '\0';
-  C_ORM_GETENV(env_lib, sizeof(env_lib), "C_ORM_DB2_LIB");
-  if (env_lib[0] != '\0') {
+  if (loader_calc_getenv_opt(env_lib, sizeof(env_lib), "C_ORM_DB2_LIB")) {
     rc = try_load_candidate(env_lib, &g_db2_lib_handle, &g_db2_dyn_api);
-    if (rc == C_ORM_OK) {
-      g_db2_dyn_loaded = 1;
-      *out_api = &g_db2_dyn_api;
-      if (out_is_direct_db2_cli) {
-        *out_is_direct_db2_cli = 1;
-      }
+    if (rc != C_ORM_OK) {
+      LOADER_UNLOCK();
+      return rc;
     }
-    loader_unlock();
-    return rc;
+    g_db2_dyn_loaded = 1;
+    *out_api = &g_db2_dyn_api;
+    if (out_is_direct_db2_cli) {
+      *out_is_direct_db2_cli = 1;
+    }
+    LOADER_UNLOCK();
+    return C_ORM_OK;
   }
 
-  db2_home[0] = '\0';
-  C_ORM_GETENV(db2_home, sizeof(db2_home), "IBM_DB_HOME");
-  if (db2_home[0] != '\0') {
+  if (loader_calc_getenv_opt(db2_home, sizeof(db2_home), "IBM_DB_HOME")) {
 #if defined(_WIN32)
     rc = C_ORM_SPRINTF(home_candidate, sizeof(home_candidate),
                        "%s/bin/db2cli64.dll", db2_home);
@@ -653,31 +704,35 @@ C_ORM_EXPORT c_orm_error_t c_orm_db2_load_cli(const c_orm_odbc_api_t **out_api,
     rc = C_ORM_SPRINTF(home_candidate, sizeof(home_candidate),
                        "%s/lib64/libdb2.so", db2_home);
 #endif
-    if (rc == C_ORM_OK && try_load_candidate(home_candidate, &g_db2_lib_handle,
-                                             &g_db2_dyn_api) == C_ORM_OK) {
+    if (rc != C_ORM_OK) {
+      LOADER_UNLOCK();
+      return rc;
+    }
+    if (loader_calc_try_candidate(home_candidate, &g_db2_lib_handle,
+                                  &g_db2_dyn_api)) {
       g_db2_dyn_loaded = 1;
       *out_api = &g_db2_dyn_api;
       if (out_is_direct_db2_cli) {
         *out_is_direct_db2_cli = 1;
       }
-      loader_unlock();
+      LOADER_UNLOCK();
       return C_ORM_OK;
     }
   }
 
   for (i = 0; db2_candidates[i] != NULL; i++) {
-    if (try_load_candidate(db2_candidates[i], &g_db2_lib_handle,
-                           &g_db2_dyn_api) == C_ORM_OK) {
+    if (loader_calc_try_candidate(db2_candidates[i], &g_db2_lib_handle,
+                                  &g_db2_dyn_api)) {
       g_db2_dyn_loaded = 1;
       *out_api = &g_db2_dyn_api;
       if (out_is_direct_db2_cli) {
         *out_is_direct_db2_cli = 1;
       }
-      loader_unlock();
+      LOADER_UNLOCK();
       return C_ORM_OK;
     }
   }
 
-  loader_unlock();
+  LOADER_UNLOCK();
   return c_orm_odbc_load_driver_manager(out_api);
 }

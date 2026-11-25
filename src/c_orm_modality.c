@@ -24,14 +24,19 @@ C_ORM_EXPORT c_orm_error_t c_orm_set_modality(c_orm_db_t *db,
 
   if (!db) {
     LOG_DEBUG("c_orm_set_modality: OOM/db null");
-    rc = C_ORM_ERROR_MEMORY;
     LOG_DEBUG("c_orm_set_modality: exit");
-    return (c_orm_error_t)rc;
+    return C_ORM_ERROR_MEMORY;
+  }
+  if (modality != C_ORM_MODALITY_THREAD_POOL && db->modality_lock) {
+    rc = c_orm_mutex_destroy(db->modality_lock);
+    db->modality_lock = NULL;
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
   }
   db->modality = modality;
   db->modality_ctx = ctx;
 
-  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_set_modality: exit");
-  return (c_orm_error_t)rc;
+  return C_ORM_OK;
 }

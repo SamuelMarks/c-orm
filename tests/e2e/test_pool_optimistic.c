@@ -13,6 +13,7 @@
 #include "c_orm_memory.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,7 +39,8 @@ static c_orm_error_t pool_test_malloc(size_t size, void **out_ptr) {
     }
     g_pool_oom_countdown--;
   }
-  p = malloc(size == 0 ? 1 : size);
+  p = NULL;
+  c_orm_default_malloc(size, &p);
   *out_ptr = p;
   return C_ORM_OK;
 }
@@ -51,7 +53,8 @@ static c_orm_error_t pool_test_malloc(size_t size, void **out_ptr) {
  * @return C_ORM_OK on success.
  */
 static c_orm_error_t pool_test_realloc(void *ptr, size_t size, void **out_ptr) {
-  void *p = realloc(ptr, size == 0 ? 1 : size);
+  void *p = NULL;
+  c_orm_default_realloc(ptr, size, &p);
   *out_ptr = p;
   return C_ORM_OK;
 }
@@ -62,7 +65,7 @@ static c_orm_error_t pool_test_realloc(void *ptr, size_t size, void **out_ptr) {
  * @return C_ORM_OK on success.
  */
 static c_orm_error_t pool_test_free(void *ptr) {
-  free(ptr);
+  c_orm_default_free(ptr);
   return C_ORM_OK;
 }
 
@@ -76,8 +79,8 @@ static c_orm_error_t (*g_real_disconnect)(c_orm_db_t *db) = NULL;
  * @return Always returns C_ORM_ERROR_CONNECTION.
  */
 static c_orm_error_t mock_failing_disconnect(c_orm_db_t *db) {
-  c_orm_error_t rc = g_real_disconnect(db);
-  return rc != C_ORM_OK ? rc : C_ORM_ERROR_CONNECTION;
+  ASSERT_EQ(C_ORM_OK, g_real_disconnect(db));
+  return C_ORM_ERROR_CONNECTION;
 }
 
 /**
@@ -154,10 +157,61 @@ TEST test_pool_lifecycle_and_validation(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_pool_destroy(pool_zero));
 
   ASSERT_EQ(C_ORM_OK, c_orm_pool_init("memory://", 1, 1, 8, &pool_long));
+  {
+    c_orm_pool_telemetry_t tel;
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_pool_get_telemetry(NULL, &tel));
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              c_orm_pool_get_telemetry(pool_long, NULL));
+    ASSERT_EQ(C_ORM_OK, c_orm_pool_get_telemetry(pool_long, &tel));
+    ASSERT_EQ(0U, tel.active_connections);
+    ASSERT_EQ(1U, tel.idle_connections);
+    ASSERT_EQ(0U, tel.exhaustion_count);
+    ASSERT_EQ(0.0, tel.average_wait_time_ms);
+  }
   ASSERT_EQ(C_ORM_OK, c_orm_pool_acquire(pool_long, &db1));
+  db1->telemetry.slow_queries_logged = 3;
   ASSERT_EQ(C_ORM_ERROR_TIMEOUT, c_orm_pool_acquire(pool_long, &db2));
+  {
+    c_orm_pool_telemetry_t tel;
+    ASSERT_EQ(C_ORM_OK, c_orm_pool_get_telemetry(pool_long, &tel));
+    ASSERT_EQ(1U, tel.active_connections);
+    ASSERT_EQ(0U, tel.idle_connections);
+    ASSERT_EQ(1U, tel.exhaustion_count);
+    ASSERT(tel.average_wait_time_ms > 0.0);
+    ASSERT_EQ(3U, tel.slow_queries_logged);
+  }
   ASSERT_EQ(C_ORM_OK, c_orm_pool_release(pool_long, db1));
   ASSERT_EQ(C_ORM_OK, c_orm_pool_destroy(pool_long));
+
+  /* Also test telemetry with unallocated NULL slot (min_conns=0, max_conns=2)
+   */
+  {
+    c_orm_pool_t *lazy_pool = NULL;
+    c_orm_pool_telemetry_t tel;
+    ASSERT_EQ(C_ORM_OK, c_orm_pool_init("memory://", 0, 2, 0, &lazy_pool));
+    ASSERT_EQ(C_ORM_OK, c_orm_pool_get_telemetry(lazy_pool, &tel));
+    ASSERT_EQ(0U, tel.active_connections);
+    ASSERT_EQ(0U, tel.idle_connections);
+    c_orm_mock_cache_lock_fail = 1;
+    ASSERT_EQ(C_ORM_ERROR_BUSY, c_orm_pool_get_telemetry(lazy_pool, &tel));
+    c_orm_mock_cache_lock_fail = 0;
+    c_orm_mock_cache_unlock_fail = 1;
+    ASSERT_EQ(C_ORM_ERROR_BUSY, c_orm_pool_get_telemetry(lazy_pool, &tel));
+    c_orm_mock_cache_unlock_fail = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_pool_destroy(lazy_pool));
+  }
+
+  /* Test unlock failure during wait step (timeout_ms > 0 when full) */
+  {
+    c_orm_pool_t *wait_pool = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_pool_init("memory://", 1, 1, 2, &wait_pool));
+    ASSERT_EQ(C_ORM_OK, c_orm_pool_acquire(wait_pool, &db1));
+    c_orm_mock_cache_unlock_fail = 1;
+    ASSERT_EQ(C_ORM_ERROR_BUSY, c_orm_pool_acquire(wait_pool, &db2));
+    c_orm_mock_cache_unlock_fail = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_pool_release(wait_pool, db1));
+    ASSERT_EQ(C_ORM_OK, c_orm_pool_destroy(wait_pool));
+  }
 
   PASS();
 }
@@ -213,6 +267,14 @@ TEST test_pool_fault_injection(void) {
 
   /* Acquire slot 0 normally, then unlock failure on newly opened slot 1 */
   ASSERT_EQ(C_ORM_OK, c_orm_pool_acquire(pool, &db1));
+  {
+    c_orm_pool_t *bad_pool = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_pool_init("unsupported://x", 0, 1, 5, &bad_pool));
+    c_orm_mock_cache_unlock_fail = 1;
+    ASSERT_EQ(C_ORM_ERROR_BUSY, c_orm_pool_acquire(bad_pool, &db2));
+    c_orm_mock_cache_unlock_fail = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_pool_destroy(bad_pool));
+  }
   c_orm_mock_cache_unlock_fail = 1;
   ASSERT_EQ(C_ORM_ERROR_BUSY, c_orm_pool_acquire(pool, &db2));
   c_orm_mock_cache_unlock_fail = 0;
@@ -412,6 +474,12 @@ static c_orm_error_t opt_test_hook(void *record, void *db) {
  * @return Greatest test status.
  */
 TEST test_optimistic_update_crud_and_validation(void) {
+  static char c_mut_s0[] = "acct-1";
+  static char c_mut_s1[] = "Initial";
+  static char c_mut_s2[] = "Updated V2";
+  static char c_mut_s3[] = "Stale Overwrite";
+  static char c_mut_s4[] = "acct-1";
+
   c_orm_db_t *db = NULL;
   OptItem32 item32;
   OptItem32 fetched32;
@@ -495,7 +563,7 @@ TEST test_optimistic_update_crud_and_validation(void) {
   ASSERT_EQ(
       C_ORM_ERROR_VALIDATION,
       c_orm_update_optimistic(db, &g_opt_str64_meta, "version", &item_str));
-  item_str.code = "acct-1";
+  item_str.code = c_mut_s0;
   ASSERT_EQ(
       C_ORM_ERROR_VALIDATION,
       c_orm_update_optimistic(db, &g_opt_str64_meta, "opt_ver", &item_str));
@@ -509,11 +577,11 @@ TEST test_optimistic_update_crud_and_validation(void) {
 
   /* 1. OptItem32: insert v1, update to v2, detect conflict on stale v2 */
   item32.id = 1;
-  item32.title = "Initial";
+  item32.title = c_mut_s1;
   item32.version = 1;
   ASSERT_EQ(C_ORM_OK, c_orm_insert(db, &g_opt32_meta, &item32));
 
-  item32.title = "Updated V2";
+  item32.title = c_mut_s2;
   item32.version = 2;
   ASSERT_EQ(C_ORM_OK,
             c_orm_update_optimistic(db, &g_opt32_meta, "version", &item32));
@@ -525,7 +593,7 @@ TEST test_optimistic_update_crud_and_validation(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_free_columns(&g_opt32_meta, &fetched32));
 
   /* Stale update with version = 2 again fails with C_ORM_ERROR_NOT_FOUND */
-  item32.title = "Stale Overwrite";
+  item32.title = c_mut_s3;
   item32.version = 2;
   ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
             c_orm_update_optimistic(db, &g_opt32_meta, "version", &item32));
@@ -544,7 +612,7 @@ TEST test_optimistic_update_crud_and_validation(void) {
 
   /* 3. OptItemStr64: string PK + int64 version and nullable int64* version */
   v64 = 10;
-  item_str.code = "acct-1";
+  item_str.code = c_mut_s4;
   item_str.version = 10;
   item_str.opt_ver = &v64;
   ASSERT_EQ(C_ORM_OK, c_orm_insert(db, &g_opt_str64_meta, &item_str));
@@ -619,6 +687,8 @@ typedef struct OptMockState {
   int fail_finalize_on;
   /** @brief Simulated row indicator returned by step. */
   int has_row_val;
+  /** @brief Last SQL statement passed to opt_mock_prepare. */
+  char last_sql[1024];
 } OptMockState;
 
 /** @brief Active mock driver state instance. */
@@ -633,8 +703,16 @@ static OptMockState g_opt_mock;
  */
 static c_orm_error_t opt_mock_prepare(c_orm_db_t *db, const char *sql,
                                       c_orm_query_t **out_query) {
+  c_orm_error_t rc;
   (void)db;
-  (void)sql;
+  if (strncmp(sql, "BEGIN", 5) != 0 && strcmp(sql, "COMMIT") != 0 &&
+      strcmp(sql, "ROLLBACK") != 0) {
+    rc = C_ORM_STRNCPY(g_opt_mock.last_sql, sizeof(g_opt_mock.last_sql), sql,
+                       sizeof(g_opt_mock.last_sql) - 1U);
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
+  }
   g_opt_mock.prepare_call++;
   if (g_opt_mock.prepare_call == g_opt_mock.fail_prepare_on) {
     return C_ORM_ERROR_SQL;
@@ -717,6 +795,8 @@ static c_orm_error_t opt_mock_finalize(c_orm_query_t *query) {
  * @return Greatest test status.
  */
 TEST test_optimistic_update_fault_injection(void) {
+  static char c_mut_s5[] = "hello";
+
   c_orm_driver_vtable_t vt;
   c_orm_db_t mock_db;
   OptItem32 item;
@@ -734,7 +814,7 @@ TEST test_optimistic_update_fault_injection(void) {
   mock_db.driver_name = "sqlite";
 
   item.id = 1;
-  item.title = "hello";
+  item.title = c_mut_s5;
   item.version = 2;
 
   /* 1. OOM countdown across check_sql, set_buf, and upd_sql allocations */
@@ -751,18 +831,15 @@ TEST test_optimistic_update_fault_injection(void) {
   g_pool_oom_countdown = -1;
   ASSERT_EQ(C_ORM_OK, c_orm_reset_allocators());
 
-  /* 2. Safe CRT formatting failure on check_sql (0) and upd_sql (1) */
-  memset(&g_opt_mock, 0, sizeof(g_opt_mock));
-  g_opt_mock.has_row_val = 1;
-  c_orm_mock_safe_crt_countdown = 0;
-  ASSERT_NEQ(C_ORM_OK, c_orm_update_optimistic(&mock_db, &g_opt32_meta,
-                                               "version", &item));
-
-  memset(&g_opt_mock, 0, sizeof(g_opt_mock));
-  g_opt_mock.has_row_val = 1;
-  c_orm_mock_safe_crt_countdown = 1;
-  ASSERT_NEQ(C_ORM_OK, c_orm_update_optimistic(&mock_db, &g_opt32_meta,
-                                               "version", &item));
+  /* 2. Safe CRT formatting failure on check_sql (0), mock prepare (1), and
+   * upd_sql (2) */
+  for (step = 0; step <= 2; ++step) {
+    memset(&g_opt_mock, 0, sizeof(g_opt_mock));
+    g_opt_mock.has_row_val = 1;
+    c_orm_mock_safe_crt_countdown = step;
+    ASSERT_NEQ(C_ORM_OK, c_orm_update_optimistic(&mock_db, &g_opt32_meta,
+                                                 "version", &item));
+  }
   c_orm_mock_safe_crt_countdown = -1;
 
   /* 3. Prepare failures (1 = check_sql, 2 = upd_sql) */
@@ -816,6 +893,189 @@ TEST test_optimistic_update_fault_injection(void) {
     ASSERT_EQ(C_ORM_ERROR_SQL, c_orm_update_optimistic(&mock_db, &g_opt32_meta,
                                                        "version", &item));
   }
+  {
+    c_orm_query_t *q_tmp = NULL;
+    ASSERT_EQ(C_ORM_OK, opt_mock_prepare(&mock_db, "ROLLBACK", &q_tmp));
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, opt_mock_prepare(&mock_db, "SELECT 1", &q_tmp));
+    c_orm_mock_safe_crt_countdown = -1;
+  }
+
+  PASS();
+}
+
+/**
+ * @brief Tests dialect-aware placeholders ($N on PostgreSQL) and identifier
+ * quoting (Db2/ODBC) across batch, generic, exists, and optimistic CRUD APIs.
+ * @return Greatest test status.
+ */
+TEST test_batch_generic_dialect_placeholders(void) {
+  static char c_mut_s6[] = "row";
+
+  c_orm_driver_vtable_t vt;
+  c_orm_db_t mock_db;
+  OptItem32 batch[6];
+  OptItem32 out_item;
+  void *out_arr = NULL;
+  size_t out_cnt = 0;
+  int exists_out = 0;
+  size_t bi;
+  const char *drivers[4] = {NULL, "postgres", "db2", "odbc"};
+  size_t di;
+
+  memset(&vt, 0, sizeof(vt));
+  vt.prepare = opt_mock_prepare;
+  vt.bind_int32 = opt_mock_bind_int32;
+  vt.bind_string = opt_mock_bind_string;
+  vt.step = opt_mock_step;
+  vt.finalize = opt_mock_finalize;
+
+  memset(&mock_db, 0, sizeof(mock_db));
+  mock_db.vtable = &vt;
+
+  for (bi = 0; bi < 6U; ++bi) {
+    batch[bi].id = (int32_t)(bi + 1U);
+    batch[bi].title = c_mut_s6;
+    batch[bi].version = 2;
+  }
+
+  for (di = 0; di < 4U; ++di) {
+    mock_db.driver_name = drivers[di];
+
+    /* Batch insert, update (6 items -> $1..$30 on postgres), and delete */
+    if (di < 2U) {
+      memset(&g_opt_mock, 0, sizeof(g_opt_mock));
+      ASSERT_EQ(C_ORM_OK,
+                c_orm_insert_batch_ext(&mock_db, &g_opt32_meta, batch, 6U, 6U,
+                                       C_ORM_ON_CONFLICT_FAIL, NULL, NULL));
+      if (drivers[di]) {
+        ASSERT(strstr(g_opt_mock.last_sql, "$18") != NULL);
+      }
+
+      memset(&g_opt_mock, 0, sizeof(g_opt_mock));
+      ASSERT_EQ(C_ORM_OK,
+                c_orm_update_batch(&mock_db, &g_opt32_meta, batch, 6U, 6U));
+      if (drivers[di]) {
+        ASSERT(strstr(g_opt_mock.last_sql, "WHEN $9 THEN $10") != NULL);
+        ASSERT(strstr(g_opt_mock.last_sql, "WHEN $11 THEN $12") != NULL);
+        ASSERT(strstr(g_opt_mock.last_sql, "$30") != NULL);
+      }
+
+      memset(&g_opt_mock, 0, sizeof(g_opt_mock));
+      ASSERT_EQ(C_ORM_OK,
+                c_orm_delete_batch(&mock_db, &g_opt32_meta, batch, 6U, 6U));
+      if (drivers[di]) {
+        ASSERT(strstr(g_opt_mock.last_sql, "IN ($1, $2") != NULL);
+      }
+    }
+
+    /* Generic insert, get, find_all, get_string */
+    memset(&g_opt_mock, 0, sizeof(g_opt_mock));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_insert_generic(&mock_db, &g_opt32_meta, &batch[0]));
+    if (drivers[di] && strcmp(drivers[di], "postgres") == 0) {
+      ASSERT(strstr(g_opt_mock.last_sql, "VALUES ($1, $2, $3)") != NULL);
+    }
+
+    memset(&g_opt_mock, 0, sizeof(g_opt_mock));
+    g_opt_mock.has_row_val = 0;
+    ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
+              c_orm_get_generic(&mock_db, &g_opt32_meta, 1, &out_item));
+    if (drivers[di] && strcmp(drivers[di], "postgres") == 0) {
+      ASSERT(strstr(g_opt_mock.last_sql, "WHERE id = $1") != NULL);
+    } else if (drivers[di]) {
+      ASSERT(strstr(g_opt_mock.last_sql, "WHERE \"id\" = ?") != NULL);
+    }
+
+    memset(&g_opt_mock, 0, sizeof(g_opt_mock));
+    g_opt_mock.has_row_val = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_find_all_generic(&mock_db, &g_opt32_meta,
+                                               &out_arr, &out_cnt));
+    c_orm_system_free(out_arr);
+    out_arr = NULL;
+
+    memset(&g_opt_mock, 0, sizeof(g_opt_mock));
+    g_opt_mock.has_row_val = 0;
+    ASSERT_EQ(
+        C_ORM_ERROR_NOT_FOUND,
+        c_orm_get_generic_string(&mock_db, &g_opt32_meta, "1", &out_item));
+
+    /* Exists int32 & string */
+    memset(&g_opt_mock, 0, sizeof(g_opt_mock));
+    g_opt_mock.has_row_val = 1;
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_exists_int32(&mock_db, &g_opt32_meta, 1, &exists_out));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_exists_string(&mock_db, &g_opt32_meta, "1", &exists_out));
+    if (drivers[di] && strcmp(drivers[di], "postgres") == 0) {
+      ASSERT(strstr(g_opt_mock.last_sql, "WHERE id = $1") != NULL);
+    } else if (drivers[di]) {
+      ASSERT(strstr(g_opt_mock.last_sql,
+                    "SELECT 1 FROM \"opt_items32\" WHERE \"id\" = ?") != NULL);
+    }
+
+    /* Optimistic update (both small 3-col and 12-col multi-digit $10/$11/$12)
+     */
+    memset(&g_opt_mock, 0, sizeof(g_opt_mock));
+    g_opt_mock.has_row_val = 1;
+    ASSERT_EQ(C_ORM_OK, c_orm_update_optimistic(&mock_db, &g_opt32_meta,
+                                                "version", &batch[0]));
+    if (drivers[di] && strcmp(drivers[di], "postgres") == 0) {
+      ASSERT(strstr(g_opt_mock.last_sql, "WHERE id = $3 AND version = $4") !=
+             NULL);
+    } else if (drivers[di]) {
+      ASSERT(strstr(g_opt_mock.last_sql,
+                    "WHERE \"id\" = ? AND \"version\" = ?") != NULL);
+    }
+  }
+
+  /* Multi-digit $10/$11/$12 placeholders in c_orm_update_optimistic on postgres
+   * + dynamic PK scan edge cases in c_orm_exists_int32 */
+  {
+    c_orm_column_meta_t wide_cols[12];
+    c_orm_table_meta_t wide_meta;
+    static const char *col_names[12] = {"c0", "c1", "c2",      "c3",
+                                        "c4", "c5", "c6",      "c7",
+                                        "c8", "c9", "version", "pk_k"};
+    int32_t wide_row[12];
+    size_t ci;
+
+    memset(wide_cols, 0, sizeof(wide_cols));
+    memset(&wide_meta, 0, sizeof(wide_meta));
+    for (ci = 0; ci < 12U; ++ci) {
+      wide_row[ci] = 2;
+      wide_cols[ci].name = col_names[ci];
+      wide_cols[ci].type = C_ORM_TYPE_INT32;
+      wide_cols[ci].offset = ci * sizeof(int32_t);
+      wide_cols[ci].is_pk = (ci == 11U) ? true : false;
+    }
+    wide_meta.name = "wide_tbl";
+    wide_meta.columns = wide_cols;
+    wide_meta.num_columns = 12U;
+    wide_meta.struct_size = sizeof(wide_row);
+    wide_meta.query_select_by_pk = "SELECT 1";
+
+    mock_db.driver_name = "postgres";
+    memset(&g_opt_mock, 0, sizeof(g_opt_mock));
+    g_opt_mock.has_row_val = 1;
+    ASSERT_EQ(C_ORM_OK, c_orm_update_optimistic(&mock_db, &wide_meta, "version",
+                                                wide_row));
+    ASSERT(strstr(g_opt_mock.last_sql,
+                  "version = $11 WHERE pk_k = $12 AND version = $13") != NULL);
+
+    /* Custom PK at non-zero index + PK with NULL name skipped + no-PK fallback
+     */
+    wide_cols[0].is_pk = true;
+    wide_cols[0].name = NULL;
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_exists_int32(&mock_db, &wide_meta, 2, &exists_out));
+    ASSERT(strstr(g_opt_mock.last_sql, "WHERE pk_k = $1") != NULL);
+
+    wide_cols[11].is_pk = false;
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_exists_int32(&mock_db, &wide_meta, 2, &exists_out));
+    ASSERT(strstr(g_opt_mock.last_sql, "WHERE id = $1") != NULL);
+  }
 
   PASS();
 }
@@ -829,4 +1089,5 @@ SUITE(pool_optimistic_suite) {
   RUN_TEST(test_pool_fault_injection);
   RUN_TEST(test_optimistic_update_crud_and_validation);
   RUN_TEST(test_optimistic_update_fault_injection);
+  RUN_TEST(test_batch_generic_dialect_placeholders);
 }

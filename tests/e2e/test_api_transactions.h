@@ -290,6 +290,16 @@ TEST test_api_belongs_to_validation_branches(void) {
  * @return GREATEST test result.
  */
 TEST test_api_transactions_savepoints_and_softdelete(void) {
+  static char c_mut_s0[] = "test";
+  static char c_mut_s1[] = "test_name";
+  static char c_mut_s2[] = "pk1";
+  static char c_mut_s3[] = "test_name";
+  static char c_mut_s4[] = "hello";
+  static char c_mut_s5[] = "secret";
+  static char c_mut_s6[] = "other";
+  static char c_mut_s7[] = "hello";
+  static char c_mut_s8[] = "world";
+
   struct Users u;
   struct Generic_Array arr;
   struct Generic_Array garr;
@@ -301,7 +311,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
   memset(&arr, 0, sizeof(arr));
   memset(&garr, 0, sizeof(garr));
   u.id = 1;
-  u.username = "test";
+  u.username = c_mut_s0;
 
   custom_vt = g_vt;
   custom_db = g_db;
@@ -374,14 +384,14 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     ASSERT_EQ(C_ORM_OK,
               c_orm_find_all_generic(&custom_db, &exp_meta, &arr.data, &cnt));
     ASSERT_EQ(0, cnt);
-    (void)c_orm_system_free(arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(arr.data));
     arr.data = NULL;
 
     g_stage_step_cnt = 0;
     g_stage_step_max = 2;
     ASSERT_EQ(C_ORM_OK, c_orm_find_all(&custom_db, &exp_meta, &garr));
     ASSERT_EQ(0, garr.length);
-    (void)c_orm_system_free(garr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(garr.data));
     garr.data = NULL;
     c_orm_set_expire_callback(&custom_db, NULL, NULL);
     custom_vt.step = g_vt.step;
@@ -396,8 +406,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     const char *partial_fields[1];
     partial_fields[0] = "name";
 
-    sobj.name = "test_name";
-    sobj.id = "pk1";
+    sobj.name = c_mut_s1;
+    sobj.id = c_mut_s2;
 
     memset(&spk_meta, 0, sizeof(spk_meta));
     memset(spk_cols, 0, sizeof(spk_cols));
@@ -430,7 +440,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     c_orm_column_meta_t i64_cols[2];
     struct Int64PkObj i64_obj;
 
-    i64_obj.name = "test_name";
+    i64_obj.name = c_mut_s3;
     i64_obj.id = 100;
 
     memset(&i64_meta, 0, sizeof(i64_meta));
@@ -465,10 +475,10 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
 
     memset(&b_obj, 0, sizeof(b_obj));
     b_obj.id = 1;
-    b_obj.str = "hello";
+    b_obj.str = c_mut_s4;
     b_obj.blob.data = NULL;
     b_obj.blob.size = 0;
-    b_obj.sec_blob.data = "secret";
+    b_obj.sec_blob.data = c_mut_s5;
     b_obj.sec_blob.size = 6;
 
     memset(&b_meta, 0, sizeof(b_meta));
@@ -606,7 +616,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     c_orm_relation_meta_t rels[1];
     struct TestOtherObj p_obj;
 
-    p_obj.other = "other";
+    p_obj.other = c_mut_s6;
     p_obj.id = 1;
 
     memset(p_cols, 0, sizeof(p_cols));
@@ -899,7 +909,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
     g_mock_return_801 = 0;
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
@@ -909,7 +919,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_step_cnt = 0;
     ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relation(&custom_db, &p_meta,
                                                      "child_o2o", &out_arr));
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
@@ -917,7 +927,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_step_cnt = 0;
     ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relation(&custom_db, &p_meta,
                                                      "children_o2m", &out_arr));
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
@@ -932,7 +942,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
                                              &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
     custom_vt.prepare = g_vt.prepare;
@@ -948,7 +958,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
                                              &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
     custom_vt.bind_int32 = g_vt.bind_int32;
@@ -962,7 +972,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
                                              &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
@@ -976,7 +986,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
                                              &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
@@ -990,7 +1000,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
                                              &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
     custom_vt.is_null = g_vt.is_null;
@@ -1005,7 +1015,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
                                              &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
@@ -1019,7 +1029,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
                                              "children_o2m", &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
@@ -1033,7 +1043,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
                                              "children_o2m", &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
@@ -1246,7 +1256,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
     g_stage_step_max = 3;
     ASSERT_EQ(C_ORM_OK, c_orm_find_all_with_relations(&custom_db, &p_meta,
                                                       paths, 2, &out_arr));
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
 
     /* Long relation path (lines 1675, 1776) */
@@ -1271,7 +1281,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
                                               &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    (void)c_orm_system_free(out_arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
@@ -1293,8 +1303,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
       c_orm_relation_meta_t o2m_rels[1];
       memset(&p_o2m, 0, sizeof(p_o2m));
       memset(o2m_rels, 0, sizeof(o2m_rels));
-      (void)c_orm_system_calloc(1, sizeof(struct NestedChild),
-                                (void **)&c_arr_item);
+      ASSERT_EQ(C_ORM_OK, c_orm_system_calloc(1, sizeof(struct NestedChild),
+                                              (void **)&c_arr_item));
       p_o2m.id = 1;
       p_o2m.children_o2m.data = c_arr_item;
       p_o2m.children_o2m.length = 1;
@@ -1327,7 +1337,7 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
                                                 &out_arr);
         ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
       }
-      (void)c_orm_system_free(out_arr.data);
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
       out_arr.data = NULL;
       custom_vt.step = g_vt.step;
       p_meta.relations = rels;
@@ -1607,8 +1617,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
 
       memset(&sb_obj, 0, sizeof(sb_obj));
       sb_obj.id = 1;
-      sb_obj.str = "hello";
-      sb_obj.blob.data = "world";
+      sb_obj.str = c_mut_s7;
+      sb_obj.blob.data = c_mut_s8;
       sb_obj.blob.size = 5;
 
       memset(&sb_meta, 0, sizeof(sb_meta));
@@ -1657,6 +1667,8 @@ TEST test_api_transactions_savepoints_and_softdelete(void) {
  * @return GREATEST test result.
  */
 TEST test_api_driver_edge_cases(void) {
+  static char c_mut_s9[] = "test";
+
   struct Users u;
   struct Generic_Array out_arr;
   c_orm_driver_vtable_t custom_vt;
@@ -1680,7 +1692,7 @@ TEST test_api_driver_edge_cases(void) {
   memset(c_cols, 0, sizeof(c_cols));
 
   u.id = 1;
-  u.username = "test";
+  u.username = c_mut_s9;
 
   custom_vt = g_vt;
   custom_db = g_db;
@@ -1791,7 +1803,7 @@ TEST test_api_driver_edge_cases(void) {
   }
   c_orm_set_allocators(orig_m, orig_r, orig_f);
   g_deep_fail_realloc = -1;
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   memset(&out_arr, 0, sizeof(out_arr));
 
@@ -1809,7 +1821,7 @@ TEST test_api_driver_edge_cases(void) {
                                            &out_arr);
     ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
   }
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   memset(&out_arr, 0, sizeof(out_arr));
   rels[0].type = C_ORM_RELATION_ONE_TO_ONE;
@@ -1826,7 +1838,7 @@ TEST test_api_driver_edge_cases(void) {
                                            &out_arr);
     ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
   }
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   memset(&out_arr, 0, sizeof(out_arr));
   rels[0].foreign_key = "parent_id";
@@ -1842,7 +1854,7 @@ TEST test_api_driver_edge_cases(void) {
                                            &out_arr);
     ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
   }
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   memset(&out_arr, 0, sizeof(out_arr));
   custom_vt.get_int32 = g_vt.get_int32;
@@ -1863,7 +1875,7 @@ TEST test_api_driver_edge_cases(void) {
                                              &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
     custom_vt.get_int32 = g_vt.get_int32;
@@ -1880,7 +1892,7 @@ TEST test_api_driver_edge_cases(void) {
                                            &out_arr);
     ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
   }
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   memset(&out_arr, 0, sizeof(out_arr));
 
@@ -1891,7 +1903,7 @@ TEST test_api_driver_edge_cases(void) {
                                            &out_arr);
     ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
   }
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   memset(&out_arr, 0, sizeof(out_arr));
   custom_vt.get_int32 = g_vt.get_int32;
@@ -1913,7 +1925,7 @@ TEST test_api_driver_edge_cases(void) {
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
     c_orm_set_allocators(orig_m, orig_r, orig_f);
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
   }
@@ -1929,7 +1941,7 @@ TEST test_api_driver_edge_cases(void) {
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
     c_orm_set_allocators(orig_m, orig_r, orig_f);
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
   }
@@ -1951,7 +1963,7 @@ TEST test_api_driver_edge_cases(void) {
                                               &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
 
@@ -1964,7 +1976,7 @@ TEST test_api_driver_edge_cases(void) {
                                               &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
     memset(&out_arr, 0, sizeof(out_arr));
     custom_vt.step = g_vt.step;
@@ -2166,7 +2178,7 @@ TEST test_api_driver_edge_cases(void) {
       }
       c_orm_set_allocators(orig_m, orig_r, orig_f);
       if (g_data) {
-        free(g_data);
+        c_orm_system_free(g_data);
         g_data = NULL;
       }
     }
@@ -2195,7 +2207,7 @@ TEST test_api_driver_edge_cases(void) {
         ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
       }
       c_orm_set_allocators(orig_m, orig_r, orig_f);
-      free(scat_data);
+      c_orm_system_free(scat_data);
       scat_data = NULL;
     }
     g_deep_fail_realloc = -1;
@@ -2296,6 +2308,19 @@ static c_orm_error_t mock_get_int32_one_100(c_orm_query_t *q, int i,
  * @return GREATEST test result.
  */
 TEST test_api_transactions_and_error_injection(void) {
+  static char c_mut_s10[] = "u1";
+  static char c_mut_s11[] = "u1@e.com";
+  static char c_mut_s12[] = "u2";
+  static char c_mut_s13[] = "u2@e.com";
+  static char c_mut_s14[] = "val";
+  static char c_mut_s15[] = "2020-01-01";
+  static char c_mut_s16[] = "invalid_timestamp_string";
+  static char c_mut_s17[] = "active";
+  static char c_mut_s18[] = "a,b";
+  static char c_mut_s19[] = "{}";
+  static unsigned char c_mut_s20[] = "x";
+  static char c_mut_s21[] = "id";
+
   c_orm_driver_vtable_t custom_vt;
   c_orm_db_t custom_db;
   c_orm_malloc_fn_t orig_m;
@@ -2319,11 +2344,11 @@ TEST test_api_transactions_and_error_injection(void) {
     c_orm_table_meta_t u_meta;
     memset(u_batch, 0, sizeof(u_batch));
     u_batch[0].id = 1;
-    u_batch[0].username = "u1";
-    u_batch[0].email = "u1@e.com";
+    u_batch[0].username = c_mut_s10;
+    u_batch[0].email = c_mut_s11;
     u_batch[1].id = 2;
-    u_batch[1].username = "u2";
-    u_batch[1].email = "u2@e.com";
+    u_batch[1].username = c_mut_s12;
+    u_batch[1].email = c_mut_s13;
     u_meta = Users_meta;
 
     u_meta.hooks[C_ORM_HOOK_AFTER_UPDATE] = dummy_lifecycle_hook;
@@ -2378,7 +2403,7 @@ TEST test_api_transactions_and_error_injection(void) {
     for (idx = 0; idx < out_arr.length; idx++) {
       c_orm_free_columns(&Users_meta, &items[idx]);
     }
-    (void)c_orm_system_free(out_arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
   }
 
   /* 3. Line 1704: find_with_relations_int32 with nested path failing lazy_load
@@ -2457,7 +2482,8 @@ TEST test_api_transactions_and_error_injection(void) {
 
     /* Also test ONE_TO_MANY nested path on find_with_relations_int32 */
     rels[0].type = C_ORM_RELATION_ONE_TO_MANY;
-    (void)c_orm_system_malloc(sizeof(struct NestedChild), &p.children_o2m.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(sizeof(struct NestedChild),
+                                            &p.children_o2m.data));
     p.children_o2m.length = 1;
     p.children_o2m.capacity = 1;
     rels[0].field_name = "children_o2m";
@@ -2513,8 +2539,8 @@ TEST test_api_transactions_and_error_injection(void) {
     memset(&out_arr, 0, sizeof(out_arr));
 
     p.id = 1;
-    (void)c_orm_system_malloc(2 * sizeof(struct NestedChild),
-                              &p.children_o2m.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(2 * sizeof(struct NestedChild),
+                                            &p.children_o2m.data));
     p.children_o2m.length = 2;
     p.children_o2m.capacity = 2;
 
@@ -2549,7 +2575,8 @@ TEST test_api_transactions_and_error_injection(void) {
     p_meta.struct_size = sizeof(struct FullParentObj);
     p_meta.query_select_all = "SELECT 1 FROM p";
 
-    (void)c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data);
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data));
     memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
     out_arr.length = 1;
     out_arr.capacity = 1;
@@ -2563,11 +2590,12 @@ TEST test_api_transactions_and_error_injection(void) {
                                               &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    (void)c_orm_system_free(out_arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
     out_arr.data = NULL;
 
     /* Also test lines 1789, 1795: num_relations == 0 and rel == NULL */
-    (void)c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data);
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data));
     memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
     out_arr.length = 1;
     out_arr.capacity = 1;
@@ -2579,10 +2607,11 @@ TEST test_api_transactions_and_error_injection(void) {
                                               &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    (void)c_orm_system_free(out_arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
     out_arr.data = NULL;
 
-    (void)c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data);
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data));
     memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
     out_arr.length = 1;
     out_arr.capacity = 1;
@@ -2594,7 +2623,7 @@ TEST test_api_transactions_and_error_injection(void) {
                                               &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    (void)c_orm_system_free(out_arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
     out_arr.data = NULL;
 
     /* Also test line 1803: nested_obj == NULL for ONE_TO_ONE in find_all */
@@ -2604,7 +2633,8 @@ TEST test_api_transactions_and_error_injection(void) {
     rels[0].data_offset = offsetof(struct FullParentObj, child_o2o);
     rels[0].lazy_ctx_offset = offsetof(struct FullParentObj, o2o_ctx);
     p.child_o2o = NULL;
-    (void)c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data);
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data));
     memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
     out_arr.length = 1;
     out_arr.capacity = 1;
@@ -2615,7 +2645,7 @@ TEST test_api_transactions_and_error_injection(void) {
                                               &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    (void)c_orm_system_free(out_arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
     out_arr.data = NULL;
 
     /* Lines 1799-1801: nested_obj != NULL for ONE_TO_ONE with failing nested
@@ -2640,7 +2670,7 @@ TEST test_api_transactions_and_error_injection(void) {
         c_orm_free_relations(&p_meta, &res[ri]);
         c_orm_free_columns(&p_meta, &res[ri]);
       }
-      (void)c_orm_system_free(out_arr.data);
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
       out_arr.data = NULL;
     }
 
@@ -2680,7 +2710,7 @@ TEST test_api_transactions_and_error_injection(void) {
           c_orm_free_relations(&p_meta, &res[ri]);
           c_orm_free_columns(&p_meta, &res[ri]);
         }
-        (void)c_orm_system_free(out_arr.data);
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
         out_arr.data = NULL;
       }
       c_meta.relations = NULL;
@@ -2731,18 +2761,19 @@ TEST test_api_transactions_and_error_injection(void) {
     m_meta.columns = m_cols;
     m_meta.num_columns = 9;
 
-    (void)c_orm_system_malloc(8, (void **)&m_obj.str_col);
-    (void)c_orm_system_malloc(8, (void **)&m_obj.date_col);
-    (void)c_orm_system_malloc(8, (void **)&m_obj.ts_col);
-    (void)c_orm_system_malloc(8, (void **)&m_obj.enum_col);
-    (void)c_orm_system_malloc(8, (void **)&m_obj.set_col);
-    (void)c_orm_system_malloc(8, (void **)&m_obj.json_col);
-    (void)c_orm_system_malloc(8, &m_obj.blob_col.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&m_obj.str_col));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&m_obj.date_col));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&m_obj.ts_col));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&m_obj.enum_col));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&m_obj.set_col));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&m_obj.json_col));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, &m_obj.blob_col.data));
     m_obj.blob_col.size = 8;
-    (void)c_orm_system_malloc(sizeof(c_orm_point_t),
-                              (void **)&m_obj.poly_col.points);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(sizeof(c_orm_point_t),
+                                            (void **)&m_obj.poly_col.points));
     m_obj.poly_col.num_points = 1;
-    (void)c_orm_system_malloc(sizeof(int32_t), (void **)&m_obj.nullable_col);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(sizeof(int32_t),
+                                            (void **)&m_obj.nullable_col));
     c_orm_free_columns(&m_meta, &m_obj);
 
     memset(&m_obj, 0, sizeof(m_obj));
@@ -2765,15 +2796,16 @@ TEST test_api_transactions_and_error_injection(void) {
     }
 
     /* Lines 103, 104, 110: is_null true with all types */
-    (void)c_orm_system_malloc(8, (void **)&m_obj.str_col);
-    (void)c_orm_system_malloc(8, (void **)&m_obj.date_col);
-    (void)c_orm_system_malloc(8, (void **)&m_obj.ts_col);
-    (void)c_orm_system_malloc(8, (void **)&m_obj.enum_col);
-    (void)c_orm_system_malloc(8, (void **)&m_obj.set_col);
-    (void)c_orm_system_malloc(8, (void **)&m_obj.json_col);
-    (void)c_orm_system_malloc(8, &m_obj.blob_col.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&m_obj.str_col));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&m_obj.date_col));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&m_obj.ts_col));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&m_obj.enum_col));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&m_obj.set_col));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&m_obj.json_col));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, &m_obj.blob_col.data));
     m_obj.blob_col.size = 8;
-    (void)c_orm_system_malloc(sizeof(int32_t), (void **)&m_obj.nullable_col);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(sizeof(int32_t),
+                                            (void **)&m_obj.nullable_col));
     custom_vt.is_null = mock_is_null_true;
     {
       c_orm_error_t rc_call;
@@ -2787,13 +2819,13 @@ TEST test_api_transactions_and_error_injection(void) {
     m_meta.query_insert =
         "INSERT INTO multicol VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
     m_meta.struct_size = sizeof(m_obj);
-    m_obj.str_col = "val";
-    m_obj.date_col = "2020-01-01";
-    m_obj.ts_col = "invalid_timestamp_string";
-    m_obj.enum_col = "active";
-    m_obj.set_col = "a,b";
-    m_obj.json_col = "{}";
-    m_obj.blob_col.data = (unsigned char *)"x";
+    m_obj.str_col = c_mut_s14;
+    m_obj.date_col = c_mut_s15;
+    m_obj.ts_col = c_mut_s16;
+    m_obj.enum_col = c_mut_s17;
+    m_obj.set_col = c_mut_s18;
+    m_obj.json_col = c_mut_s19;
+    m_obj.blob_col.data = c_mut_s20;
     m_obj.blob_col.size = 0; /* size == 0 branch */
     {
       c_orm_error_t rc_call;
@@ -3105,7 +3137,7 @@ TEST test_api_transactions_and_error_injection(void) {
                                                "children_o2m", &p);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    (void)c_orm_system_free(p.children_o2m.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(p.children_o2m.data));
     p.children_o2m.data = NULL;
 
     /* Lines 1363, 1367: empty custom_filter and order_by */
@@ -3117,7 +3149,7 @@ TEST test_api_transactions_and_error_injection(void) {
                                              "children_o2m", &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    (void)c_orm_system_free(out_arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
     out_arr.data = NULL;
     rels[0].custom_filter = NULL;
     rels[0].order_by = NULL;
@@ -3134,7 +3166,7 @@ TEST test_api_transactions_and_error_injection(void) {
                                              &out_arr);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    (void)c_orm_system_free(out_arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
     out_arr.data = NULL;
   }
 
@@ -3313,7 +3345,7 @@ TEST test_api_transactions_and_error_injection(void) {
     {
       char *empty_str = NULL;
       void *field_addr;
-      (void)c_orm_system_malloc(1, (void **)&empty_str);
+      ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(1, (void **)&empty_str));
       empty_str[0] = 0;
       field_addr = (char *)&p + p_cols[0].offset;
       memcpy(field_addr, &empty_str, sizeof(char *));
@@ -3567,7 +3599,7 @@ TEST test_api_transactions_and_error_injection(void) {
     memset(&tbl_con, 0, sizeof(tbl_con));
 
     col_con.type = SQL_CONSTRAINT_PRIMARY_KEY; /* not FK */
-    sql_col.name = "id";
+    sql_col.name = c_mut_s21;
     sql_col.constraints = &col_con;
     sql_col.n_constraints = 1;
 
@@ -3582,7 +3614,7 @@ TEST test_api_transactions_and_error_injection(void) {
       rc_call = c_orm_build_relation_meta(&sql_tbl, &out_rels, &out_num);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    (void)c_orm_system_free(out_rels);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_rels));
   }
 
   /* 16. Identity map branches (lines 4872, 5055) */
@@ -3595,8 +3627,8 @@ TEST test_api_transactions_and_error_injection(void) {
 
     /* bucket with entries == NULL (line 4872) */
     bucket = NULL;
-    (void)c_orm_system_calloc(1, sizeof(c_orm_identity_bucket_t),
-                              (void **)&bucket);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_calloc(1, sizeof(c_orm_identity_bucket_t),
+                                            (void **)&bucket));
     bucket->entries = NULL;
     map.buckets = bucket;
     c_orm_identity_map_free(&map);
@@ -3614,7 +3646,7 @@ TEST test_api_transactions_and_error_injection(void) {
       for (i = 0; i < map.buckets->num_buckets; i++) {
         c_orm_identity_entry_t *e = map.buckets->entries[i];
         while (e) {
-          (void)c_orm_system_free(e->pk_str);
+          ASSERT_EQ(C_ORM_OK, c_orm_system_free(e->pk_str));
           e->pk_str = NULL; /* line 5055: entry->pk_str == NULL */
           e = e->next;
         }
@@ -3822,8 +3854,8 @@ TEST test_api_transactions_and_error_injection(void) {
     ctx = (c_orm_lazy_load_context_t *)(void *)((char *)&p +
                                                 rels[0].lazy_ctx_offset);
     ctx->is_loaded = 1;
-    (void)c_orm_system_calloc(1, sizeof(struct NestedChild),
-                              (void **)&p.child_o2o);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_calloc(1, sizeof(struct NestedChild),
+                                            (void **)&p.child_o2o));
     c_orm_free_relations(&p_meta, &p);
 
     /* ONE_TO_MANY with arr->data == NULL (line 5535) */
@@ -3839,8 +3871,8 @@ TEST test_api_transactions_and_error_injection(void) {
     c_orm_free_relations(&p_meta, &p);
 
     /* ONE_TO_MANY with arr->data != NULL, child.name[0] == '\0' (line 5547) */
-    (void)c_orm_system_calloc(1, sizeof(struct NestedChild),
-                              &p.children_o2m.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_calloc(1, sizeof(struct NestedChild),
+                                            &p.children_o2m.data));
     p.children_o2m.length = 1;
     c_orm_free_relations(&p_meta, &p);
   }
@@ -3909,7 +3941,7 @@ TEST test_api_transactions_and_error_injection(void) {
           c_orm_scatter_gather_generic(sm, &Users_meta, &out_arr, &out_cnt);
       ASSERT_EQ_FMT(0, (int)rc_call * 0, "%d");
     }
-    (void)c_orm_system_free(out_arr);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr));
     out_arr = NULL;
 
     /* Shard returning C_ORM_ERROR_NOT_FOUND (line 5848) */

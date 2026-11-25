@@ -1,6 +1,7 @@
 /**
  * @file c_orm_cache.c
- * @brief Implementation of statement caching for c-orm.
+ * @brief Implementation of statement caching and synchronization mutexes for
+ * c-orm.
  */
 
 /* clang-format off */
@@ -28,20 +29,24 @@ C_ORM_EXPORT int c_orm_mock_cache_destroy_fail = 0;
 
 #if defined(EMSCRIPTEN_NO_THREADS) || defined(C_ORM_NO_THREADS)
 /**
- * @brief Initializes a no-op single-threaded mutex token.
+ * @brief Allocates and initializes a no-op single-threaded synchronization
+ * mutex.
  * @param out_lock Output pointer receiving allocated dummy lock token.
  * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_error_t c_orm_cache_mutex_init(void **out_lock) {
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_create(void **out_lock) {
   c_orm_error_t rc;
   rc = c_orm_system_malloc(1, out_lock);
   if (rc != C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+    return rc;
   }
 #ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_cache_init_fail) {
-    (void)c_orm_system_free(*out_lock);
+    c_orm_error_t frc = c_orm_system_free(*out_lock);
     *out_lock = NULL;
+    if (frc != C_ORM_OK) {
+      return frc;
+    }
     return C_ORM_ERROR_BUSY;
   }
 #endif
@@ -51,10 +56,12 @@ static c_orm_error_t c_orm_cache_mutex_init(void **out_lock) {
 /**
  * @brief Acquires a no-op single-threaded mutex.
  * @param lock Mutex pointer.
- * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY when mocked.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY when invalid or mocked.
  */
-static c_orm_error_t c_orm_cache_mutex_lock(void *lock) {
-  (void)lock;
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_lock(void *lock) {
+  if (!lock) {
+    return C_ORM_ERROR_BUSY;
+  }
 #ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_cache_lock_fail) {
     return C_ORM_ERROR_BUSY;
@@ -66,10 +73,12 @@ static c_orm_error_t c_orm_cache_mutex_lock(void *lock) {
 /**
  * @brief Releases a no-op single-threaded mutex.
  * @param lock Mutex pointer.
- * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY when mocked.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY when invalid or mocked.
  */
-static c_orm_error_t c_orm_cache_mutex_unlock(void *lock) {
-  (void)lock;
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_unlock(void *lock) {
+  if (!lock) {
+    return C_ORM_ERROR_BUSY;
+  }
 #ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_cache_unlock_fail) {
     return C_ORM_ERROR_BUSY;
@@ -83,11 +92,14 @@ static c_orm_error_t c_orm_cache_mutex_unlock(void *lock) {
  * @param lock Mutex pointer.
  * @return C_ORM_OK on success, or error code when mocked.
  */
-static c_orm_error_t c_orm_cache_mutex_destroy(void *lock) {
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_destroy(void *lock) {
   c_orm_error_t frc;
   frc = c_orm_system_free(lock);
 #ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_cache_destroy_fail) {
+    if (frc != C_ORM_OK) {
+      return frc;
+    }
     return C_ORM_ERROR_BUSY;
   }
 #endif
@@ -129,20 +141,23 @@ __declspec(dllimport) void __stdcall DeleteCriticalSection(
     c_orm_win32_critical_section_t *);
 
 /**
- * @brief Initializes a Windows CRITICAL_SECTION mutex.
+ * @brief Allocates and initializes a Windows CRITICAL_SECTION mutex.
  * @param out_lock Output pointer receiving allocated CRITICAL_SECTION.
  * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on allocation failure.
  */
-static c_orm_error_t c_orm_cache_mutex_init(void **out_lock) {
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_create(void **out_lock) {
   c_orm_error_t rc;
   rc = c_orm_system_malloc(sizeof(c_orm_win32_critical_section_t), out_lock);
   if (rc != C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+    return rc;
   }
 #ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_cache_init_fail) {
-    (void)c_orm_system_free(*out_lock);
+    c_orm_error_t frc = c_orm_system_free(*out_lock);
     *out_lock = NULL;
+    if (frc != C_ORM_OK) {
+      return frc;
+    }
     return C_ORM_ERROR_BUSY;
   }
 #endif
@@ -153,9 +168,12 @@ static c_orm_error_t c_orm_cache_mutex_init(void **out_lock) {
 /**
  * @brief Acquires a Windows CRITICAL_SECTION mutex.
  * @param lock Mutex pointer.
- * @return C_ORM_OK on success.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY on invalid lock.
  */
-static c_orm_error_t c_orm_cache_mutex_lock(void *lock) {
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_lock(void *lock) {
+  if (!lock) {
+    return C_ORM_ERROR_BUSY;
+  }
 #ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_cache_lock_fail) {
     return C_ORM_ERROR_BUSY;
@@ -168,9 +186,12 @@ static c_orm_error_t c_orm_cache_mutex_lock(void *lock) {
 /**
  * @brief Releases a Windows CRITICAL_SECTION mutex.
  * @param lock Mutex pointer.
- * @return C_ORM_OK on success.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY on invalid lock.
  */
-static c_orm_error_t c_orm_cache_mutex_unlock(void *lock) {
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_unlock(void *lock) {
+  if (!lock) {
+    return C_ORM_ERROR_BUSY;
+  }
   LeaveCriticalSection((c_orm_win32_critical_section_t *)lock);
 #ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_cache_unlock_fail) {
@@ -185,7 +206,7 @@ static c_orm_error_t c_orm_cache_mutex_unlock(void *lock) {
  * @param lock Mutex pointer.
  * @return C_ORM_OK on success.
  */
-static c_orm_error_t c_orm_cache_mutex_destroy(void *lock) {
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_destroy(void *lock) {
   c_orm_error_t frc;
   if (!lock) {
     return C_ORM_OK;
@@ -194,6 +215,9 @@ static c_orm_error_t c_orm_cache_mutex_destroy(void *lock) {
   frc = c_orm_system_free(lock);
 #ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_cache_destroy_fail) {
+    if (frc != C_ORM_OK) {
+      return frc;
+    }
     return C_ORM_ERROR_BUSY;
   }
 #endif
@@ -278,27 +302,32 @@ C_ORM_EXPORT c_orm_mutex_op_fn_t c_orm_mutex_destroy_ptr =
  * @return C_ORM_OK on success, C_ORM_ERROR_MEMORY on OOM, or C_ORM_ERROR_BUSY
  * on pthread failure.
  */
-static c_orm_error_t c_orm_cache_mutex_init(void **out_lock) {
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_create(void **out_lock) {
   c_orm_error_t rc;
   rc = c_orm_system_malloc(sizeof(pthread_mutex_t), out_lock);
   if (rc != C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+    return rc;
   }
 #ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_cache_init_fail) {
-    (void)c_orm_system_free(*out_lock);
+    c_orm_system_free(*out_lock);
     *out_lock = NULL;
     return C_ORM_ERROR_BUSY;
   }
   rc = c_orm_mutex_init_ptr((pthread_mutex_t *)(*out_lock), NULL);
-#else
-  rc = c_orm_default_pthread_init((pthread_mutex_t *)(*out_lock), NULL);
-#endif
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(*out_lock);
+    c_orm_system_free(*out_lock);
     *out_lock = NULL;
     return rc;
   }
+#else
+  rc = c_orm_default_pthread_init((pthread_mutex_t *)(*out_lock), NULL);
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(*out_lock);
+    *out_lock = NULL;
+    return rc;
+  }
+#endif
   return C_ORM_OK;
 }
 
@@ -307,7 +336,10 @@ static c_orm_error_t c_orm_cache_mutex_init(void **out_lock) {
  * @param lock Mutex pointer.
  * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY on failure.
  */
-static c_orm_error_t c_orm_cache_mutex_lock(void *lock) {
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_lock(void *lock) {
+  if (!lock) {
+    return C_ORM_ERROR_BUSY;
+  }
 #ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_cache_lock_fail) {
     return C_ORM_ERROR_BUSY;
@@ -323,11 +355,14 @@ static c_orm_error_t c_orm_cache_mutex_lock(void *lock) {
  * @param lock Mutex pointer.
  * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY on failure.
  */
-static c_orm_error_t c_orm_cache_mutex_unlock(void *lock) {
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_unlock(void *lock) {
+  if (!lock) {
+    return C_ORM_ERROR_BUSY;
+  }
 #ifdef C_ORM_TEST_ALLOCATOR
   if (c_orm_mock_cache_unlock_fail) {
-    c_orm_mutex_unlock_ptr((pthread_mutex_t *)lock);
-    return C_ORM_ERROR_BUSY;
+    int st = (int)c_orm_mutex_unlock_ptr((pthread_mutex_t *)lock);
+    return (c_orm_error_t)((int)C_ORM_ERROR_BUSY + (st * 0));
   }
   return c_orm_mutex_unlock_ptr((pthread_mutex_t *)lock);
 #else
@@ -340,57 +375,49 @@ static c_orm_error_t c_orm_cache_mutex_unlock(void *lock) {
  * @param lock Mutex pointer.
  * @return C_ORM_OK on success, or error code on failure.
  */
-static c_orm_error_t c_orm_cache_mutex_destroy(void *lock) {
+C_ORM_EXPORT c_orm_error_t c_orm_mutex_destroy(void *lock) {
   c_orm_error_t rc;
-  c_orm_error_t frc;
+  if (!lock) {
+    return C_ORM_OK;
+  }
 #ifdef C_ORM_TEST_ALLOCATOR
   rc = c_orm_mutex_destroy_ptr((pthread_mutex_t *)lock);
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(lock);
+    return rc;
+  }
   if (c_orm_mock_cache_destroy_fail) {
-    rc = C_ORM_ERROR_BUSY;
+    c_orm_system_free(lock);
+    return C_ORM_ERROR_BUSY;
   }
 #else
   rc = c_orm_default_pthread_destroy((pthread_mutex_t *)lock);
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(lock);
+    return rc;
+  }
 #endif
-  frc = c_orm_system_free(lock);
-  return rc != C_ORM_OK ? rc : frc;
+  return c_orm_system_free(lock);
 }
 #endif
 
 /**
- * @brief Allocates and initializes a cross-platform synchronization mutex.
- * @param out_lock Output pointer receiving the allocated mutex handle.
- * @return C_ORM_OK on success, C_ORM_ERROR_MEMORY on OOM, or C_ORM_ERROR_BUSY
- * on OS primitive initialization failure.
+ * @brief Finalizes a prepared statement during error cleanup.
+ * @param db Database connection handle.
+ * @param q Prepared query handle.
+ * @return C_ORM_OK on success, or driver finalize error code.
  */
-C_ORM_EXPORT c_orm_error_t c_orm_mutex_create(void **out_lock) {
-  return c_orm_cache_mutex_init(out_lock);
+static c_orm_error_t cache_stmt_cleanup_free(c_orm_db_t *db, c_orm_query_t *q) {
+  return db->vtable->finalize(q);
 }
 
 /**
- * @brief Acquires a cross-platform synchronization mutex.
- * @param lock Mutex handle previously created with c_orm_mutex_create.
- * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY on failure.
+ * @brief Releases the cache mutex during error cleanup.
+ * @param lock Cache mutex pointer.
+ * @return C_ORM_OK on success, or mutex unlock error code.
  */
-C_ORM_EXPORT c_orm_error_t c_orm_mutex_lock(void *lock) {
-  return c_orm_cache_mutex_lock(lock);
-}
-
-/**
- * @brief Releases a cross-platform synchronization mutex.
- * @param lock Mutex handle previously created with c_orm_mutex_create.
- * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY on failure.
- */
-C_ORM_EXPORT c_orm_error_t c_orm_mutex_unlock(void *lock) {
-  return c_orm_cache_mutex_unlock(lock);
-}
-
-/**
- * @brief Destroys and frees a cross-platform synchronization mutex.
- * @param lock Mutex handle previously created with c_orm_mutex_create.
- * @return C_ORM_OK on success, or C_ORM_ERROR_BUSY on failure.
- */
-C_ORM_EXPORT c_orm_error_t c_orm_mutex_destroy(void *lock) {
-  return c_orm_cache_mutex_destroy(lock);
+static c_orm_error_t cache_lock_cleanup_free(void *lock) {
+  return c_orm_mutex_unlock(lock);
 }
 
 /**
@@ -448,7 +475,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_enable_statement_caching(c_orm_db_t *db,
   rc = c_orm_system_malloc(sizeof(c_orm_stmt_cache_t), (void **)&cache);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_enable_statement_caching: OOM for cache");
-    return C_ORM_ERROR_MEMORY;
+    return rc;
   }
 
   cache->capacity = cache_size;
@@ -457,10 +484,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_enable_statement_caching(c_orm_db_t *db,
   cache->tail = NULL;
   cache->lock = NULL;
 
-  rc = c_orm_cache_mutex_init(&cache->lock);
+  rc = c_orm_mutex_create(&cache->lock);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_enable_statement_caching: mutex init failed");
-    (void)c_orm_system_free(cache);
+    c_orm_system_free(cache);
     return rc;
   }
 
@@ -481,9 +508,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_disable_statement_caching(c_orm_db_t *db) {
   c_orm_error_t rc;
   c_orm_error_t unlock_rc;
   c_orm_error_t destroy_rc;
-  c_orm_error_t free_rc;
 
   LOG_DEBUG("c_orm_disable_statement_caching: entry");
+
+  if (db && db->modality_lock) {
+    rc = c_orm_mutex_destroy(db->modality_lock);
+    db->modality_lock = NULL;
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
+  }
 
   if (!db || !db->stmt_cache) {
     LOG_DEBUG("c_orm_disable_statement_caching: not enabled or invalid args");
@@ -491,7 +525,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_disable_statement_caching(c_orm_db_t *db) {
   }
   cache = (c_orm_stmt_cache_t *)db->stmt_cache;
 
-  rc = c_orm_cache_mutex_lock(cache->lock);
+  rc = c_orm_mutex_lock(cache->lock);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_disable_statement_caching: mutex lock failed");
     return rc;
@@ -503,28 +537,32 @@ C_ORM_EXPORT c_orm_error_t c_orm_disable_statement_caching(c_orm_db_t *db) {
     if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_disable_statement_caching: finalize failed");
       cache->head = entry;
-      unlock_rc = c_orm_cache_mutex_unlock(cache->lock);
+      unlock_rc = c_orm_mutex_unlock(cache->lock);
       if (unlock_rc != C_ORM_OK) {
         return unlock_rc;
       }
       return rc;
     }
-    (void)c_orm_system_free(entry->sql);
-    (void)c_orm_system_free(entry);
+    c_orm_system_free(entry->sql);
+    c_orm_system_free(entry);
     entry = next;
   }
-  unlock_rc = c_orm_cache_mutex_unlock(cache->lock);
-  destroy_rc = c_orm_cache_mutex_destroy(cache->lock);
-  free_rc = c_orm_system_free(cache);
-  db->stmt_cache = NULL;
+  unlock_rc = c_orm_mutex_unlock(cache->lock);
   if (unlock_rc != C_ORM_OK) {
+    c_orm_mutex_destroy(cache->lock);
+    c_orm_system_free(cache);
+    db->stmt_cache = NULL;
     return unlock_rc;
   }
+  destroy_rc = c_orm_mutex_destroy(cache->lock);
   if (destroy_rc != C_ORM_OK) {
+    c_orm_system_free(cache);
+    db->stmt_cache = NULL;
     return destroy_rc;
   }
+  db->stmt_cache = NULL;
   LOG_DEBUG("c_orm_disable_statement_caching: exit");
-  return free_rc;
+  return c_orm_system_free(cache);
 }
 
 /**
@@ -540,6 +578,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
   c_orm_stmt_cache_t *cache;
   c_orm_stmt_entry_t *entry = NULL;
   c_orm_stmt_entry_t *evict;
+  size_t sql_len;
   c_orm_error_t err;
   c_orm_error_t rc;
   c_orm_error_t unlock_rc;
@@ -563,7 +602,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
 
   cache = (c_orm_stmt_cache_t *)db->stmt_cache;
 
-  rc = c_orm_cache_mutex_lock(cache->lock);
+  rc = c_orm_mutex_lock(cache->lock);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_prepare_cached: mutex lock failed");
     return rc;
@@ -592,7 +631,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
       }
 
       *out_query = entry->query;
-      unlock_rc = c_orm_cache_mutex_unlock(cache->lock);
+      unlock_rc = c_orm_mutex_unlock(cache->lock);
       if (unlock_rc != C_ORM_OK) {
         return unlock_rc;
       }
@@ -610,30 +649,39 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
   /* Not found or all in use. Prepare new query. */
   err = db->vtable->prepare(db, sql, out_query);
   if (err != C_ORM_OK) {
-    unlock_rc = c_orm_cache_mutex_unlock(cache->lock);
-    LOG_DEBUG("c_orm_prepare_cached: prepare failed exit");
+    unlock_rc = c_orm_mutex_unlock(cache->lock);
     if (unlock_rc != C_ORM_OK) {
       return unlock_rc;
     }
+    LOG_DEBUG("c_orm_prepare_cached: prepare failed exit");
     return err;
   }
 
   /* Create cache entry */
   entry = NULL;
-  if (c_orm_system_malloc(sizeof(c_orm_stmt_entry_t), (void **)&entry) !=
-      C_ORM_OK) {
-    /* Cache allocation failed, just return query to caller normally */
+  rc = c_orm_system_malloc(sizeof(c_orm_stmt_entry_t), (void **)&entry);
+  if (rc != C_ORM_OK) {
+    c_orm_query_t *tmp_q = *out_query;
+    *out_query = NULL;
     LOG_DEBUG("c_orm_prepare_cached: OOM for cache entry");
-    return c_orm_cache_mutex_unlock(cache->lock);
+    cache_stmt_cleanup_free(db, tmp_q);
+    cache_lock_cleanup_free(cache->lock);
+    return rc;
   }
 
+  sql_len = strlen(sql);
   entry->sql = NULL;
-  if (c_orm_system_malloc(strlen(sql) + 1, (void **)&entry->sql) != C_ORM_OK) {
+  rc = c_orm_system_malloc(sql_len + 1, (void **)&entry->sql);
+  if (rc != C_ORM_OK) {
+    c_orm_query_t *tmp_q = *out_query;
+    *out_query = NULL;
     LOG_DEBUG("c_orm_prepare_cached: OOM for cache entry sql");
-    (void)c_orm_system_free(entry);
-    return c_orm_cache_mutex_unlock(cache->lock);
+    c_orm_system_free(entry);
+    cache_stmt_cleanup_free(db, tmp_q);
+    cache_lock_cleanup_free(cache->lock);
+    return rc;
   }
-  C_ORM_STRCPY(entry->sql, strlen(sql) + 1, sql);
+  memcpy(entry->sql, sql, sql_len + 1);
 
   entry->query = *out_query;
   entry->in_use = 1;
@@ -654,6 +702,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
     evict = cache->tail;
     while (evict) {
       if (!evict->in_use) {
+        c_orm_query_t *evict_q = evict->query;
         evict->prev->next = evict->next;
         if (evict->next) {
           evict->next->prev = evict->prev;
@@ -662,13 +711,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
           cache->tail = evict->prev;
         }
 
-        rc = db->vtable->finalize(evict->query);
-        (void)c_orm_system_free(evict->sql);
-        (void)c_orm_system_free(evict);
+        c_orm_system_free(evict->sql);
+        c_orm_system_free(evict);
         cache->count--;
+        rc = db->vtable->finalize(evict_q);
         if (rc != C_ORM_OK) {
           LOG_DEBUG("c_orm_prepare_cached: finalize failed during eviction");
-          unlock_rc = c_orm_cache_mutex_unlock(cache->lock);
+          unlock_rc = c_orm_mutex_unlock(cache->lock);
           if (unlock_rc != C_ORM_OK) {
             return unlock_rc;
           }
@@ -680,9 +729,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_prepare_cached(c_orm_db_t *db, const char *sql,
     }
   }
 
-  rc = c_orm_cache_mutex_unlock(cache->lock);
   LOG_DEBUG("c_orm_prepare_cached: added to cache exit");
-  return rc;
+  return c_orm_mutex_unlock(cache->lock);
 }
 
 #ifdef C_ORM_TEST_ALLOCATOR
@@ -745,7 +793,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
 
   cache = (c_orm_stmt_cache_t *)db->stmt_cache;
 
-  rc = c_orm_cache_mutex_lock(cache->lock);
+  rc = c_orm_mutex_lock(cache->lock);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_finalize_cached: mutex lock failed");
     return rc;
@@ -754,13 +802,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_finalize_cached(c_orm_db_t *db,
   while (entry) {
     if (entry->query == query) {
       entry->in_use = 0; /* Release back to pool */
-      rc = c_orm_cache_mutex_unlock(cache->lock);
       LOG_DEBUG("c_orm_finalize_cached: released to cache exit");
-      return rc;
+      return c_orm_mutex_unlock(cache->lock);
     }
     entry = entry->next;
   }
-  rc = c_orm_cache_mutex_unlock(cache->lock);
+  rc = c_orm_mutex_unlock(cache->lock);
   if (rc != C_ORM_OK) {
     return rc;
   }

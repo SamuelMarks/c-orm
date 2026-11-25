@@ -28,30 +28,38 @@ C_ORM_EXPORT int c_orm_mock_codegen_io_fail = 0;
 #endif /* C_ORM_TEST_ALLOCATOR */
 
 /**
- * @brief Checks if `path` ends with a given lowercase extension
- * (ASCII case-insensitive).
- * @param path File path string.
- * @param ext Lowercase extension including leading dot (e.g. `".cpy"`).
- * @return C_ORM_OK if matched, or C_ORM_ERROR_NOT_FOUND otherwise.
+ * @brief Checks if non-NULL `path` ends with `.cpy` or `.cob` (ASCII
+ * case-insensitive).
+ * @param path Validated non-NULL input file path.
+ * @return 1 for `.cpy`/`.cob`, 0 otherwise.
  */
-static c_orm_error_t codegen_has_ext(const char *path, const char *ext) {
-  size_t plen = strlen(path);
-  size_t elen = strlen(ext);
-  size_t k;
-  if (plen < elen) {
-    return C_ORM_ERROR_NOT_FOUND;
+static int codegen_calc_is_copybook_ext(const char *path) {
+  static const char *exts[2] = {".cpy", ".cob"};
+  size_t plen;
+  size_t e;
+  plen = strlen(path);
+  if (plen < 4) {
+    return 0;
   }
-  for (k = 0; k < elen; ++k) {
-    unsigned char a = (unsigned char)path[plen - elen + k];
-    unsigned char b = (unsigned char)ext[k];
-    if (a >= 'A' && a <= 'Z') {
-      a = (unsigned char)(a + ('a' - 'A'));
+  for (e = 0; e < 2; ++e) {
+    size_t k;
+    int matched = 1;
+    for (k = 0; k < 4; ++k) {
+      unsigned char a = (unsigned char)path[plen - 4 + k];
+      unsigned char b = (unsigned char)exts[e][k];
+      if (a >= 'A' && a <= 'Z') {
+        a = (unsigned char)(a + ('a' - 'A'));
+      }
+      if (a != b) {
+        matched = 0;
+        break;
+      }
     }
-    if (a != b) {
-      return C_ORM_ERROR_NOT_FOUND;
+    if (matched) {
+      return 1;
     }
   }
-  return C_ORM_OK;
+  return 0;
 }
 
 /**
@@ -69,6 +77,7 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
   struct sql_table_t *tables = NULL;
   size_t n_tables = 0;
   size_t i;
+  int is_cpy = 0;
   char *h_path = NULL;
   char *c_path = NULL;
   FILE *fp = NULL;
@@ -77,33 +86,31 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
 
   if (!schema_file || !output_dir) {
     LOG_DEBUG("c_orm_codegen_generate: missing schema_file or output_dir");
-    rc = C_ORM_ERROR_UNKNOWN;
-    goto cleanup;
+    return C_ORM_ERROR_UNKNOWN;
   }
 
-  if (codegen_has_ext(schema_file, ".cpy") == C_ORM_OK ||
-      codegen_has_ext(schema_file, ".cob") == C_ORM_OK) {
+  is_cpy = codegen_calc_is_copybook_ext(schema_file);
+
+  if (is_cpy) {
     c_orm_cobol_record_t *rec = NULL;
     rc = c_orm_copybook_parse_file(schema_file, C_ORM_COBOL_FORMAT_AUTO, NULL,
                                    0, &rec);
     if (rc != C_ORM_OK) {
-      LOG_DEBUG("c_orm_codegen_generate: c_orm_copybook_parse_file failed=%d",
-                (int)rc);
+      LOG_DEBUG("c_orm_codegen_generate: c_orm_copybook_parse_file failed");
       goto cleanup;
     }
     rc = c_orm_copybook_generate_c_files(rec, output_dir);
-    (void)c_orm_copybook_record_free(rec);
+    if (rc != C_ORM_OK) {
+      c_orm_copybook_record_free(rec);
+      goto cleanup;
+    }
+    c_orm_copybook_record_free(rec);
     goto cleanup;
   }
 
-#if defined(_MSC_VER)
-  fopen_s(&fp, schema_file, "rb");
-#else
-  C_ORM_FOPEN(&fp, schema_file, "rb");
-#endif
-  if (!fp) {
+  rc = C_ORM_FOPEN(&fp, schema_file, "rb");
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_codegen_generate: failed to open schema_file");
-    rc = C_ORM_ERROR_UNKNOWN;
     goto cleanup;
   }
 
@@ -122,7 +129,6 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_codegen_generate: OOM");
     fclose(fp);
-    rc = C_ORM_ERROR_MEMORY;
     goto cleanup;
   }
   if (fread(sql_data, 1, (size_t)sql_size, fp) != (size_t)sql_size) {
@@ -146,187 +152,187 @@ c_orm_error_t c_orm_codegen_generate(const char *schema_file,
     goto cleanup;
   }
 
-  rc = c_orm_system_malloc(strlen(output_dir) + 32, (void **)&h_path);
-  if (rc == C_ORM_OK) {
-    rc = c_orm_system_malloc(strlen(output_dir) + 32, (void **)&c_path);
+  {
+    size_t dir_len = strlen(output_dir);
+    rc = c_orm_system_malloc(dir_len + 32, (void **)&h_path);
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("c_orm_codegen_generate: OOM for h_path");
+      goto cleanup;
+    }
+    rc = c_orm_system_malloc(dir_len + 32, (void **)&c_path);
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("c_orm_codegen_generate: OOM for c_path");
+      goto cleanup;
+    }
+    memcpy(h_path, output_dir, dir_len);
+    memcpy(h_path + dir_len, "/Models.h", 10);
+    memcpy(c_path, output_dir, dir_len);
+    memcpy(c_path + dir_len, "/Models.c", 10);
   }
+
+  rc = C_ORM_FOPEN(&fp, h_path, "wb");
   if (rc != C_ORM_OK) {
-    LOG_DEBUG("c_orm_codegen_generate: OOM for path buffers");
-    rc = C_ORM_ERROR_MEMORY;
-    goto cleanup;
-  }
-
-  C_ORM_SPRINTF(h_path, strlen(output_dir) + 32, "%s/Models.h", output_dir);
-  C_ORM_SPRINTF(c_path, strlen(output_dir) + 32, "%s/Models.c", output_dir);
-
-#if defined(_MSC_VER)
-  fopen_s(&fp, h_path, "wb");
-#else
-  C_ORM_FOPEN(&fp, h_path, "wb");
-#endif
-  if (fp) {
-    fprintf(fp, "#ifndef MODELS_H\n#define MODELS_H\n\n");
-    fprintf(fp, "/* clang-format "
-                "off */\n");
-    fprintf(fp, "#include \"c_orm_meta.h\"\n");
-    fprintf(fp, "#include \"c_orm_decimal.h\"\n");
-    fputs("#if defined(_MSC_VER)\n", fp);
-    fputs("# if _MSC_VER < 1600\n", fp);
-    fputs("typedef signed __int8 int8_t;\n", fp);
-    fputs("typedef unsigned __int8 uint8_t;\n", fp);
-    fputs("typedef signed __int16 int16_t;\n", fp);
-    fputs("typedef unsigned __int16 uint16_t;\n", fp);
-    fputs("typedef signed __int32 int32_t;\n", fp);
-    fputs("typedef unsigned __int32 uint32_t;\n", fp);
-    fputs("typedef signed __int64 int64_t;\n", fp);
-    fputs("typedef unsigned __int64 uint64_t;\n", fp);
-    fputs("# else\n", fp);
-    fputs("#  include <stdint.h>\n", fp);
-    fputs("# endif\n", fp);
-    fputs("#  ifndef __cplusplus\n", fp);
-    fputs("#   ifndef _STDBOOL_H\n", fp);
-    fputs("#    define _STDBOOL_H\n", fp);
-    fputs("#    ifndef __STDBOOL_H\n", fp);
-    fputs("#     define __STDBOOL_H\n", fp);
-    fputs("#    endif\n", fp);
-    fputs("#    ifndef __bool_true_false_are_defined\n", fp);
-    fputs("#     define __bool_true_false_are_defined 1\n", fp);
-    fputs("#    endif\n", fp);
-    fputs("typedef unsigned char bool;\n", fp);
-    fputs("#    define true 1\n", fp);
-    fputs("#    define false 0\n", fp);
-    fputs("#   endif\n", fp);
-    fputs("#  endif\n", fp);
-    fputs("#else\n", fp);
-    fputs("# include <stdint.h>\n", fp);
-    fputs("# ifndef __cplusplus\n", fp);
-    fputs("#  ifndef _STDBOOL_H\n", fp);
-    fputs("#   define _STDBOOL_H\n", fp);
-    fputs("#   ifndef __STDBOOL_H\n", fp);
-    fputs("#    define __STDBOOL_H\n", fp);
-    fputs("#   endif\n", fp);
-    fputs("#   ifndef __bool_true_false_are_defined\n", fp);
-    fputs("#    define __bool_true_false_are_defined 1\n", fp);
-    fputs("#   endif\n", fp);
-    fputs("typedef unsigned char bool;\n", fp);
-    fputs("#   define true 1\n", fp);
-    fputs("#   define false 0\n", fp);
-    fputs("#  endif\n", fp);
-    fputs("# endif\n", fp);
-    fputs("#endif\n", fp);
-    fputs("#include <stddef.h>\n", fp);
-    fprintf(fp, "/* clang-format "
-                "on */\n\n");
-    fprintf(fp,
-            "#ifdef __cplusplus\nextern \"C\" {\n#endif /* __cplusplus */\n\n");
-
-    for (i = 0; i < n_tables; ++i) {
-#ifdef C_ORM_TEST_ALLOCATOR
-      if (c_orm_mock_codegen_header_emit_fail) {
-        rc = C_ORM_ERROR_UNKNOWN;
-      } else {
-        rc = sql_to_c_header_emit_body(fp, &tables[i]);
-      }
-#else
-      rc = sql_to_c_header_emit_body(fp, &tables[i]);
-#endif
-      if (rc != C_ORM_OK) {
-        fclose(fp);
-        fp = NULL;
-        goto cleanup;
-      }
-    }
-    fprintf(fp, "#ifdef __cplusplus\n}\n#endif /* __cplusplus */\n\n");
-    fprintf(fp, "#endif /* MODELS_H */\n");
-    {
-      int f_err = ferror(fp);
-      int c_err = fclose(fp);
-      int io_err = (f_err != 0) + (c_err != 0);
-      fp = NULL;
-#ifdef C_ORM_TEST_ALLOCATOR
-      if (c_orm_mock_codegen_io_fail == 1) {
-        io_err = 1;
-      }
-#endif
-      if (io_err) {
-        rc = C_ORM_ERROR_IO;
-        goto cleanup;
-      }
-    }
-  } else {
     LOG_DEBUG("c_orm_codegen_generate: failed to write header");
-    rc = C_ORM_ERROR_UNKNOWN;
     goto cleanup;
   }
+  fprintf(fp,
+          "/**\n * @file Models.h\n * @defgroup e2e_pregen Pre-generated E2E "
+          "Models\n * @brief Generated C models and arrays.\n */\n\n");
+  fprintf(fp, "#ifndef MODELS_H\n#define MODELS_H\n\n");
+  fprintf(fp, "/* clang-format "
+              "off */\n");
+  fprintf(fp, "#include \"c_orm_meta.h\"\n");
+  fprintf(fp, "#include \"c_orm_decimal.h\"\n");
+  fputs("#if defined(_MSC_VER)\n", fp);
+  fputs("# if _MSC_VER < 1600\n", fp);
+  fputs("typedef signed __int8 int8_t;\n", fp);
+  fputs("typedef unsigned __int8 uint8_t;\n", fp);
+  fputs("typedef signed __int16 int16_t;\n", fp);
+  fputs("typedef unsigned __int16 uint16_t;\n", fp);
+  fputs("typedef signed __int32 int32_t;\n", fp);
+  fputs("typedef unsigned __int32 uint32_t;\n", fp);
+  fputs("typedef signed __int64 int64_t;\n", fp);
+  fputs("typedef unsigned __int64 uint64_t;\n", fp);
+  fputs("# else\n", fp);
+  fputs("#  include <stdint.h>\n", fp);
+  fputs("# endif\n", fp);
+  fputs("#  ifndef __cplusplus\n", fp);
+  fputs("#   ifndef _STDBOOL_H\n", fp);
+  fputs("#    define _STDBOOL_H\n", fp);
+  fputs("#    ifndef __STDBOOL_H\n", fp);
+  fputs("#     define __STDBOOL_H\n", fp);
+  fputs("#    endif\n", fp);
+  fputs("#    ifndef __bool_true_false_are_defined\n", fp);
+  fputs("#     define __bool_true_false_are_defined 1\n", fp);
+  fputs("#    endif\n", fp);
+  fputs("typedef unsigned char bool;\n", fp);
+  fputs("#    define true 1\n", fp);
+  fputs("#    define false 0\n", fp);
+  fputs("#   endif\n", fp);
+  fputs("#  endif\n", fp);
+  fputs("#else\n", fp);
+  fputs("# include <stdint.h>\n", fp);
+  fputs("# ifndef __cplusplus\n", fp);
+  fputs("#  ifndef _STDBOOL_H\n", fp);
+  fputs("#   define _STDBOOL_H\n", fp);
+  fputs("#   ifndef __STDBOOL_H\n", fp);
+  fputs("#    define __STDBOOL_H\n", fp);
+  fputs("#   endif\n", fp);
+  fputs("#   ifndef __bool_true_false_are_defined\n", fp);
+  fputs("#    define __bool_true_false_are_defined 1\n", fp);
+  fputs("#   endif\n", fp);
+  fputs("typedef unsigned char bool;\n", fp);
+  fputs("#   define true 1\n", fp);
+  fputs("#   define false 0\n", fp);
+  fputs("#  endif\n", fp);
+  fputs("# endif\n", fp);
+  fputs("#endif\n", fp);
+  fputs("#include <stddef.h>\n", fp);
+  fprintf(fp, "/* clang-format "
+              "on */\n\n");
+  fprintf(fp,
+          "#ifdef __cplusplus\nextern \"C\" {\n#endif /* __cplusplus */\n\n");
 
-#if defined(_MSC_VER)
-  fopen_s(&fp, c_path, "wb");
-#else
-  C_ORM_FOPEN(&fp, c_path, "wb");
-#endif
-  if (fp) {
-    fprintf(fp, "/* clang-format "
-                "off */\n");
-    fprintf(fp, "#include \"Models.h\"\n#include \"c_orm_safe_crt.h\"\n");
-    fprintf(fp, "#include <errno.h>\n");
-    fprintf(fp, "#include <stdlib.h>\n");
-    fprintf(fp, "#include <string.h>\n");
-    fprintf(fp, "/* clang-format "
-                "on */\n\n");
-    for (i = 0; i < n_tables; ++i) {
+  for (i = 0; i < n_tables; ++i) {
 #ifdef C_ORM_TEST_ALLOCATOR
-      if (c_orm_mock_codegen_source_emit_fail) {
-        rc = C_ORM_ERROR_UNKNOWN;
-      } else {
-        rc = sql_to_c_source_emit(fp, &tables[i], "Models.h");
-      }
-#else
-      rc = sql_to_c_source_emit(fp, &tables[i], "Models.h");
-#endif
-      if (rc != C_ORM_OK) {
-        fclose(fp);
-        fp = NULL;
-        goto cleanup;
-      }
-    }
-    {
-      int f_err = ferror(fp);
-      int c_err = fclose(fp);
-      int io_err = (f_err != 0) + (c_err != 0);
+    if (c_orm_mock_codegen_header_emit_fail) {
+      fclose(fp);
       fp = NULL;
-#ifdef C_ORM_TEST_ALLOCATOR
-      if (c_orm_mock_codegen_io_fail == 2) {
-        io_err = 1;
-      }
-#endif
-      if (io_err) {
-        rc = C_ORM_ERROR_IO;
-        goto cleanup;
-      }
+      rc = C_ORM_ERROR_UNKNOWN;
+      goto cleanup;
     }
-  } else {
+#endif
+    rc = sql_to_c_header_emit_body(fp, &tables[i]);
+    if (rc != C_ORM_OK) {
+      fclose(fp);
+      fp = NULL;
+      goto cleanup;
+    }
+  }
+  fprintf(fp, "#ifdef __cplusplus\n}\n#endif /* __cplusplus */\n\n");
+  fprintf(fp, "#endif /* MODELS_H */\n");
+  {
+    int f_err = ferror(fp);
+    int c_err = fclose(fp);
+    int io_err = (f_err != 0) + (c_err != 0);
+    fp = NULL;
+#ifdef C_ORM_TEST_ALLOCATOR
+    if (c_orm_mock_codegen_io_fail == 1) {
+      io_err = 1;
+    }
+#endif
+    if (io_err) {
+      rc = C_ORM_ERROR_IO;
+      goto cleanup;
+    }
+  }
+
+  rc = C_ORM_FOPEN(&fp, c_path, "wb");
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_codegen_generate: failed to write source");
-    rc = C_ORM_ERROR_UNKNOWN;
     goto cleanup;
+  }
+  fprintf(fp,
+          "/**\n * @file Models.c\n * @defgroup e2e_pregen Pre-generated E2E "
+          "Models\n * @brief Generated implementation for models and arrays.\n "
+          "*/\n\n");
+  fprintf(fp, "/* clang-format "
+              "off */\n");
+  fprintf(fp, "#include \"Models.h\"\n#include \"c_orm_safe_crt.h\"\n");
+  fprintf(fp, "#include <errno.h>\n");
+  fprintf(fp, "#include <stdlib.h>\n");
+  fprintf(fp, "#include <string.h>\n");
+  fprintf(fp, "/* clang-format "
+              "on */\n\n");
+  for (i = 0; i < n_tables; ++i) {
+#ifdef C_ORM_TEST_ALLOCATOR
+    if (c_orm_mock_codegen_source_emit_fail) {
+      fclose(fp);
+      fp = NULL;
+      rc = C_ORM_ERROR_UNKNOWN;
+      goto cleanup;
+    }
+#endif
+    rc = sql_to_c_source_emit(fp, &tables[i], "Models.h");
+    if (rc != C_ORM_OK) {
+      fclose(fp);
+      fp = NULL;
+      goto cleanup;
+    }
+  }
+  {
+    int f_err = ferror(fp);
+    int c_err = fclose(fp);
+    int io_err = (f_err != 0) + (c_err != 0);
+    fp = NULL;
+#ifdef C_ORM_TEST_ALLOCATOR
+    if (c_orm_mock_codegen_io_fail == 2) {
+      io_err = 1;
+    }
+#endif
+    if (io_err) {
+      rc = C_ORM_ERROR_IO;
+      goto cleanup;
+    }
   }
 
   rc = C_ORM_OK;
 
 cleanup:
   if (sql_data) {
-    (void)c_orm_system_free(sql_data);
+    c_orm_system_free(sql_data);
   }
   if (h_path) {
-    (void)c_orm_system_free(h_path);
+    c_orm_system_free(h_path);
   }
   if (c_path) {
-    (void)c_orm_system_free(c_path);
+    c_orm_system_free(c_path);
   }
   if (tables) {
     for (i = 0; i < n_tables; ++i) {
-      (void)sql_table_free(&tables[i]);
+      sql_table_free(&tables[i]);
     }
-    (void)c_orm_system_free(tables);
+    c_orm_system_free(tables);
   }
 
   LOG_DEBUG("c_orm_codegen_generate: exit");

@@ -15,6 +15,7 @@
 #include "cdd_c_orm_meta.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -601,7 +602,7 @@ TEST test_decimal_orm_e2e_sqlite_and_memory(void) {
             cdd_c_abstract_to_specific(&fetched, &astruct, &cmeta, 1));
   ASSERT_EQ(C_ORM_OK, c_orm_decimal_cmp(&row1.balance, &fetched.balance, &cmp));
   ASSERT_EQ(0, cmp);
-  (void)c_orm_system_free(json_str);
+  c_orm_system_free(json_str);
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_free(&astruct));
   PASS();
 }
@@ -979,6 +980,9 @@ TEST test_decimal_exhaustive_errors(void) {
     ASSERT_EQ(C_ORM_ERROR_DECIMAL_OVERFLOW,
               c_orm_decimal_from_odbc_numeric(val16, 38, 0, 1, &out));
     memset(val16, 0, 16);
+    ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_odbc_numeric(val16, 2, 4, 0, &out));
+    ASSERT_EQ(4U, (unsigned int)out.precision);
+    ASSERT_EQ(0U, (unsigned int)out.sign);
     val16[0] = 5U;
     ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_odbc_numeric(val16, 10, 0, 0, &out));
     ASSERT_EQ(10U, (unsigned int)out.precision);

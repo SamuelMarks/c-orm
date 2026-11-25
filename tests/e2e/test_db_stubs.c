@@ -17,81 +17,13 @@ extern "C" {
 #include "c_orm_codegen.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 /* clang-format on */
 
 #ifndef __EMSCRIPTEN__
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    enum greatest_test_res _rc = (res);                                        \
-    greatest_info.assertions++;                                                \
-    if (_rc != GREATEST_TEST_RES_PASS) {                                       \
-      return _rc;                                                              \
-    }                                                                          \
-  } while ((void)0, 0)
 
 /**
  * @brief Executes test_postgres_stubs_edge_cases.
@@ -113,6 +45,9 @@ TEST test_postgres_stubs_edge_cases(void) {
 
   err = c_orm_postgres_connect("fake", &db);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  ASSERT(db == NULL);
+  err = c_orm_postgres_connect("fake", NULL);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
   err = c_orm_postgres_get_vtable(&vt);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
@@ -123,14 +58,26 @@ TEST test_postgres_stubs_edge_cases(void) {
 
   err = c_orm_postgres_lo_create(NULL, &oid);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  ASSERT_EQ(0U, oid);
+  err = c_orm_postgres_lo_create(NULL, NULL);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
   err = c_orm_postgres_lo_open(NULL, 0, 0, &fd);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  ASSERT(fd == NULL);
+  err = c_orm_postgres_lo_open(NULL, 0, 0, NULL);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
   err = c_orm_postgres_lo_read(NULL, NULL, NULL, 0, &read_len);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  ASSERT_EQ(0U, read_len);
+  err = c_orm_postgres_lo_read(NULL, NULL, NULL, 0, NULL);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
   err = c_orm_postgres_lo_write(NULL, NULL, NULL, 0, &written_len);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  ASSERT_EQ(0U, written_len);
+  err = c_orm_postgres_lo_write(NULL, NULL, NULL, 0, NULL);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
   err = c_orm_postgres_lo_close(NULL, NULL);
@@ -152,6 +99,9 @@ TEST test_mysql_stubs_edge_cases(void) {
   vt = NULL;
 
   err = c_orm_mysql_connect("fake", &db);
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
+  ASSERT(db == NULL);
+  err = c_orm_mysql_connect("fake", NULL);
   ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, err);
 
   err = c_orm_mysql_get_vtable(&vt);
@@ -302,13 +252,22 @@ TEST test_c_orm_db_coverage(void) {
   msg = NULL;
 
   /* call the hooks */
-  ASSERT_EQ(C_ORM_OK, test_hook(NULL, NULL, NULL));
-  rc = crypto_enc_hook(NULL, 0, NULL, NULL, NULL);
-  ASSERT_EQ(C_ORM_OK, rc);
-  rc = crypto_dec_hook(NULL, 0, NULL, NULL, NULL);
-  ASSERT_EQ(C_ORM_OK, rc);
-  ASSERT_EQ(C_ORM_OK, test_log_cb(NULL, NULL));
-  ASSERT_EQ(C_ORM_OK, test_expire_cb(NULL, NULL, NULL, NULL));
+  {
+    int cb_cnt = 0;
+    ASSERT_EQ(C_ORM_OK, test_hook(NULL, NULL, NULL));
+    ASSERT_EQ(C_ORM_OK, test_hook(NULL, NULL, &cb_cnt));
+    ASSERT_EQ(1, cb_cnt);
+    rc = crypto_enc_hook(NULL, 0, NULL, NULL, NULL);
+    ASSERT_EQ(C_ORM_OK, rc);
+    rc = crypto_dec_hook(NULL, 0, NULL, NULL, NULL);
+    ASSERT_EQ(C_ORM_OK, rc);
+    ASSERT_EQ(C_ORM_OK, test_log_cb(NULL, NULL));
+    ASSERT_EQ(C_ORM_OK, test_log_cb(NULL, &cb_cnt));
+    ASSERT_EQ(2, cb_cnt);
+    ASSERT_EQ(C_ORM_OK, test_expire_cb(NULL, NULL, NULL, NULL));
+    ASSERT_EQ(C_ORM_OK, test_expire_cb(NULL, NULL, NULL, &cb_cnt));
+    ASSERT_EQ(3, cb_cnt);
+  }
 
   /* Verify c_orm_error_to_string across all error codes */
   ASSERT_EQ(C_ORM_ERROR_NULL_POINTER, c_orm_error_to_string(C_ORM_OK, NULL));
@@ -463,6 +422,38 @@ static c_orm_error_t test_async_cb(c_orm_error_t err, void *ctx) {
 }
 
 /**
+ * @brief Custom modality executor submit callback for async tests.
+ * @param task_fn Task function pointer.
+ * @param task_ctx Task payload context.
+ * @param user_data Counter pointer incremented on submit.
+ * @return Task return code.
+ */
+static c_orm_error_t test_executor_submit(c_orm_async_task_fn task_fn,
+                                          void *task_ctx, void *user_data) {
+  if (user_data) {
+    (*(int *)user_data)++;
+  }
+  return task_fn(task_ctx);
+}
+
+/** @brief Mock OOM flag for test_db_stubs. */
+static int stubs_oom_fail = 0;
+
+/**
+ * @brief Mock malloc callback for OOM testing in test_db_stubs.
+ * @param size Requested byte size.
+ * @param out_ptr Output allocated pointer.
+ * @return C_ORM_OK or C_ORM_ERROR_MEMORY when stubs_oom_fail is set.
+ */
+static c_orm_error_t stubs_mock_malloc(size_t size, void **out_ptr) {
+  if (stubs_oom_fail) {
+    *out_ptr = NULL;
+    return C_ORM_ERROR_MEMORY;
+  }
+  return c_orm_default_malloc(size, out_ptr);
+}
+
+/**
  * @brief Test async CRUD APIs and error handling.
  * @return GREATEST test result.
  */
@@ -494,6 +485,10 @@ TEST test_c_orm_async_coverage(void) {
   rc = c_orm_insert_async(&db, &meta, &obj, test_async_cb, &cb_state);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
   ASSERT_EQ(100 + (int)C_ORM_ERROR_MEMORY, cb_state);
+
+  cb_state = -1;
+  rc = c_orm_insert_async(&db, &meta, &obj, test_async_cb, &cb_state);
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rc);
 
   rc = c_orm_find_all_async(NULL, NULL, NULL, NULL, NULL);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
@@ -564,15 +559,134 @@ TEST test_c_orm_async_coverage(void) {
                                              test_async_cb, &cb_state));
     ASSERT_EQ(100, cb_state);
     ASSERT_EQ((size_t)2, arr_out.length);
-    (void)c_orm_system_free(arr_out.data);
+    c_orm_system_free(arr_out.data);
 
     memset(&arr_out, 0, sizeof(arr_out));
     cb_state = -1;
     ASSERT_EQ(C_ORM_ERROR_VALIDATION,
               c_orm_find_all_async(real_db, &meta, &arr_out, test_async_cb,
                                    &cb_state));
-    (void)c_orm_system_free(arr_out.data);
+    c_orm_system_free(arr_out.data);
 
+    /* Validate NULL argument checks on find_by_id_int32_async, update_async,
+     * delete_async, execute_raw_async */
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_find_by_id_int32_async(
+                                      NULL, &meta, 1, &row_in, NULL, NULL));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_find_by_id_int32_async(
+                                      real_db, NULL, 1, &row_in, NULL, NULL));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_find_by_id_int32_async(
+                                      real_db, &meta, 1, NULL, NULL, NULL));
+
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_update_async(NULL, &meta, &row_in, NULL, NULL));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_update_async(real_db, NULL, &row_in, NULL, NULL));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_update_async(real_db, &meta, NULL, NULL, NULL));
+
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_delete_async(NULL, &meta, &row_in, NULL, NULL));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_delete_async(real_db, NULL, &row_in, NULL, NULL));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_delete_async(real_db, &meta, NULL, NULL, NULL));
+
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_execute_raw_async(NULL, "SELECT 1", NULL, NULL));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY,
+              c_orm_execute_raw_async(real_db, NULL, NULL, NULL));
+
+    meta.query_select_by_pk = "SELECT id FROM t_async WHERE id = ?";
+    meta.query_update = "UPDATE t_async SET id = ? WHERE id = ?";
+    meta.query_delete_by_pk = "DELETE FROM t_async WHERE id = ?";
+
+    /* Custom executor modality dispatch + NULL submit validation */
+    {
+      int submits = 0;
+      c_orm_async_executor_t exec;
+      exec.submit = NULL;
+      exec.user_data = &submits;
+      ASSERT_EQ(C_ORM_OK,
+                c_orm_set_modality(real_db, C_ORM_MODALITY_ASYNC, &exec));
+      ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+                c_orm_execute_raw_async(real_db, "SELECT 1", NULL, NULL));
+
+      exec.submit = test_executor_submit;
+      row_in.id = 0;
+      cb_state = 0;
+      ASSERT_EQ(C_ORM_OK,
+                c_orm_find_by_id_int32_async(real_db, &meta, 42, &row_in,
+                                             test_async_cb, &cb_state));
+      ASSERT_EQ(42, row_in.id);
+      ASSERT_EQ(1, submits);
+
+      ASSERT_EQ(C_ORM_OK,
+                c_orm_update_async(real_db, &meta, &row_in, NULL, NULL));
+      ASSERT_EQ(C_ORM_OK,
+                c_orm_execute_raw_async(real_db, "SELECT 1", NULL, NULL));
+      ASSERT_EQ(C_ORM_OK,
+                c_orm_delete_async(real_db, &meta, &row_in, NULL, NULL));
+      ASSERT_EQ(4, submits);
+      ASSERT_NEQ(C_ORM_OK,
+                 c_orm_execute_raw_async(real_db, "INVALID SQL", NULL, NULL));
+
+      {
+        c_orm_malloc_fn_t orig_m = c_orm_malloc;
+        ASSERT_EQ(C_ORM_OK, test_async_cb(C_ORM_OK, NULL));
+        exec.user_data = NULL;
+        ASSERT_EQ(C_ORM_OK,
+                  c_orm_execute_raw_async(real_db, "SELECT 1", NULL, NULL));
+        exec.user_data = &submits;
+        ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(stubs_mock_malloc,
+                                                 c_orm_realloc, c_orm_free));
+        stubs_oom_fail = 0;
+        ASSERT_EQ(C_ORM_OK,
+                  c_orm_execute_raw_async(real_db, "SELECT 1", NULL, NULL));
+        stubs_oom_fail = 1;
+        ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                  c_orm_execute_raw_async(real_db, "SELECT 1", NULL, NULL));
+        stubs_oom_fail = 0;
+        ASSERT_EQ(C_ORM_OK,
+                  c_orm_set_allocators(orig_m, c_orm_realloc, c_orm_free));
+      }
+    }
+
+    /* THREAD_POOL modality without external executor (including mutex error
+     * branches) */
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_set_modality(real_db, C_ORM_MODALITY_THREAD_POOL, NULL));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_execute_raw_async(real_db, "SELECT 1", NULL, NULL));
+    ASSERT_NEQ(C_ORM_OK, c_orm_execute_raw_async(real_db, "INVALID SQL SYNTAX",
+                                                 NULL, NULL));
+
+    c_orm_mock_cache_destroy_fail = 1;
+    ASSERT_EQ(C_ORM_ERROR_BUSY,
+              c_orm_set_modality(real_db, C_ORM_MODALITY_SYNC, NULL));
+    c_orm_mock_cache_destroy_fail = 0;
+    real_db->modality_lock = NULL;
+
+    ASSERT_EQ(C_ORM_OK, c_orm_set_modality(real_db, C_ORM_MODALITY_SYNC, NULL));
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_set_modality(real_db, C_ORM_MODALITY_THREAD_POOL, NULL));
+    c_orm_mock_cache_init_fail = 1;
+    ASSERT_EQ(C_ORM_ERROR_BUSY,
+              c_orm_execute_raw_async(real_db, "SELECT 1", NULL, NULL));
+    c_orm_mock_cache_init_fail = 0;
+
+    c_orm_mock_cache_lock_fail = 1;
+    ASSERT_EQ(C_ORM_ERROR_BUSY,
+              c_orm_execute_raw_async(real_db, "SELECT 1", NULL, NULL));
+    c_orm_mock_cache_lock_fail = 0;
+
+    c_orm_mock_cache_unlock_fail = 1;
+    ASSERT_EQ(C_ORM_ERROR_BUSY,
+              c_orm_execute_raw_async(real_db, "SELECT 1", NULL, NULL));
+    ASSERT_EQ(C_ORM_ERROR_BUSY, c_orm_execute_raw_async(
+                                    real_db, "INVALID SQL SYNTAX", NULL, NULL));
+    c_orm_mock_cache_unlock_fail = 0;
+
+    ASSERT_EQ(C_ORM_OK, c_orm_set_modality(real_db, C_ORM_MODALITY_SYNC, NULL));
     ASSERT_EQ(C_ORM_OK, real_db->vtable->disconnect(real_db));
   }
 #endif
@@ -635,24 +749,6 @@ TEST test_modality_coverage(void) {
   PASS();
 }
 
-/** @brief Mock OOM flag for test_db_stubs. */
-static int stubs_oom_fail = 0;
-
-/**
- * @brief Mock malloc callback for OOM testing in test_db_stubs.
- * @param size Requested byte size.
- * @param out_ptr Output allocated pointer.
- * @return C_ORM_OK or C_ORM_ERROR_MEMORY when stubs_oom_fail is set.
- */
-static c_orm_error_t stubs_mock_malloc(size_t size, void **out_ptr) {
-  if (stubs_oom_fail) {
-    *out_ptr = NULL;
-    return C_ORM_ERROR_MEMORY;
-  }
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
-}
-
 /**
  * @brief Test SQL-lexer-aware PostgreSQL `?` placeholder rewriting and
  * `c_orm_mysql_parse_url` query-parameter parsing.
@@ -685,28 +781,28 @@ TEST test_driver_url_and_query_parsers(void) {
                 "-- eof comment without newline",
                 &pcount, &rewritten));
   ASSERT_EQ(10, pcount);
-  (void)c_orm_system_free(rewritten);
+  c_orm_system_free(rewritten);
 
   ASSERT_EQ(C_ORM_OK, c_orm_postgres_rewrite_query("SELECT 'unclosed", &pcount,
                                                    &rewritten));
-  (void)c_orm_system_free(rewritten);
+  c_orm_system_free(rewritten);
   ASSERT_EQ(C_ORM_OK, c_orm_postgres_rewrite_query("SELECT \"unclosed", &pcount,
                                                    &rewritten));
-  (void)c_orm_system_free(rewritten);
+  c_orm_system_free(rewritten);
   ASSERT_EQ(C_ORM_OK, c_orm_postgres_rewrite_query("SELECT /* unclosed",
                                                    &pcount, &rewritten));
-  (void)c_orm_system_free(rewritten);
+  c_orm_system_free(rewritten);
   ASSERT_EQ(C_ORM_OK, c_orm_postgres_rewrite_query("SELECT $tag$unclosed",
                                                    &pcount, &rewritten));
-  (void)c_orm_system_free(rewritten);
+  c_orm_system_free(rewritten);
   ASSERT_EQ(C_ORM_OK, c_orm_postgres_rewrite_query("SELECT $tag!rest", &pcount,
                                                    &rewritten));
-  (void)c_orm_system_free(rewritten);
+  c_orm_system_free(rewritten);
   ASSERT_EQ(C_ORM_OK,
             c_orm_postgres_rewrite_query(
                 "SELECT a - b, a / b, /* x / y * z */ $[$ $a:$ $unclosed",
                 &pcount, &rewritten));
-  (void)c_orm_system_free(rewritten);
+  c_orm_system_free(rewritten);
 
   /* Exhaustive c_orm_mysql_parse_url edge cases */
   ASSERT_EQ(C_ORM_OK, c_orm_mysql_parse_url("localhost:3306/db", &info));
@@ -791,7 +887,7 @@ TEST test_driver_url_and_query_parsers(void) {
   ASSERT(strstr(rewritten, "$tag_1$x?$y$?z$tag_1$") != NULL);
   ASSERT(strstr(rewritten, "payload ? $1") != NULL);
   ASSERT(strstr(rewritten, "WHERE id = $2 AND x = $4") != NULL);
-  (void)c_orm_system_free(rewritten);
+  c_orm_system_free(rewritten);
   rewritten = NULL;
 
   /* Unterminated dollar tag fallback */
@@ -799,7 +895,7 @@ TEST test_driver_url_and_query_parsers(void) {
                                                    &pcount, &rewritten));
   ASSERT_EQ(1, pcount);
   ASSERT_STR_EQ("SELECT $unclosed, $1", rewritten);
-  (void)c_orm_system_free(rewritten);
+  c_orm_system_free(rewritten);
 
   /* MySQL URL parser */
   ASSERT_EQ(C_ORM_ERROR_NULL_POINTER, c_orm_mysql_parse_url(NULL, &info));

@@ -10,92 +10,16 @@
 #include "c_orm_uuid.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 /* clang-format on */
 
 #ifdef C_ORM_TEST_ALLOCATOR
 
 /** @brief Counter decremented before triggering test malloc failure. */
 static int malloc_fail_countdown = -1;
-
-/**
- * @brief Mock malloc callback for testing allocator failures.
- * @param size Requested allocation size.
- * @return Allocated memory or NULL on failure.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
 
 /**
  * @brief Executes my_test_malloc.
@@ -106,14 +30,11 @@ static int malloc_fail_countdown = -1;
 static c_orm_error_t my_test_malloc(size_t size, void **out_ptr) {
   if (malloc_fail_countdown == 0) {
     malloc_fail_countdown--;
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
   malloc_fail_countdown--;
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /** @brief Counter decremented before triggering test realloc failure. */
@@ -129,13 +50,10 @@ static int realloc_fail_countdown = -1;
 static c_orm_error_t my_test_realloc(void *ptr, size_t size, void **out_ptr) {
   if (realloc_fail_countdown == 0) {
     realloc_fail_countdown--;
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
-  *out_ptr = realloc(ptr, size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_realloc(ptr, size, out_ptr);
 }
 
 /** @brief Countdown triggering C_ORM_OK with NULL *out_ptr in mock
@@ -158,8 +76,7 @@ static c_orm_error_t sb_ok_null_malloc(size_t size, void **out_ptr) {
   if (sb_ok_null_countdown > 0) {
     sb_ok_null_countdown--;
   }
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /**
@@ -180,8 +97,7 @@ static c_orm_error_t sb_ok_null_realloc(void *ptr, size_t size,
   if (sb_ok_null_countdown > 0) {
     sb_ok_null_countdown--;
   }
-  *out_ptr = realloc(ptr, size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_realloc(ptr, size, out_ptr);
 }
 
 /** @brief Bitmask controlling simulated free failures in sb_fail_free. */
@@ -196,7 +112,7 @@ static unsigned int sb_free_call_idx = 0;
  */
 static c_orm_error_t sb_fail_free(void *ptr) {
   unsigned int bit = 1U << sb_free_call_idx++;
-  free(ptr);
+  c_orm_default_free(ptr);
   if ((sb_free_fail_mask & bit) != 0U) {
     return C_ORM_ERROR_MEMORY;
   }
@@ -320,8 +236,6 @@ TEST test_c_orm_string_builder(void) {
   rc = c_orm_string_builder_append(sb, "World!");
   ASSERT_EQ(0, rc);
 
-  rc = c_orm_log_noop();
-  ASSERT_EQ(C_ORM_OK, rc);
   rc = c_orm_log_debug("Test %s", "log");
   ASSERT_EQ(C_ORM_OK, rc);
   rc = c_orm_log_debug(NULL);
@@ -346,8 +260,9 @@ TEST test_c_orm_string_builder(void) {
     c_orm_string_builder_t *manual_sb;
 
     empty_str = NULL;
-    manual_sb =
-        (c_orm_string_builder_t *)malloc(sizeof(c_orm_string_builder_t));
+    manual_sb = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(sizeof(c_orm_string_builder_t),
+                                             (void **)&manual_sb));
     manual_sb->buffer = NULL;
     manual_sb->valid = 1;
     c_orm_string_builder_get(manual_sb, &empty_str);
@@ -559,11 +474,9 @@ TEST test_quote_identifier_and_safe_crt(void) {
   memset(rnd, 0, sizeof(rnd));
   ASSERT_EQ(C_ORM_OK, c_orm_random_bytes(rnd, sizeof(rnd)));
   for (i = 0; i < sizeof(rnd); ++i) {
-    if (rnd[i] != 0) {
-      non_zero = 1;
-    }
+    non_zero |= (int)rnd[i];
   }
-  ASSERT_EQ(1, non_zero);
+  ASSERT_NEQ(0, non_zero);
 
   PASS();
 }
@@ -643,8 +556,13 @@ TEST test_qualified_placeholder_and_literal_coverage(void) {
 
     sb_ok_null_countdown = -1;
     ASSERT_EQ(C_ORM_OK, c_orm_string_builder_init(&sb));
+    ASSERT_EQ(C_ORM_OK, c_orm_string_builder_append(
+                            sb, "0123456789012345678901234567890123456789012345"
+                                "6789012345678901234"));
     sb_ok_null_countdown = 0;
-    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_string_builder_append(sb, "grow"));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_string_builder_append(
+                                      sb, "012345678901234567890123456789012345"
+                                          "67890123456789012345678901234"));
     ASSERT_EQ(C_ORM_OK, c_orm_string_builder_free(sb));
 
     /* NULL-with-OK and malloc error on seg_buf in quote_qualified_identifier */
@@ -746,15 +664,7 @@ TEST test_qualified_placeholder_and_literal_coverage(void) {
  * @param string_builder_suite Suite runner function name.
  */
 SUITE(string_builder_suite) {
-  static int recursed = 0;
   RUN_TEST(test_c_orm_string_builder);
   RUN_TEST(test_quote_identifier_and_safe_crt);
   RUN_TEST(test_qualified_placeholder_and_literal_coverage);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    string_builder_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }

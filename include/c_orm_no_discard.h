@@ -32,17 +32,15 @@ extern "C" {
 #define NO_DISCARD_TYPE [[nodiscard]]
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
 #define NO_DISCARD_TYPE [[nodiscard]]
+#elif defined(__clang__)
+#define NO_DISCARD_TYPE __attribute__((warn_unused_result))
 #else
 #define NO_DISCARD_TYPE
 #endif
 #endif
 
 #ifndef NO_DISCARD_TYPEDEF
-#if !defined(__cplusplus) && defined(__clang__)
-#define NO_DISCARD_TYPEDEF __attribute__((warn_unused_result))
-#else
 #define NO_DISCARD_TYPEDEF
-#endif
 #endif
 
 #ifdef __cplusplus

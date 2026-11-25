@@ -10,12 +10,6 @@
 /* clang-format on */
 
 /**
- * @brief No-op logging helper for non-debug builds.
- * @return C_ORM_OK unconditionally.
- */
-C_ORM_EXPORT c_orm_error_t c_orm_log_noop(void) { return C_ORM_OK; }
-
-/**
  * @brief Logs a debug message to standard error.
  * @param fmt The format string.
  * @param ... Format arguments.

@@ -130,6 +130,65 @@ C_ORM_EXPORT c_orm_error_t c_orm_tmpfile(FILE **fp_ptr) {
 #endif
 }
 
+#ifdef C_ORM_TEST_ALLOCATOR
+/** @brief Flag to simulate c_orm_fclose failure. */
+C_ORM_EXPORT int c_orm_mock_fclose_fail = 0;
+#endif
+
+/**
+ * @brief Closes a non-NULL `FILE *` stream and returns its status code.
+ * @param fp Non-NULL file handle.
+ * @return 0 on success, non-zero on failure.
+ */
+static int compat_calc_fclose_status(FILE *fp) {
+  int rc = fclose(fp);
+#ifdef C_ORM_TEST_ALLOCATOR
+  if (c_orm_mock_fclose_fail) {
+    return -1;
+  }
+#endif
+  return rc;
+}
+
+/**
+ * @brief Closes a `FILE *` stream opened on the c-orm library CRT.
+ * @param fp File handle to close (safe if NULL).
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN if fclose fails.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_fclose(FILE *fp) {
+  if (fp) {
+    if (compat_calc_fclose_status(fp) != 0) {
+      return C_ORM_ERROR_UNKNOWN;
+    }
+  }
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Rewinds a `FILE *` stream on the c-orm library CRT and reads up to
+ * `buf_cap - 1` bytes as a NUL-terminated string.
+ * @param fp Open file handle on the c-orm CRT.
+ * @param buf Destination buffer.
+ * @param buf_cap Destination capacity in bytes (`> 0`).
+ * @param out_read Optional output byte count read.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN on invalid arguments.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_rewind_and_read(FILE *fp, char *buf,
+                                                 size_t buf_cap,
+                                                 size_t *out_read) {
+  size_t nread;
+  if (!fp || !buf || buf_cap == 0) {
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  rewind(fp);
+  nread = fread(buf, 1, buf_cap - 1, fp);
+  buf[nread] = '\0';
+  if (out_read) {
+    *out_read = nread;
+  }
+  return C_ORM_OK;
+}
+
 /**
  * @brief Cross-platform environment variable setter returning c_orm_error_t.
  * @param name Environment variable name.

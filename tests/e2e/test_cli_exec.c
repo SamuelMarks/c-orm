@@ -11,13 +11,13 @@ extern "C" {
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_api.h"
+#include "c_orm_sqlite.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
-#include "sqlite3.h"
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 /* clang-format on */
 
 #ifndef C_ORM_CLI_EXECUTABLE
@@ -39,78 +39,6 @@ extern "C" {
 /**
  * @brief Test CLI executable with --help argument.
  * @return GREATEST test result.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    enum greatest_test_res _rc = (res);                                        \
-    greatest_info.assertions++;                                                \
-    if (_rc != GREATEST_TEST_RES_PASS) {                                       \
-      return _rc;                                                              \
-    }                                                                          \
-  } while ((void)0, 0)
-
-/**
- * @brief Executes test_cli_help.
  */
 TEST test_cli_help(void) {
   int rc;
@@ -216,7 +144,7 @@ TEST test_cli_generate(void) {
 TEST test_cli_migrate(void) {
   int rc;
   int sys_rc;
-  sqlite3 *db;
+  c_orm_db_t *db;
   FILE *f1;
   FILE *f2;
   (void)rc;
@@ -230,7 +158,7 @@ TEST test_cli_migrate(void) {
   f2 = NULL;
 
 #if !defined(_WIN32) && !defined(__CYGWIN__)
-  C_ORM_UNSETENV("C_ORM_DB_URL");
+  ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("C_ORM_DB_URL"));
   rc = system(CLI_CMD " migrate" DEV_NULL);
   ASSERT_NEQ(0, rc);
 #endif
@@ -239,62 +167,62 @@ TEST test_cli_migrate(void) {
               " migrate --db :memory: --dir test_migrations_dir" DEV_NULL);
   ASSERT_EQ(0, rc);
 
-  sys_rc = sqlite3_open("test_cli_exec.db", &db);
-  ASSERT_EQ(SQLITE_OK, sys_rc);
-  sys_rc = sqlite3_exec(
-      db,
-      "CREATE TABLE IF NOT EXISTS _c_orm_migrations (id INTEGER PRIMARY KEY, "
-      "version TEXT, name TEXT, hash TEXT, applied_at DATETIME);",
-      0, 0, 0);
-  ASSERT_EQ(SQLITE_OK, sys_rc);
-  sys_rc =
-      sqlite3_exec(db,
-                   "INSERT INTO _c_orm_migrations (version, name, hash) VALUES "
-                   "('1', 'test', 'hash');",
-                   0, 0, 0);
-  ASSERT_EQ(SQLITE_OK, sys_rc);
-  sqlite3_close(db);
+  ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect("test_cli_exec.db", &db));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_execute_raw(
+                db, "CREATE TABLE IF NOT EXISTS _c_orm_migrations (id "
+                    "INTEGER PRIMARY KEY, version TEXT, name TEXT, hash "
+                    "TEXT, applied_at DATETIME);"));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_execute_raw(
+                db, "INSERT INTO _c_orm_migrations (version, name, hash) "
+                    "VALUES ('1', 'test', 'hash');"));
+  ASSERT_EQ(C_ORM_OK, db->vtable->disconnect(db));
 
   sys_rc = system(CLI_CMD " status --db test_cli_exec.db" DEV_NULL);
   ASSERT_EQ(0, sys_rc);
 
 #ifdef _WIN32
   sys_rc = system("mkdir test_migrations_dir 2>nul");
-  (void)system("mkdir real_migrations_cli 2>nul");
-  (void)system("mkdir empty_migrations_cli 2>nul");
-  (void)system("mkdir bad_rollback_cli 2>nul");
+  rc = system("mkdir real_migrations_cli 2>nul");
+  rc = system("mkdir empty_migrations_cli 2>nul");
+  rc = system("mkdir bad_rollback_cli 2>nul");
 #else
   sys_rc = system("mkdir -p test_migrations_dir 2>/dev/null");
-  (void)system("mkdir -p real_migrations_cli 2>/dev/null");
-  (void)system("mkdir -p empty_migrations_cli 2>/dev/null");
-  (void)system("mkdir -p bad_rollback_cli 2>/dev/null");
+  rc = system("mkdir -p real_migrations_cli 2>/dev/null");
+  rc = system("mkdir -p empty_migrations_cli 2>/dev/null");
+  rc = system("mkdir -p bad_rollback_cli 2>/dev/null");
 #endif
   ASSERT_EQ(0, sys_rc);
 
-  C_ORM_FOPEN(&f1, "test_migrations_dir/1_test.up.sql", "w");
+  ASSERT_EQ(C_ORM_OK,
+            C_ORM_FOPEN(&f1, "test_migrations_dir/1_test.up.sql", "w"));
   ASSERT(f1 != NULL);
   fprintf(f1, "CREATE TABLE x (id INT);\n");
   fclose(f1);
 
-  C_ORM_FOPEN(&f2, "test_migrations_dir/1_test.down.sql", "w");
+  ASSERT_EQ(C_ORM_OK,
+            C_ORM_FOPEN(&f2, "test_migrations_dir/1_test.down.sql", "w"));
   ASSERT(f2 != NULL);
   fprintf(f2, "DROP TABLE x;\n");
   fclose(f2);
 
-  C_ORM_FOPEN(&f1, "real_migrations_cli/1_test.up.sql", "w");
+  ASSERT_EQ(C_ORM_OK,
+            C_ORM_FOPEN(&f1, "real_migrations_cli/1_test.up.sql", "w"));
   ASSERT(f1 != NULL);
   fprintf(f1, "CREATE TABLE t1 (id INT);\n");
   fclose(f1);
-  C_ORM_FOPEN(&f2, "real_migrations_cli/1_test.down.sql", "w");
+  ASSERT_EQ(C_ORM_OK,
+            C_ORM_FOPEN(&f2, "real_migrations_cli/1_test.down.sql", "w"));
   ASSERT(f2 != NULL);
   fprintf(f2, "DROP TABLE t1;\n");
   fclose(f2);
 
-  C_ORM_FOPEN(&f1, "bad_rollback_cli/1_bad.up.sql", "w");
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&f1, "bad_rollback_cli/1_bad.up.sql", "w"));
   ASSERT(f1 != NULL);
   fprintf(f1, "CREATE TABLE bad (id INT);\n");
   fclose(f1);
-  C_ORM_FOPEN(&f2, "bad_rollback_cli/1_bad.down.sql", "w");
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&f2, "bad_rollback_cli/1_bad.down.sql", "w"));
   ASSERT(f2 != NULL);
   fprintf(f2, "INVALID SQL SYNTAX;\n");
   fclose(f2);
@@ -336,34 +264,35 @@ TEST test_cli_rollback(void) {
   ASSERT_NEQ(0, rc);
 
 #ifdef _WIN32
-  (void)system("mkdir real_migrations_cli 2>nul");
-  (void)system("mkdir empty_migrations_cli 2>nul");
-  (void)system("mkdir bad_rollback_cli 2>nul");
+  sys_rc = system("mkdir real_migrations_cli 2>nul");
+  sys_rc = system("mkdir empty_migrations_cli 2>nul");
+  sys_rc = system("mkdir bad_rollback_cli 2>nul");
 #else
-  (void)system("mkdir -p real_migrations_cli 2>/dev/null");
-  (void)system("mkdir -p empty_migrations_cli 2>/dev/null");
-  (void)system("mkdir -p bad_rollback_cli 2>/dev/null");
+  sys_rc = system("mkdir -p real_migrations_cli 2>/dev/null");
+  sys_rc = system("mkdir -p empty_migrations_cli 2>/dev/null");
+  sys_rc = system("mkdir -p bad_rollback_cli 2>/dev/null");
 #endif
-  C_ORM_FOPEN(&fp, "real_migrations_cli/1_test.up.sql", "w");
-  if (fp) {
-    fprintf(fp, "CREATE TABLE t1 (id INT);\n");
-    fclose(fp);
-  }
-  C_ORM_FOPEN(&fp, "real_migrations_cli/1_test.down.sql", "w");
-  if (fp) {
-    fprintf(fp, "DROP TABLE t1;\n");
-    fclose(fp);
-  }
-  C_ORM_FOPEN(&fp, "bad_rollback_cli/1_bad.up.sql", "w");
-  if (fp) {
-    fprintf(fp, "CREATE TABLE bad (id INT);\n");
-    fclose(fp);
-  }
-  C_ORM_FOPEN(&fp, "bad_rollback_cli/1_bad.down.sql", "w");
-  if (fp) {
-    fprintf(fp, "INVALID SQL SYNTAX;\n");
-    fclose(fp);
-  }
+  ASSERT_EQ(C_ORM_OK,
+            C_ORM_FOPEN(&fp, "real_migrations_cli/1_test.up.sql", "w"));
+  ASSERT(fp != NULL);
+  fprintf(fp, "CREATE TABLE t1 (id INT);\n");
+  fclose(fp);
+
+  ASSERT_EQ(C_ORM_OK,
+            C_ORM_FOPEN(&fp, "real_migrations_cli/1_test.down.sql", "w"));
+  ASSERT(fp != NULL);
+  fprintf(fp, "DROP TABLE t1;\n");
+  fclose(fp);
+
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, "bad_rollback_cli/1_bad.up.sql", "w"));
+  ASSERT(fp != NULL);
+  fprintf(fp, "CREATE TABLE bad (id INT);\n");
+  fclose(fp);
+
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, "bad_rollback_cli/1_bad.down.sql", "w"));
+  ASSERT(fp != NULL);
+  fprintf(fp, "INVALID SQL SYNTAX;\n");
+  fclose(fp);
 
   remove("test_cli_rollback_exec.db");
   sys_rc = system(CLI_CMD " migrate --db test_cli_rollback_exec.db --dir "
@@ -380,9 +309,10 @@ TEST test_cli_rollback(void) {
 
   /* Test rollback failure by using the bad_rollback_cli mock */
   remove("test_cli_bad_rollback.db");
-  system(
+  sys_rc = system(
       CLI_CMD
       " migrate --db test_cli_bad_rollback.db --dir bad_rollback_cli" DEV_NULL);
+  ASSERT_EQ(0, sys_rc);
   rc = system(CLI_CMD " rollback --db test_cli_bad_rollback.db --dir "
                       "bad_rollback_cli" DEV_NULL);
   ASSERT_NEQ(0, rc); /* Expected to fail */
@@ -404,13 +334,13 @@ TEST test_cli_rollback(void) {
   remove("test_cli_rollback_exec.db");
   remove("test_cli_bad_rollback.db");
 #ifdef _WIN32
-  (void)system("rmdir real_migrations_cli 2>nul");
-  (void)system("rmdir empty_migrations_cli 2>nul");
-  (void)system("rmdir bad_rollback_cli 2>nul");
+  sys_rc = system("rmdir real_migrations_cli 2>nul");
+  sys_rc = system("rmdir empty_migrations_cli 2>nul");
+  sys_rc = system("rmdir bad_rollback_cli 2>nul");
 #else
-  (void)system("rmdir real_migrations_cli 2>/dev/null");
-  (void)system("rmdir empty_migrations_cli 2>/dev/null");
-  (void)system("rmdir bad_rollback_cli 2>/dev/null");
+  sys_rc = system("rmdir real_migrations_cli 2>/dev/null");
+  sys_rc = system("rmdir empty_migrations_cli 2>/dev/null");
+  sys_rc = system("rmdir bad_rollback_cli 2>/dev/null");
 #endif
 
   PASS();
@@ -421,7 +351,7 @@ TEST test_cli_rollback(void) {
  * @return GREATEST test result.
  */
 TEST test_cli_status(void) {
-  sqlite3 *db;
+  c_orm_db_t *db;
   int sys_rc;
   int rc;
   (void)db;
@@ -430,7 +360,7 @@ TEST test_cli_status(void) {
 #if !defined(_WIN32) && !defined(__CYGWIN__)
 
   db = NULL;
-  C_ORM_UNSETENV("C_ORM_DB_URL");
+  ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("C_ORM_DB_URL"));
   rc = system(CLI_CMD " status" DEV_NULL);
   ASSERT_NEQ(0, rc);
 
@@ -438,12 +368,10 @@ TEST test_cli_status(void) {
   ASSERT_EQ(0, sys_rc);
 
   remove("bad_schema.db");
-  sys_rc = sqlite3_open("bad_schema.db", &db);
-  ASSERT_EQ(SQLITE_OK, sys_rc);
-  sys_rc =
-      sqlite3_exec(db, "CREATE TABLE _c_orm_migrations(id INTEGER);", 0, 0, 0);
-  ASSERT_EQ(SQLITE_OK, sys_rc);
-  sqlite3_close(db);
+  ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect("bad_schema.db", &db));
+  ASSERT_EQ(C_ORM_OK, c_orm_execute_raw(
+                          db, "CREATE TABLE _c_orm_migrations(id INTEGER);"));
+  ASSERT_EQ(C_ORM_OK, db->vtable->disconnect(db));
 
   rc = system(CLI_CMD " status --db bad_schema.db" DEV_NULL);
   ASSERT_NEQ(0, rc);
@@ -481,7 +409,7 @@ TEST test_cli_exec_sql2c(void) {
   (void)sys_rc;
 
   f = NULL;
-  C_ORM_FOPEN(&f, "test_schema.sql", "w");
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&f, "test_schema.sql", "w"));
   ASSERT(f != NULL);
   fprintf(f, "CREATE TABLE test_tbl (id INTEGER PRIMARY KEY);\n");
   fclose(f);
@@ -535,7 +463,7 @@ TEST test_cli_exec_copybook_and_db2_odbc(void) {
   FILE *f = NULL;
   int rc;
 
-  C_ORM_FOPEN(&f, "test_exec_in.cpy", "wb");
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&f, "test_exec_in.cpy", "wb"));
   ASSERT(f != NULL);
   fprintf(f, ">>SOURCE FORMAT FREE\n"
              "01 :PFX:-REC.\n"
@@ -581,7 +509,6 @@ TEST test_cli_exec_copybook_and_db2_odbc(void) {
  * @param cli_exec_suite Suite runner function name.
  */
 SUITE(cli_exec_suite) {
-  static int recursed = 0;
   RUN_TEST(test_cli_help);
   RUN_TEST(test_cli_no_args);
   RUN_TEST(test_cli_init);
@@ -595,13 +522,6 @@ SUITE(cli_exec_suite) {
   RUN_TEST(test_cli_exec_sql2c);
   RUN_TEST(test_cli_exec_copybook_and_db2_odbc);
 #endif
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    cli_exec_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }
 
 #ifdef __cplusplus

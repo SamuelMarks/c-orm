@@ -17,83 +17,8 @@ extern "C" {
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
 #include <string.h>
-
+#include "test_assert_zero_branch.h"
 /* clang-format on */
-
-/**
- * @brief Test emitting C header models from SQL schema.
- * @return GREATEST test result.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
 
 /**
  * @brief Executes test_sql_to_c_header_emit.
@@ -116,16 +41,14 @@ TEST test_sql_to_c_header_emit(void) {
   err = sql_parse_table(list, &table, &err_info);
   ASSERT_EQ(0, err);
 
-  C_ORM_TMPFILE(&fp);
+  c_orm_tmpfile(&fp);
   ASSERT(fp != NULL);
 
   err = sql_to_c_header_emit(fp, table);
   ASSERT_EQ(0, err);
 
-  rewind(fp);
-  memset(buf, 0, sizeof(buf));
-  fread(buf, 1, sizeof(buf) - 1, fp);
-  fclose(fp);
+  c_orm_rewind_and_read(fp, buf, sizeof(buf), NULL);
+  c_orm_fclose(fp);
 
   ASSERT(strstr(buf, "#ifndef C_ORM_MODEL_USERS_H") != NULL);
   ASSERT(strstr(buf, "struct Users {") != NULL);
@@ -162,16 +85,14 @@ TEST test_sql_to_c_source_emit(void) {
   err = sql_parse_table(list, &table, &err_info);
   ASSERT_EQ(0, err);
 
-  C_ORM_TMPFILE(&fp);
+  c_orm_tmpfile(&fp);
   ASSERT(fp != NULL);
 
   err = sql_to_c_source_emit(fp, table, "users.h");
   ASSERT_EQ(0, err);
 
-  rewind(fp);
-  memset(buf, 0, sizeof(buf));
-  fread(buf, 1, sizeof(buf) - 1, fp);
-  fclose(fp);
+  c_orm_rewind_and_read(fp, buf, sizeof(buf), NULL);
+  c_orm_fclose(fp);
 
   ASSERT(strstr(buf, "c_orm_error_t Users_Array_init(") != NULL);
   ASSERT(strstr(buf, "c_orm_error_t Users_free(") != NULL);
@@ -222,18 +143,20 @@ TEST test_sql_to_c_projections(void) {
   FILE *fp;
   cdd_c_query_projection_t proj;
   c_orm_uint64_t out_hash;
+  char name_id[] = "id";
+  char name_tags[] = "tags";
 
-  C_ORM_TMPFILE(&fp);
+  c_orm_tmpfile(&fp);
   ASSERT(fp != NULL);
   memset(&proj, 0, sizeof(proj));
 
   proj.n_fields = 2;
   proj.fields = calloc(2, sizeof(*proj.fields));
-  proj.fields[0].name = "id";
+  proj.fields[0].name = name_id;
   proj.fields[0].type = SQL_TYPE_INT;
   proj.fields[0].is_array = 0;
 
-  proj.fields[1].name = "tags";
+  proj.fields[1].name = name_tags;
   proj.fields[1].type = SQL_TYPE_VARCHAR;
   proj.fields[1].is_array = 1;
 
@@ -252,7 +175,7 @@ TEST test_sql_to_c_projections(void) {
             sql_to_c_projection_polymorphic_struct_emit(fp, &proj, "ProjTest"));
 
   free(proj.fields);
-  fclose(fp);
+  c_orm_fclose(fp);
   PASS();
 }
 
@@ -261,18 +184,10 @@ TEST test_sql_to_c_projections(void) {
  * @param sql_to_c_suite Suite runner function name.
  */
 SUITE(sql_to_c_suite) {
-  static int recursed = 0;
   RUN_TEST(test_sql_to_c_header_emit);
   RUN_TEST(test_sql_to_c_source_emit);
   RUN_TEST(test_sql_to_c_errors);
   RUN_TEST(test_sql_to_c_projections);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    sql_to_c_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }
 
 #ifdef __cplusplus

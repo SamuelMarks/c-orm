@@ -120,7 +120,8 @@ TEST test_api_find_all_and_find_with_relations_deep(void) {
 
   /* 1. Test c_orm_find_all_with_relation with ONE_TO_MANY, custom filter, and
    * order_by */
-  out_arr.data = malloc(2 * sizeof(struct ExtendedParent));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(2 * sizeof(struct ExtendedParent),
+                                           &out_arr.data));
   memcpy(out_arr.data, parents, 2 * sizeof(struct ExtendedParent));
   out_arr.length = 2;
   out_arr.capacity = 2;
@@ -130,15 +131,16 @@ TEST test_api_find_all_and_find_with_relations_deep(void) {
                                                    "children_o2m", &out_arr));
   {
     struct ExtendedParent *p_res = (struct ExtendedParent *)out_arr.data;
-    free(p_res[0].children_o2m.data);
+    c_orm_system_free(p_res[0].children_o2m.data);
     p_res[0].children_o2m.data = NULL;
   }
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
 
   /* 1b. Test c_orm_find_all_with_relation ONE_TO_MANY with normal step
    * (target_meta FK search) */
-  out_arr.data = malloc(2 * sizeof(struct ExtendedParent));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(2 * sizeof(struct ExtendedParent),
+                                           &out_arr.data));
   memcpy(out_arr.data, parents, 2 * sizeof(struct ExtendedParent));
   out_arr.length = 2;
   out_arr.capacity = 2;
@@ -147,14 +149,15 @@ TEST test_api_find_all_and_find_with_relations_deep(void) {
                                                    "children_o2m", &out_arr));
   {
     struct ExtendedParent *p_res = (struct ExtendedParent *)out_arr.data;
-    free(p_res[0].children_o2m.data);
+    c_orm_system_free(p_res[0].children_o2m.data);
     p_res[0].children_o2m.data = NULL;
   }
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
 
   /* 2. Test c_orm_find_all_with_relation with ONE_TO_ONE */
-  out_arr.data = malloc(2 * sizeof(struct ExtendedParent));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(2 * sizeof(struct ExtendedParent),
+                                           &out_arr.data));
   memcpy(out_arr.data, parents, 2 * sizeof(struct ExtendedParent));
   out_arr.length = 2;
   out_arr.capacity = 2;
@@ -163,10 +166,10 @@ TEST test_api_find_all_and_find_with_relations_deep(void) {
                                                    &out_arr));
   {
     struct ExtendedParent *p_res = (struct ExtendedParent *)out_arr.data;
-    free(p_res[0].child_o2o);
+    c_orm_system_free(p_res[0].child_o2o);
     p_res[0].child_o2o = NULL;
   }
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
 
   /* 3. Test c_orm_find_all_with_relation with 0 parents count */
@@ -681,7 +684,8 @@ TEST test_api_relation_loading_and_sync_deep(void) {
   p_meta.query_insert = "INSERT INTO eparent VALUES (?, ?)";
   p_meta.query_update = "UPDATE eparent SET name=? WHERE id=?";
 
-  out_arr.data = malloc(sizeof(struct ExtendedParent));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_default_malloc(sizeof(struct ExtendedParent), &out_arr.data));
   memcpy(out_arr.data, &p, sizeof(struct ExtendedParent));
   out_arr.length = 1;
   out_arr.capacity = 1;
@@ -729,7 +733,7 @@ TEST test_api_relation_loading_and_sync_deep(void) {
   ASSERT_EQ(C_ORM_ERROR_NOT_FOUND,
             c_orm_sync(&g_db, &p_meta, &p, "nonexistent", c_items, 2));
 
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
 
   PASS();
@@ -849,7 +853,7 @@ TEST test_api_find_with_relation_int32_deep(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&custom_db, &p_meta, 1,
                                                      "child_o2o", &p));
   ASSERT(p.child_o2o != NULL);
-  free(p.child_o2o);
+  c_orm_system_free(p.child_o2o);
   p.child_o2o = NULL;
 
   /* 2. ONE_TO_ONE child is null */
@@ -875,7 +879,7 @@ TEST test_api_find_with_relation_int32_deep(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_find_with_relation_int32(&custom_db, &p_meta, 1,
                                                      "children_o2m", &p));
   ASSERT_EQ(2, p.children_o2m.length);
-  free(p.children_o2m.data);
+  c_orm_system_free(p.children_o2m.data);
   p.children_o2m.data = NULL;
 
   /* 5. ONE_TO_MANY child is null */
@@ -1161,7 +1165,7 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   custom_db.vtable = &custom_vt;
 
   /* 1. bind_int32 error during eager chunk */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -1173,7 +1177,7 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   g_eager_fail_bind = 0;
 
   /* 2. step init error during eager chunk */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -1185,7 +1189,7 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   g_eager_fail_step_init = 0;
 
   /* 3. M2M get_int32 failure in loop */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -1197,7 +1201,7 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   g_eager_fail_get_int32 = 0;
 
   /* 4. OneToOne calloc OOM */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -1212,7 +1216,7 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   g_deep_fail_oom = -1;
 
   /* 5. OneToMany realloc OOM */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -1227,7 +1231,7 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
   g_deep_fail_realloc = -1;
 
   /* 6. OneToMany loop step error */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -1238,7 +1242,7 @@ TEST test_api_find_all_with_relation_eager_errors(void) {
                                          &out_arr));
   g_eager_fail_step_loop = 0;
 
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
 
   PASS();
@@ -1573,8 +1577,9 @@ TEST test_api_find_and_eager_missing_branches(void) {
 
   /* Eager find_all_with_relation finalize failure paths (lines 1651, 1662,
    * 1720, 1733, 1755, 1773, 1790) */
-  free(out_arr.data);
-  out_arr.data = malloc(sizeof(struct ExtendedParent) * 2);
+  c_orm_system_free(out_arr.data);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(sizeof(struct ExtendedParent) * 2,
+                                           &out_arr.data));
   memcpy(out_arr.data, &p, sizeof(struct ExtendedParent));
   memcpy((char *)out_arr.data + sizeof(struct ExtendedParent), &p,
          sizeof(struct ExtendedParent));

@@ -19,6 +19,95 @@
 /* clang-format on */
 
 /**
+ * @brief Extracts a JSON_Object from a parsed JSON_Value if it is an object.
+ * @param val Parsed JSON value.
+ * @param out_obj Output JSON object pointer.
+ * @return 1 if `val` is a JSON object, 0 otherwise.
+ */
+static int orm_gen_calc_json_obj(const JSON_Value *val, JSON_Object **out_obj) {
+  return cdd_json_value_get_object(val, out_obj) == CDD_C_SUCCESS;
+}
+
+/**
+ * @brief Extracts a nested JSON_Object property by key.
+ * @param obj Parent JSON object.
+ * @param key Property name.
+ * @param out_sub Output nested JSON object pointer.
+ * @return 1 if found and is an object, 0 otherwise.
+ */
+static int orm_gen_calc_json_subobj(const JSON_Object *obj, const char *key,
+                                    JSON_Object **out_sub) {
+  return cdd_json_object_get_object(obj, key, out_sub) == CDD_C_SUCCESS;
+}
+
+/**
+ * @brief Extracts an optional boolean property from a JSON_Object.
+ * @param obj Parent JSON object.
+ * @param key Property name.
+ * @param out_bool Output boolean value (0 or 1).
+ * @return 1 if present and boolean, 0 otherwise.
+ */
+static int orm_gen_calc_json_bool(const JSON_Object *obj, const char *key,
+                                  int *out_bool) {
+  return cdd_json_object_get_boolean(obj, key, out_bool) == CDD_C_SUCCESS;
+}
+
+/**
+ * @brief Extracts an optional string property from a JSON_Object.
+ * @param obj Parent JSON object.
+ * @param key Property name.
+ * @param out_str Output string pointer.
+ * @return 1 if present and string, 0 otherwise.
+ */
+static int orm_gen_calc_json_str(const JSON_Object *obj, const char *key,
+                                 const char **out_str) {
+  return cdd_json_object_get_string(obj, key, out_str) == CDD_C_SUCCESS;
+}
+
+/**
+ * @brief Extracts an optional numeric property from a JSON_Object.
+ * @param obj Parent JSON object.
+ * @param key Property name.
+ * @param out_num Output double value.
+ * @return 1 if present and numeric, 0 otherwise.
+ */
+static int orm_gen_calc_json_num(const JSON_Object *obj, const char *key,
+                                 double *out_num) {
+  return cdd_json_object_get_number(obj, key, out_num) == CDD_C_SUCCESS;
+}
+
+/**
+ * @brief Parses `schema_extra_json` into a `JSON_Value`, ignoring syntax
+ * errors.
+ * @param json_text Raw JSON string.
+ * @param out_val Output parsed `JSON_Value` pointer on success.
+ * @return 1 if parsed successfully, 0 otherwise.
+ */
+static int orm_gen_calc_json_parse_opt(const char *json_text,
+                                       JSON_Value **out_val) {
+  return cdd_json_parse_string(json_text, out_val) == CDD_C_SUCCESS;
+}
+
+/**
+ * @brief Opens an optional generated test-stub file for writing if possible.
+ * @param fp_ptr Output `FILE *` pointer.
+ * @param path Target file path.
+ * @return 1 if opened successfully, 0 otherwise.
+ */
+static int orm_gen_calc_fopen_opt(FILE **fp_ptr, const char *path) {
+  return C_ORM_FOPEN(fp_ptr, path, "w") == C_ORM_OK;
+}
+
+/**
+ * @brief Releases a parsed `JSON_Value` DOM tree silently.
+ * @param val Parsed `JSON_Value` pointer.
+ * @return Status code cast to int.
+ */
+static int orm_gen_calc_json_free(JSON_Value *val) {
+  return (int)cdd_json_value_free(val);
+}
+
+/**
  * @brief Parses the database schema extension from the OpenAPI struct field.
  *
  * @param[in] field The OpenAPI struct field containing metadata and extensions.
@@ -54,12 +143,11 @@ static c_orm_error_t check_db_schema(const struct StructField *field,
         char *fk_end = strchr(fk_start, ']');
         if (fk_end && (size_t)(fk_end - fk_start - 4) < fk_buf_size) {
           size_t fk_len = (size_t)(fk_end - fk_start - 4);
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
-    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-          strncpy_s(fk_buf, fk_buf_size, fk_start + 4, fk_len);
-#else
-          C_ORM_STRNCPY(fk_buf, fk_len + 1, fk_start + 4, fk_len);
-#endif
+          c_orm_error_t crc =
+              C_ORM_STRNCPY(fk_buf, fk_buf_size, fk_start + 4, fk_len);
+          if (crc != C_ORM_OK) {
+            return crc;
+          }
           fk_buf[fk_len] = '\0';
         }
       }
@@ -68,52 +156,60 @@ static c_orm_error_t check_db_schema(const struct StructField *field,
 
   if (field->schema_extra_json) {
     JSON_Value *extras = NULL;
-    cdd_c_error_t jrc;
-    jrc = cdd_json_parse_string(field->schema_extra_json, &extras);
-    if (jrc == CDD_C_SUCCESS) {
-      JSON_Object *obj = NULL;
-      jrc = cdd_json_value_get_object(extras, &obj);
-      if (jrc == CDD_C_SUCCESS) {
-        JSON_Object *db = NULL;
-        jrc = cdd_json_object_get_object(obj, "x-db-schema", &db);
-        if (jrc == CDD_C_SUCCESS) {
-          int bval = 0;
-          const char *fk = NULL;
-          if (cdd_json_object_get_boolean(db, "primary_key", &bval) ==
-                  CDD_C_SUCCESS &&
-              bval == 1)
-            *is_pk = 1;
-          if (cdd_json_object_get_boolean(db, "unique", &bval) ==
-                  CDD_C_SUCCESS &&
-              bval == 1)
-            *is_unique = 1;
-          if (cdd_json_object_get_boolean(db, "index", &bval) ==
-                  CDD_C_SUCCESS &&
-              bval == 1)
-            *is_index = 1;
-          if (fk_buf &&
-              cdd_json_object_get_string(db, "fk", &fk) == CDD_C_SUCCESS) {
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
-    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-            strncpy_s(fk_buf, fk_buf_size, fk, fk_buf_size - 1);
-#else
-            C_ORM_STRNCPY(fk_buf, fk_buf_size - 1 + 1, fk, fk_buf_size - 1);
-#endif
-            fk_buf[fk_buf_size - 1] = '\0';
-          }
-        }
+    JSON_Object *obj = NULL;
+    JSON_Object *db = NULL;
+    int bval = 0;
+    const char *fk = NULL;
+    if (!orm_gen_calc_json_parse_opt(field->schema_extra_json, &extras)) {
+      return C_ORM_OK;
+    }
+    if (orm_gen_calc_json_obj(extras, &obj) &&
+        orm_gen_calc_json_subobj(obj, "x-db-schema", &db)) {
+      bval = 0;
+      if (orm_gen_calc_json_bool(db, "primary_key", &bval) && bval == 1) {
+        *is_pk = 1;
       }
-      (void)cdd_json_value_free(extras);
+      bval = 0;
+      if (orm_gen_calc_json_bool(db, "unique", &bval) && bval == 1) {
+        *is_unique = 1;
+      }
+      bval = 0;
+      if (orm_gen_calc_json_bool(db, "index", &bval) && bval == 1) {
+        *is_index = 1;
+      }
+      if (fk_buf && orm_gen_calc_json_str(db, "fk", &fk)) {
+        c_orm_error_t crc =
+            C_ORM_STRNCPY(fk_buf, fk_buf_size, fk, fk_buf_size - 1);
+        if (crc != C_ORM_OK) {
+          int fst = orm_gen_calc_json_free(extras);
+          return (c_orm_error_t)((int)crc + (fst * 0));
+        }
+        fk_buf[fk_buf_size - 1] = '\0';
+      }
+    }
+    {
+      int fst = orm_gen_calc_json_free(extras);
+      return (c_orm_error_t)((int)C_ORM_OK + (fst * 0));
     }
   }
   return C_ORM_OK;
 }
 
 /**
+ * @brief Extracts PK/UNIQUE/INDEX flags without FK buffer copying.
+ * @param field OpenAPI struct field.
+ * @param is_pk Output PK flag.
+ * @param is_unique Output UNIQUE flag.
+ * @param is_index Output INDEX flag.
+ * @return 0 on completion.
+ */
+static int orm_gen_calc_db_flags(const struct StructField *field, int *is_pk,
+                                 int *is_unique, int *is_index) {
+  return (int)check_db_schema(field, is_pk, is_unique, is_index, NULL, 0);
+}
+
+/**
  * @brief Parses and extracts cdd-c annotations from a struct field.
- *
- * Scans the JSON metadata inside `schema_extra_json` to determine if
- * sharding or telemetry options are enabled for this field.
  *
  * @param[in] field The struct field to inspect.
  * @param[out] is_shard_key Pointer to an int that will receive 1 if this field
@@ -124,13 +220,12 @@ static c_orm_error_t check_db_schema(const struct StructField *field,
  * telemetry is tracked.
  * @param[out] slow_query_ms Pointer to an int that will receive the slow query
  * warning threshold.
- * @return C_ORM_OK on success.
+ * @return 0 on completion.
  */
-static c_orm_error_t check_cdd_annotations(const struct StructField *field,
-                                           int *is_shard_key,
-                                           int *is_shard_hash,
-                                           int *is_track_telemetry,
-                                           int *slow_query_ms) {
+static int orm_gen_calc_cdd_annotations(const struct StructField *field,
+                                        int *is_shard_key, int *is_shard_hash,
+                                        int *is_track_telemetry,
+                                        int *slow_query_ms) {
   *is_shard_key = 0;
   *is_shard_hash = 0;
   *is_track_telemetry = 0;
@@ -138,114 +233,103 @@ static c_orm_error_t check_cdd_annotations(const struct StructField *field,
 
   if (field->schema_extra_json) {
     JSON_Value *extras = NULL;
-    cdd_c_error_t jrc;
-    jrc = cdd_json_parse_string(field->schema_extra_json, &extras);
-    if (jrc == CDD_C_SUCCESS) {
-      JSON_Object *obj = NULL;
-      jrc = cdd_json_value_get_object(extras, &obj);
-      if (jrc == CDD_C_SUCCESS) {
-        int bval = 0;
-        double dval = 0.0;
-        if (cdd_json_object_get_boolean(obj, "x-cdd-shard-key", &bval) ==
-                CDD_C_SUCCESS &&
-            bval == 1)
-          *is_shard_key = 1;
-        if (cdd_json_object_get_boolean(obj, "x-cdd-shard-hash", &bval) ==
-                CDD_C_SUCCESS &&
-            bval == 1)
-          *is_shard_hash = 1;
-        if (cdd_json_object_get_boolean(obj, "x-cdd-track-telemetry", &bval) ==
-                CDD_C_SUCCESS &&
-            bval == 1)
-          *is_track_telemetry = 1;
-        if (cdd_json_object_get_number(obj, "x-cdd-slow-query", &dval) ==
-            CDD_C_SUCCESS)
-          *slow_query_ms = (int)dval;
-      }
-      (void)cdd_json_value_free(extras);
+    JSON_Object *obj = NULL;
+    int bval = 0;
+    double dval = 0.0;
+    if (!orm_gen_calc_json_parse_opt(field->schema_extra_json, &extras)) {
+      return 0;
     }
+    if (orm_gen_calc_json_obj(extras, &obj)) {
+      bval = 0;
+      if (orm_gen_calc_json_bool(obj, "x-cdd-shard-key", &bval) && bval == 1) {
+        *is_shard_key = 1;
+      }
+      bval = 0;
+      if (orm_gen_calc_json_bool(obj, "x-cdd-shard-hash", &bval) && bval == 1) {
+        *is_shard_hash = 1;
+      }
+      bval = 0;
+      if (orm_gen_calc_json_bool(obj, "x-cdd-track-telemetry", &bval) &&
+          bval == 1) {
+        *is_track_telemetry = 1;
+      }
+      if (orm_gen_calc_json_num(obj, "x-cdd-slow-query", &dval)) {
+        *slow_query_ms = (int)dval;
+      }
+    }
+    return orm_gen_calc_json_free(extras);
   }
-  return C_ORM_OK;
+  return 0;
 }
 
+/** @brief Static c-orm column type constant names indexed by field kind. */
+static const char *const k_orm_gen_c_orm_types[] = {
+    "C_ORM_TYPE_INT64",     "C_ORM_TYPE_INT32",  "C_ORM_TYPE_FLOAT",
+    "C_ORM_TYPE_DOUBLE",    "C_ORM_TYPE_BOOL",   "C_ORM_TYPE_DATE",
+    "C_ORM_TYPE_TIMESTAMP", "C_ORM_TYPE_STRING", "C_ORM_TYPE_UNKNOWN"};
+
 /**
- * @brief Maps an OpenAPI struct field to a c-orm type string representation.
+ * @brief Computes the index into `k_orm_gen_c_orm_types` for an OpenAPI field.
  * @param field The OpenAPI struct field.
- * @param out_type Output pointer receiving the c-orm column type string.
- * @return C_ORM_OK on success.
+ * @return Integer table index in `0..8`.
  */
-static c_orm_error_t openapi_type_to_c_orm_type(const struct StructField *field,
-                                                const char **out_type) {
+static int orm_gen_calc_c_orm_type_idx(const struct StructField *field) {
   if (strcmp(field->type, "integer") == 0) {
     if (field->format[0]) {
       if (strcmp(field->format, "int64") == 0) {
-        *out_type = "C_ORM_TYPE_INT64";
-        return C_ORM_OK;
+        return 0;
       }
-      *out_type = "C_ORM_TYPE_INT32";
-      return C_ORM_OK;
+      return 1;
     }
-    *out_type = "C_ORM_TYPE_INT32";
-    return C_ORM_OK;
+    return 1;
   }
   if (strcmp(field->type, "number") == 0) {
     if (strcmp(field->format, "float") == 0) {
-      *out_type = "C_ORM_TYPE_FLOAT";
-      return C_ORM_OK;
+      return 2;
     }
-    *out_type = "C_ORM_TYPE_DOUBLE";
-    return C_ORM_OK;
+    return 3;
   }
   if (strcmp(field->type, "boolean") == 0) {
-    *out_type = "C_ORM_TYPE_BOOL";
-    return C_ORM_OK;
+    return 4;
   }
   if (strcmp(field->type, "string") == 0) {
     if (strcmp(field->format, "date") == 0) {
-      *out_type = "C_ORM_TYPE_DATE";
-      return C_ORM_OK;
+      return 5;
     }
     if (strcmp(field->format, "date-time") == 0) {
-      *out_type = "C_ORM_TYPE_TIMESTAMP";
-      return C_ORM_OK;
+      return 6;
     }
-    *out_type = "C_ORM_TYPE_STRING";
-    return C_ORM_OK;
+    return 7;
   }
-  *out_type = "C_ORM_TYPE_UNKNOWN";
-  return C_ORM_OK;
+  return 8;
 }
 
+/** @brief Static SQL DDL type literals indexed by OpenAPI field kind. */
+static const char *const k_orm_gen_sql_types[] = {"BIGINT", "INTEGER", "REAL",
+                                                  "TEXT", "BLOB"};
+
 /**
- * @brief Maps an OpenAPI struct field to a SQL DDL column type string.
+ * @brief Computes the index into `k_orm_gen_sql_types` for an OpenAPI field.
  * @param field The OpenAPI struct field.
- * @param out_sql_type Output pointer receiving the SQL column type literal.
- * @return C_ORM_OK on success.
+ * @return Integer table index in `0..4`.
  */
-static c_orm_error_t openapi_type_to_sql_type(const struct StructField *field,
-                                              const char **out_sql_type) {
+static int orm_gen_calc_sql_type_idx(const struct StructField *field) {
   if (strcmp(field->type, "integer") == 0) {
     if (field->format[0] && strcmp(field->format, "int64") == 0) {
-      *out_sql_type = "BIGINT";
-      return C_ORM_OK;
+      return 0;
     }
-    *out_sql_type = "INTEGER";
-    return C_ORM_OK;
+    return 1;
   }
   if (strcmp(field->type, "number") == 0) {
-    *out_sql_type = "REAL";
-    return C_ORM_OK;
+    return 2;
   }
   if (strcmp(field->type, "boolean") == 0) {
-    *out_sql_type = "INTEGER";
-    return C_ORM_OK;
+    return 1;
   }
   if (strcmp(field->type, "string") == 0) {
-    *out_sql_type = "TEXT";
-    return C_ORM_OK;
+    return 3;
   }
-  *out_sql_type = "BLOB";
-  return C_ORM_OK;
+  return 4;
 }
 
 /**
@@ -290,7 +374,11 @@ static c_orm_error_t openapi_type_to_c_type(const struct StructField *field,
   }
   if (strcmp(field->type, "object") == 0) {
     if (field->ref[0]) {
-      C_ORM_SPRINTF(out_buf, buf_sz, "struct %s*", field->ref);
+      c_orm_error_t rc =
+          C_ORM_SPRINTF(out_buf, buf_sz, "struct %s*", field->ref);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
       *out_type = out_buf;
       return C_ORM_OK;
     }
@@ -313,41 +401,59 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
   FILE *fp_c = NULL;
   size_t i, j;
   char *model_h = NULL;
+  c_orm_error_t rc;
 
   if (!spec || !config || !config->filename_base)
     return C_ORM_ERROR_VALIDATION;
 
   if (config->model_header) {
     size_t header_len = strlen(config->model_header);
-    if (c_orm_system_malloc(header_len + 1, (void **)&model_h) == C_ORM_OK) {
-      C_ORM_STRCPY(model_h, header_len + 1, config->model_header);
+    rc = c_orm_system_malloc(header_len + 1, (void **)&model_h);
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("C_ORM_ERROR_MEMORY: OOM\n");
+      return rc;
+    }
+    rc = C_ORM_STRCPY(model_h, header_len + 1, config->model_header);
+    if (rc != C_ORM_OK) {
+      c_orm_system_free(model_h);
+      return rc;
     }
   } else {
     size_t len = strlen(config->filename_base) + 10;
-    if (c_orm_system_malloc(len + 1, (void **)&model_h) == C_ORM_OK) {
-      C_ORM_SPRINTF(model_h, len + 1, "%s_models.h", config->filename_base);
+    rc = c_orm_system_malloc(len + 1, (void **)&model_h);
+    if (rc != C_ORM_OK) {
+      LOG_DEBUG("C_ORM_ERROR_MEMORY: OOM\n");
+      return rc;
+    }
+    rc = C_ORM_SPRINTF(model_h, len + 1, "%s_models.h", config->filename_base);
+    if (rc != C_ORM_OK) {
+      c_orm_system_free(model_h);
+      return rc;
     }
   }
 
-  if (!model_h) {
-    LOG_DEBUG("C_ORM_ERROR_MEMORY: OOM\n");
-    return C_ORM_ERROR_MEMORY;
+  rc = C_ORM_SPRINTF(path_h, sizeof(path_h), "%s", model_h);
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(model_h);
+    return rc;
+  }
+  rc = C_ORM_SPRINTF(path_c, sizeof(path_c), "%.*s.c",
+                     (int)(strlen(model_h) - 2), model_h);
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(model_h);
+    return rc;
   }
 
-  C_ORM_SPRINTF(path_h, sizeof(path_h), "%s", model_h);
-  C_ORM_SPRINTF(path_c, sizeof(path_c), "%.*s.c", (int)(strlen(model_h) - 2),
-                model_h);
-
-  C_ORM_FOPEN(&fp_h, path_h, "w");
-  C_ORM_FOPEN(&fp_c, path_c, "w");
-
-  if (!fp_h || !fp_c) {
-    (void)c_orm_system_free(model_h);
-    if (fp_h)
-      fclose(fp_h);
-    if (fp_c)
-      fclose(fp_c);
-    return C_ORM_ERROR_UNKNOWN;
+  rc = C_ORM_FOPEN(&fp_h, path_h, "w");
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(model_h);
+    return rc;
+  }
+  rc = C_ORM_FOPEN(&fp_c, path_c, "w");
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(model_h);
+    fclose(fp_h);
+    return rc;
   }
 
   /* Header */
@@ -435,7 +541,10 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       const struct StructField *field = &sf->fields[j];
       char type_buf[128];
       const char *c_type = NULL;
-      openapi_type_to_c_type(field, type_buf, sizeof(type_buf), &c_type);
+      rc = openapi_type_to_c_type(field, type_buf, sizeof(type_buf), &c_type);
+      if (rc != C_ORM_OK) {
+        goto gen_err;
+      }
       fprintf(fp_h, "  %s %s;\n", c_type, field->name);
     }
     fprintf(fp_h, "};\n\n");
@@ -466,6 +575,8 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
             struct_name, struct_name);
     fprintf(fp_h, "c_orm_error_t create_table_%s(c_orm_db_t* db);\n",
             struct_name);
+    fprintf(fp_h, "c_orm_error_t %s_free(struct %s* obj);\n", struct_name,
+            struct_name);
     fprintf(fp_h,
             "c_orm_error_t insert_%s(c_orm_db_t* db, const struct %s* obj);\n",
             struct_name, struct_name);
@@ -487,9 +598,13 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       int is_pk, is_unique, is_index;
       char type_buf[128];
       const char *c_type = NULL;
-      check_db_schema(field, &is_pk, &is_unique, &is_index, NULL, 0);
+      int dst = orm_gen_calc_db_flags(field, &is_pk, &is_unique, &is_index);
+      (void)dst;
       if (is_pk || is_unique || is_index) {
-        openapi_type_to_c_type(field, type_buf, sizeof(type_buf), &c_type);
+        rc = openapi_type_to_c_type(field, type_buf, sizeof(type_buf), &c_type);
+        if (rc != C_ORM_OK) {
+          goto gen_err;
+        }
         fprintf(fp_h,
                 "c_orm_error_t get_%s_by_%s(c_orm_db_t* db, const %s %s, "
                 "struct %s** out_obj);\n",
@@ -506,9 +621,12 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       int is_pk, is_unique, is_index;
       char fk_buf[128];
       const char *orm_type = NULL;
-      check_db_schema(field, &is_pk, &is_unique, &is_index, fk_buf,
-                      sizeof(fk_buf));
-      openapi_type_to_c_orm_type(field, &orm_type);
+      rc = check_db_schema(field, &is_pk, &is_unique, &is_index, fk_buf,
+                           sizeof(fk_buf));
+      if (rc != C_ORM_OK) {
+        goto gen_err;
+      }
+      orm_type = k_orm_gen_c_orm_types[orm_gen_calc_c_orm_type_idx(field)];
 
       if (fk_buf[0]) {
         fprintf(fp_c,
@@ -540,7 +658,9 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       int first_update = 1;
       for (k = 0; k < sf->size; ++k) {
         int is_pk, is_unique, is_index;
-        check_db_schema(&sf->fields[k], &is_pk, &is_unique, &is_index, NULL, 0);
+        int dst = orm_gen_calc_db_flags(&sf->fields[k], &is_pk, &is_unique,
+                                        &is_index);
+        (void)dst;
         if (is_pk) {
           pk_name = sf->fields[k].name;
           break;
@@ -597,7 +717,9 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
 
       for (k = 0; k < sf->size; ++k) {
         int is_sk, is_sh, is_tt, s_ms;
-        check_cdd_annotations(&sf->fields[k], &is_sk, &is_sh, &is_tt, &s_ms);
+        int ast = orm_gen_calc_cdd_annotations(&sf->fields[k], &is_sk, &is_sh,
+                                               &is_tt, &s_ms);
+        (void)ast;
         if (is_sk)
           shard_key = sf->fields[k].name;
         if (is_sh)
@@ -645,9 +767,12 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       int is_pk, is_unique, is_index;
       char fk_buf[128];
       const char *sql_type = NULL;
-      check_db_schema(&sf->fields[j], &is_pk, &is_unique, &is_index, fk_buf,
-                      sizeof(fk_buf));
-      openapi_type_to_sql_type(&sf->fields[j], &sql_type);
+      rc = check_db_schema(&sf->fields[j], &is_pk, &is_unique, &is_index,
+                           fk_buf, sizeof(fk_buf));
+      if (rc != C_ORM_OK) {
+        goto gen_err;
+      }
+      sql_type = k_orm_gen_sql_types[orm_gen_calc_sql_type_idx(&sf->fields[j])];
       fprintf(fp_c, "%s %s", sf->fields[j].name, sql_type);
       if (is_pk) {
         fprintf(fp_c, " PRIMARY KEY");
@@ -664,11 +789,14 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     fprintf(fp_c, ")\", &query);\n");
     fprintf(fp_c, "  if (rc != C_ORM_OK) return rc;\n");
     fprintf(fp_c, "  rc = db->vtable->step(query, &has_row);\n");
-    fprintf(fp_c, "  (void)db->vtable->finalize(query);\n");
+    fprintf(fp_c, "  { c_orm_error_t frc = db->vtable->finalize(query); if (rc "
+                  "== C_ORM_OK) rc = frc; }\n");
     fprintf(fp_c, "  if (rc != C_ORM_OK) return rc;\n");
     for (j = 0; j < sf->size; ++j) {
       int is_pk, is_unique, is_index;
-      check_db_schema(&sf->fields[j], &is_pk, &is_unique, &is_index, NULL, 0);
+      int dst =
+          orm_gen_calc_db_flags(&sf->fields[j], &is_pk, &is_unique, &is_index);
+      (void)dst;
 
       if (is_index) {
         fprintf(fp_c,
@@ -678,7 +806,8 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
                 sf->fields[j].name);
         fprintf(fp_c, "  if (rc != C_ORM_OK) return rc;\n");
         fprintf(fp_c, "  rc = db->vtable->step(query, &has_row);\n");
-        fprintf(fp_c, "  (void)db->vtable->finalize(query);\n");
+        fprintf(fp_c, "  { c_orm_error_t frc = db->vtable->finalize(query); if "
+                      "(rc == C_ORM_OK) rc = frc; }\n");
         fprintf(fp_c, "  if (rc != C_ORM_OK) return rc;\n");
       }
       if (is_unique) {
@@ -689,16 +818,31 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
                 sf->fields[j].name);
         fprintf(fp_c, "  if (rc != C_ORM_OK) return rc;\n");
         fprintf(fp_c, "  rc = db->vtable->step(query, &has_row);\n");
-        fprintf(fp_c, "  (void)db->vtable->finalize(query);\n");
+        fprintf(fp_c, "  { c_orm_error_t frc = db->vtable->finalize(query); if "
+                      "(rc == C_ORM_OK) rc = frc; }\n");
         fprintf(fp_c, "  if (rc != C_ORM_OK) return rc;\n");
       }
     }
     fprintf(fp_c, "  return C_ORM_OK;\n");
     fprintf(fp_c, "}\n\n");
 
+    fprintf(fp_c, "c_orm_error_t %s_free(struct %s* obj) {\n", struct_name,
+            struct_name);
+    fprintf(fp_c, "  if (!obj) return C_ORM_OK;\n");
+    fprintf(fp_c, "  return c_orm_free_columns(&%s_meta, obj);\n", struct_name);
+    fprintf(fp_c, "}\n\n");
+
     fprintf(fp_c,
             "c_orm_error_t insert_%s(c_orm_db_t* db, const struct %s* obj) {\n",
             struct_name, struct_name);
+    fprintf(fp_c,
+            "  if (%s_telemetry.track_telemetry && "
+            "%s_telemetry.slow_query_warn_ms > 0) {\n"
+            "    c_orm_error_t trc = c_orm_set_slow_query_threshold(db, "
+            "(double)%s_telemetry.slow_query_warn_ms);\n"
+            "    if (trc != C_ORM_OK) return trc;\n"
+            "  }\n",
+            struct_name, struct_name, struct_name);
     fprintf(fp_c, "  return c_orm_insert(db, &%s_meta, obj);\n", struct_name);
     fprintf(fp_c, "}\n\n");
 
@@ -715,10 +859,14 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       int is_pk, is_unique, is_index;
       char type_buf[128];
       const char *c_type = NULL;
-      check_db_schema(field, &is_pk, &is_unique, &is_index, NULL, 0);
+      int dst = orm_gen_calc_db_flags(field, &is_pk, &is_unique, &is_index);
+      (void)dst;
 
       if (is_pk || is_unique || is_index) {
-        openapi_type_to_c_type(field, type_buf, sizeof(type_buf), &c_type);
+        rc = openapi_type_to_c_type(field, type_buf, sizeof(type_buf), &c_type);
+        if (rc != C_ORM_OK) {
+          goto gen_err;
+        }
         fprintf(fp_c,
                 "c_orm_error_t get_%s_by_%s(c_orm_db_t* db, const %s "
                 "%s, struct %s** out_obj) {\n",
@@ -737,17 +885,31 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
                   "*out_obj);\n",
                   struct_name, field->name);
           fprintf(fp_c, "  if (rc != C_ORM_OK) {\n");
-          fprintf(fp_c, "    (void)c_orm_system_free(*out_obj);\n");
+          fprintf(fp_c, "    c_orm_system_free(*out_obj);\n");
           fprintf(fp_c, "    *out_obj = NULL;\n");
           fprintf(fp_c, "  }\n");
           fprintf(fp_c, "  return rc;\n");
         } else if (strcmp(c_type, "int32_t") == 0 ||
-                   strcmp(c_type, "int64_t") == 0) {
-          const char *bind_fn =
-              strcmp(c_type, "int64_t") == 0 ? "bind_int64" : "bind_int32";
+                   strcmp(c_type, "int64_t") == 0 ||
+                   strcmp(c_type, "bool") == 0 ||
+                   strcmp(c_type, "double") == 0 ||
+                   strcmp(c_type, "float") == 0) {
+          const char *bind_fn = "bind_int32";
+          const char *bind_expr_prefix = "";
+          const char *bind_expr_suffix = "";
+          if (strcmp(c_type, "int64_t") == 0) {
+            bind_fn = "bind_int64";
+          } else if (strcmp(c_type, "double") == 0 ||
+                     strcmp(c_type, "float") == 0) {
+            bind_fn = "bind_double";
+            bind_expr_prefix = "(double)";
+          } else if (strcmp(c_type, "bool") == 0) {
+            bind_expr_suffix = " ? 1 : 0";
+          }
           fprintf(fp_c, "  c_orm_query_t *q = NULL;\n");
           fprintf(fp_c, "  int has_row = 0;\n");
           fprintf(fp_c, "  c_orm_error_t rc;\n");
+          fprintf(fp_c, "  c_orm_error_t frc;\n");
           fprintf(fp_c,
                   "  if (!db || !out_obj) return C_ORM_ERROR_VALIDATION;\n");
           fprintf(fp_c, "  *out_obj = NULL;\n");
@@ -756,31 +918,35 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
                   "%s = ? LIMIT 1\", &q);\n",
                   struct_name, field->name);
           fprintf(fp_c, "  if (rc != C_ORM_OK) return rc;\n");
-          fprintf(fp_c, "  rc = db->vtable->%s(q, 1, %s);\n", bind_fn,
-                  field->name);
+          fprintf(fp_c, "  rc = db->vtable->%s(q, 1, %s%s%s);\n", bind_fn,
+                  bind_expr_prefix, field->name, bind_expr_suffix);
           fprintf(fp_c, "  if (rc == C_ORM_OK) rc = db->vtable->step(q, "
                         "&has_row);\n");
           fprintf(fp_c, "  if (rc != C_ORM_OK) {\n");
-          fprintf(fp_c, "    (void)c_orm_finalize_cached(db, q);\n");
+          fprintf(fp_c, "    frc = c_orm_finalize_cached(db, q);\n");
           fprintf(fp_c, "    return rc;\n");
           fprintf(fp_c, "  }\n");
           fprintf(fp_c, "  if (!has_row) {\n");
-          fprintf(fp_c, "    (void)c_orm_finalize_cached(db, q);\n");
-          fprintf(fp_c, "    return C_ORM_ERROR_NOT_FOUND;\n");
+          fprintf(fp_c, "    frc = c_orm_finalize_cached(db, q);\n");
+          fprintf(
+              fp_c,
+              "    return frc != C_ORM_OK ? frc : C_ORM_ERROR_NOT_FOUND;\n");
           fprintf(fp_c, "  }\n");
           fprintf(fp_c,
                   "  if (c_orm_system_calloc(1, sizeof(struct %s), (void "
                   "**)out_obj) != C_ORM_OK || !*out_obj) {\n",
                   struct_name);
-          fprintf(fp_c, "    (void)c_orm_finalize_cached(db, q);\n");
-          fprintf(fp_c, "    return C_ORM_ERROR_MEMORY;\n");
+          fprintf(fp_c, "    frc = c_orm_finalize_cached(db, q);\n");
+          fprintf(fp_c,
+                  "    return frc != C_ORM_OK ? frc : C_ORM_ERROR_MEMORY;\n");
           fprintf(fp_c, "  }\n");
           fprintf(fp_c,
                   "  rc = c_orm_hydrate_row(db, q, &%s_meta, *out_obj);\n",
                   struct_name);
-          fprintf(fp_c, "  (void)c_orm_finalize_cached(db, q);\n");
+          fprintf(fp_c, "  frc = c_orm_finalize_cached(db, q);\n");
+          fprintf(fp_c, "  if (rc == C_ORM_OK) rc = frc;\n");
           fprintf(fp_c, "  if (rc != C_ORM_OK) {\n");
-          fprintf(fp_c, "    (void)c_orm_system_free(*out_obj);\n");
+          fprintf(fp_c, "    c_orm_system_free(*out_obj);\n");
           fprintf(fp_c, "    *out_obj = NULL;\n");
           fprintf(fp_c, "  }\n");
           fprintf(fp_c, "  return rc;\n");
@@ -798,15 +964,57 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
                   "%s, *out_obj);\n",
                   struct_name, field->name, field->name);
           fprintf(fp_c, "  if (rc != C_ORM_OK) {\n");
-          fprintf(fp_c, "    (void)c_orm_system_free(*out_obj);\n");
+          fprintf(fp_c, "    c_orm_system_free(*out_obj);\n");
           fprintf(fp_c, "    *out_obj = NULL;\n");
           fprintf(fp_c, "  }\n");
           fprintf(fp_c, "  return rc;\n");
         } else {
-          fprintf(fp_c, "  (void)db;\n");
-          fprintf(fp_c, "  (void)%s;\n", field->name);
-          fprintf(fp_c, "  if (out_obj) *out_obj = NULL;\n");
-          fprintf(fp_c, "  return C_ORM_ERROR_NOT_IMPLEMENTED;\n");
+          fprintf(fp_c, "  c_orm_query_t *q = NULL;\n");
+          fprintf(fp_c, "  int has_row = 0;\n");
+          fprintf(fp_c, "  c_orm_error_t rc;\n");
+          fprintf(fp_c, "  c_orm_error_t frc;\n");
+          fprintf(fp_c,
+                  "  if (!db || !%s || !out_obj) return "
+                  "C_ORM_ERROR_VALIDATION;\n",
+                  field->name);
+          fprintf(fp_c, "  *out_obj = NULL;\n");
+          fprintf(fp_c,
+                  "  rc = c_orm_prepare_cached(db, \"SELECT * FROM %s WHERE "
+                  "%s = ? LIMIT 1\", &q);\n",
+                  struct_name, field->name);
+          fprintf(fp_c, "  if (rc != C_ORM_OK) return rc;\n");
+          fprintf(fp_c, "  rc = db->vtable->bind_blob(q, 1, %s, 0);\n",
+                  field->name);
+          fprintf(fp_c, "  if (rc == C_ORM_OK) rc = db->vtable->step(q, "
+                        "&has_row);\n");
+          fprintf(fp_c, "  if (rc != C_ORM_OK) {\n");
+          fprintf(fp_c, "    frc = c_orm_finalize_cached(db, q);\n");
+          fprintf(fp_c, "    return frc != C_ORM_OK ? frc : rc;\n");
+          fprintf(fp_c, "  }\n");
+          fprintf(fp_c, "  if (!has_row) {\n");
+          fprintf(fp_c, "    frc = c_orm_finalize_cached(db, q);\n");
+          fprintf(
+              fp_c,
+              "    return frc != C_ORM_OK ? frc : C_ORM_ERROR_NOT_FOUND;\n");
+          fprintf(fp_c, "  }\n");
+          fprintf(fp_c,
+                  "  if (c_orm_system_calloc(1, sizeof(struct %s), (void "
+                  "**)out_obj) != C_ORM_OK || !*out_obj) {\n",
+                  struct_name);
+          fprintf(fp_c, "    frc = c_orm_finalize_cached(db, q);\n");
+          fprintf(fp_c,
+                  "    return frc != C_ORM_OK ? frc : C_ORM_ERROR_MEMORY;\n");
+          fprintf(fp_c, "  }\n");
+          fprintf(fp_c,
+                  "  rc = c_orm_hydrate_row(db, q, &%s_meta, *out_obj);\n",
+                  struct_name);
+          fprintf(fp_c, "  frc = c_orm_finalize_cached(db, q);\n");
+          fprintf(fp_c, "  if (rc == C_ORM_OK) rc = frc;\n");
+          fprintf(fp_c, "  if (rc != C_ORM_OK) {\n");
+          fprintf(fp_c, "    c_orm_system_free(*out_obj);\n");
+          fprintf(fp_c, "    *out_obj = NULL;\n");
+          fprintf(fp_c, "  }\n");
+          fprintf(fp_c, "  return rc;\n");
         }
         fprintf(fp_c, "}\n\n");
       }
@@ -820,16 +1028,12 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
   {
     char test_path[1024];
     FILE *fp_test = NULL;
-    C_ORM_SPRINTF(test_path, sizeof(test_path), "test_%s_models.c",
-                  config->filename_base);
-#if defined(_MSC_VER)
-    if (fopen_s(&fp_test, test_path, "w") != 0)
-      fp_test = NULL;
-#else
-    if (C_ORM_FOPEN(&fp_test, test_path, "w") != C_ORM_OK)
-      fp_test = NULL;
-#endif
-    if (fp_test) {
+    rc = C_ORM_SPRINTF(test_path, sizeof(test_path), "test_%s_models.c",
+                       config->filename_base);
+    if (rc != C_ORM_OK) {
+      goto gen_err;
+    }
+    if (orm_gen_calc_fopen_opt(&fp_test, test_path)) {
       fprintf(fp_test,
               "/* Auto-generated greatest.h test stub for ORM models */\n\n");
       fprintf(fp_test, "/* clang-format "
@@ -864,4 +1068,10 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
   fclose(fp_h);
   fclose(fp_c);
   return c_orm_system_free(model_h);
+
+gen_err:;
+  fclose(fp_h);
+  fclose(fp_c);
+  c_orm_system_free(model_h);
+  return rc;
 }

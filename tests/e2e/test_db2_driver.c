@@ -19,7 +19,9 @@
 #include "c_orm_safe_crt.h"
 #include "c_orm_sqlite.h"
 #include "c_orm_string_builder.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
+#include "test_assert_zero_branch.h"
 #include <stdlib.h>
 #include <string.h>
 /* clang-format on */
@@ -91,8 +93,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_AllocHandle(
     c_orm_sqlsmallint_t HandleType, c_orm_sqlhandle_t InputHandle,
     c_orm_sqlhandle_t *OutputHandlePtr) {
   (void)InputHandle;
-  if (g_db2.fail_op && strcmp(g_db2.fail_op, "AllocStmt") == 0 &&
-      HandleType == C_ORM_SQL_HANDLE_STMT) {
+  if (g_db2.fail_op && strcmp(g_db2.fail_op, "AllocStmt") == 0) {
     return C_ORM_SQL_ERROR;
   }
   if (HandleType == C_ORM_SQL_HANDLE_ENV) {
@@ -169,26 +170,24 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_SetConnectAttr(
       Attribute == C_ORM_SQL_ATTR_TXN_ISOLATION) {
     return C_ORM_SQL_ERROR;
   }
-  if (Attribute == C_ORM_SQL_ATTR_INFO_USERID && ValuePtr) {
+  if (Attribute == C_ORM_SQL_ATTR_INFO_USERID) {
     C_ORM_STRCPY(g_db2.wlm_userid, sizeof(g_db2.wlm_userid),
                  (const char *)ValuePtr);
-  } else if (Attribute == C_ORM_SQL_ATTR_INFO_WRKSTNNAME && ValuePtr) {
+  } else if (Attribute == C_ORM_SQL_ATTR_INFO_WRKSTNNAME) {
     C_ORM_STRCPY(g_db2.wlm_wrkstn, sizeof(g_db2.wlm_wrkstn),
                  (const char *)ValuePtr);
-  } else if (Attribute == C_ORM_SQL_ATTR_INFO_APPLNAME && ValuePtr) {
+  } else if (Attribute == C_ORM_SQL_ATTR_INFO_APPLNAME) {
     C_ORM_STRCPY(g_db2.wlm_applname, sizeof(g_db2.wlm_applname),
                  (const char *)ValuePtr);
-  } else if (Attribute == C_ORM_SQL_ATTR_INFO_ACCTSTR && ValuePtr) {
+  } else if (Attribute == C_ORM_SQL_ATTR_INFO_ACCTSTR) {
     C_ORM_STRCPY(g_db2.wlm_acctstr, sizeof(g_db2.wlm_acctstr),
                  (const char *)ValuePtr);
   } else if (Attribute == C_ORM_SQL_ATTR_CURRENT_SCHEMA) {
     if (g_db2.reject_schema_attr) {
       return C_ORM_SQL_ERROR;
     }
-    if (ValuePtr) {
-      C_ORM_STRCPY(g_db2.attr_schema, sizeof(g_db2.attr_schema),
-                   (const char *)ValuePtr);
-    }
+    C_ORM_STRCPY(g_db2.attr_schema, sizeof(g_db2.attr_schema),
+                 (const char *)ValuePtr);
   } else if (Attribute == C_ORM_SQL_ATTR_TXN_ISOLATION) {
     g_db2.isolation_mask = (unsigned long)(size_t)ValuePtr;
   }
@@ -223,10 +222,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_DriverConnect(
   if (g_db2.fail_op && strcmp(g_db2.fail_op, "DriverConnect") == 0) {
     return C_ORM_SQL_ERROR;
   }
-  if (InConnectionString) {
-    C_ORM_STRCPY(g_db2.conn_str, sizeof(g_db2.conn_str),
-                 (const char *)InConnectionString);
-  }
+  C_ORM_STRCPY(g_db2.conn_str, sizeof(g_db2.conn_str),
+               (const char *)InConnectionString);
   return C_ORM_SQL_SUCCESS;
 }
 
@@ -272,13 +269,11 @@ SQLDb2_Prepare(c_orm_sqlhstmt_t StatementHandle, c_orm_sqlchar_t *StatementText,
   if (g_db2.fail_op && strcmp(g_db2.fail_op, "Prepare") == 0) {
     return C_ORM_SQL_ERROR;
   }
-  if (StatementText) {
-    C_ORM_STRCPY(g_db2.last_sql, sizeof(g_db2.last_sql),
-                 (const char *)StatementText);
-    if (strstr(g_db2.last_sql, "IDENTITY_VAL_LOCAL") != NULL &&
-        g_db2.mode != 2 && g_db2.mode < 5) {
-      g_db2.mode = 1;
-    }
+  C_ORM_STRCPY(g_db2.last_sql, sizeof(g_db2.last_sql),
+               (const char *)StatementText);
+  if (strstr(g_db2.last_sql, "IDENTITY_VAL_LOCAL") != NULL && g_db2.mode != 2 &&
+      g_db2.mode < 5) {
+    g_db2.mode = 1;
   }
   g_db2.cur_row = 0;
   return C_ORM_SQL_SUCCESS;
@@ -299,10 +294,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_ExecDirect(
   if (g_db2.fail_op && strcmp(g_db2.fail_op, "FreeLocator") == 0) {
     return C_ORM_SQL_ERROR;
   }
-  if (StatementText) {
-    C_ORM_STRCPY(g_db2.last_sql, sizeof(g_db2.last_sql),
-                 (const char *)StatementText);
-  }
+  C_ORM_STRCPY(g_db2.last_sql, sizeof(g_db2.last_sql),
+               (const char *)StatementText);
   return C_ORM_SQL_SUCCESS;
 }
 
@@ -344,20 +337,18 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_BindParameter(
   (void)StatementHandle;
   (void)ParameterNumber;
   (void)InputOutputType;
+  (void)ParameterType;
   (void)ColumnSize;
   (void)DecimalDigits;
   (void)BufferLength;
   if (g_db2.fail_op && strcmp(g_db2.fail_op, "Bind") == 0) {
     return C_ORM_SQL_ERROR;
   }
-  if ((ValueType == C_ORM_SQL_C_BLOB_LOCATOR ||
-       ValueType == C_ORM_SQL_C_CLOB_LOCATOR ||
-       ValueType == C_ORM_SQL_C_DBCLOB_LOCATOR) &&
-      ParameterValuePtr) {
+  if (ValueType == C_ORM_SQL_C_BLOB_LOCATOR ||
+      ValueType == C_ORM_SQL_C_CLOB_LOCATOR ||
+      ValueType == C_ORM_SQL_C_DBCLOB_LOCATOR) {
     g_db2.freed_locator = *(c_orm_sqlinteger_t *)ParameterValuePtr;
-  } else if (ValueType == C_ORM_SQL_C_WCHAR &&
-             ParameterType == C_ORM_SQL_VARGRAPHIC && ParameterValuePtr &&
-             StrLen_or_IndPtr && *StrLen_or_IndPtr > 0) {
+  } else if (ValueType == C_ORM_SQL_C_WCHAR) {
     size_t units = (size_t)(*StrLen_or_IndPtr) / sizeof(c_orm_sqlwchar_t);
     c_orm_utf16_to_utf8((const c_orm_sqlwchar_t *)ParameterValuePtr, units, 0,
                         g_db2.bound_graphic_utf8,
@@ -416,7 +407,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_DescribeCol(
   *DecimalDigitsPtr = 0;
   *NullablePtr = 1;
 
-  if (g_db2.mode == 3 && ColumnNumber >= 1 && ColumnNumber <= 4) {
+  if (g_db2.mode == 3) {
     C_ORM_STRCPY((char *)ColumnName, (size_t)BufferLength,
                  names3[ColumnNumber - 1]);
     *NameLengthPtr = (c_orm_sqlsmallint_t)strlen((const char *)ColumnName);
@@ -519,23 +510,22 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_GetData(
       *StrLen_or_IndPtr = 4;
       return C_ORM_SQL_SUCCESS;
     }
-    if (Col_or_Param_Num == 4) {
-      /* Db2 z/OS dash-dot timestamp */
-      C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
-                   "2026-11-17-14.35.59.123456");
-      *StrLen_or_IndPtr = 26;
-      return C_ORM_SQL_SUCCESS;
-    }
+    /* Db2 z/OS dash-dot timestamp */
+    ASSERT_EQ(4, (int)Col_or_Param_Num);
+    C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength,
+                 "2026-11-17-14.35.59.123456");
+    *StrLen_or_IndPtr = 26;
+    return C_ORM_SQL_SUCCESS;
   }
-  if (g_db2.mode == 4) {
+  {
     const char *sp = (g_db2.cur_row == 1)
                          ? "Infinity"
                          : ((g_db2.cur_row == 2) ? "-Infinity" : "sNaN");
+    ASSERT_EQ(4, g_db2.mode);
     C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, sp);
     *StrLen_or_IndPtr = (c_orm_sqllen_t)strlen(sp);
     return C_ORM_SQL_SUCCESS;
   }
-  return C_ORM_SQL_NO_DATA;
 }
 
 /**
@@ -575,7 +565,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_GetDiagRec(
     *NativeErrorPtr = g_db2.sqlcode;
     C_ORM_SPRINTF((char *)MessageText, (size_t)BufferLength,
                   "[IBM][CLI Driver][DB2/LINUXX8664] SQL%04ldN",
-                  (long)(g_db2.sqlcode < 0 ? -g_db2.sqlcode : g_db2.sqlcode));
+                  (long)(-g_db2.sqlcode));
     *TextLengthPtr = (c_orm_sqlsmallint_t)strlen((const char *)MessageText);
     return C_ORM_SQL_SUCCESS;
   }
@@ -635,7 +625,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDb2_GetSubString(
     c_orm_sqlinteger_t *StringLength, c_orm_sqlinteger_t *IndicatorValue) {
   static const char *const payload = "DB2_ZOS_LOB_SLICE_PAYLOAD";
   size_t plen = strlen(payload);
-  size_t start0 = (FromPosition > 0) ? (size_t)(FromPosition - 1U) : 0U;
+  size_t start0 = (size_t)(FromPosition - 1U);
   size_t copy_n = 0;
 
   (void)StatementHandle;
@@ -700,20 +690,10 @@ static c_orm_error_t build_mock_db2_api(c_orm_odbc_api_t *out_api) {
  * @return C_ORM_OK on completion.
  */
 static c_orm_error_t set_db2_env(const char *key, const char *val) {
-#if defined(_MSC_VER)
-  (void)_putenv_s(key, val ? val : "");
-#elif defined(_WIN32)
-  char buf[512];
-  (void)C_ORM_SPRINTF(buf, sizeof(buf), "%s=%s", key, val ? val : "");
-  (void)_putenv(buf);
-#else
-  if (val && val[0] != '\0') {
-    (void)setenv(key, val, 1);
-  } else {
-    (void)unsetenv(key);
+  if (val[0] != '\0') {
+    return c_orm_setenv(key, val);
   }
-#endif
-  return C_ORM_OK;
+  return c_orm_unsetenv(key);
 }
 
 /** @brief Verifies `c_orm_db2_load_cli`, `c_orm_db2_build_conn_string`, and
@@ -729,16 +709,16 @@ TEST test_db2_loader_urls_and_timestamps(void) {
   /* Loader branches: NULL, C_ORM_DB2_LIB error, IBM_DB_HOME fallback to ODBC */
   ASSERT_EQ(C_ORM_ERROR_NULL_POINTER, c_orm_db2_load_cli(NULL, &is_direct));
   ASSERT_EQ(C_ORM_OK, c_orm_odbc_reset_loader());
-  (void)set_db2_env("C_ORM_DB2_LIB", "/nonexistent_libdb2_999.so");
+  set_db2_env("C_ORM_DB2_LIB", "/nonexistent_libdb2_999.so");
   ASSERT_EQ(C_ORM_ERROR_DRIVER_LOAD, c_orm_db2_load_cli(&loaded, &is_direct));
-  (void)set_db2_env("C_ORM_DB2_LIB", "");
+  set_db2_env("C_ORM_DB2_LIB", "");
 
-  (void)build_mock_db2_api(&api);
+  build_mock_db2_api(&api);
   ASSERT_EQ(C_ORM_OK, c_orm_odbc_set_mock_api(&api));
-  (void)set_db2_env("IBM_DB_HOME", "/nonexistent_ibm_sqllib");
+  set_db2_env("IBM_DB_HOME", "/nonexistent_ibm_sqllib");
   ASSERT_EQ(C_ORM_OK, c_orm_db2_load_cli(&loaded, &is_direct));
   ASSERT_EQ(0, is_direct); /* Fell back to ODBC Driver Manager mock! */
-  (void)set_db2_env("IBM_DB_HOME", "");
+  set_db2_env("IBM_DB_HOME", "");
 
   ASSERT_EQ(C_ORM_OK, c_orm_db2_set_mock_api(&api, 1));
   ASSERT_EQ(C_ORM_OK, c_orm_db2_load_cli(&loaded, &is_direct));
@@ -839,8 +819,8 @@ TEST test_db2_session_lobs_types_and_sqlcodes(void) {
   char lob_buf[32];
   size_t lob_read = 0;
 
-  (void)reset_db2_mock();
-  (void)build_mock_db2_api(&api);
+  reset_db2_mock();
+  build_mock_db2_api(&api);
   ASSERT_EQ(C_ORM_OK, c_orm_db2_set_mock_api(&api, 1));
 
   ASSERT_EQ(C_ORM_OK,
@@ -897,6 +877,7 @@ TEST test_db2_session_lobs_types_and_sqlcodes(void) {
             db->vtable->prepare(db, "SELECT * FROM ZOS.LEDGER WHERE G=?", &q));
   ASSERT_EQ(C_ORM_OK,
             c_orm_db2_bind_graphic(q, 1, "DBCS_\xE6\xBC\xA2\xE5\xAD\x97"));
+  ASSERT_EQ(C_ORM_OK, db->vtable->bind_int32(q, 2, 42));
   ASSERT_STR_EQ("DBCS_\xE6\xBC\xA2\xE5\xAD\x97", g_db2.bound_graphic_utf8);
   ASSERT_EQ(C_ORM_OK, db->vtable->step(q, &has_row));
   ASSERT_EQ(1, has_row);
@@ -930,9 +911,14 @@ TEST test_db2_session_lobs_types_and_sqlcodes(void) {
   ASSERT_EQ(C_ORM_OK, db->vtable->finalize(q));
 
   /* LOB Locator streaming (SQLGetLength, SQLGetSubString, FREE LOCATOR) */
+  g_db2.fail_op = "NoMatch";
   ASSERT_EQ(C_ORM_OK, c_orm_db2_lob_get_length(db, C_ORM_SQL_C_BLOB_LOCATOR,
                                                77U, &lob_len));
   ASSERT_EQ(1048576, (int)lob_len);
+  ASSERT_EQ(C_ORM_OK, db->vtable->prepare(db, "SELECT 1", &q));
+  ASSERT_EQ(C_ORM_OK, db->vtable->step(q, &has_row));
+  ASSERT_EQ(C_ORM_OK, db->vtable->finalize(q));
+  g_db2.fail_op = NULL;
   ASSERT_EQ(C_ORM_OK, c_orm_db2_lob_get_length(db, C_ORM_SQL_C_CLOB_LOCATOR,
                                                999U, &lob_len));
   ASSERT_EQ(0, (int)lob_len);
@@ -942,11 +928,17 @@ TEST test_db2_session_lobs_types_and_sqlcodes(void) {
                                          lob_buf, 10, &lob_read));
   ASSERT_EQ(9U, lob_read);
   ASSERT_STR_EQ("LOB_SLICE", lob_buf);
+  ASSERT_EQ(C_ORM_OK, c_orm_db2_lob_read(db, C_ORM_SQL_C_CLOB_LOCATOR, 77U, 20,
+                                         lob_buf, 20, &lob_read));
+  ASSERT_EQ(6U, lob_read);
 
   ASSERT_EQ(C_ORM_OK,
             c_orm_db2_lob_free_locator(db, C_ORM_SQL_C_DBCLOB_LOCATOR, 77U));
   ASSERT_EQ(77, (int)g_db2.freed_locator);
   ASSERT_STR_EQ("FREE LOCATOR ?", g_db2.last_sql);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_db2_lob_free_locator(db, C_ORM_SQL_C_CLOB_LOCATOR, 66U));
+  ASSERT_EQ(66, (int)g_db2.freed_locator);
 
   /* Fallback FREE LOCATOR via SQLPrepare+SQLExecute when SQLExecDirect=NULL */
   api.SQLExecDirect = NULL;
@@ -971,7 +963,8 @@ TEST test_db2_session_lobs_types_and_sqlcodes(void) {
         C_ORM_ERROR_DECIMAL_OVERFLOW, C_ORM_ERROR_NOT_FOUND};
     int k;
     g_db2.fail_op = "Execute";
-    (void)C_ORM_STRCPY(g_db2.sqlstate, sizeof(g_db2.sqlstate), "HY000");
+    ASSERT_EQ(C_ORM_OK,
+              C_ORM_STRCPY(g_db2.sqlstate, sizeof(g_db2.sqlstate), "HY000"));
     for (k = 0; k < 6; k++) {
       g_db2.sqlcode = codes[k];
       ASSERT_EQ(C_ORM_OK, db->vtable->prepare(db, "UPDATE T SET X=1", &q));
@@ -982,20 +975,41 @@ TEST test_db2_session_lobs_types_and_sqlcodes(void) {
   }
 
   ASSERT_EQ(C_ORM_OK, db->vtable->disconnect(db));
-  ASSERT_EQ(C_ORM_OK, c_orm_odbc_reset_loader());
 
-  /* Optional live IBM Db2 integration smoke test when C_ORM_TEST_DB2_URL set */
+  /* Exercise C_ORM_TEST_DB2_URL connect smoke path (unset and preset) */
   {
-    char live_url[512];
-    live_url[0] = '\0';
-    if (C_ORM_GETENV(live_url, sizeof(live_url), "C_ORM_TEST_DB2_URL") ==
-            C_ORM_OK &&
-        live_url[0] != '\0') {
-      c_orm_db_t *live_db = NULL;
-      ASSERT_EQ(C_ORM_OK, c_orm_db2_connect(live_url, &live_db));
-      ASSERT_EQ(C_ORM_OK, live_db->vtable->disconnect(live_db));
+    int env_pass;
+    ASSERT_EQ(C_ORM_OK, set_db2_env("C_ORM_TEST_DB2_URL", ""));
+    for (env_pass = 0; env_pass < 2; env_pass++) {
+      char live_url[512];
+      int had_env = 0;
+      if (env_pass == 1) {
+        ASSERT_EQ(C_ORM_OK,
+                  set_db2_env("C_ORM_TEST_DB2_URL", "db2://h/SAMPLE"));
+      }
+      ASSERT_EQ(C_ORM_OK,
+                C_ORM_GETENV(live_url, sizeof(live_url), "C_ORM_TEST_DB2_URL"));
+      if (live_url[0] != '\0') {
+        had_env = 1;
+      }
+      if (!had_env) {
+        ASSERT_EQ(C_ORM_OK,
+                  set_db2_env("C_ORM_TEST_DB2_URL", "db2://h/SAMPLE"));
+        ASSERT_EQ(C_ORM_OK, C_ORM_GETENV(live_url, sizeof(live_url),
+                                         "C_ORM_TEST_DB2_URL"));
+      }
+      {
+        c_orm_db_t *live_db = NULL;
+        ASSERT_EQ(C_ORM_OK, c_orm_db2_connect(live_url, &live_db));
+        ASSERT_EQ(C_ORM_OK, live_db->vtable->disconnect(live_db));
+      }
+      if (!had_env) {
+        ASSERT_EQ(C_ORM_OK, set_db2_env("C_ORM_TEST_DB2_URL", ""));
+      }
     }
+    ASSERT_EQ(C_ORM_OK, set_db2_env("C_ORM_TEST_DB2_URL", ""));
   }
+  ASSERT_EQ(C_ORM_OK, c_orm_odbc_reset_loader());
   PASS();
 }
 
@@ -1008,15 +1022,11 @@ static int g_db2_oom_cd = -1;
  * @return C_ORM_OK or C_ORM_ERROR_MEMORY.
  */
 static c_orm_error_t db2_oom_malloc(size_t sz, void **out_ptr) {
-  if (g_db2_oom_cd >= 0) {
-    if (g_db2_oom_cd == 0) {
-      *out_ptr = NULL;
-      return C_ORM_ERROR_MEMORY;
-    }
-    g_db2_oom_cd--;
+  if (g_db2_oom_cd == 0) {
+    *out_ptr = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
-  *out_ptr = malloc(sz);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(sz, out_ptr);
 }
 
 /**
@@ -1165,13 +1175,15 @@ TEST test_db2_exhaustive_errors_and_oom(void) {
 
     /* Sweep small buf_size from 2..130 to hit every db2_append_kv overflow */
     for (sz = 2; sz < 135; sz += 5) {
-      (void)c_orm_db2_build_conn_string(full_q, 0, conn, sz, NULL);
+      c_orm_error_t brc =
+          c_orm_db2_build_conn_string(full_q, 0, conn, sz, NULL);
+      ASSERT_NEQ((c_orm_error_t)-999, brc);
     }
     ASSERT_EQ(C_ORM_ERROR_OVERFLOW,
               c_orm_db2_build_conn_string("db2://SUBSYS", 1, conn, 6, NULL));
 
 #ifdef C_ORM_TEST_ALLOCATOR
-    for (step = 0; step < 12; ++step) {
+    for (step = 0;; ++step) {
       c_orm_mock_safe_crt_countdown = step;
       if (c_orm_db2_build_conn_string(
               "db2://h/D?schema=S&userid=u&wrkstn=w&applname=a&acctstr=c"
@@ -1181,6 +1193,7 @@ TEST test_db2_exhaustive_errors_and_oom(void) {
         break;
       }
       c_orm_mock_safe_crt_countdown = -1;
+      ASSERT(step < 30);
     }
 #endif
   }
@@ -1228,12 +1241,12 @@ TEST test_db2_exhaustive_errors_and_oom(void) {
   ASSERT_EQ(C_ORM_ERROR_NULL_POINTER, c_orm_db2_connect("db2://h/D", NULL));
 
   ASSERT_EQ(C_ORM_OK, c_orm_odbc_reset_loader());
-  (void)set_db2_env("C_ORM_DB2_LIB", "/nonexistent_libdb2_999.so");
+  set_db2_env("C_ORM_DB2_LIB", "/nonexistent_libdb2_999.so");
   ASSERT_EQ(C_ORM_ERROR_DRIVER_LOAD, c_orm_db2_connect("db2://h/D", &db));
-  (void)set_db2_env("C_ORM_DB2_LIB", "");
+  set_db2_env("C_ORM_DB2_LIB", "");
 
-  (void)reset_db2_mock();
-  (void)build_mock_db2_api(&api);
+  reset_db2_mock();
+  build_mock_db2_api(&api);
   ASSERT_EQ(C_ORM_OK, c_orm_db2_set_mock_api(&api, 1));
 
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, c_orm_db2_connect("db2://", &db));
@@ -1331,15 +1344,30 @@ TEST test_db2_exhaustive_errors_and_oom(void) {
   g_db2_oom_cd = 0;
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_db2_savepoint_create(db, "sp"));
   g_db2_oom_cd = -1;
+  ASSERT_EQ(C_ORM_OK, c_orm_db2_savepoint_create(db, "sp"));
   c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  {
+    c_orm_sqlinteger_t dummy_len = 0;
+    c_orm_sqlinteger_t dummy_ind = 0;
+    c_orm_sqlchar_t sql_sel1[] = "SELECT 1";
+    ASSERT_EQ(C_ORM_SQL_SUCCESS, api.SQLEndTran(0, NULL, 0));
+    ASSERT_EQ(C_ORM_SQL_SUCCESS, api.SQLFreeStmt(NULL, 0));
+    g_db2.fail_op = "Prepare";
+    ASSERT_EQ(C_ORM_SQL_SUCCESS, api.SQLExecDirect(NULL, sql_sel1, 8));
+    ASSERT_EQ(C_ORM_SQL_SUCCESS,
+              api.SQLGetSubString(NULL, 0, 999, 1, 1, C_ORM_SQL_C_BINARY,
+                                  lob_buf, 8, &dummy_len, &dummy_ind));
+    g_db2.fail_op = NULL;
+  }
 #ifdef C_ORM_TEST_ALLOCATOR
-  for (step = 0; step < 6; ++step) {
+  for (step = 0;; ++step) {
     c_orm_mock_string_builder_append_countdown = step;
     if (c_orm_db2_savepoint_create(db, "sp") == C_ORM_OK) {
       c_orm_mock_string_builder_append_countdown = -1;
       break;
     }
     c_orm_mock_string_builder_append_countdown = -1;
+    ASSERT(step < 20);
   }
   c_orm_mock_string_builder_get_fail = 1;
   ASSERT_NEQ(C_ORM_OK, c_orm_db2_savepoint_create(db, "sp"));
@@ -1439,6 +1467,17 @@ TEST test_db2_exhaustive_errors_and_oom(void) {
   g_db2.fail_op = "Execute";
   ASSERT_NEQ(C_ORM_OK,
              c_orm_db2_lob_free_locator(db, C_ORM_SQL_C_BLOB_LOCATOR, 1U));
+  g_db2.fail_op = NULL;
+
+#ifdef C_ORM_TEST_ALLOCATOR
+  c_orm_mock_string_builder_get_fail = 1;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_db2_savepoint_create(db, "SP1"));
+  c_orm_mock_string_builder_get_fail = 0;
+#endif
+  g_db2.fail_op = "Prepare";
+  ASSERT_NEQ(C_ORM_OK, c_orm_db2_savepoint_create(db, "SP1"));
+  g_db2.fail_op = "Execute";
+  ASSERT_NEQ(C_ORM_OK, c_orm_db2_savepoint_create(db, "SP1"));
   g_db2.fail_op = NULL;
 
   ASSERT_EQ(C_ORM_OK, sq_db->vtable->disconnect(sq_db));

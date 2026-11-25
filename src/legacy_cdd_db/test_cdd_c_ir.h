@@ -19,6 +19,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "test_assert_zero_branch.h"
 
 #include "test_cdd_c_ir_oom.h"
 /* clang-format on */
@@ -114,11 +115,13 @@ TEST test_cdd_c_ir_projection(void) {
   cdd_c_ir_t ir;
   cdd_c_query_projection_t proj;
   c_orm_error_t rc;
+  char src_tbl[] = "test";
+  char tgt_name[] = "test_map";
 
   rc = cdd_c_query_projection_init(&proj);
   ASSERT_EQ(C_ORM_OK, rc);
-  proj.source_table = "test";
-  proj.mapping_meta.target_name = "test_map";
+  proj.source_table = src_tbl;
+  proj.mapping_meta.target_name = tgt_name;
 
   rc = cdd_c_ir_init(&ir);
   ASSERT_EQ(C_ORM_OK, rc);
@@ -191,20 +194,12 @@ TEST test_cdd_c_ir_parse_sql_failure(void) {
  * @param cdd_c_ir_suite Suite runner function name.
  */
 SUITE(cdd_c_ir_suite) {
-  static int recursed = 0;
   RUN_TEST(test_cdd_c_ir_basic);
   RUN_TEST(test_cdd_c_ir_parse_sql);
   RUN_TEST(test_cdd_c_ir_projection);
   RUN_TEST(test_cdd_c_ir_alloc);
   RUN_TEST(test_cdd_c_ir_parse_sql_failure);
   RUN_TEST(test_cdd_c_ir_oom);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    cdd_c_ir_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }
 
 #ifdef __cplusplus

@@ -7,12 +7,38 @@
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_memory.h"
+#include "c_orm_api.h"
 #include "c_orm_log.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32) || defined(_WIN64)
+typedef union _MEM_LARGE_INTEGER {
+  struct {
+    unsigned long LowPart;
+    long HighPart;
+  } u;
+#if defined(_MSC_VER)
+  __int64 QuadPart;
+#else
+  c_orm_int64_t QuadPart;
+#endif
+} MEM_LARGE_INTEGER;
+__declspec(dllimport) int __stdcall QueryPerformanceCounter(
+    MEM_LARGE_INTEGER *lpPerformanceCount);
+__declspec(dllimport) int __stdcall QueryPerformanceFrequency(
+    MEM_LARGE_INTEGER *lpFrequency);
+#else
+#include <sys/time.h>
+#endif
 /* clang-format on */
+
+#ifdef C_ORM_TEST_ALLOCATOR
+/** @brief Optional simulated step duration in ms for slow-query telemetry
+ * tests. */
+C_ORM_EXPORT double c_orm_mock_mem_step_elapsed_ms = -1.0;
+#endif
 
 /** @brief Maximum columns tracked per in-memory table. */
 #define MEM_MAX_COLS 32
@@ -167,8 +193,11 @@ typedef struct mem_table {
  * @var in_tx Non-zero while an explicit transaction is active.
  * @var last_rowid Last inserted integer primary key / rowid.
  * @var last_error Buffer storing last error message string.
+ * @var last_trace Buffer storing last diagnostic trace string.
  */
 typedef struct {
+  /** @brief Back-pointer to owning public database handle. */
+  c_orm_db_t *owner_db;
   /** @brief Linked list head of active database tables. */
   mem_table_t *tables;
   /** @brief Deep-copied table list saved at `BEGIN` for `ROLLBACK`. */
@@ -179,6 +208,8 @@ typedef struct {
   int64_t last_rowid;
   /** @brief Buffer storing last error message string. */
   char last_error[256];
+  /** @brief Buffer storing last diagnostic trace string. */
+  char last_trace[320];
 } c_orm_memory_db_t;
 
 /**
@@ -241,7 +272,7 @@ typedef struct {
  * @param cell Cell pointer to free.
  * @return C_ORM_OK on success.
  */
-static c_orm_error_t free_mem_cell(mem_cell_t *cell) {
+static c_orm_error_t mem_cell_free(mem_cell_t *cell) {
   c_orm_error_t rc = C_ORM_OK;
   c_orm_error_t frc;
   if (!cell) {
@@ -268,12 +299,14 @@ static c_orm_error_t free_mem_cell(mem_cell_t *cell) {
 static c_orm_error_t clone_mem_cell(const mem_cell_t *src,
                                     mem_cell_t **out_clone) {
   mem_cell_t *dst = NULL;
+  c_orm_error_t rc;
   *out_clone = NULL;
   if (!src) {
     return C_ORM_OK;
   }
-  if (c_orm_system_calloc(1, sizeof(mem_cell_t), (void **)&dst) != C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+  rc = c_orm_system_calloc(1, sizeof(mem_cell_t), (void **)&dst);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
   dst->type = src->type;
   dst->i32 = src->i32;
@@ -281,14 +314,16 @@ static c_orm_error_t clone_mem_cell(const mem_cell_t *src,
   dst->d = src->d;
   dst->dec = src->dec;
   if ((src->type == MEM_VAL_STRING || src->type == MEM_VAL_DECIMAL) && src->s) {
-    if (C_ORM_STRDUP(src->s, &dst->s) != C_ORM_OK) {
-      (void)c_orm_system_free(dst);
-      return C_ORM_ERROR_MEMORY;
+    rc = C_ORM_STRDUP(src->s, &dst->s);
+    if (rc != C_ORM_OK) {
+      c_orm_system_free(dst);
+      return rc;
     }
   } else if (src->type == MEM_VAL_BLOB && src->blob_size > 0) {
-    if (c_orm_system_malloc(src->blob_size, &dst->blob) != C_ORM_OK) {
-      (void)c_orm_system_free(dst);
-      return C_ORM_ERROR_MEMORY;
+    rc = c_orm_system_malloc(src->blob_size, &dst->blob);
+    if (rc != C_ORM_OK) {
+      c_orm_system_free(dst);
+      return rc;
     }
     memcpy(dst->blob, src->blob, src->blob_size);
     dst->blob_size = src->blob_size;
@@ -302,7 +337,7 @@ static c_orm_error_t clone_mem_cell(const mem_cell_t *src,
  * @param head First table in list.
  * @return C_ORM_OK on success.
  */
-static c_orm_error_t free_table_list(mem_table_t *head) {
+static c_orm_error_t mem_table_list_free(mem_table_t *head) {
   c_orm_error_t rc = C_ORM_OK;
   c_orm_error_t frc;
   mem_table_t *t = head;
@@ -313,7 +348,7 @@ static c_orm_error_t free_table_list(mem_table_t *head) {
       mem_row_t *nr = r->next;
       size_t col_i;
       for (col_i = 0; col_i < r->num_cols; col_i++) {
-        frc = free_mem_cell((mem_cell_t *)r->columns[col_i]);
+        frc = mem_cell_free((mem_cell_t *)r->columns[col_i]);
         if (frc != C_ORM_OK && rc == C_ORM_OK)
           rc = frc;
       }
@@ -348,6 +383,7 @@ static c_orm_error_t clone_table_list(const mem_table_t *src,
   mem_table_t *head = NULL;
   mem_table_t **tail = &head;
   const mem_table_t *t;
+  c_orm_error_t rc;
 
   *out_head = NULL;
 
@@ -356,14 +392,16 @@ static c_orm_error_t clone_table_list(const mem_table_t *src,
     mem_row_t **rtail;
     const mem_row_t *r;
 
-    if (c_orm_system_calloc(1, sizeof(mem_table_t), (void **)&nt) != C_ORM_OK) {
-      free_table_list(head);
-      return C_ORM_ERROR_MEMORY;
+    rc = c_orm_system_calloc(1, sizeof(mem_table_t), (void **)&nt);
+    if (rc != C_ORM_OK) {
+      mem_table_list_free(head);
+      return rc;
     }
-    if (C_ORM_STRDUP(t->name, &nt->name) != C_ORM_OK) {
-      (void)c_orm_system_free(nt);
-      free_table_list(head);
-      return C_ORM_ERROR_MEMORY;
+    rc = C_ORM_STRDUP(t->name, &nt->name);
+    if (rc != C_ORM_OK) {
+      c_orm_system_free(nt);
+      mem_table_list_free(head);
+      return rc;
     }
     memcpy(nt->col_names, t->col_names, sizeof(t->col_names));
     nt->num_col_names = t->num_col_names;
@@ -372,28 +410,31 @@ static c_orm_error_t clone_table_list(const mem_table_t *src,
     for (r = t->head; r != NULL; r = r->next) {
       mem_row_t *nr = NULL;
       size_t ci;
-      if (c_orm_system_calloc(1, sizeof(mem_row_t), (void **)&nr) != C_ORM_OK) {
-        free_table_list(nt);
-        free_table_list(head);
-        return C_ORM_ERROR_MEMORY;
+      rc = c_orm_system_calloc(1, sizeof(mem_row_t), (void **)&nr);
+      if (rc != C_ORM_OK) {
+        mem_table_list_free(nt);
+        mem_table_list_free(head);
+        return rc;
       }
       nr->num_cols = r->num_cols;
       if (r->num_cols > 0) {
-        if (c_orm_system_calloc(r->num_cols, sizeof(void *),
-                                (void **)&nr->columns) != C_ORM_OK) {
-          (void)c_orm_system_free(nr);
-          free_table_list(nt);
-          free_table_list(head);
-          return C_ORM_ERROR_MEMORY;
+        rc = c_orm_system_calloc(r->num_cols, sizeof(void *),
+                                 (void **)&nr->columns);
+        if (rc != C_ORM_OK) {
+          c_orm_system_free(nr);
+          mem_table_list_free(nt);
+          mem_table_list_free(head);
+          return rc;
         }
         for (ci = 0; ci < r->num_cols; ci++) {
-          if (clone_mem_cell((const mem_cell_t *)r->columns[ci],
-                             (mem_cell_t **)&nr->columns[ci]) != C_ORM_OK) {
+          rc = clone_mem_cell((const mem_cell_t *)r->columns[ci],
+                              (mem_cell_t **)&nr->columns[ci]);
+          if (rc != C_ORM_OK) {
             nr->num_cols = ci;
             *rtail = nr;
-            free_table_list(nt);
-            free_table_list(head);
-            return C_ORM_ERROR_MEMORY;
+            mem_table_list_free(nt);
+            mem_table_list_free(head);
+            return rc;
           }
         }
       }
@@ -441,14 +482,14 @@ static c_orm_error_t istarts_with(const char *s, const char *prefix, size_t n) {
   } while (0)
 
 /**
- * @brief Case-insensitive keyword search outside single-quoted SQL literals.
- * @param sql SQL string to scan.
- * @param kw Keyword to find (must be surrounded by whitespace or boundaries).
- * @param out_pos Output pointer receiving match position or NULL.
- * @return C_ORM_OK if found, or C_ORM_ERROR_NOT_FOUND otherwise.
+ * @brief Finds a standalone SQL keyword outside single-quoted string literals.
+ * @param sql Input SQL string.
+ * @param kw Uppercase ASCII keyword to search for.
+ * @param out_pos Output pointer receiving the start of the keyword, or NULL.
+ * @return 1 if found, or 0 otherwise.
  */
-static c_orm_error_t find_sql_keyword(const char *sql, const char *kw,
-                                      const char **out_pos) {
+static int mem_calc_find_sql_keyword(const char *sql, const char *kw,
+                                     const char **out_pos) {
   const char *p = sql;
   size_t kw_len = strlen(kw);
   int in_quote = 0;
@@ -466,12 +507,12 @@ static c_orm_error_t find_sql_keyword(const char *sql, const char *kw,
                      p[kw_len] == '(' || p[kw_len] == ';';
       if (left_ok && right_ok) {
         *out_pos = p;
-        return C_ORM_OK;
+        return 1;
       }
     }
     p++;
   }
-  return C_ORM_ERROR_NOT_FOUND;
+  return 0;
 }
 
 /**
@@ -481,11 +522,10 @@ static c_orm_error_t find_sql_keyword(const char *sql, const char *kw,
  * @param out Destination buffer.
  * @param out_sz Destination buffer capacity.
  * @param out_next Output cursor following identifier.
- * @return C_ORM_OK if a non-empty identifier was read, C_ORM_ERROR_NOT_FOUND
- * otherwise.
+ * @return 1 if a non-empty identifier was read, 0 otherwise.
  */
-static c_orm_error_t read_ident(const char *p, char *out, size_t out_sz,
-                                const char **out_next) {
+static int mem_calc_parse_sql_ident(const char *p, char *out, size_t out_sz,
+                                    const char **out_next) {
   size_t idx = 0;
   char quote = 0;
   MEM_SKIP_WS(p);
@@ -514,7 +554,49 @@ static c_orm_error_t read_ident(const char *p, char *out, size_t out_sz,
   }
   out[idx] = '\0';
   *out_next = p;
-  return (idx > 0) ? C_ORM_OK : C_ORM_ERROR_NOT_FOUND;
+  return (idx > 0) ? 1 : 0;
+}
+
+/**
+ * @brief Parses an optional-sign base-10 integer prefix from `s`.
+ * @param s Input character cursor.
+ * @param out_end Output pointer receiving the first unconsumed character.
+ * @param out_val Output signed 64-bit integer value.
+ * @return 1 if at least one digit was parsed without overflow, or 0 otherwise.
+ */
+static int mem_calc_parse_int64(const char *s, const char **out_end,
+                                int64_t *out_val) {
+  const char *p = s;
+  uint64_t acc = 0;
+  uint64_t lim;
+  int neg = 0;
+  int any = 0;
+
+  if (*p == '-' || *p == '+') {
+    neg = (*p == '-');
+    p++;
+  }
+  lim = neg ? (((uint64_t)1 << 63)) : (((uint64_t)1 << 63) - 1U);
+  while (isdigit((unsigned char)*p)) {
+    uint64_t d = (uint64_t)(unsigned char)(*p - '0');
+    any = 1;
+    if (acc > (lim - d) / 10U) {
+      *out_end = p;
+      return 0;
+    }
+    acc = acc * 10U + d;
+    p++;
+  }
+  *out_end = p;
+  if (!any) {
+    return 0;
+  }
+  if (neg && acc > 0U) {
+    *out_val = -(int64_t)(acc - 1U) - 1;
+  } else {
+    *out_val = (int64_t)acc;
+  }
+  return 1;
 }
 
 /**
@@ -608,9 +690,9 @@ static c_orm_error_t parse_rhs_value(const char *p, size_t *io_param_seq,
       *out_d = strtod(tok, NULL);
     } else {
       int64_t iv = 0;
-      const char *ep = NULL;
-      if (ti > 0 && c_orm_strtoint64(tok, &ep, 10, &iv) == C_ORM_OK &&
-          *ep == '\0') {
+      const char *ep = tok;
+      int iok = (ti > 0) ? mem_calc_parse_int64(tok, &ep, &iv) : 0;
+      if (iok && *ep == '\0') {
         *out_lit_type = MEM_VAL_INT64;
         *out_i64 = iv;
       } else {
@@ -651,7 +733,7 @@ static c_orm_error_t parse_where_clause(const char *where_start,
     }
     c = &q->conds[q->num_conds];
     memset(c, 0, sizeof(*c));
-    if (read_ident(p, c->col_name, sizeof(c->col_name), &p) != C_ORM_OK) {
+    if (!mem_calc_parse_sql_ident(p, c->col_name, sizeof(c->col_name), &p)) {
       break;
     }
     MEM_SKIP_WS(p);
@@ -713,89 +795,170 @@ static c_orm_error_t parse_where_clause(const char *where_start,
  * @param t Table structure.
  * @param col_name Column name to look up.
  * @param out_idx Output 0-based index.
- * @return C_ORM_OK if resolved, C_ORM_ERROR_NOT_FOUND otherwise.
+ * @return 1 if resolved, 0 otherwise.
  */
-static c_orm_error_t resolve_col_index(const mem_table_t *t,
-                                       const char *col_name, size_t *out_idx) {
+static int mem_calc_resolve_col_index(const mem_table_t *t,
+                                      const char *col_name, size_t *out_idx) {
   size_t i;
   for (i = 0; i < t->num_col_names; ++i) {
     if (strcmp(t->col_names[i], col_name) == 0) {
       *out_idx = i;
-      return C_ORM_OK;
+      return 1;
     }
   }
   if (strcmp(col_name, "id") == 0) {
     *out_idx = 0;
-    return C_ORM_OK;
+    return 1;
   }
-  return C_ORM_ERROR_NOT_FOUND;
+  return 0;
 }
 
 /**
- * @brief Converts a cell to `c_orm_decimal_t` for numeric comparison.
+ * @brief Populates `out_dec` from an unsigned 64-bit magnitude, sign, and
+ * scale.
+ * @param mag Unsigned base-10 magnitude.
+ * @param sign 1 for negative, 0 for non-negative.
+ * @param scale Fractional digit count.
+ * @param out_dec Output decimal structure.
+ * @return Always 1.
+ */
+static int mem_calc_u64_to_decimal(uint64_t mag, unsigned char sign,
+                                   unsigned char scale,
+                                   c_orm_decimal_t *out_dec) {
+  unsigned char p = 0;
+  memset(out_dec, 0, sizeof(*out_dec));
+  out_dec->scale = scale;
+  while (mag > 0U) {
+    out_dec->digits[p++] = (unsigned char)(mag % 10U);
+    mag /= 10U;
+  }
+  out_dec->sign = (p > 0U) ? sign : 0U;
+  out_dec->precision = (p <= scale) ? (unsigned char)(scale + 1U) : p;
+  return 1;
+}
+
+/**
+ * @brief Converts a cell to `c_orm_decimal_t` for numeric ordering.
  * @param cell Cell to convert.
  * @param out_dec Output decimal.
- * @return C_ORM_OK if convertible, or C_ORM_ERROR_TYPE_MISMATCH otherwise.
+ * @return 1 if convertible, or 0 otherwise.
  */
-static c_orm_error_t cell_to_decimal(const mem_cell_t *cell,
-                                     c_orm_decimal_t *out_dec) {
+static int mem_calc_cell_to_decimal(const mem_cell_t *cell,
+                                    c_orm_decimal_t *out_dec) {
   if (cell->type == MEM_VAL_DECIMAL) {
     *out_dec = cell->dec;
-    return C_ORM_OK;
+    return 1;
   }
-  if (cell->type == MEM_VAL_INT32) {
-    return c_orm_decimal_from_int64((c_orm_int64_t)cell->i32, out_dec);
-  }
-  if (cell->type == MEM_VAL_INT64) {
-    return c_orm_decimal_from_int64((c_orm_int64_t)cell->i64, out_dec);
+  if (cell->type == MEM_VAL_INT32 || cell->type == MEM_VAL_INT64) {
+    int64_t v = (cell->type == MEM_VAL_INT32) ? (int64_t)cell->i32 : cell->i64;
+    unsigned char neg = (v < 0) ? 1U : 0U;
+    uint64_t mag = neg ? ((uint64_t)(-(v + 1)) + 1U) : (uint64_t)v;
+    return mem_calc_u64_to_decimal(mag, neg, 0U, out_dec);
   }
   if (cell->type == MEM_VAL_STRING && cell->s) {
-    return c_orm_decimal_from_str(cell->s, out_dec);
+    const char *p = cell->s;
+    unsigned char neg = 0U;
+    unsigned char scale = 0U;
+    int seen_dot = 0;
+    int seen_digit = 0;
+    uint64_t mag = 0U;
+    if (*p == '-') {
+      neg = 1U;
+      p++;
+    }
+    while (*p) {
+      if (*p == '.' && !seen_dot) {
+        seen_dot = 1;
+      } else if (isdigit((unsigned char)*p)) {
+        seen_digit = 1;
+        mag = mag * 10U + (uint64_t)(unsigned char)(*p - '0');
+        if (seen_dot) {
+          scale++;
+        }
+      } else {
+        return 0;
+      }
+      p++;
+    }
+    if (!seen_digit) {
+      return 0;
+    }
+    return mem_calc_u64_to_decimal(mag, neg, scale, out_dec);
   }
-  return C_ORM_ERROR_TYPE_MISMATCH;
+  return 0;
 }
 
 /**
- * @brief Compares two `mem_cell_t` values (`< 0`, `0`, `> 0`), treating NULL
+ * @brief Compares two normalized `c_orm_decimal_t` values (`< 0`, `0`, `> 0`).
+ * @param a Left decimal.
+ * @param b Right decimal.
+ * @return `-1`, `0`, or `1`.
+ */
+static int mem_cmp_decimals(const c_orm_decimal_t *a,
+                            const c_orm_decimal_t *b) {
+  int pos;
+  if (a->sign != b->sign) {
+    return a->sign ? -1 : 1;
+  }
+  for (pos = C_ORM_DECIMAL_MAX_DIGITS - 1; pos >= -C_ORM_DECIMAL_MAX_DIGITS;
+       --pos) {
+    int ia = pos + (int)a->scale;
+    int ib = pos + (int)b->scale;
+    unsigned char da =
+        (ia >= 0 && ia < C_ORM_DECIMAL_MAX_DIGITS) ? a->digits[ia] : 0U;
+    unsigned char db =
+        (ib >= 0 && ib < C_ORM_DECIMAL_MAX_DIGITS) ? b->digits[ib] : 0U;
+    if (da != db) {
+      int mag_ord = (da < db) ? -1 : 1;
+      return a->sign ? -mag_ord : mag_ord;
+    }
+  }
+  return 0;
+}
+
+/**
+ * @brief Orders two `mem_cell_t` values (`< 0`, `0`, `> 0`), treating NULL
  * as ordering first.
  * @param a Left cell (may be NULL).
  * @param b Right cell (may be NULL).
- * @param out_cmp Output comparison sign (`< 0`, `0`, `> 0`).
- * @return C_ORM_OK if comparable, or C_ORM_ERROR_TYPE_MISMATCH otherwise.
+ * @param out_ord Output ordering sign (`< 0`, `0`, `> 0`).
+ * @return 1 if comparable, or 0 otherwise.
  */
-static c_orm_error_t compare_cells(const mem_cell_t *a, const mem_cell_t *b,
-                                   int *out_cmp) {
+static int mem_cmp_cells(const mem_cell_t *a, const mem_cell_t *b,
+                         int *out_ord) {
   int a_null = (!a || a->type == MEM_VAL_NULL);
   int b_null = (!b || b->type == MEM_VAL_NULL);
+
+  *out_ord = 0;
   if (a_null && b_null) {
-    *out_cmp = 0;
-    return C_ORM_OK;
+    *out_ord = 0;
+    return 1;
   }
   if (a_null) {
-    *out_cmp = -1;
-    return C_ORM_OK;
+    *out_ord = -1;
+    return 1;
   }
   if (b_null) {
-    *out_cmp = 1;
-    return C_ORM_OK;
+    *out_ord = 1;
+    return 1;
   }
 
   if (a->type == MEM_VAL_DECIMAL || b->type == MEM_VAL_DECIMAL) {
     c_orm_decimal_t da;
     c_orm_decimal_t db_dec;
-    if (cell_to_decimal(a, &da) == C_ORM_OK &&
-        cell_to_decimal(b, &db_dec) == C_ORM_OK) {
-      return c_orm_decimal_cmp(&da, &db_dec, out_cmp);
+    if (mem_calc_cell_to_decimal(a, &da) &&
+        mem_calc_cell_to_decimal(b, &db_dec)) {
+      *out_ord = mem_cmp_decimals(&da, &db_dec);
+      return 1;
     }
-    *out_cmp = 0;
-    return C_ORM_ERROR_TYPE_MISMATCH;
+    return 0;
   }
   if ((a->type == MEM_VAL_INT32 || a->type == MEM_VAL_INT64) &&
       (b->type == MEM_VAL_INT32 || b->type == MEM_VAL_INT64)) {
     int64_t av = (a->type == MEM_VAL_INT32) ? (int64_t)a->i32 : a->i64;
     int64_t bv = (b->type == MEM_VAL_INT32) ? (int64_t)b->i32 : b->i64;
-    *out_cmp = (av < bv) ? -1 : (av > bv ? 1 : 0);
-    return C_ORM_OK;
+    *out_ord = (av < bv) ? -1 : (av > bv ? 1 : 0);
+    return 1;
   }
   if ((a->type == MEM_VAL_DOUBLE || a->type == MEM_VAL_INT32 ||
        a->type == MEM_VAL_INT64) &&
@@ -807,18 +970,17 @@ static c_orm_error_t compare_cells(const mem_cell_t *a, const mem_cell_t *b,
     double bv = (b->type == MEM_VAL_DOUBLE)
                     ? b->d
                     : (double)((b->type == MEM_VAL_INT32) ? b->i32 : b->i64);
-    *out_cmp = (av < bv) ? -1 : (av > bv ? 1 : 0);
-    return C_ORM_OK;
+    *out_ord = (av < bv) ? -1 : (av > bv ? 1 : 0);
+    return 1;
   }
   if (a->type == MEM_VAL_STRING && b->type == MEM_VAL_STRING) {
     const char *as = a->s ? a->s : "";
     const char *bs = b->s ? b->s : "";
-    int cmp = strcmp(as, bs);
-    *out_cmp = (cmp < 0) ? -1 : (cmp > 0 ? 1 : 0);
-    return C_ORM_OK;
+    int ord = strcmp(as, bs);
+    *out_ord = (ord < 0) ? -1 : (ord > 0 ? 1 : 0);
+    return 1;
   }
-  *out_cmp = 0;
-  return C_ORM_ERROR_TYPE_MISMATCH;
+  return 0;
 }
 
 /**
@@ -826,12 +988,12 @@ static c_orm_error_t compare_cells(const mem_cell_t *a, const mem_cell_t *b,
  * @param q Prepared query with bound parameters.
  * @param t Table containing `row`.
  * @param row Candidate row.
- * @return C_ORM_OK if `row` matches, or C_ORM_ERROR_NOT_FOUND otherwise.
+ * @return 1 if `row` matches, or 0 otherwise.
  */
-static c_orm_error_t eval_where_row(const c_orm_memory_query_t *q,
-                                    const mem_table_t *t,
-                                    const mem_row_t *row) {
+static int mem_calc_eval_where_row(const c_orm_memory_query_t *q,
+                                   const mem_table_t *t, const mem_row_t *row) {
   size_t ci;
+
   for (ci = 0; ci < q->num_conds; ++ci) {
     const mem_cond_t *c = &q->conds[ci];
     size_t col_idx = 0;
@@ -839,11 +1001,11 @@ static c_orm_error_t eval_where_row(const c_orm_memory_query_t *q,
     mem_cell_t rhs_lit;
     const mem_cell_t *rhs = NULL;
     int lhs_null;
-    int cmp = 0;
+    int ord = 0;
     int ok = 1;
 
-    if (resolve_col_index(t, c->col_name, &col_idx) != C_ORM_OK) {
-      return C_ORM_ERROR_NOT_FOUND;
+    if (!mem_calc_resolve_col_index(t, c->col_name, &col_idx)) {
+      return 0;
     }
     if (col_idx < row->num_cols) {
       lhs = (const mem_cell_t *)row->columns[col_idx];
@@ -852,13 +1014,13 @@ static c_orm_error_t eval_where_row(const c_orm_memory_query_t *q,
 
     if (c->op == MEM_OP_IS_NULL) {
       if (!lhs_null) {
-        return C_ORM_ERROR_NOT_FOUND;
+        return 0;
       }
       continue;
     }
     if (c->op == MEM_OP_IS_NOT_NULL) {
       if (lhs_null) {
-        return C_ORM_ERROR_NOT_FOUND;
+        return 0;
       }
       continue;
     }
@@ -878,30 +1040,49 @@ static c_orm_error_t eval_where_row(const c_orm_memory_query_t *q,
     }
 
     if (lhs_null || !rhs || rhs->type == MEM_VAL_NULL) {
-      return C_ORM_ERROR_NOT_FOUND;
+      return 0;
     }
 
-    if (compare_cells(lhs, rhs, &cmp) != C_ORM_OK) {
-      return C_ORM_ERROR_NOT_FOUND;
+    if (!mem_cmp_cells(lhs, rhs, &ord)) {
+      return 0;
     }
     if (c->op == MEM_OP_EQ) {
-      ok = (cmp == 0);
+      ok = (ord == 0);
     } else if (c->op == MEM_OP_NEQ) {
-      ok = (cmp != 0);
+      ok = (ord != 0);
     } else if (c->op == MEM_OP_LT) {
-      ok = (cmp < 0);
+      ok = (ord < 0);
     } else if (c->op == MEM_OP_GT) {
-      ok = (cmp > 0);
+      ok = (ord > 0);
     } else if (c->op == MEM_OP_LTE) {
-      ok = (cmp <= 0);
+      ok = (ord <= 0);
     } else {
-      ok = (cmp >= 0);
+      ok = (ord >= 0);
     }
     if (!ok) {
-      return C_ORM_ERROR_NOT_FOUND;
+      return 0;
     }
   }
-  return C_ORM_OK;
+  return 1;
+}
+
+/**
+ * @brief Looks up a cell in the current row of `query` at `index`.
+ * @param query Query handle.
+ * @param index 0-based column index.
+ * @param out_cell Output pointer receiving the cell.
+ * @return 1 if found, or 0 otherwise.
+ */
+static int mem_calc_get_row_cell(c_orm_query_t *query, int index,
+                                 mem_cell_t **out_cell) {
+  c_orm_memory_query_t *q = (c_orm_memory_query_t *)query;
+  if (!q || !q->current_row || index < 0 ||
+      (size_t)index >= q->current_row->num_cols ||
+      !q->current_row->columns[index]) {
+    return 0;
+  }
+  *out_cell = (mem_cell_t *)q->current_row->columns[index];
+  return 1;
 }
 
 /**
@@ -909,27 +1090,13 @@ static c_orm_error_t eval_where_row(const c_orm_memory_query_t *q,
  * @param query Query handle.
  * @param index 0-based column index.
  * @param out_cell Output pointer receiving the cell.
- * @return C_ORM_OK if found, C_ORM_ERROR_NOT_FOUND otherwise.
+ * @return C_ORM_OK if found, or C_ORM_ERROR_NOT_FOUND otherwise.
  */
-static c_orm_error_t get_current_cell(c_orm_query_t *query, int index,
+static c_orm_error_t mem_get_row_cell(c_orm_query_t *query, int index,
                                       mem_cell_t **out_cell) {
-  c_orm_memory_query_t *q = (c_orm_memory_query_t *)query;
-  if (!q || !q->current_row || index < 0 ||
-      (size_t)index >= q->current_row->num_cols ||
-      !q->current_row->columns[index]) {
-    return C_ORM_ERROR_NOT_FOUND;
-  }
-  *out_cell = (mem_cell_t *)q->current_row->columns[index];
-  return C_ORM_OK;
+  return mem_calc_get_row_cell(query, index, out_cell) ? C_ORM_OK
+                                                       : C_ORM_ERROR_NOT_FOUND;
 }
-
-/**
- * @brief Forward declaration for in-memory database connection callback.
- * @param url Connection string URL (ignored for memory driver).
- * @param out_db Pointer to receive allocated database handle.
- * @return C_ORM_OK on success, or error code on failure.
- */
-static c_orm_error_t mem_connect(const char *url, c_orm_db_t **out_db);
 
 /**
  * @brief Disconnects and frees an in-memory database instance.
@@ -939,6 +1106,7 @@ static c_orm_error_t mem_connect(const char *url, c_orm_db_t **out_db);
 static c_orm_error_t mem_disconnect(c_orm_db_t *db) {
   c_orm_error_t rc = C_ORM_OK;
   c_orm_error_t frc;
+  c_orm_error_t cache_rc = C_ORM_OK;
   c_orm_memory_db_t *ctx;
   LOG_DEBUG("mem_disconnect: entry");
 
@@ -947,10 +1115,16 @@ static c_orm_error_t mem_disconnect(c_orm_db_t *db) {
   }
   ctx = (c_orm_memory_db_t *)db->driver_data;
   if (ctx) {
-    rc = free_table_list(ctx->tables);
-    frc = free_table_list(ctx->tx_snapshot);
+    rc = mem_table_list_free(ctx->tables);
+    frc = mem_table_list_free(ctx->tx_snapshot);
     if (frc != C_ORM_OK && rc == C_ORM_OK)
       rc = frc;
+    cache_rc = c_orm_disable_statement_caching(db);
+    if (cache_rc != C_ORM_OK) {
+      c_orm_system_free(ctx);
+      c_orm_system_free(db);
+      return (rc != C_ORM_OK) ? rc : cache_rc;
+    }
     frc = c_orm_system_free(ctx);
     if (frc != C_ORM_OK && rc == C_ORM_OK)
       rc = frc;
@@ -996,7 +1170,7 @@ static c_orm_error_t parse_column_list(const char *paren_open,
         p++;
       continue;
     }
-    if (read_ident(p, col, sizeof(col), &p) == C_ORM_OK) {
+    if (mem_calc_parse_sql_ident(p, col, sizeof(col), &p)) {
       rc = C_ORM_STRCPY(q->stmt_cols[q->num_stmt_cols], 64, col);
       if (rc != C_ORM_OK)
         return rc;
@@ -1033,22 +1207,30 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
   c_orm_error_t rc = C_ORM_OK;
 
   LOG_DEBUG("mem_prepare: entry");
-  if (!db || !sql || !out_query) {
+  if (!db || !db->driver_data) {
     return C_ORM_ERROR_SQL;
   }
-
   ctx = (c_orm_memory_db_t *)db->driver_data;
+  if (!sql || !out_query) {
+    rc = C_ORM_STRCPY(ctx->last_error, sizeof(ctx->last_error),
+                      "Invalid SQL statement");
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
+    return C_ORM_ERROR_SQL;
+  }
   q = NULL;
-  if (c_orm_system_malloc(sizeof(c_orm_memory_query_t), (void **)&q) !=
-      C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+  rc = c_orm_system_malloc(sizeof(c_orm_memory_query_t), (void **)&q);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
   memset(q, 0, sizeof(*q));
 
-  if (c_orm_system_calloc(MEM_MAX_PARAMS, sizeof(void *),
-                          (void **)&q->bound_params) != C_ORM_OK) {
-    (void)c_orm_system_free(q);
-    return C_ORM_ERROR_MEMORY;
+  rc = c_orm_system_calloc(MEM_MAX_PARAMS, sizeof(void *),
+                           (void **)&q->bound_params);
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(q);
+    return rc;
   }
   q->db = ctx;
 
@@ -1067,11 +1249,15 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
       tp += 13;
       MEM_SKIP_WS(tp);
     }
-    if (read_ident(tp, q->table_name, sizeof(q->table_name), &tp) == C_ORM_OK) {
+    if (mem_calc_parse_sql_ident(tp, q->table_name, sizeof(q->table_name),
+                                 &tp)) {
       MEM_SKIP_WS(tp);
       if (*tp == '(') {
         q->type = MEM_QUERY_CREATE_TABLE;
         rc = parse_column_list(tp, q);
+        if (rc != C_ORM_OK) {
+          goto prepare_err;
+        }
       } else {
         q->type = MEM_QUERY_RAW;
       }
@@ -1079,22 +1265,29 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
       q->type = MEM_QUERY_RAW;
     }
   } else if (MEM_ISTARTS(p, "SELECT", 6)) {
-    if (find_sql_keyword(p, "FROM", &kw_pos) == C_ORM_OK &&
-        read_ident(kw_pos + 4, q->table_name, sizeof(q->table_name), &p) ==
-            C_ORM_OK) {
+    int has_from = mem_calc_find_sql_keyword(p, "FROM", &kw_pos);
+    int id_ok = 0;
+    if (has_from) {
+      id_ok = mem_calc_parse_sql_ident(kw_pos + 4, q->table_name,
+                                       sizeof(q->table_name), &p);
+    }
+    if (has_from && id_ok) {
       const char *after_tbl = p;
       q->type = MEM_QUERY_SELECT_ALL;
-      if (find_sql_keyword(after_tbl, "WHERE", &kw_pos) == C_ORM_OK) {
+      if (mem_calc_find_sql_keyword(after_tbl, "WHERE", &kw_pos)) {
         q->type = MEM_QUERY_SELECT_PK;
         rc = parse_where_clause(kw_pos + 5, &param_seq, q);
+        if (rc != C_ORM_OK) {
+          goto prepare_err;
+        }
       }
-      if (find_sql_keyword(after_tbl, "ORDER", &kw_pos) == C_ORM_OK) {
+      if (mem_calc_find_sql_keyword(after_tbl, "ORDER", &kw_pos)) {
         const char *op = kw_pos + 5;
         MEM_SKIP_WS(op);
         if (MEM_ISTARTS(op, "BY", 2)) {
           op += 2;
-          if (read_ident(op, q->order_col, sizeof(q->order_col), &op) ==
-              C_ORM_OK) {
+          if (mem_calc_parse_sql_ident(op, q->order_col, sizeof(q->order_col),
+                                       &op)) {
             MEM_SKIP_WS(op);
             if (MEM_ISTARTS(op, "DESC", 4)) {
               q->order_desc = 1;
@@ -1103,22 +1296,22 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
           }
         }
       }
-      if (find_sql_keyword(after_tbl, "LIMIT", &kw_pos) == C_ORM_OK) {
+      if (mem_calc_find_sql_keyword(after_tbl, "LIMIT", &kw_pos)) {
         int64_t lv = 0;
         const char *ep = NULL;
         const char *lp = kw_pos + 5;
         MEM_SKIP_WS(lp);
-        if (c_orm_strtoint64(lp, &ep, 10, &lv) == C_ORM_OK && lv >= 0) {
+        if (mem_calc_parse_int64(lp, &ep, &lv) && lv >= 0) {
           q->has_limit = 1;
           q->limit_val = (size_t)lv;
         }
       }
-      if (find_sql_keyword(after_tbl, "OFFSET", &kw_pos) == C_ORM_OK) {
+      if (mem_calc_find_sql_keyword(after_tbl, "OFFSET", &kw_pos)) {
         int64_t ov = 0;
         const char *ep = NULL;
         const char *op2 = kw_pos + 6;
         MEM_SKIP_WS(op2);
-        if (c_orm_strtoint64(op2, &ep, 10, &ov) == C_ORM_OK && ov >= 0) {
+        if (mem_calc_parse_int64(op2, &ep, &ov) && ov >= 0) {
           q->has_offset = 1;
           q->offset_val = (size_t)ov;
         }
@@ -1129,17 +1322,22 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
   } else if (MEM_ISTARTS(p, "INSERT INTO", 11)) {
     const char *tp = p + 11;
     q->type = MEM_QUERY_INSERT;
-    if (read_ident(tp, q->table_name, sizeof(q->table_name), &tp) == C_ORM_OK) {
+    if (mem_calc_parse_sql_ident(tp, q->table_name, sizeof(q->table_name),
+                                 &tp)) {
       MEM_SKIP_WS(tp);
       if (*tp == '(') {
         rc = parse_column_list(tp, q);
+        if (rc != C_ORM_OK) {
+          goto prepare_err;
+        }
       }
     }
   } else if (MEM_ISTARTS(p, "UPDATE", 6)) {
     const char *tp = p + 6;
     q->type = MEM_QUERY_UPDATE;
-    if (read_ident(tp, q->table_name, sizeof(q->table_name), &tp) == C_ORM_OK) {
-      if (find_sql_keyword(tp, "SET", &kw_pos) == C_ORM_OK) {
+    if (mem_calc_parse_sql_ident(tp, q->table_name, sizeof(q->table_name),
+                                 &tp)) {
+      if (mem_calc_find_sql_keyword(tp, "SET", &kw_pos)) {
         const char *sp = kw_pos + 3;
         while (*sp && q->num_sets < MEM_MAX_SETS) {
           mem_set_t *s;
@@ -1149,8 +1347,8 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
           }
           s = &q->sets[q->num_sets];
           memset(s, 0, sizeof(*s));
-          if (read_ident(sp, s->col_name, sizeof(s->col_name), &sp) !=
-              C_ORM_OK) {
+          if (!mem_calc_parse_sql_ident(sp, s->col_name, sizeof(s->col_name),
+                                        &sp)) {
             break;
           }
           MEM_SKIP_WS(sp);
@@ -1162,7 +1360,7 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
                                &s->lit_type, &s->lit_i64, &s->lit_d, s->lit_s,
                                &sp);
           if (rc != C_ORM_OK) {
-            break;
+            goto prepare_err;
           }
           q->num_sets++;
           MEM_SKIP_WS(sp);
@@ -1171,31 +1369,37 @@ static c_orm_error_t mem_prepare(c_orm_db_t *db, const char *sql,
           }
         }
       }
-      if (rc == C_ORM_OK &&
-          find_sql_keyword(tp, "WHERE", &kw_pos) == C_ORM_OK) {
+      if (mem_calc_find_sql_keyword(tp, "WHERE", &kw_pos)) {
         rc = parse_where_clause(kw_pos + 5, &param_seq, q);
+        if (rc != C_ORM_OK) {
+          goto prepare_err;
+        }
       }
     }
   } else if (MEM_ISTARTS(p, "DELETE FROM", 11)) {
     const char *tp = p + 11;
     q->type = MEM_QUERY_DELETE;
-    if (read_ident(tp, q->table_name, sizeof(q->table_name), &tp) == C_ORM_OK &&
-        find_sql_keyword(tp, "WHERE", &kw_pos) == C_ORM_OK) {
-      rc = parse_where_clause(kw_pos + 5, &param_seq, q);
+    if (mem_calc_parse_sql_ident(tp, q->table_name, sizeof(q->table_name),
+                                 &tp)) {
+      if (mem_calc_find_sql_keyword(tp, "WHERE", &kw_pos)) {
+        rc = parse_where_clause(kw_pos + 5, &param_seq, q);
+        if (rc != C_ORM_OK) {
+          goto prepare_err;
+        }
+      }
     }
   } else {
     q->type = MEM_QUERY_RAW;
   }
 
-  if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(q->bound_params);
-    (void)c_orm_system_free(q);
-    return rc;
-  }
-
   *out_query = (c_orm_query_t *)q;
   LOG_DEBUG("mem_prepare: exit");
   return C_ORM_OK;
+
+prepare_err:;
+  c_orm_system_free(q->bound_params);
+  c_orm_system_free(q);
+  return rc;
 }
 
 /**
@@ -1215,15 +1419,16 @@ static c_orm_error_t get_or_alloc_bound_cell(c_orm_query_t *query, int index,
     return C_ORM_ERROR_BIND;
   }
   if (q->bound_params[index - 1]) {
-    rc = free_mem_cell((mem_cell_t *)q->bound_params[index - 1]);
+    rc = mem_cell_free((mem_cell_t *)q->bound_params[index - 1]);
     q->bound_params[index - 1] = NULL;
     if (rc != C_ORM_OK) {
       return rc;
     }
   }
   cell = NULL;
-  if (c_orm_system_calloc(1, sizeof(mem_cell_t), (void **)&cell) != C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+  rc = c_orm_system_calloc(1, sizeof(mem_cell_t), (void **)&cell);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
   q->bound_params[index - 1] = cell;
   if ((size_t)index > q->num_bound) {
@@ -1243,13 +1448,15 @@ static c_orm_error_t get_or_alloc_bound_cell(c_orm_query_t *query, int index,
 static c_orm_error_t mem_bind_int32(c_orm_query_t *query, int index,
                                     int32_t val) {
   mem_cell_t *cell = NULL;
-  c_orm_error_t rc = get_or_alloc_bound_cell(query, index, &cell);
-  if (rc == C_ORM_OK) {
-    cell->type = MEM_VAL_INT32;
-    cell->i32 = val;
-    cell->i64 = (int64_t)val;
+  c_orm_error_t rc;
+  rc = get_or_alloc_bound_cell(query, index, &cell);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
-  return rc;
+  cell->type = MEM_VAL_INT32;
+  cell->i32 = val;
+  cell->i64 = (int64_t)val;
+  return C_ORM_OK;
 }
 
 /**
@@ -1262,13 +1469,15 @@ static c_orm_error_t mem_bind_int32(c_orm_query_t *query, int index,
 static c_orm_error_t mem_bind_int64(c_orm_query_t *query, int index,
                                     int64_t val) {
   mem_cell_t *cell = NULL;
-  c_orm_error_t rc = get_or_alloc_bound_cell(query, index, &cell);
-  if (rc == C_ORM_OK) {
-    cell->type = MEM_VAL_INT64;
-    cell->i64 = val;
-    cell->i32 = (int32_t)val;
+  c_orm_error_t rc;
+  rc = get_or_alloc_bound_cell(query, index, &cell);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
-  return rc;
+  cell->type = MEM_VAL_INT64;
+  cell->i64 = val;
+  cell->i32 = (int32_t)val;
+  return C_ORM_OK;
 }
 
 /**
@@ -1281,12 +1490,14 @@ static c_orm_error_t mem_bind_int64(c_orm_query_t *query, int index,
 static c_orm_error_t mem_bind_double(c_orm_query_t *query, int index,
                                      double val) {
   mem_cell_t *cell = NULL;
-  c_orm_error_t rc = get_or_alloc_bound_cell(query, index, &cell);
-  if (rc == C_ORM_OK) {
-    cell->type = MEM_VAL_DOUBLE;
-    cell->d = val;
+  c_orm_error_t rc;
+  rc = get_or_alloc_bound_cell(query, index, &cell);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
-  return rc;
+  cell->type = MEM_VAL_DOUBLE;
+  cell->d = val;
+  return C_ORM_OK;
 }
 
 /**
@@ -1299,14 +1510,16 @@ static c_orm_error_t mem_bind_double(c_orm_query_t *query, int index,
 static c_orm_error_t mem_bind_string(c_orm_query_t *query, int index,
                                      const char *val) {
   mem_cell_t *cell = NULL;
-  c_orm_error_t rc = get_or_alloc_bound_cell(query, index, &cell);
-  if (rc == C_ORM_OK) {
-    cell->type = MEM_VAL_STRING;
-    if (val) {
-      rc = C_ORM_STRDUP(val, &cell->s);
-    }
+  c_orm_error_t rc;
+  rc = get_or_alloc_bound_cell(query, index, &cell);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
-  return rc;
+  cell->type = MEM_VAL_STRING;
+  if (val) {
+    return C_ORM_STRDUP(val, &cell->s);
+  }
+  return C_ORM_OK;
 }
 
 /**
@@ -1320,19 +1533,22 @@ static c_orm_error_t mem_bind_string(c_orm_query_t *query, int index,
 static c_orm_error_t mem_bind_blob(c_orm_query_t *query, int index,
                                    const void *val, size_t size) {
   mem_cell_t *cell = NULL;
-  c_orm_error_t rc = get_or_alloc_bound_cell(query, index, &cell);
-  if (rc == C_ORM_OK) {
-    cell->type = MEM_VAL_BLOB;
-    if (val) {
-      cell->blob = NULL;
-      if (c_orm_system_malloc(size, &cell->blob) != C_ORM_OK) {
-        return C_ORM_ERROR_MEMORY;
-      }
-      memcpy(cell->blob, val, size);
-      cell->blob_size = size;
-    }
+  c_orm_error_t rc;
+  rc = get_or_alloc_bound_cell(query, index, &cell);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
-  return rc;
+  cell->type = MEM_VAL_BLOB;
+  if (val) {
+    cell->blob = NULL;
+    rc = c_orm_system_malloc(size, &cell->blob);
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
+    memcpy(cell->blob, val, size);
+    cell->blob_size = size;
+  }
+  return C_ORM_OK;
 }
 
 /**
@@ -1343,11 +1559,13 @@ static c_orm_error_t mem_bind_blob(c_orm_query_t *query, int index,
  */
 static c_orm_error_t mem_bind_null(c_orm_query_t *query, int index) {
   mem_cell_t *cell = NULL;
-  c_orm_error_t rc = get_or_alloc_bound_cell(query, index, &cell);
-  if (rc == C_ORM_OK) {
-    cell->type = MEM_VAL_NULL;
+  c_orm_error_t rc;
+  rc = get_or_alloc_bound_cell(query, index, &cell);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
-  return rc;
+  cell->type = MEM_VAL_NULL;
+  return C_ORM_OK;
 }
 
 /**
@@ -1361,26 +1579,30 @@ static c_orm_error_t find_or_create_table(c_orm_memory_query_t *q,
                                           mem_table_t **out_table) {
   mem_table_t *t = q->db->tables;
   size_t i;
+  c_orm_error_t rc;
 
   while (t && strcmp(t->name, q->table_name) != 0) {
     t = t->next;
   }
   if (!t) {
-    if (c_orm_system_malloc(sizeof(mem_table_t), (void **)&t) != C_ORM_OK) {
-      return C_ORM_ERROR_MEMORY;
+    rc = c_orm_system_malloc(sizeof(mem_table_t), (void **)&t);
+    if (rc != C_ORM_OK) {
+      return rc;
     }
     memset(t, 0, sizeof(*t));
-    if (C_ORM_STRDUP(q->table_name, &t->name) != C_ORM_OK) {
-      (void)c_orm_system_free(t);
-      return C_ORM_ERROR_MEMORY;
+    rc = C_ORM_STRDUP(q->table_name, &t->name);
+    if (rc != C_ORM_OK) {
+      c_orm_system_free(t);
+      return rc;
     }
     t->next = q->db->tables;
     q->db->tables = t;
   }
   if (t->num_col_names == 0 && q->num_stmt_cols > 0) {
     for (i = 0; i < q->num_stmt_cols; ++i) {
-      if (C_ORM_STRCPY(t->col_names[i], 64, q->stmt_cols[i]) != C_ORM_OK) {
-        return C_ORM_ERROR_OVERFLOW;
+      rc = C_ORM_STRCPY(t->col_names[i], 64, q->stmt_cols[i]);
+      if (rc != C_ORM_OK) {
+        return rc;
       }
     }
     t->num_col_names = q->num_stmt_cols;
@@ -1412,20 +1634,23 @@ static c_orm_error_t materialize_select_rows(c_orm_memory_query_t *q,
   }
 
   for (r = t->head; r != NULL; r = r->next) {
-    if (eval_where_row(q, t, r) == C_ORM_OK) {
+    if (mem_calc_eval_where_row(q, t, r)) {
       if (count >= cap) {
         size_t ncap = (cap == 0) ? 8 : cap * 2;
         mem_row_t **narr = NULL;
         c_orm_error_t rc;
         if (!arr) {
           rc = c_orm_system_malloc(ncap * sizeof(mem_row_t *), (void **)&narr);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
         } else {
           rc = c_orm_system_realloc(arr, ncap * sizeof(mem_row_t *),
                                     (void **)&narr);
-        }
-        if (rc != C_ORM_OK) {
-          (void)c_orm_system_free(arr);
-          return C_ORM_ERROR_MEMORY;
+          if (rc != C_ORM_OK) {
+            c_orm_system_free(arr);
+            return rc;
+          }
         }
         arr = narr;
         cap = ncap;
@@ -1436,7 +1661,7 @@ static c_orm_error_t materialize_select_rows(c_orm_memory_query_t *q,
 
   if (q->has_order && count > 1) {
     size_t order_idx = 0;
-    if (resolve_col_index(t, q->order_col, &order_idx) == C_ORM_OK) {
+    if (mem_calc_resolve_col_index(t, q->order_col, &order_idx)) {
       size_t i, j;
       for (i = 1; i < count; ++i) {
         mem_row_t *key_row = arr[i];
@@ -1450,11 +1675,11 @@ static c_orm_error_t materialize_select_rows(c_orm_memory_query_t *q,
               (order_idx < arr[j - 1]->num_cols)
                   ? (const mem_cell_t *)arr[j - 1]->columns[order_idx]
                   : NULL;
-          int cmp = 0;
-          if (compare_cells(jc, kc, &cmp) != C_ORM_OK) {
-            cmp = 0;
+          int ord = 0;
+          if (!mem_cmp_cells(jc, kc, &ord)) {
+            ord = 0;
           }
-          if ((!q->order_desc && cmp > 0) || (q->order_desc && cmp < 0)) {
+          if ((!q->order_desc && ord > 0) || (q->order_desc && ord < 0)) {
             arr[j] = arr[j - 1];
             j--;
           } else {
@@ -1499,9 +1724,10 @@ static c_orm_error_t build_set_cell(const c_orm_memory_query_t *q,
             : NULL;
     if (!bound) {
       mem_cell_t *nc = NULL;
-      if (c_orm_system_calloc(1, sizeof(mem_cell_t), (void **)&nc) !=
-          C_ORM_OK) {
-        return C_ORM_ERROR_MEMORY;
+      c_orm_error_t rc;
+      rc = c_orm_system_calloc(1, sizeof(mem_cell_t), (void **)&nc);
+      if (rc != C_ORM_OK) {
+        return rc;
       }
       nc->type = MEM_VAL_NULL;
       *out_cell = nc;
@@ -1521,16 +1747,14 @@ static c_orm_error_t build_set_cell(const c_orm_memory_query_t *q,
 }
 
 /**
- * @brief Steps execution of an in-memory statement.
- * @param query Query handle.
+ * @brief Executes core in-memory statement stepping logic.
+ * @param q In-memory query structure.
  * @param out_has_row Pointer to receive 1 if row available, 0 if done.
- * @return 0 on success.
+ * @return C_ORM_OK on success, or error code.
  */
-static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
-  c_orm_memory_query_t *q = (c_orm_memory_query_t *)query;
+static c_orm_error_t mem_step_core(c_orm_memory_query_t *q, int *out_has_row) {
   mem_table_t *t;
   c_orm_error_t rc;
-  LOG_DEBUG("mem_step: entry");
 
   *out_has_row = 0;
   if (!q) {
@@ -1550,7 +1774,7 @@ static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
 
   if (q->type == MEM_QUERY_COMMIT) {
     if (q->db->in_tx) {
-      rc = free_table_list(q->db->tx_snapshot);
+      rc = mem_table_list_free(q->db->tx_snapshot);
       q->db->tx_snapshot = NULL;
       q->db->in_tx = 0;
       return rc;
@@ -1560,7 +1784,7 @@ static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
 
   if (q->type == MEM_QUERY_ROLLBACK) {
     if (q->db->in_tx) {
-      rc = free_table_list(q->db->tables);
+      rc = mem_table_list_free(q->db->tables);
       q->db->tables = q->db->tx_snapshot;
       q->db->tx_snapshot = NULL;
       q->db->in_tx = 0;
@@ -1581,16 +1805,19 @@ static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
       return rc;
     }
     row = NULL;
-    if (c_orm_system_malloc(sizeof(mem_row_t), (void **)&row) != C_ORM_OK) {
-      return C_ORM_ERROR_MEMORY;
+    rc = c_orm_system_malloc(sizeof(mem_row_t), (void **)&row);
+    if (rc != C_ORM_OK) {
+      return rc;
     }
     row->num_cols = q->num_bound;
     row->columns = NULL;
-    if (q->num_bound > 0 &&
-        c_orm_system_malloc(q->num_bound * sizeof(void *),
-                            (void **)&row->columns) != C_ORM_OK) {
-      (void)c_orm_system_free(row);
-      return C_ORM_ERROR_MEMORY;
+    if (q->num_bound > 0) {
+      rc = c_orm_system_malloc(q->num_bound * sizeof(void *),
+                               (void **)&row->columns);
+      if (rc != C_ORM_OK) {
+        c_orm_system_free(row);
+        return rc;
+      }
     }
     for (i = 0; i < q->num_bound; i++) {
       row->columns[i] = q->bound_params[i];
@@ -1620,25 +1847,30 @@ static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
     }
     for (r = t->head; r != NULL; r = r->next) {
       size_t si;
-      if (eval_where_row(q, t, r) != C_ORM_OK) {
+      if (!mem_calc_eval_where_row(q, t, r)) {
         continue;
       }
       for (si = 0; si < q->num_sets; ++si) {
         size_t col_idx = 0;
         mem_cell_t *new_cell = NULL;
-        if (resolve_col_index(t, q->sets[si].col_name, &col_idx) != C_ORM_OK) {
+        if (!mem_calc_resolve_col_index(t, q->sets[si].col_name, &col_idx)) {
           continue;
         }
         if (col_idx >= r->num_cols) {
           void **new_cols = NULL;
           size_t k;
-          rc = r->columns ? c_orm_system_realloc(r->columns,
-                                                 (col_idx + 1) * sizeof(void *),
-                                                 (void **)&new_cols)
-                          : c_orm_system_calloc(col_idx + 1, sizeof(void *),
-                                                (void **)&new_cols);
-          if (rc != C_ORM_OK) {
-            return C_ORM_ERROR_MEMORY;
+          if (r->columns) {
+            rc = c_orm_system_realloc(
+                r->columns, (col_idx + 1) * sizeof(void *), (void **)&new_cols);
+            if (rc != C_ORM_OK) {
+              return rc;
+            }
+          } else {
+            rc = c_orm_system_calloc(col_idx + 1, sizeof(void *),
+                                     (void **)&new_cols);
+            if (rc != C_ORM_OK) {
+              return rc;
+            }
           }
           for (k = r->num_cols; k <= col_idx; ++k) {
             new_cols[k] = NULL;
@@ -1650,7 +1882,7 @@ static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
         if (rc != C_ORM_OK) {
           return rc;
         }
-        rc = free_mem_cell((mem_cell_t *)r->columns[col_idx]);
+        rc = mem_cell_free((mem_cell_t *)r->columns[col_idx]);
         r->columns[col_idx] = new_cell;
         if (rc != C_ORM_OK) {
           return rc;
@@ -1672,11 +1904,11 @@ static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
     prev = &t->head;
     while (*prev) {
       mem_row_t *cur = *prev;
-      if (eval_where_row(q, t, cur) == C_ORM_OK) {
+      if (mem_calc_eval_where_row(q, t, cur)) {
         size_t ci;
         *prev = cur->next;
         for (ci = 0; ci < cur->num_cols; ++ci) {
-          rc = free_mem_cell((mem_cell_t *)cur->columns[ci]);
+          rc = mem_cell_free((mem_cell_t *)cur->columns[ci]);
           if (rc != C_ORM_OK)
             return rc;
         }
@@ -1730,6 +1962,81 @@ static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
 }
 
 /**
+ * @brief Steps execution of an in-memory statement with slow-query telemetry.
+ * @param query Query handle.
+ * @param out_has_row Pointer to receive 1 if row available, 0 if done.
+ * @return C_ORM_OK on success, or error code.
+ */
+static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
+  c_orm_memory_query_t *q = (c_orm_memory_query_t *)query;
+  c_orm_db_t *owner_db = q ? q->db->owner_db : NULL;
+  c_orm_error_t rc;
+  double elapsed = 0.0;
+#if defined(_WIN32) || defined(_WIN64)
+  MEM_LARGE_INTEGER start_t;
+  MEM_LARGE_INTEGER end_t;
+  MEM_LARGE_INTEGER freq;
+  start_t.QuadPart = 0;
+  end_t.QuadPart = 0;
+  freq.QuadPart = 0;
+#else
+  struct timeval start_t;
+  struct timeval end_t;
+  start_t.tv_sec = 0;
+  start_t.tv_usec = 0;
+  end_t.tv_sec = 0;
+  end_t.tv_usec = 0;
+#endif
+
+  if (owner_db && owner_db->slow_query_threshold_ms > 0) {
+#if defined(_WIN32) || defined(_WIN64)
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&start_t);
+#else
+    gettimeofday(&start_t, NULL);
+#endif
+  }
+
+  rc = mem_step_core(q, out_has_row);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+
+  if (owner_db && owner_db->slow_query_threshold_ms > 0) {
+#if defined(_WIN32) || defined(_WIN64)
+    QueryPerformanceCounter(&end_t);
+    elapsed = (double)(end_t.QuadPart - start_t.QuadPart) * 1000.0 /
+              (double)freq.QuadPart;
+#else
+    gettimeofday(&end_t, NULL);
+    elapsed = (double)(end_t.tv_sec - start_t.tv_sec) * 1000.0 +
+              (double)(end_t.tv_usec - start_t.tv_usec) / 1000.0;
+#endif
+#ifdef C_ORM_TEST_ALLOCATOR
+    if (c_orm_mock_mem_step_elapsed_ms >= 0.0) {
+      elapsed = c_orm_mock_mem_step_elapsed_ms;
+    }
+#endif
+    if (elapsed >= (double)owner_db->slow_query_threshold_ms) {
+      owner_db->telemetry.slow_queries_logged++;
+      if (owner_db->log_cb) {
+        char log_msg[96];
+        size_t tlen = strlen(q->table_name);
+        c_orm_error_t lrc;
+        memcpy(log_msg, "SLOW QUERY: ", 12);
+        memcpy(log_msg + 12, q->table_name, tlen + 1);
+        lrc = owner_db->log_cb(log_msg, owner_db->log_user_data);
+        if (lrc != C_ORM_OK) {
+          return lrc;
+        }
+      }
+    }
+  }
+
+  return C_ORM_OK;
+}
+
+/**
  * @brief Retrieves a 32-bit integer column value.
  * @param query Query handle.
  * @param index 0-based column index.
@@ -1739,11 +2046,16 @@ static c_orm_error_t mem_step(c_orm_query_t *query, int *out_has_row) {
 static c_orm_error_t mem_get_int32(c_orm_query_t *query, int index,
                                    int32_t *out_val) {
   mem_cell_t *cell = NULL;
-  if (out_val && get_current_cell(query, index, &cell) == C_ORM_OK) {
-    *out_val = cell->i32;
-    return C_ORM_OK;
+  c_orm_error_t rc;
+  if (!out_val) {
+    return C_ORM_ERROR_NOT_FOUND;
   }
-  return C_ORM_ERROR_NOT_FOUND;
+  rc = mem_get_row_cell(query, index, &cell);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+  *out_val = cell->i32;
+  return C_ORM_OK;
 }
 
 /**
@@ -1756,11 +2068,16 @@ static c_orm_error_t mem_get_int32(c_orm_query_t *query, int index,
 static c_orm_error_t mem_get_int64(c_orm_query_t *query, int index,
                                    int64_t *out_val) {
   mem_cell_t *cell = NULL;
-  if (out_val && get_current_cell(query, index, &cell) == C_ORM_OK) {
-    *out_val = cell->i64;
-    return C_ORM_OK;
+  c_orm_error_t rc;
+  if (!out_val) {
+    return C_ORM_ERROR_NOT_FOUND;
   }
-  return C_ORM_ERROR_NOT_FOUND;
+  rc = mem_get_row_cell(query, index, &cell);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+  *out_val = cell->i64;
+  return C_ORM_OK;
 }
 
 /**
@@ -1773,11 +2090,16 @@ static c_orm_error_t mem_get_int64(c_orm_query_t *query, int index,
 static c_orm_error_t mem_get_double(c_orm_query_t *query, int index,
                                     double *out_val) {
   mem_cell_t *cell = NULL;
-  if (out_val && get_current_cell(query, index, &cell) == C_ORM_OK) {
-    *out_val = cell->d;
-    return C_ORM_OK;
+  c_orm_error_t rc;
+  if (!out_val) {
+    return C_ORM_ERROR_NOT_FOUND;
   }
-  return C_ORM_ERROR_NOT_FOUND;
+  rc = mem_get_row_cell(query, index, &cell);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+  *out_val = cell->d;
+  return C_ORM_OK;
 }
 
 /**
@@ -1790,11 +2112,16 @@ static c_orm_error_t mem_get_double(c_orm_query_t *query, int index,
 static c_orm_error_t mem_get_string(c_orm_query_t *query, int index,
                                     const char **out_val) {
   mem_cell_t *cell = NULL;
-  if (out_val && get_current_cell(query, index, &cell) == C_ORM_OK) {
-    *out_val = cell->s;
-    return C_ORM_OK;
+  c_orm_error_t rc;
+  if (!out_val) {
+    return C_ORM_ERROR_NOT_FOUND;
   }
-  return C_ORM_ERROR_NOT_FOUND;
+  rc = mem_get_row_cell(query, index, &cell);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+  *out_val = cell->s;
+  return C_ORM_OK;
 }
 
 /**
@@ -1808,13 +2135,17 @@ static c_orm_error_t mem_get_string(c_orm_query_t *query, int index,
 static c_orm_error_t mem_get_blob(c_orm_query_t *query, int index,
                                   const void **out_val, size_t *out_size) {
   mem_cell_t *cell = NULL;
-  if (out_val && out_size &&
-      get_current_cell(query, index, &cell) == C_ORM_OK) {
-    *out_val = cell->blob;
-    *out_size = cell->blob_size;
-    return C_ORM_OK;
+  c_orm_error_t rc;
+  if (!out_val || !out_size) {
+    return C_ORM_ERROR_NOT_FOUND;
   }
-  return C_ORM_ERROR_NOT_FOUND;
+  rc = mem_get_row_cell(query, index, &cell);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+  *out_val = cell->blob;
+  *out_size = cell->blob_size;
+  return C_ORM_OK;
 }
 
 /**
@@ -1828,7 +2159,7 @@ static c_orm_error_t mem_is_null(c_orm_query_t *query, int index,
                                  int *out_is_null) {
   mem_cell_t *cell = NULL;
   if (out_is_null) {
-    if (get_current_cell(query, index, &cell) == C_ORM_OK) {
+    if (mem_calc_get_row_cell(query, index, &cell)) {
       *out_is_null = (cell->type == MEM_VAL_NULL) ? 1 : 0;
     } else {
       *out_is_null = 1;
@@ -1853,7 +2184,7 @@ static c_orm_error_t mem_finalize(c_orm_query_t *query) {
   q = (c_orm_memory_query_t *)query;
   for (i = 0; i < MEM_MAX_PARAMS; i++) {
     if (q->bound_params[i]) {
-      frc = free_mem_cell((mem_cell_t *)q->bound_params[i]);
+      frc = mem_cell_free((mem_cell_t *)q->bound_params[i]);
       if (frc != C_ORM_OK && rc == C_ORM_OK)
         rc = frc;
     }
@@ -1878,7 +2209,7 @@ static c_orm_error_t mem_finalize(c_orm_query_t *query) {
 static c_orm_error_t mem_reset(c_orm_query_t *query) {
   c_orm_memory_query_t *q = (c_orm_memory_query_t *)query;
   if (q) {
-    (void)c_orm_system_free(q->result_rows);
+    c_orm_system_free(q->result_rows);
     q->result_rows = NULL;
     q->result_count = 0;
     q->result_idx = 0;
@@ -1901,6 +2232,32 @@ static c_orm_error_t mem_get_last_error(c_orm_db_t *db,
   ctx = (c_orm_memory_db_t *)db->driver_data;
   *out_message = ctx->last_error;
   return C_ORM_ERROR_UNKNOWN;
+}
+
+/**
+ * @brief Retrieves a formatted diagnostic trace string for the in-memory
+ * driver.
+ * @param db Database handle.
+ * @param out_trace Pointer to receive trace string pointer.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_NULL_POINTER on invalid
+ * arguments.
+ */
+static c_orm_error_t mem_get_last_trace(c_orm_db_t *db,
+                                        const char **out_trace) {
+  c_orm_memory_db_t *ctx;
+  c_orm_error_t rc;
+  if (!db || !db->driver_data || !out_trace) {
+    return C_ORM_ERROR_NULL_POINTER;
+  }
+  ctx = (c_orm_memory_db_t *)db->driver_data;
+  memcpy(ctx->last_trace, "[MemoryDriver] ", 15);
+  rc = C_ORM_STRCPY(ctx->last_trace + 15, sizeof(ctx->last_trace) - 15,
+                    ctx->last_error[0] ? ctx->last_error : "OK");
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+  *out_trace = ctx->last_trace;
+  return C_ORM_OK;
 }
 
 /**
@@ -2004,12 +2361,12 @@ static c_orm_error_t mem_bind_decimal(c_orm_query_t *query, int index,
     return rc;
   }
   rc = get_or_alloc_bound_cell(query, index, &cell);
-  if (rc == C_ORM_OK) {
-    cell->type = MEM_VAL_DECIMAL;
-    cell->dec = *val;
-    rc = C_ORM_STRDUP(sbuf, &cell->s);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
-  return rc;
+  cell->type = MEM_VAL_DECIMAL;
+  cell->dec = *val;
+  return C_ORM_STRDUP(sbuf, &cell->s);
 }
 
 /**
@@ -2023,11 +2380,13 @@ static c_orm_error_t mem_bind_decimal(c_orm_query_t *query, int index,
 static c_orm_error_t mem_get_decimal(c_orm_query_t *query, int index,
                                      c_orm_decimal_t *out_val) {
   mem_cell_t *cell = NULL;
+  c_orm_error_t rc;
   if (!out_val) {
     return C_ORM_ERROR_NULL_POINTER;
   }
-  if (get_current_cell(query, index, &cell) != C_ORM_OK) {
-    return C_ORM_ERROR_NOT_FOUND;
+  rc = mem_get_row_cell(query, index, &cell);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
   if (cell->type == MEM_VAL_DECIMAL) {
     *out_val = cell->dec;
@@ -2046,7 +2405,7 @@ static c_orm_error_t mem_get_decimal(c_orm_query_t *query, int index,
 }
 
 /** @brief Driver virtual table for in-memory database. */
-static const c_orm_driver_vtable_t memory_vtable = {mem_connect,
+static const c_orm_driver_vtable_t memory_vtable = {c_orm_memory_connect,
                                                     mem_disconnect,
                                                     mem_prepare,
                                                     mem_bind_int32,
@@ -2065,53 +2424,12 @@ static const c_orm_driver_vtable_t memory_vtable = {mem_connect,
                                                     mem_finalize,
                                                     mem_reset,
                                                     mem_get_last_error,
-                                                    NULL,
+                                                    mem_get_last_trace,
                                                     mem_get_last_insert_rowid,
                                                     mem_get_column_count,
                                                     mem_get_column_name,
                                                     mem_bind_decimal,
                                                     mem_get_decimal};
-
-/**
- * @brief Connects to in-memory database instance.
- * @param url Connection string URL (ignored for memory driver).
- * @param out_db Pointer to receive allocated database handle.
- * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
- */
-static c_orm_error_t mem_connect(const char *url, c_orm_db_t **out_db) {
-  c_orm_memory_db_t *ctx = NULL;
-  c_orm_db_t *db = NULL;
-
-  LOG_DEBUG("mem_connect: entry");
-  (void)url;
-
-  if (!out_db) {
-    LOG_DEBUG("mem_connect: validation error");
-    return C_ORM_ERROR_MEMORY;
-  }
-
-  if (c_orm_system_malloc(sizeof(c_orm_memory_db_t), (void **)&ctx) !=
-      C_ORM_OK) {
-    LOG_DEBUG("mem_connect: OOM");
-    return C_ORM_ERROR_MEMORY;
-  }
-  memset(ctx, 0, sizeof(*ctx));
-
-  if (c_orm_system_malloc(sizeof(c_orm_db_t), (void **)&db) != C_ORM_OK) {
-    LOG_DEBUG("mem_connect: OOM");
-    (void)c_orm_system_free(ctx);
-    return C_ORM_ERROR_MEMORY;
-  }
-  memset(db, 0, sizeof(*db));
-
-  db->vtable = &memory_vtable;
-  db->driver_data = ctx;
-  db->driver_name = "memory";
-
-  *out_db = db;
-  LOG_DEBUG("mem_connect: exit");
-  return C_ORM_OK;
-}
 
 /**
  * @brief Retrieves the driver virtual table for the memory driver.
@@ -2127,7 +2445,55 @@ c_orm_memory_get_vtable(const c_orm_driver_vtable_t **out_vtable) {
   return C_ORM_ERROR_UNKNOWN;
 }
 
+/**
+ * @brief Connects to an in-memory database instance.
+ * @param url Connection string URL (e.g. `memory://`, `:memory:`, or NULL).
+ * @param out_db Pointer to receive allocated database handle.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
+ */
 C_ORM_EXPORT c_orm_error_t c_orm_memory_connect(const char *url,
                                                 c_orm_db_t **out_db) {
-  return mem_connect(url, out_db);
+  c_orm_memory_db_t *ctx = NULL;
+  c_orm_db_t *db = NULL;
+  c_orm_error_t rc;
+  c_orm_error_t frc;
+
+  LOG_DEBUG("c_orm_memory_connect: entry");
+
+  if (!out_db) {
+    LOG_DEBUG("c_orm_memory_connect: validation error");
+    return C_ORM_ERROR_MEMORY;
+  }
+
+  rc = c_orm_system_malloc(sizeof(c_orm_memory_db_t), (void **)&ctx);
+  if (rc != C_ORM_OK) {
+    LOG_DEBUG("c_orm_memory_connect: OOM");
+    return rc;
+  }
+  memset(ctx, 0, sizeof(*ctx));
+  if (url && url[0] != '\0') {
+    rc = C_ORM_STRCPY(ctx->last_trace, sizeof(ctx->last_trace),
+                      "[MemoryDriver] OK");
+    if (rc != C_ORM_OK) {
+      frc = c_orm_system_free(ctx);
+      return (frc != C_ORM_OK) ? frc : rc;
+    }
+  }
+
+  rc = c_orm_system_malloc(sizeof(c_orm_db_t), (void **)&db);
+  if (rc != C_ORM_OK) {
+    LOG_DEBUG("c_orm_memory_connect: OOM");
+    frc = c_orm_system_free(ctx);
+    return (frc != C_ORM_OK) ? frc : rc;
+  }
+  memset(db, 0, sizeof(*db));
+
+  ctx->owner_db = db;
+  db->vtable = &memory_vtable;
+  db->driver_data = ctx;
+  db->driver_name = "memory";
+
+  *out_db = db;
+  LOG_DEBUG("c_orm_memory_connect: exit");
+  return C_ORM_OK;
 }

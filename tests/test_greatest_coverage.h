@@ -11,6 +11,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include <setjmp.h>
 #include <greatest.h>
 #include <string.h>
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
@@ -18,9 +19,135 @@ extern "C" {
 #include <sys/wait.h>
 #endif
 #include "c_orm_meta.h"
+#include "test_assert_zero_branch.h"
 /* clang-format on */
 
+/**
+ * @brief Instantiates Greatest main test runner definitions.
+ * @param name Candidate test or suite name.
+ * @param filter Optional name filter string.
+ * @param res_if_none Default match result when no filter is active.
+ */
 GREATEST_MAIN_DEFS();
+
+/** @brief Active jump buffer used by `test_zb_run` and `test_zb_assert`. */
+static jmp_buf g_test_zb_jmp;
+
+/**
+ * @brief Asserts a boolean condition and aborts the active test via longjmp on
+ * failure.
+ * @param cond Non-zero when assertion passes, zero on failure.
+ * @param expr Diagnostic expression or message string.
+ * @param file Source file path.
+ * @param line Source line number.
+ */
+void test_zb_assert(int cond, const char *expr, const char *file, int line) {
+  greatest_info.assertions++;
+  if (!cond) {
+    greatest_info.fail_file = file;
+    greatest_info.fail_line = (unsigned int)line;
+    greatest_info.msg = expr;
+    longjmp(g_test_zb_jmp, 1);
+  }
+}
+
+/**
+ * @brief Asserts equality of two C strings (handling NULL safely) via
+ * `test_zb_assert`.
+ * @param exp Expected NUL-terminated string (or NULL).
+ * @param got Actual NUL-terminated string (or NULL).
+ * @param file Source file path.
+ * @param line Source line number.
+ */
+void test_zb_assert_str_eq(const char *exp, const char *got, const char *file,
+                           int line) {
+  int ok = 0;
+  if (exp != NULL && got != NULL) {
+    ok = (strcmp(exp, got) == 0);
+  } else {
+    ok = (exp == got);
+  }
+  test_zb_assert(ok, "ASSERT_STR_EQ failed", file, line);
+}
+
+/**
+ * @brief Asserts byte-for-byte equality of two memory buffers via
+ * `test_zb_assert`.
+ * @param exp Expected memory buffer.
+ * @param got Actual memory buffer.
+ * @param len Number of bytes to compare.
+ * @param file Source file path.
+ * @param line Source line number.
+ */
+void test_zb_assert_mem_eq(const void *exp, const void *got, size_t len,
+                           const char *file, int line) {
+  test_zb_assert(memcmp(exp, got, len) == 0, "ASSERT_MEM_EQ failed", file,
+                 line);
+}
+
+/**
+ * @brief Verifies a sub-helper `enum greatest_test_res` result equals
+ * `GREATEST_TEST_RES_PASS`.
+ * @param res Result returned by helper function.
+ * @param file Source file path.
+ * @param line Source line number.
+ */
+void test_zb_check_call(enum greatest_test_res res, const char *file,
+                        int line) {
+  test_zb_assert(res == GREATEST_TEST_RES_PASS, "CHECK_CALL failed", file,
+                 line);
+}
+
+/**
+ * @brief Executes a single Greatest test function with a setjmp failure frame.
+ * @param fn Test callback to run.
+ * @param name Registered display name of the test.
+ */
+void test_zb_run(enum greatest_test_res (*fn)(void), const char *name) {
+  int should_run = 0;
+  volatile enum greatest_test_res res = GREATEST_TEST_RES_PASS;
+  greatest_test_pre(name, &should_run);
+  if (should_run == 1) {
+    if (setjmp(g_test_zb_jmp) == 0) {
+      res = fn();
+    } else {
+      res = GREATEST_TEST_RES_FAIL;
+    }
+    greatest_test_post(res);
+  }
+}
+
+/**
+ * @brief Dummy passing test exercising all `test_zb_*` success paths.
+ * @return `GREATEST_TEST_RES_PASS`.
+ */
+static enum greatest_test_res dummy_zb_pass_test(void) {
+  test_zb_assert(1, "ok", __FILE__, __LINE__);
+  test_zb_assert_str_eq("abc", "abc", __FILE__, __LINE__);
+  test_zb_assert_str_eq(NULL, NULL, __FILE__, __LINE__);
+  test_zb_assert_mem_eq("xy", "xy", 2, __FILE__, __LINE__);
+  test_zb_check_call(GREATEST_TEST_RES_PASS, __FILE__, __LINE__);
+  return GREATEST_TEST_RES_PASS;
+}
+
+/**
+ * @brief Dummy failing test exercising `test_zb_assert_str_eq` NULL mismatch.
+ * @return Unreached due to `longjmp`.
+ */
+static enum greatest_test_res dummy_zb_fail_null_lhs_test(void) {
+  test_zb_assert_str_eq(NULL, "abc", __FILE__, __LINE__);
+  return GREATEST_TEST_RES_PASS;
+}
+
+/**
+ * @brief Dummy failing test exercising `test_zb_assert_str_eq` RHS NULL
+ * mismatch.
+ * @return Unreached due to `longjmp`.
+ */
+static enum greatest_test_res dummy_zb_fail_null_rhs_test(void) {
+  test_zb_assert_str_eq("abc", NULL, __FILE__, __LINE__);
+  return GREATEST_TEST_RES_PASS;
+}
 
 /**
  * @brief Dummy setup function for greatest callback coverage.
@@ -285,6 +412,17 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
   greatest_info.failed = 1;
   greatest_all_passed(&eq_out);
 
+  /* test_zb_* coverage */
+  greatest_info.flags = 0;
+  greatest_info.failed = 0;
+  greatest_info.suite.failed = 0;
+  greatest_set_test_filter("nomatch");
+  test_zb_run(dummy_zb_pass_test, "zb_pass");
+  greatest_set_test_filter(NULL);
+  test_zb_run(dummy_zb_pass_test, "zb_pass");
+  test_zb_run(dummy_zb_fail_null_lhs_test, "zb_fail1");
+  test_zb_run(dummy_zb_fail_null_rhs_test, "zb_fail2");
+
   greatest_get_report(NULL);
   greatest_string_equal_cb("a", "a", &n);
   greatest_string_equal_cb("a", "b", &n);
@@ -293,30 +431,48 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
   greatest_usage("test");
 
   /* greatest_parse_options */
-  fake_args[0] = "test";
-  fake_args[1] = "-s";
-  fake_args[2] = "s_filter";
-  fake_args[3] = "-t";
-  fake_args[4] = "t_filter";
-  fake_args[5] = "-x";
-  fake_args[6] = "x_filter";
-  fake_args[7] = "-e";
-  fake_args[8] = "-f";
-  fake_args[9] = "-a";
-  fake_args[10] = "-l";
-  fake_args[11] = "-v";
-  fake_args[12] = "positional";
-  greatest_parse_options(13, fake_args);
+  {
+    char a0[] = "test";
+    char a1[] = "-s";
+    char a2[] = "s_filter";
+    char a3[] = "-t";
+    char a4[] = "t_filter";
+    char a5[] = "-x";
+    char a6[] = "x_filter";
+    char a7[] = "-e";
+    char a8[] = "-f";
+    char a9[] = "-a";
+    char a10[] = "-l";
+    char a11[] = "-v";
+    char a12[] = "positional";
+    char dashdash[] = "--";
+    fake_args[0] = a0;
+    fake_args[1] = a1;
+    fake_args[2] = a2;
+    fake_args[3] = a3;
+    fake_args[4] = a4;
+    fake_args[5] = a5;
+    fake_args[6] = a6;
+    fake_args[7] = a7;
+    fake_args[8] = a8;
+    fake_args[9] = a9;
+    fake_args[10] = a10;
+    fake_args[11] = a11;
+    fake_args[12] = a12;
+    greatest_parse_options(13, fake_args);
 
-  fake_args[1] = "--";
-  greatest_parse_options(2, fake_args);
+    fake_args[1] = dashdash;
+    greatest_parse_options(2, fake_args);
+  }
 
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
   pid = fork();
   if (pid == 0) {
+    char p0[] = "test";
+    char p1[] = "-h";
     char *h_args[3];
-    h_args[0] = "test";
-    h_args[1] = "-h";
+    h_args[0] = p0;
+    h_args[1] = p1;
     h_args[2] = NULL;
     greatest_parse_options(2, h_args);
     exit(0);
@@ -325,9 +481,11 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
 
   pid = fork();
   if (pid == 0) {
+    char p0[] = "test";
+    char p1[] = "--help";
     char *help_args[3];
-    help_args[0] = "test";
-    help_args[1] = "--help";
+    help_args[0] = p0;
+    help_args[1] = p1;
     help_args[2] = NULL;
     greatest_parse_options(2, help_args);
     exit(0);
@@ -336,9 +494,11 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
 
   pid = fork();
   if (pid == 0) {
+    char p0[] = "test";
+    char p1[] = "-s";
     char *s_args[2];
-    s_args[0] = "test";
-    s_args[1] = "-s";
+    s_args[0] = p0;
+    s_args[1] = p1;
     greatest_parse_options(2, s_args);
     exit(0);
   }
@@ -346,9 +506,11 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
 
   pid = fork();
   if (pid == 0) {
+    char p0[] = "test";
+    char p1[] = "-t";
     char *t_args[2];
-    t_args[0] = "test";
-    t_args[1] = "-t";
+    t_args[0] = p0;
+    t_args[1] = p1;
     greatest_parse_options(2, t_args);
     exit(0);
   }
@@ -356,9 +518,11 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
 
   pid = fork();
   if (pid == 0) {
+    char p0[] = "test";
+    char p1[] = "-x";
     char *x_args[2];
-    x_args[0] = "test";
-    x_args[1] = "-x";
+    x_args[0] = p0;
+    x_args[1] = p1;
     greatest_parse_options(2, x_args);
     exit(0);
   }
@@ -366,9 +530,11 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
 
   pid = fork();
   if (pid == 0) {
+    char p0[] = "test";
+    char p1[] = "-z";
     char *z_args[2];
-    z_args[0] = "test";
-    z_args[1] = "-z";
+    z_args[0] = p0;
+    z_args[1] = p1;
     greatest_parse_options(2, z_args);
     exit(0);
   }
@@ -376,9 +542,11 @@ static c_orm_error_t test_greatest_internals_coverage(void) {
 
   pid = fork();
   if (pid == 0) {
+    char p0[] = "test";
+    char p1[] = "--unknown";
     char *u_args[2];
-    u_args[0] = "test";
-    u_args[1] = "--unknown";
+    u_args[0] = p0;
+    u_args[1] = p1;
     greatest_parse_options(2, u_args);
     exit(0);
   }

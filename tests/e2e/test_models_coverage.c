@@ -13,81 +13,10 @@ extern "C" {
 #include "c_orm_api.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
-
+#include "test_assert_zero_branch.h"
 /* clang-format on */
 
 /** @brief Global flag to activate mock out-of-memory errors for model tests. */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
-
 int models_oom_active = 0;
 
 /** @brief Counter decremented on each allocation before failing when reaching
@@ -114,29 +43,28 @@ c_orm_error_t e2e_mock_calloc(size_t nmemb, size_t size, void **out_ptr);
 c_orm_error_t e2e_mock_malloc(size_t size, void **out_ptr) {
   if (models_oom_active) {
     if (models_oom_countdown == 0) {
-      if (out_ptr) {
-        *out_ptr = NULL;
-      }
+      *out_ptr = NULL;
       return C_ORM_ERROR_MEMORY;
     }
     models_oom_countdown--;
   }
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 c_orm_error_t e2e_mock_calloc(size_t nmemb, size_t size, void **out_ptr) {
+  c_orm_error_t rc;
+  size_t total;
   if (models_oom_active) {
     if (models_oom_countdown == 0) {
-      if (out_ptr) {
-        *out_ptr = NULL;
-      }
+      *out_ptr = NULL;
       return C_ORM_ERROR_MEMORY;
     }
     models_oom_countdown--;
   }
-  *out_ptr = calloc(nmemb == 0 ? 1 : nmemb, size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  total = nmemb * size;
+  rc = c_orm_default_malloc(total, out_ptr);
+  memset(*out_ptr, 0, total);
+  return rc;
 }
 
 /**
@@ -177,17 +105,18 @@ TEST test_users_models(void) {
 
   memset(&u1, 0, sizeof(u1));
   u1.id = 1;
-  u1.username = (char *)malloc(10);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, (void **)&u1.username));
   C_ORM_STRCPY(u1.username, 10, "test");
-  u1.email = (char *)malloc(10);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, (void **)&u1.email));
   C_ORM_STRCPY(u1.email, 10, "e@ma.il");
-  u1.age = (int32_t *)malloc(sizeof(int32_t));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(sizeof(int32_t), (void **)&u1.age));
   *u1.age = 30;
-  u1.score = (float *)malloc(sizeof(float));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(sizeof(float), (void **)&u1.score));
   *u1.score = 5.5f;
-  u1.is_active = (bool *)malloc(sizeof(bool));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_default_malloc(sizeof(bool), (void **)&u1.is_active));
   *u1.is_active = true;
-  u1.created_at = (char *)malloc(10);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, (void **)&u1.created_at));
   C_ORM_STRCPY(u1.created_at, 10, "now");
 
   err = Users_deepcopy(NULL, NULL);
@@ -303,13 +232,14 @@ TEST test_posts_models(void) {
 
   memset(&p1, 0, sizeof(p1));
   p1.id = 1;
-  p1.title = (char *)malloc(10);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, (void **)&p1.title));
   C_ORM_STRCPY(p1.title, 10, "title");
-  p1.content = (char *)malloc(10);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, (void **)&p1.content));
   C_ORM_STRCPY(p1.content, 10, "content");
-  p1.views = (int64_t *)malloc(sizeof(int64_t));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_default_malloc(sizeof(int64_t), (void **)&p1.views));
   *p1.views = 100;
-  p1.published_date = (char *)malloc(10);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, (void **)&p1.published_date));
   C_ORM_STRCPY(p1.published_date, 10, "date");
 
   err = Posts_deepcopy(NULL, NULL);
@@ -422,15 +352,17 @@ TEST test_oauth2_models(void) {
   ASSERT_EQ(C_ORM_OK, err);
 
   memset(&t1, 0, sizeof(t1));
-  t1.access_token = (char *)malloc(10);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, (void **)&t1.access_token));
   C_ORM_STRCPY(t1.access_token, 10, "access");
-  t1.refresh_token = (char *)malloc(10);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, (void **)&t1.refresh_token));
   C_ORM_STRCPY(t1.refresh_token, 10, "refresh");
-  t1.token_type = (char *)malloc(10);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(10, (void **)&t1.token_type));
   C_ORM_STRCPY(t1.token_type, 10, "type");
-  t1.expires_in = (int32_t *)malloc(sizeof(int32_t));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_default_malloc(sizeof(int32_t), (void **)&t1.expires_in));
   *t1.expires_in = 3600;
-  t1.created_at = (int64_t *)malloc(sizeof(int64_t));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_default_malloc(sizeof(int64_t), (void **)&t1.created_at));
   *t1.created_at = 12345;
 
   err = Oauth2_tokens_deepcopy(NULL, NULL);
@@ -531,21 +463,21 @@ TEST test_mock_allocators(void) {
   models_oom_countdown = 1;
   ASSERT_EQ(C_ORM_OK, e2e_mock_malloc(10, &p));
   ASSERT(p != NULL);
-  free(p);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_free(p));
 
   models_oom_countdown = 1;
   ASSERT_EQ(C_ORM_OK, e2e_mock_calloc(1, 10, &p));
   ASSERT(p != NULL);
-  free(p);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_free(p));
 
   models_oom_active = 0;
   ASSERT_EQ(C_ORM_OK, e2e_mock_malloc(10, &p));
   ASSERT(p != NULL);
-  free(p);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_free(p));
 
   ASSERT_EQ(C_ORM_OK, e2e_mock_calloc(1, 10, &p));
   ASSERT(p != NULL);
-  free(p);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_free(p));
 
   PASS();
 }
@@ -556,23 +488,16 @@ TEST test_mock_allocators(void) {
  * @return GREATEST suite result.
  */
 SUITE(models_coverage_suite) {
-  static int recursed = 0;
   c_orm_malloc_fn_t old_malloc = c_orm_malloc;
-  c_orm_set_allocators(e2e_mock_malloc, c_orm_realloc, c_orm_free);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(e2e_mock_malloc, c_orm_realloc, c_orm_free));
 
   RUN_TEST(test_users_models);
   RUN_TEST(test_posts_models);
   RUN_TEST(test_oauth2_models);
   RUN_TEST(test_mock_allocators);
-  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
-
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    models_coverage_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free));
 }
 
 #ifdef __cplusplus

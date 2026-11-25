@@ -60,11 +60,14 @@ c_orm_error_t cdd_c_hydrate_router_set_last_error(const char *msg) {
     return C_ORM_ERROR_UNKNOWN;
 #endif
   if (!msg) {
-
     cdd_c_hydrate_error_msg[0] = '\0';
   } else {
-    C_ORM_STRNCPY(cdd_c_hydrate_error_msg, sizeof(cdd_c_hydrate_error_msg), msg,
-                  sizeof(cdd_c_hydrate_error_msg) - 1);
+    c_orm_error_t rc =
+        C_ORM_STRNCPY(cdd_c_hydrate_error_msg, sizeof(cdd_c_hydrate_error_msg),
+                      msg, sizeof(cdd_c_hydrate_error_msg) - 1);
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
     cdd_c_hydrate_error_msg[sizeof(cdd_c_hydrate_error_msg) - 1] = '\0';
   }
   return C_ORM_OK;
@@ -100,13 +103,14 @@ cdd_c_hydrate_router_register(cdd_c_hydrate_router_t *router,
   }
 
   if (router->count >= router->capacity) {
+    c_orm_error_t rc;
     new_cap = router->capacity == 0 ? 8 : router->capacity * 2;
     new_routes = NULL;
-    if (c_orm_system_realloc(router->routes,
-                             new_cap * sizeof(cdd_c_hydrate_route_t),
-                             (void **)&new_routes) != C_ORM_OK ||
-        !new_routes)
-      return C_ORM_ERROR_UNKNOWN;
+    rc = c_orm_system_realloc(router->routes,
+                              new_cap * sizeof(cdd_c_hydrate_route_t),
+                              (void **)&new_routes);
+    if (rc != C_ORM_OK)
+      return rc;
     router->routes = new_routes;
     router->capacity = new_cap;
   }
@@ -146,14 +150,13 @@ c_orm_error_t cdd_c_hydrate_router_dispatch(
       /* Hand execution cleanly off to the codegen handler */
       rc = router->routes[i].hydrate_fn(out_struct, row);
       if (rc != C_ORM_OK) {
-        {
-          c_orm_error_t _e = cdd_c_hydrate_router_set_last_error(
-              "Hydration function returned error");
-          if (_e != C_ORM_OK)
-            return _e;
-        }
+        c_orm_error_t _e = cdd_c_hydrate_router_set_last_error(
+            "Hydration function returned error");
+        if (_e != C_ORM_OK)
+          return _e;
+        return rc;
       }
-      return rc;
+      return C_ORM_OK;
     }
   }
 

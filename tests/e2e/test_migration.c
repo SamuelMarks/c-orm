@@ -9,96 +9,23 @@ extern "C" {
 
 /* clang-format off */
 #include "c_orm_safe_crt.h"
+#include "c_orm_migrations.h"
 #include "functions/parse/fs.h"
 #include "migration.h"
 #include "migration_runner.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 /* clang-format on */
 
 /**
  * @brief Tests parsing a valid migration file containing both UP and DOWN
  * sections.
  * @return GREATEST test result.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
-
-/**
- * @brief Executes test_parse_migration_file_valid.
  */
 TEST test_parse_migration_file_valid(void) {
   const char *filename = "test_valid_migration.sql";
@@ -257,27 +184,6 @@ TEST test_parse_migration_file_errors(void) {
   PASS();
 }
 
-/**
- * @brief Tests fallback migration runner stub functions.
- * @return GREATEST test result.
- */
-TEST test_migration_runner_stubs(void) {
-#if defined(__EMSCRIPTEN__) ||                                                 \
-    (!defined(USE_LIBPQ_LINKED) && !defined(USE_LIBPQ_DYNAMIC))
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, apply_migration("dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, rollback_migration("dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, run_pending_migrations("dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, rollback_last_migration("dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED,
-            create_migration_file("dummy", "dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, reset_database("dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, dump_schema("dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, setup_test_database("dummy", "dummy"));
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, seed_database("dummy"));
-#endif
-  PASS();
-}
-
 /** @brief Counter for controlling allocation failures. */
 static int alloc_countdown = 0;
 
@@ -287,16 +193,395 @@ static int alloc_countdown = 0;
  * @param out_ptr Output pointer receiving memory pointer or NULL.
  * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
  */
+static c_orm_error_t mock_malloc_migration(size_t size, void **out_ptr);
+
+/** @brief Optional pre-built mock DB handle used by migration_runner.c. */
+C_ORM_EXPORT extern c_orm_db_t *c_orm_mock_mig_runner_db;
+
+/** @brief Mode selector for mock dump_schema vtable callbacks. */
+static int g_mock_dump_mode = 0;
+
+/** @brief Row emission counter for mock_dump_step. */
+static int g_mock_dump_emitted = 0;
+
+/**
+ * @brief Mock disconnect callback for dump_schema branch coverage.
+ * @param db Database handle.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t mock_dump_disconnect(c_orm_db_t *db) {
+  (void)db;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock prepare callback for dump_schema branch coverage.
+ * @param db Database handle.
+ * @param sql SQL statement string.
+ * @param out_q Output query handle.
+ * @return C_ORM_OK or C_ORM_ERROR_SQL.
+ */
+static c_orm_error_t mock_dump_prepare(c_orm_db_t *db, const char *sql,
+                                       c_orm_query_t **out_q) {
+  (void)db;
+  (void)sql;
+  if (g_mock_dump_mode == 1) {
+    return C_ORM_ERROR_SQL;
+  }
+  g_mock_dump_emitted = 0;
+  *out_q = (c_orm_query_t *)0x1;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock step callback for dump_schema branch coverage.
+ * @param q Query handle.
+ * @param out_has_row Output row indicator.
+ * @return C_ORM_OK or C_ORM_ERROR_STEP.
+ */
+static c_orm_error_t mock_dump_step(c_orm_query_t *q, int *out_has_row) {
+  (void)q;
+  if (g_mock_dump_mode == 2) {
+    return C_ORM_ERROR_STEP;
+  }
+  if (!g_mock_dump_emitted) {
+    g_mock_dump_emitted = 1;
+    *out_has_row = 1;
+    return C_ORM_OK;
+  }
+  *out_has_row = 0;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock get_string callback for dump_schema branch coverage.
+ * @param q Query handle.
+ * @param idx Column index.
+ * @param out_val Output string pointer.
+ * @return C_ORM_OK or C_ORM_ERROR_SQL.
+ */
+static c_orm_error_t mock_dump_get_str(c_orm_query_t *q, int idx,
+                                       const char **out_val) {
+  (void)q;
+  (void)idx;
+  if (g_mock_dump_mode == 3) {
+    return C_ORM_ERROR_SQL;
+  }
+  *out_val = NULL;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock finalize callback for dump_schema branch coverage.
+ * @param q Query handle.
+ * @return C_ORM_OK always.
+ */
+static c_orm_error_t mock_dump_finalize(c_orm_query_t *q) {
+  (void)q;
+  return (g_mock_dump_mode == 5) ? C_ORM_ERROR_SQL : C_ORM_OK;
+}
+
+/**
+ * @brief Tests unified cross-driver migration runner functions and error/OOM
+ * branches.
+ * @return GREATEST test result.
+ */
+TEST test_migration_runner_stubs(void) {
+  const char *rdir = "test_mig_runner_dir";
+  const char *cdir = "test_mig_create_dir";
+  const char *mig_file = "test_mig_runner_dir/001_init.sql";
+  const char *empty_mig = "test_mig_runner_dir/002_empty.sql";
+  const char *bad_mig = "test_mig_runner_dir/003_bad.sql";
+  const char *seed_file = "test_mig_seed.sql";
+  const char *empty_seed = "test_mig_empty_seed.sql";
+  const char *bad_seed = "test_mig_bad_seed.sql";
+  const char *dump_out = "test_mig_schema_dump.sql";
+  const char *db_file = "test_mig_runner.db";
+  char long_env[300];
+  FILE *fp = NULL;
+  c_orm_malloc_fn_t old_m = c_orm_malloc;
+  c_orm_realloc_fn_t old_r = c_orm_realloc;
+  c_orm_free_fn_t old_f = c_orm_free;
+
+  {
+    int rm1 = remove(db_file);
+    int rm2 = remove(dump_out);
+    ASSERT_NEQ(-999, rm1);
+    ASSERT_NEQ(-999, rm2);
+  }
+  ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("DATABASE_URL"));
+  ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("C_ORM_DB_URL"));
+
+  /* Validation & unset env errors */
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, create_migration_file(NULL, "init"));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, create_migration_file("", "init"));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, create_migration_file(rdir, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, create_migration_file(rdir, ""));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+            create_migration_file("/dev/null/nonexistent_dir", "init"));
+
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, apply_migration(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, apply_migration(""));
+  ASSERT_NEQ(C_ORM_OK, apply_migration("nonexistent_mig_file.sql"));
+
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rollback_migration(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rollback_migration(""));
+  ASSERT_NEQ(C_ORM_OK, rollback_migration("nonexistent_mig_file.sql"));
+
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, run_pending_migrations(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, run_pending_migrations(""));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, run_pending_migrations(rdir));
+
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rollback_last_migration(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rollback_last_migration(""));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rollback_last_migration(rdir));
+
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, reset_database(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, reset_database(""));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, reset_database(rdir));
+
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, dump_schema(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, dump_schema(""));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, dump_schema(dump_out));
+
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, setup_test_database(NULL, rdir));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, setup_test_database("", rdir));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, setup_test_database(db_file, NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, setup_test_database(db_file, ""));
+
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, seed_database(NULL));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, seed_database(""));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, seed_database("nonexistent_seed.sql"));
+
+  /* Create boilerplate migration file unconditionally + OOM */
+  ASSERT_EQ(C_ORM_OK, create_migration_file(cdir, "boilerplate"));
+  ASSERT_EQ(C_ORM_OK, create_migration_file(rdir, "ensure_dir"));
+  {
+    c_orm_migration_t *cmigs = NULL;
+    size_t cmcnt = 0;
+    size_t ci;
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_load_dir(cdir, &cmigs, &cmcnt));
+    for (ci = 0; ci < cmcnt; ci++) {
+      char cpath[256];
+      ASSERT_EQ(C_ORM_OK,
+                C_ORM_SPRINTF(cpath, sizeof(cpath), "%s/%s_%s.sql", cdir,
+                              cmigs[ci].version, cmigs[ci].name));
+      remove(cpath);
+    }
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_free_array(cmigs, cmcnt));
+
+    cmigs = NULL;
+    cmcnt = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_load_dir(rdir, &cmigs, &cmcnt));
+    for (ci = 0; ci < cmcnt; ci++) {
+      char cpath[256];
+      ASSERT_EQ(C_ORM_OK,
+                C_ORM_SPRINTF(cpath, sizeof(cpath), "%s/%s_%s.sql", rdir,
+                              cmigs[ci].version, cmigs[ci].name));
+      remove(cpath);
+    }
+    ASSERT_EQ(C_ORM_OK, c_orm_migration_free_array(cmigs, cmcnt));
+  }
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(mock_malloc_migration, old_r, old_f));
+  alloc_countdown = 0;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, create_migration_file(cdir, "oom_mig"));
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(old_m, old_r, old_f));
+
+  /* Write concrete migration and seed fixtures */
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, mig_file, "wb"));
+  fputs("-- UP\nCREATE TABLE IF NOT EXISTS runner_items (id INTEGER PRIMARY "
+        "KEY, name TEXT);\n-- DOWN\nDROP TABLE IF EXISTS runner_items;\n",
+        fp);
+  fclose(fp);
+
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, empty_mig, "wb"));
+  fputs("-- UP\n\n-- DOWN\n\n", fp);
+  fclose(fp);
+
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, seed_file, "wb"));
+  fputs("INSERT INTO runner_items (id, name) VALUES (1, 'seeded');\n", fp);
+  fclose(fp);
+
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, empty_seed, "wb"));
+  fputs(" \t\r\n", fp);
+  fclose(fp);
+
+  /* Env unset error after parsing migration / seed */
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, apply_migration(mig_file));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rollback_migration(mig_file));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, seed_database(seed_file));
+
+  /* Env buffer overflow (>256 chars) */
+  memset(long_env, 'x', sizeof(long_env) - 1);
+  long_env[sizeof(long_env) - 1] = '\0';
+  ASSERT_EQ(C_ORM_OK, C_ORM_SETENV("DATABASE_URL", long_env));
+  ASSERT_NEQ(C_ORM_OK, run_pending_migrations(rdir));
+  ASSERT_NEQ(C_ORM_OK, setup_test_database(db_file, rdir));
+  ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("DATABASE_URL"));
+
+  ASSERT_EQ(C_ORM_OK, C_ORM_SETENV("C_ORM_DB_URL", long_env));
+  ASSERT_NEQ(C_ORM_OK, run_pending_migrations(rdir));
+  ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("C_ORM_DB_URL"));
+
+#if !defined(C_ORM_POSTGRESQL_LINKED) && !defined(C_ORM_POSTGRESQL_DYNAMIC)
+  ASSERT_EQ(C_ORM_OK, C_ORM_SETENV("DATABASE_URL", "postgres://localhost/db"));
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, run_pending_migrations(rdir));
+  ASSERT_EQ(C_ORM_OK,
+            C_ORM_SETENV("DATABASE_URL", "postgresql://localhost/db"));
+  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, run_pending_migrations(rdir));
+  ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("DATABASE_URL"));
+#endif
+
+  /* Fallback to C_ORM_DB_URL + full lifecycle on SQLite */
+  ASSERT_EQ(C_ORM_OK, C_ORM_SETENV("C_ORM_DB_URL", db_file));
+  ASSERT_EQ(C_ORM_OK, apply_migration(mig_file));
+  ASSERT_EQ(C_ORM_OK, apply_migration(empty_mig));
+  ASSERT_EQ(C_ORM_OK, seed_database(seed_file));
+  ASSERT_EQ(C_ORM_OK, seed_database(empty_seed));
+  ASSERT_EQ(C_ORM_OK, dump_schema(dump_out));
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, dump_schema("/dev/null/bad_dump.sql"));
+  ASSERT_EQ(C_ORM_OK, rollback_migration(empty_mig));
+  ASSERT_EQ(C_ORM_OK, rollback_migration(mig_file));
+
+  /* setup_test_database with unset DATABASE_URL and with preset DATABASE_URL */
+  ASSERT_EQ(C_ORM_OK, setup_test_database(db_file, rdir));
+  ASSERT_EQ(C_ORM_OK, C_ORM_SETENV("DATABASE_URL", db_file));
+  ASSERT_EQ(C_ORM_OK, setup_test_database("ignored.db", rdir));
+  ASSERT_EQ(C_ORM_OK, rollback_last_migration(rdir));
+  ASSERT_EQ(C_ORM_OK, run_pending_migrations(rdir));
+  ASSERT_EQ(C_ORM_OK, reset_database(rdir));
+
+  /* Non-SQLite memory:// dump_schema branch (prepare sqlite_master fails
+   * cleanly) */
+  ASSERT_EQ(C_ORM_OK, C_ORM_SETENV("DATABASE_URL", "memory://"));
+  ASSERT_EQ(C_ORM_OK, dump_schema(dump_out));
+
+  /* SQL error paths on apply_migration, rollback_migration, seed_database, dir
+   * errors */
+  ASSERT_EQ(C_ORM_OK, C_ORM_SETENV("DATABASE_URL", db_file));
+  ASSERT_NEQ(C_ORM_OK, run_pending_migrations("nonexistent_migs_dir_xyz"));
+  ASSERT_NEQ(C_ORM_OK, rollback_last_migration("nonexistent_migs_dir_xyz"));
+  ASSERT_NEQ(C_ORM_OK, reset_database("nonexistent_migs_dir_xyz"));
+
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, bad_mig, "wb"));
+  fputs("-- UP\nINVALID SQL UP;\n-- DOWN\nINVALID SQL DOWN;\n", fp);
+  fclose(fp);
+  ASSERT_NEQ(C_ORM_OK, apply_migration(bad_mig));
+  ASSERT_NEQ(C_ORM_OK, rollback_migration(bad_mig));
+  ASSERT_NEQ(C_ORM_OK, reset_database(rdir));
+  ASSERT_EQ(0, remove(bad_mig));
+
+  /* Rollback succeeds, then bad migration makes migrate_up fail in
+   * reset_database */
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, bad_mig, "wb"));
+  fputs("-- UP\nINVALID SQL UP;\n-- DOWN\nSELECT 1;\n", fp);
+  fclose(fp);
+  ASSERT_NEQ(C_ORM_OK, reset_database(rdir));
+  ASSERT_EQ(0, remove(bad_mig));
+
+  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, bad_seed, "wb"));
+  fputs("INVALID SEED SQL;\n", fp);
+  fclose(fp);
+  ASSERT_NEQ(C_ORM_OK, seed_database(bad_seed));
+
+  /* OOM reading seed file */
+  c_orm_set_allocators(mock_malloc_migration, old_r, old_f);
+  alloc_countdown = 0;
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, seed_database(seed_file));
+  c_orm_set_allocators(old_m, old_r, old_f);
+
+  /* Exercise NULL up_statement / NULL down_statement + dump_schema mock
+   * branches */
+  {
+    const char *null_mig = "test_mig_runner_dir/null_mig.sql";
+    const char *zero_seed = "test_mig_zero_seed.sql";
+    c_orm_driver_vtable_t mock_vt;
+    c_orm_db_t mock_db;
+
+    ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, zero_seed, "wb"));
+    fclose(fp);
+    ASSERT_EQ(C_ORM_OK, seed_database(zero_seed));
+    ASSERT_EQ(0, remove(zero_seed));
+
+    ASSERT_NEQ(C_ORM_OK,
+               setup_test_database(db_file, "nonexistent_migs_dir_xyz"));
+
+#ifdef C_ORM_TEST_ALLOCATOR
+    ASSERT_EQ(C_ORM_OK, C_ORM_SETENV("DATABASE_URL", db_file));
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, run_pending_migrations(rdir));
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, setup_test_database(db_file, rdir));
+    c_orm_mock_safe_crt_countdown = -1;
+
+    ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("DATABASE_URL"));
+    ASSERT_EQ(C_ORM_OK, C_ORM_SETENV("C_ORM_DB_URL", db_file));
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, run_pending_migrations(rdir));
+    c_orm_mock_safe_crt_countdown = -1;
+    ASSERT_EQ(C_ORM_OK, C_ORM_SETENV("DATABASE_URL", db_file));
+#endif
+
+    ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&fp, null_mig, "wb"));
+    fclose(fp);
+    ASSERT_EQ(C_ORM_OK, apply_migration(null_mig));
+    ASSERT_EQ(C_ORM_OK, rollback_migration(null_mig));
+    ASSERT_EQ(0, remove(null_mig));
+
+    memset(&mock_vt, 0, sizeof(mock_vt));
+    mock_vt.disconnect = mock_dump_disconnect;
+    mock_vt.prepare = mock_dump_prepare;
+    mock_vt.step = mock_dump_step;
+    mock_vt.get_string = mock_dump_get_str;
+    mock_vt.finalize = mock_dump_finalize;
+    memset(&mock_db, 0, sizeof(mock_db));
+    mock_db.vtable = &mock_vt;
+
+    c_orm_mock_mig_runner_db = &mock_db;
+    mock_db.driver_name = NULL;
+    ASSERT_EQ(C_ORM_OK, dump_schema(dump_out));
+
+    mock_db.driver_name = "sqlite";
+    g_mock_dump_mode = 1;
+    ASSERT_EQ(C_ORM_ERROR_SQL, dump_schema(dump_out));
+    g_mock_dump_mode = 2;
+    ASSERT_EQ(C_ORM_ERROR_STEP, dump_schema(dump_out));
+    g_mock_dump_mode = 3;
+    ASSERT_EQ(C_ORM_ERROR_SQL, dump_schema(dump_out));
+    g_mock_dump_mode = 4;
+    ASSERT_EQ(C_ORM_OK, dump_schema(dump_out));
+    g_mock_dump_mode = 5;
+    ASSERT_EQ(C_ORM_ERROR_SQL, dump_schema(dump_out));
+    g_mock_dump_mode = 0;
+    c_orm_mock_mig_runner_db = NULL;
+  }
+
+  ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("DATABASE_URL"));
+  ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("C_ORM_DB_URL"));
+  remove(bad_seed);
+  remove(seed_file);
+  remove(empty_seed);
+  remove(mig_file);
+  remove(empty_mig);
+  remove(dump_out);
+  remove(db_file);
+  PASS();
+}
+
+/**
+ * @brief Mock malloc callback for simulated OOM testing.
+ * @param size Requested allocation size.
+ * @param out_ptr Output pointer receiving memory pointer or NULL.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
+ */
 static c_orm_error_t mock_malloc_migration(size_t size, void **out_ptr) {
   if (alloc_countdown == 0) {
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
   alloc_countdown--;
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /** @brief Countdown for mock_ok_null_malloc_mig. */
@@ -316,8 +601,7 @@ static c_orm_error_t mock_ok_null_malloc_mig(size_t size, void **out_ptr) {
     return C_ORM_OK;
   }
   mig_ok_null_countdown--;
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /** @brief Bitmask controlling simulated free failures in mock_fail_free_mig. */
@@ -332,11 +616,11 @@ static unsigned int mig_free_call_idx = 0;
  */
 static c_orm_error_t mock_fail_free_mig(void *ptr) {
   unsigned int bit = 1U << mig_free_call_idx++;
-  free(ptr);
+  c_orm_error_t rc = c_orm_default_free(ptr);
   if ((mig_free_fail_mask & bit) != 0U) {
     return C_ORM_ERROR_MEMORY;
   }
-  return C_ORM_OK;
+  return rc;
 }
 
 /**
@@ -362,57 +646,75 @@ TEST test_parse_migration_file_oom(void) {
   rc = (c_orm_error_t)fs_write_to_file(filename, content);
   ASSERT_EQ(C_ORM_OK, rc);
 
-  /* Force OOM on first alloc (up) */
+  /* Force OOM on file_data (0), up_stmt (1), and down_stmt (2) */
   alloc_countdown = 0;
-  c_orm_set_allocators(mock_malloc_migration, old_realloc, old_free);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(mock_malloc_migration, old_realloc, old_free));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
 
-  /* Force OOM on second alloc (down) */
   alloc_countdown = 1;
-  c_orm_set_allocators(mock_malloc_migration, old_realloc, old_free);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(mock_malloc_migration, old_realloc, old_free));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
 
-  /* Force OOM on second alloc (down) when freeing up_statement also fails */
-  alloc_countdown = 1;
+  alloc_countdown = 2;
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(mock_malloc_migration, old_realloc, old_free));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
+
+  /* Force OOM on down_stmt (2) when freeing up_statement (call idx 1) fails */
+  alloc_countdown = 2;
   mig_free_call_idx = 0;
-  mig_free_fail_mask = 0x01U;
-  c_orm_set_allocators(mock_malloc_migration, old_realloc, mock_fail_free_mig);
+  mig_free_fail_mask = 0x02U;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(mock_malloc_migration, old_realloc,
+                                           mock_fail_free_mig));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
   mig_free_fail_mask = 0;
 
-  /* Force C_ORM_OK + NULL *out_ptr on up_stmt and down_stmt */
+  /* Force C_ORM_OK + NULL *out_ptr on file_data (0), up_stmt (1), down_stmt (2)
+   */
   mig_ok_null_countdown = 0;
-  c_orm_set_allocators(mock_ok_null_malloc_mig, old_realloc, old_free);
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(mock_ok_null_malloc_mig, old_realloc,
+                                           old_free));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
 
   mig_ok_null_countdown = 1;
-  c_orm_set_allocators(mock_ok_null_malloc_mig, old_realloc, old_free);
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(mock_ok_null_malloc_mig, old_realloc,
+                                           old_free));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
+
+  mig_ok_null_countdown = 2;
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(mock_ok_null_malloc_mig, old_realloc,
+                                           old_free));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, parse_migration_file(filename, &stmts));
 
   /* Exercise all free failure branches in migration_statements_free */
-  c_orm_set_allocators(old_malloc, old_realloc, old_free);
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(old_malloc, old_realloc, old_free));
   ASSERT_EQ(C_ORM_OK, parse_migration_file(filename, &stmts));
   mig_free_call_idx = 0;
   mig_free_fail_mask = 0x01U;
-  c_orm_set_allocators(old_malloc, old_realloc, mock_fail_free_mig);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(old_malloc, old_realloc, mock_fail_free_mig));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, migration_statements_free(&stmts));
 
-  c_orm_set_allocators(old_malloc, old_realloc, old_free);
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(old_malloc, old_realloc, old_free));
   ASSERT_EQ(C_ORM_OK, parse_migration_file(filename, &stmts));
   mig_free_call_idx = 0;
   mig_free_fail_mask = 0x02U;
-  c_orm_set_allocators(old_malloc, old_realloc, mock_fail_free_mig);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(old_malloc, old_realloc, mock_fail_free_mig));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, migration_statements_free(&stmts));
 
-  c_orm_set_allocators(old_malloc, old_realloc, old_free);
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(old_malloc, old_realloc, old_free));
   ASSERT_EQ(C_ORM_OK, parse_migration_file(filename, &stmts));
   mig_free_call_idx = 0;
   mig_free_fail_mask = 0x03U;
-  c_orm_set_allocators(old_malloc, old_realloc, mock_fail_free_mig);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(old_malloc, old_realloc, mock_fail_free_mig));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, migration_statements_free(&stmts));
 
   mig_free_fail_mask = 0;
-  c_orm_set_allocators(old_malloc, old_realloc, old_free);
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(old_malloc, old_realloc, old_free));
   remove(filename);
   PASS();
 }
@@ -438,7 +740,7 @@ TEST test_parse_migration_file_empty_blocks(void) {
   ASSERT(stmts.up_statement != NULL);
   ASSERT(stmts.down_statement != NULL);
 
-  migration_statements_free(&stmts);
+  ASSERT_EQ(C_ORM_OK, migration_statements_free(&stmts));
   remove(filename);
 
   /* also test single empty marker at end of file */
@@ -447,14 +749,14 @@ TEST test_parse_migration_file_empty_blocks(void) {
   ASSERT_EQ(0, rc);
   rc = parse_migration_file(filename, &stmts);
   ASSERT_EQ(0, rc);
-  migration_statements_free(&stmts);
+  ASSERT_EQ(C_ORM_OK, migration_statements_free(&stmts));
 
   content = "-- DOWN";
   rc = (c_orm_error_t)fs_write_to_file(filename, content);
   ASSERT_EQ(0, rc);
   rc = parse_migration_file(filename, &stmts);
   ASSERT_EQ(0, rc);
-  migration_statements_free(&stmts);
+  ASSERT_EQ(C_ORM_OK, migration_statements_free(&stmts));
   remove(filename);
 
   /* test init fail */
@@ -471,7 +773,6 @@ TEST test_parse_migration_file_empty_blocks(void) {
  * @param migration_suite Suite runner function name.
  */
 SUITE(migration_suite) {
-  static int recursed = 0;
   RUN_TEST(test_parse_migration_file_empty_blocks);
   RUN_TEST(test_parse_migration_file_valid);
   RUN_TEST(test_parse_migration_file_no_down);
@@ -481,13 +782,6 @@ SUITE(migration_suite) {
   RUN_TEST(test_parse_migration_file_errors);
   RUN_TEST(test_migration_runner_stubs);
   RUN_TEST(test_parse_migration_file_oom);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    migration_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }
 
 #ifdef __cplusplus

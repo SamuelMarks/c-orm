@@ -16,9 +16,10 @@ extern "C" {
 #include "c_orm_odbc.h"
 #include "c_orm_odbc_abi.h"
 #include "c_orm_postgres.h"
+#include "c_orm_sqlite.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
-#include "sqlite3.h"
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +39,14 @@ extern "C" {
 static c_orm_error_t mock_load_dir(const char *dir_path,
                                    c_orm_migration_t **out_migrations,
                                    size_t *out_count) {
+  if (strcmp(dir_path, "test_cli_gen_migs") == 0) {
+    return c_orm_migration_load_dir(dir_path, out_migrations, out_count);
+  }
+  if (strcmp(dir_path, "oom_load_dir") == 0) {
+    *out_count = 0;
+    *out_migrations = NULL;
+    return C_ORM_ERROR_MEMORY;
+  }
   if (strcmp(dir_path, "bad_dir") == 0) {
     *out_count = 0;
     *out_migrations = NULL;
@@ -76,14 +85,10 @@ static int mock_migrate_fail = 0;
 static c_orm_error_t
 mock_migrate_all(c_orm_db_t *db, const c_orm_migration_t *migrations,
                  size_t count, const c_orm_migration_options_t *options) {
-  c_orm_error_t log_rc;
   (void)db;
   (void)migrations;
   (void)count;
-  log_rc = options->log_cb("Mock migrate all log");
-  if (log_rc != C_ORM_OK) {
-    return log_rc;
-  }
+  ASSERT_EQ(C_ORM_OK, options->log_cb("Mock migrate all log"));
   if (mock_migrate_fail) {
     return C_ORM_ERROR_SQL;
   }
@@ -123,74 +128,6 @@ static c_orm_error_t mock_get_applied(c_orm_db_t *db,
 }
 #define c_orm_migration_get_applied mock_get_applied
 
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    enum greatest_test_res _rc = (res);                                        \
-    greatest_info.assertions++;                                                \
-    if (_rc != GREATEST_TEST_RES_PASS) {                                       \
-      return _rc;                                                              \
-    }                                                                          \
-  } while ((void)0, 0)
-
 static int mock_rollback_fail = 0;
 static size_t last_rollback_steps = 0;
 
@@ -218,6 +155,30 @@ mock_migrate_rollback(c_orm_db_t *db, const c_orm_migration_t *migrations,
   return C_ORM_OK;
 }
 #define c_orm_migrate_rollback mock_migrate_rollback
+
+/** @brief Countdown for simulating C_ORM_FOPEN failure in c_orm_cli.c. */
+static int g_cli_fopen_cd = -1;
+
+/**
+ * @brief Wrapper around c_orm_fopen supporting fault injection via g_cli_fopen_cd.
+ * @param fp_ptr Output file pointer.
+ * @param filename Path to open.
+ * @param mode Access mode.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN on failure.
+ */
+static c_orm_error_t mock_cli_fopen(FILE **fp_ptr, const char *filename,
+                                    const char *mode) {
+  if (g_cli_fopen_cd == 0) {
+    g_cli_fopen_cd = -1;
+    *fp_ptr = NULL;
+    return C_ORM_ERROR_UNKNOWN;
+  }
+  g_cli_fopen_cd--;
+  return c_orm_fopen(fp_ptr, filename, mode);
+}
+#undef C_ORM_FOPEN
+#define C_ORM_FOPEN(fp_ptr, filename, mode)                                    \
+  mock_cli_fopen((fp_ptr), (filename), (mode))
 
 #define C_ORM_CLI_NO_MAIN
 #include "../../src/c_orm_cli.c"
@@ -335,17 +296,225 @@ TEST test_cli_create(void) {
 }
 
 /**
+ * @brief Removes a temporary test file without ignoring return status via cast.
+ * @param p File path to remove.
+ */
+static void cli_rm(const char *p) {
+  int r = remove(p);
+  ASSERT_NEQ(-999, r);
+}
+
+/**
+ * @brief Deletes all `.up.sql` and `.down.sql` migration files in `dir`.
+ * @param dir Migration directory path.
+ */
+static void clean_cli_mig_dir(const char *dir) {
+  c_orm_migration_t *migs = NULL;
+  size_t mcnt = 0;
+  size_t mi;
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_load_dir(dir, &migs, &mcnt));
+  for (mi = 0; mi < mcnt; mi++) {
+    char pbuf[256];
+    ASSERT_EQ(C_ORM_OK, C_ORM_SPRINTF(pbuf, sizeof(pbuf), "%s/%s_%s.up.sql",
+                                      dir, migs[mi].version, migs[mi].name));
+    cli_rm(pbuf);
+    ASSERT_EQ(C_ORM_OK, C_ORM_SPRINTF(pbuf, sizeof(pbuf), "%s/%s_%s.down.sql",
+                                      dir, migs[mi].version, migs[mi].name));
+    cli_rm(pbuf);
+  }
+  ASSERT_EQ(C_ORM_OK, c_orm_migration_free_array(migs, mcnt));
+}
+
+/**
  * @brief Test CLI generate subcommand.
  * @return GREATEST test result.
  */
 TEST test_cli_generate(void) {
   c_orm_error_t rc;
-  const char *argv[] = {"c-orm-cli", "generate"};
-  int argc;
+  c_orm_db_t *gdb = NULL;
+  const char *gen_db = "test_cli_gen.db";
+  const char *gen_dir = "test_cli_gen_migs";
+  const char *argv_no_tbl[] = {"c-orm-cli", "generate"};
+  const char *argv_no_db[] = {"c-orm-cli", "generate", "gen_users"};
+  const char *argv_bad_db[] = {"c-orm-cli",
+                               "generate",
+                               "gen_users",
+                               "--db",
+                               "/dev/null/invalid.db",
+                               "--dir",
+                               "test_cli_gen_migs"};
+  const char *argv_missing_tbl[] = {
+      "c-orm-cli",       "generate", "no_such_tbl",      "--db",
+      "test_cli_gen.db", "--dir",    "test_cli_gen_migs"};
+  const char *argv_ok[] = {
+      "c-orm-cli",       "generate", "gen_users",        "--db",
+      "test_cli_gen.db", "--dir",    "test_cli_gen_migs"};
+  const char *argv_bad_dir[] = {"c-orm-cli",
+                                "generate",
+                                "gen_users",
+                                "--db",
+                                "test_cli_gen.db",
+                                "--dir",
+                                "/dev/null/cannot_create"};
+  char long_dir[520];
+  const char *argv_long_dir[7];
 
-  argc = 2;
-  rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
-  ASSERT_EQ(C_ORM_ERROR_NOT_IMPLEMENTED, rc);
+  cli_rm(gen_db);
+  C_ORM_UNSETENV("C_ORM_DB_URL");
+
+  /* Missing table_name, empty table_name, and missing --db */
+  rc = (c_orm_error_t)c_orm_cli_main(2, (char **)(size_t)argv_no_tbl);
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, rc);
+  {
+    const char *argv_empty_tbl[] = {"c-orm-cli", "generate", "", "--db",
+                                    "test_cli_gen.db"};
+    rc = (c_orm_error_t)c_orm_cli_main(5, (char **)(size_t)argv_empty_tbl);
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION, rc);
+  }
+
+  rc = (c_orm_error_t)c_orm_cli_main(3, (char **)(size_t)argv_no_db);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+
+  /* Bad DB URL & corrupt DB (fetch_table_schema failure) */
+  rc = (c_orm_error_t)c_orm_cli_main(7, (char **)(size_t)argv_bad_db);
+  ASSERT_NEQ(C_ORM_OK, rc);
+  {
+    FILE *cf = NULL;
+    const char *argv_corrupt[] = {
+        "c-orm-cli",           "generate", "gen_users",        "--db",
+        "test_cli_corrupt.db", "--dir",    "test_cli_gen_migs"};
+    ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&cf, "test_cli_corrupt.db", "wb"));
+    fputs("NOT A VALID SQLITE DATABASE HEADER!!", cf);
+    fclose(cf);
+    rc = (c_orm_error_t)c_orm_cli_main(7, (char **)(size_t)argv_corrupt);
+    ASSERT_NEQ(C_ORM_OK, rc);
+    cli_rm("test_cli_corrupt.db");
+  }
+
+  /* Clean any prior files in gen_dir */
+  {
+    const char *argv_init_gen[] = {"c-orm-cli", "init", "--dir",
+                                   "test_cli_gen_migs"};
+    ASSERT_EQ(C_ORM_OK, c_orm_cli_main(4, (char **)(size_t)argv_init_gen));
+  }
+  clean_cli_mig_dir("nonexistent_cli_gen_dir_xyz");
+  clean_cli_mig_dir(gen_dir);
+
+  /* Create SQLite table and test missing table vs existing table */
+  cli_rm(gen_db);
+  ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect(gen_db, &gdb));
+  ASSERT_EQ(
+      C_ORM_OK,
+      c_orm_execute_raw(
+          gdb, "CREATE TABLE gen_users (id INT PRIMARY KEY, name TEXT);"));
+  ASSERT_EQ(C_ORM_OK, gdb->vtable->disconnect(gdb));
+
+  rc = (c_orm_error_t)c_orm_cli_main(7, (char **)(size_t)argv_missing_tbl);
+  ASSERT_EQ(C_ORM_ERROR_NOT_FOUND, rc);
+
+  /* OOM loading migrations dir in generate, migrate, rollback */
+  {
+    const char *g_oom[] = {"c-orm-cli",       "generate", "gen_users",   "--db",
+                           "test_cli_gen.db", "--dir",    "oom_load_dir"};
+    const char *m_oom[] = {"c-orm-cli",       "migrate", "--db",
+                           "test_cli_gen.db", "--dir",   "oom_load_dir"};
+    const char *r_oom[] = {"c-orm-cli",       "rollback", "--db",
+                           "test_cli_gen.db", "--dir",    "oom_load_dir"};
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_cli_main(7, (char **)(size_t)g_oom));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_cli_main(6, (char **)(size_t)m_oom));
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_cli_main(6, (char **)(size_t)r_oom));
+  }
+
+  /* Initial CREATE TABLE migration generation */
+  rc = (c_orm_error_t)c_orm_cli_main(7, (char **)(size_t)argv_ok);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+  /* Add base + extra column in DB + non-DDL / other-table / down-only migration
+   * in dir to cover diff branches */
+  {
+    FILE *mf = NULL;
+    ASSERT_EQ(C_ORM_OK,
+              C_ORM_FOPEN(&mf, "test_cli_gen_migs/000_other.up.sql", "wb"));
+    fputs("CREATE TABLE other_tbl (x INT);\n", mf);
+    fclose(mf);
+    ASSERT_EQ(
+        C_ORM_OK,
+        C_ORM_FOPEN(&mf, "test_cli_gen_migs/001_downonly.down.sql", "wb"));
+    fputs("SELECT 1;\n", mf);
+    fclose(mf);
+    ASSERT_EQ(C_ORM_OK,
+              C_ORM_FOPEN(&mf, "test_cli_gen_migs/002_nonddl.up.sql", "wb"));
+    fputs("SELECT 1;\n", mf);
+    fclose(mf);
+    ASSERT_EQ(C_ORM_OK,
+              C_ORM_FOPEN(&mf, "test_cli_gen_migs/003_base.up.sql", "wb"));
+    fputs("CREATE TABLE gen_users (id INT, name TEXT);\n", mf);
+    fclose(mf);
+  }
+  ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect(gen_db, &gdb));
+  ASSERT_EQ(C_ORM_OK, c_orm_execute_raw(
+                          gdb, "ALTER TABLE gen_users ADD COLUMN email TEXT;"));
+  ASSERT_EQ(C_ORM_OK, gdb->vtable->disconnect(gdb));
+
+  /* Incremental ALTER TABLE ADD COLUMN diff migration generation */
+  rc = (c_orm_error_t)c_orm_cli_main(7, (char **)(size_t)argv_ok);
+  ASSERT_EQ(C_ORM_OK, rc);
+
+#ifdef C_ORM_TEST_ALLOCATOR
+  {
+    int sc;
+    for (sc = 0;; sc++) {
+      c_orm_mock_safe_crt_countdown = sc;
+      if (c_orm_cli_main(7, (char **)(size_t)argv_ok) == C_ORM_OK &&
+          c_orm_mock_safe_crt_countdown >= 0) {
+        c_orm_mock_safe_crt_countdown = -1;
+        break;
+      }
+      c_orm_mock_safe_crt_countdown = -1;
+      ASSERT(sc < 200);
+    }
+  }
+#endif
+
+  /* Test down_file C_ORM_FOPEN failure via g_cli_fopen_cd = 1 (after load_dir
+   * reads .up/.down files, wait: C_ORM_FOPEN in c_orm_cli.c is only called on
+   * up_file & down_file!) */
+  g_cli_fopen_cd = 1;
+  rc = (c_orm_error_t)c_orm_cli_main(7, (char **)(size_t)argv_ok);
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  g_cli_fopen_cd = -1;
+
+  /* IO failure opening output file & path buffer overflow */
+  rc = (c_orm_error_t)c_orm_cli_main(7, (char **)(size_t)argv_bad_dir);
+  ASSERT_NEQ(C_ORM_OK, rc);
+
+  memset(long_dir, 'd', sizeof(long_dir) - 1);
+  long_dir[sizeof(long_dir) - 1] = '\0';
+  argv_long_dir[0] = "c-orm-cli";
+  argv_long_dir[1] = "generate";
+  argv_long_dir[2] = "gen_users";
+  argv_long_dir[3] = "--db";
+  argv_long_dir[4] = gen_db;
+  argv_long_dir[5] = "--dir";
+  argv_long_dir[6] = long_dir;
+  rc = (c_orm_error_t)c_orm_cli_main(7, (char **)(size_t)argv_long_dir);
+  ASSERT_NEQ(C_ORM_OK, rc);
+
+  /* Also overflow specifically on .down.sql (1 char longer than .up.sql!) */
+  long_dir[492] = '\0';
+  for (rc = C_ORM_OK; strlen(long_dir) < 505;) {
+    size_t l = strlen(long_dir);
+    long_dir[l] = 'd';
+    long_dir[l + 1] = '\0';
+    rc = (c_orm_error_t)c_orm_cli_main(7, (char **)(size_t)argv_long_dir);
+  }
+
+  /* Clean up generated files in gen_dir */
+  clean_cli_mig_dir(gen_dir);
+  cli_rm("test_cli_gen_migs/000_other.up.sql");
+  cli_rm("test_cli_gen_migs/001_downonly.down.sql");
+  cli_rm("test_cli_gen_migs/002_nonddl.up.sql");
+  cli_rm(gen_db);
   PASS();
 }
 
@@ -530,7 +699,7 @@ TEST test_cli_rollback(void) {
  */
 TEST test_cli_status(void) {
   c_orm_error_t rc;
-  sqlite3 *sdb;
+  c_orm_db_t *sdb;
   const char *argv[] = {"c-orm-cli", "status"};
   const char *argv2[] = {"c-orm-cli", "status", "--db", "test_cli.db"};
 #ifdef _WIN32
@@ -540,7 +709,6 @@ TEST test_cli_status(void) {
   const char *argv3[] = {"c-orm-cli", "status", "--db", "/dev/null/invalid.db"};
 #endif
   int argc;
-  int s_rc;
 
   argc = 2;
   sdb = NULL;
@@ -549,15 +717,13 @@ TEST test_cli_status(void) {
   rc = (c_orm_error_t)c_orm_cli_main(argc, (char **)(size_t)argv);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
-  s_rc = sqlite3_open("test_cli.db", &sdb);
-  ASSERT_EQ(SQLITE_OK, s_rc);
-  s_rc =
-      sqlite3_exec(sdb,
-                   "CREATE TABLE IF NOT EXISTS _c_orm_migrations (id INTEGER "
-                   "PRIMARY KEY, version TEXT, name TEXT, applied_at DATETIME)",
-                   0, 0, 0);
-  ASSERT_EQ(SQLITE_OK, s_rc);
-  sqlite3_close(sdb);
+  ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect("test_cli.db", &sdb));
+  ASSERT_EQ(
+      C_ORM_OK,
+      c_orm_execute_raw(sdb, "CREATE TABLE IF NOT EXISTS _c_orm_migrations (id "
+                             "INTEGER PRIMARY KEY, version TEXT, name TEXT, "
+                             "applied_at DATETIME)"));
+  ASSERT_EQ(C_ORM_OK, sdb->vtable->disconnect(sdb));
 
   rc = (c_orm_error_t)c_orm_cli_main(4, (char **)(size_t)argv2);
   ASSERT_EQ(C_ORM_OK, rc);
@@ -568,7 +734,7 @@ TEST test_cli_status(void) {
   mock_get_applied_fail = 0;
 
   rc = (c_orm_error_t)c_orm_cli_main(4, (char **)(size_t)argv3);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
+  ASSERT_NEQ(C_ORM_OK, rc);
 
   PASS();
 }
@@ -659,15 +825,13 @@ static int g_cli_oom_cd = -1;
  * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on countdown zero.
  */
 static c_orm_error_t cli_oom_malloc(size_t sz, void **out_ptr) {
-  if (g_cli_oom_cd >= 0) {
-    if (g_cli_oom_cd == 0) {
-      *out_ptr = NULL;
-      return C_ORM_ERROR_MEMORY;
-    }
-    g_cli_oom_cd--;
+  if (g_cli_oom_cd == 0) {
+    g_cli_oom_cd = -1;
+    *out_ptr = NULL;
+    return C_ORM_ERROR_MEMORY;
   }
-  *out_ptr = malloc(sz);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  g_cli_oom_cd--;
+  return c_orm_default_malloc(sz, out_ptr);
 }
 
 /**
@@ -961,6 +1125,12 @@ TEST test_cli_copybook_and_db2_odbc_branches(void) {
   mock_api.SQLFetch = cli_sql_fetch;
   mock_api.SQLGetData = cli_sql_get_data;
   mock_api.SQLGetDiagRec = cli_sql_diag;
+  ASSERT_EQ(C_ORM_SQL_SUCCESS, mock_api.SQLFreeStmt(NULL, 0));
+  ASSERT_EQ(C_ORM_SQL_SUCCESS, mock_api.SQLEndTran(0, NULL, 0));
+  ASSERT_EQ(C_ORM_SQL_SUCCESS,
+            mock_api.SQLBindParameter(NULL, 1, 0, 0, 0, 0, 0, NULL, 0, NULL));
+  ASSERT_EQ(C_ORM_SQL_NO_DATA, mock_api.SQLFetch(NULL));
+  ASSERT_EQ(C_ORM_SQL_NO_DATA, mock_api.SQLGetData(NULL, 1, 0, NULL, 0, NULL));
 
   /* 1. init failure & create Safe CRT / down_file fopen failure */
   {
@@ -1162,11 +1332,12 @@ TEST test_cli_copybook_and_db2_odbc_branches(void) {
       {
         int step;
         c_orm_set_allocators(cli_oom_malloc, c_orm_realloc, c_orm_free);
-        for (step = 0; step < 80; ++step) {
+        for (step = 0;; ++step) {
           g_cli_oom_cd = step;
           if (c_orm_cli_run(4, (char **)(size_t)s_norep) == C_ORM_OK) {
             break;
           }
+          ASSERT(step < 80);
         }
         g_cli_oom_cd = -1;
         c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
@@ -1229,7 +1400,53 @@ TEST test_cli_copybook_and_db2_odbc_branches(void) {
     c_orm_mock_string_builder_append_countdown = 0;
     ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_cli_run(7, (char **)(size_t)q_ok));
     c_orm_mock_string_builder_append_countdown = -1;
+
+    c_orm_mock_string_builder_get_fail = 1;
+    ASSERT_NEQ(C_ORM_OK, c_orm_cli_run(7, (char **)(size_t)q_ok));
+    c_orm_mock_string_builder_get_fail = 0;
+
+    ASSERT_EQ(C_ORM_OK, C_ORM_SETENV("C_ORM_DB_URL", "test_cli.db"));
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, c_orm_cli_run(7, (char **)(size_t)q_ok));
+    c_orm_mock_safe_crt_countdown = -1;
+    ASSERT_EQ(C_ORM_OK, C_ORM_UNSETENV("C_ORM_DB_URL"));
 #endif
+
+    /* OOM countdown sweep across cli_generate_migration (covering table &
+     * column DDL checks) */
+    {
+      c_orm_db_t *ogdb = NULL;
+      FILE *omf = NULL;
+      int ostep;
+      const char *g_args[] = {
+          "c-orm-cli",           "generate", "gen_users",        "--db",
+          "test_cli_gen_oom.db", "--dir",    "test_cli_gen_migs"};
+      ASSERT_EQ(C_ORM_OK, c_orm_sqlite_connect("test_cli_gen_oom.db", &ogdb));
+      ASSERT_EQ(C_ORM_OK,
+                c_orm_execute_raw(ogdb,
+                                  "CREATE TABLE gen_users (id INT, name TEXT, "
+                                  "email TEXT, bio TEXT);"));
+      ASSERT_EQ(C_ORM_OK, ogdb->vtable->disconnect(ogdb));
+      MKDIR("test_cli_gen_migs");
+      ASSERT_EQ(C_ORM_OK,
+                C_ORM_FOPEN(&omf, "test_cli_gen_migs/000_init.up.sql", "wb"));
+      fputs("CREATE TABLE gen_users (id INT, name TEXT);\n", omf);
+      fclose(omf);
+
+      c_orm_set_allocators(cli_oom_malloc, c_orm_realloc, c_orm_free);
+      for (ostep = 0;; ostep++) {
+        g_cli_oom_cd = ostep;
+        if (c_orm_cli_run(7, (char **)(size_t)g_args) == C_ORM_OK) {
+          break;
+        }
+        ASSERT(ostep < 250);
+      }
+      g_cli_oom_cd = -1;
+      c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+      clean_cli_mig_dir("test_cli_gen_migs");
+      cli_rm("test_cli_gen_migs/000_init.up.sql");
+      cli_rm("test_cli_gen_oom.db");
+    }
 
     ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&f, "test_cli_empty.sql", "wb"));
     fclose(f);

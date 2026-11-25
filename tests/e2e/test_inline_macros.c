@@ -14,10 +14,10 @@ extern "C" {
 #include "c_orm_sqlite.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 /* clang-format on */
 
 /** @brief Spatial test model structure. */
@@ -76,78 +76,6 @@ static const c_orm_table_meta_t SpatialModel_meta = C_ORM_DEFINE_MODEL(
  * @brief Tests CRUD operations with spatial data types.
  * @return GREATEST test result.
  */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    enum greatest_test_res _rc = (res);                                        \
-    greatest_info.assertions++;                                                \
-    if (_rc != GREATEST_TEST_RES_PASS) {                                       \
-      return _rc;                                                              \
-    }                                                                          \
-  } while ((void)0, 0)
-
-/**
- * @brief Executes test_spatial_crud.
- */
 TEST test_spatial_crud(void) {
   c_orm_db_t *db = NULL;
   c_orm_error_t err;
@@ -169,14 +97,15 @@ TEST test_spatial_crud(void) {
   sm.point.y = -71.2;
   sm.dval = 3.14159;
   sm.fval = 1.234f;
-  sm.ndval = (double *)malloc(sizeof(double));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(sizeof(double), (void **)&sm.ndval));
   *sm.ndval = 5.5;
-  sm.data.data = malloc(5);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(5, &sm.data.data));
   memcpy(sm.data.data, "abcd", 5);
   sm.data.size = 5;
 
   sm.polygon.num_points = 3;
-  sm.polygon.points = (c_orm_point_t *)malloc(3 * sizeof(c_orm_point_t));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(3 * sizeof(c_orm_point_t),
+                                           (void **)&sm.polygon.points));
   sm.polygon.points[0].x = 0.0;
   sm.polygon.points[0].y = 0.0;
   sm.polygon.points[1].x = 1.0;
@@ -215,25 +144,24 @@ TEST test_spatial_crud(void) {
   bad_meta = SpatialModel_meta;
   bad_meta.query_update = "UPDATE non_existent_table SET id = ?";
   err = c_orm_update(db, &bad_meta, &sm);
-  printf("DEBUG: bad_meta update err=%d\n", err);
   ASSERT_EQ_FMT(C_ORM_ERROR_SQL, err, "%d");
 
-  (void)c_orm_system_free(fetched.polygon.points);
-  (void)c_orm_system_free(fetched.data.data);
-  (void)c_orm_system_free(fetched.ndval);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(fetched.polygon.points));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(fetched.data.data));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(fetched.ndval));
   memset(&fetched, 0, sizeof(fetched));
   err = c_orm_find_by_id_int32(db, &SpatialModel_meta, 1, &fetched);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_EQ_FMT(99.9, fetched.point.x, "%f");
 
-  (void)c_orm_system_free(sm.polygon.points);
-  (void)c_orm_system_free(fetched.polygon.points);
-  (void)c_orm_system_free(sm.data.data);
-  (void)c_orm_system_free(fetched.data.data);
-  (void)c_orm_system_free(sm.ndval);
-  (void)c_orm_system_free(fetched.ndval);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(sm.polygon.points));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(fetched.polygon.points));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(sm.data.data));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(fetched.data.data));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(sm.ndval));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(fetched.ndval));
 
-  db->vtable->disconnect(db);
+  ASSERT_EQ(C_ORM_OK, db->vtable->disconnect(db));
   PASS();
 }
 
@@ -294,6 +222,7 @@ TEST test_inline_macros_crud(void) {
   c_orm_error_t err;
   struct InlineUser u;
   struct InlineUser fetched;
+  char s_inline[] = "inline_test";
 
   err = c_orm_sqlite_connect(":memory:", &db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -307,16 +236,9 @@ TEST test_inline_macros_crud(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   u.id = 1;
-  u.username = "inline_test";
-
-  printf("DEBUG: is_view=%d, query_insert=%p\n",
-         (int)InlineUserView_meta.is_view,
-         (const void *)InlineUserView_meta.query_insert);
-  fflush(stdout);
+  u.username = s_inline;
 
   err = c_orm_insert(db, &InlineUserView_meta, &u);
-  printf("DEBUG: c_orm_insert err=%d\n", err);
-  fflush(stdout);
   ASSERT_EQ_FMT(C_ORM_ERROR_READ_ONLY, err, "%d");
 
   err = c_orm_update(db, &InlineUserView_meta, &u);
@@ -329,7 +251,7 @@ TEST test_inline_macros_crud(void) {
   err = c_orm_find_by_id_int32(db, &InlineUser_meta, 1, &fetched);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   ASSERT_STR_EQ("inline_test", fetched.username);
-  (void)c_orm_system_free(fetched.username);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(fetched.username));
 
   ASSERT_STR_EQ("manager", InlineUser_rels[0].field_name);
   ASSERT(InlineUser_rels[0].target_meta == &DeclTag_meta);
@@ -345,16 +267,8 @@ TEST test_inline_macros_crud(void) {
  * @param inline_macros_suite Suite runner function name.
  */
 SUITE(inline_macros_suite) {
-  static int recursed = 0;
   RUN_TEST(test_inline_macros_crud);
   RUN_TEST(test_spatial_crud);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    inline_macros_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }
 
 #ifdef __cplusplus

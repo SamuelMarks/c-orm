@@ -12,91 +12,15 @@ extern "C" {
 #include "c_orm_sql.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-
 /* clang-format on */
 
 static int g_malloc_fail = 0;
 static int g_malloc_count = 0;
 static int g_malloc_target = -1;
-
-/**
- * @brief Mock malloc callback with countdown target failure.
- * @param size Size in bytes.
- * @return Allocated pointer or NULL.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
 
 /**
  * @brief Executes mock_malloc_fail.
@@ -107,14 +31,11 @@ static int g_malloc_target = -1;
 static c_orm_error_t mock_malloc_fail(size_t size, void **out_ptr) {
   if (g_malloc_fail) {
     if (g_malloc_target == g_malloc_count++) {
-      if (out_ptr) {
-        *out_ptr = NULL;
-      }
+      *out_ptr = NULL;
       return C_ORM_ERROR_MEMORY;
     }
   }
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /**
@@ -127,14 +48,11 @@ static c_orm_error_t mock_malloc_fail(size_t size, void **out_ptr) {
 static c_orm_error_t mock_realloc_fail(void *ptr, size_t size, void **out_ptr) {
   if (g_malloc_fail) {
     if (g_malloc_target == g_malloc_count++) {
-      if (out_ptr) {
-        *out_ptr = NULL;
-      }
+      *out_ptr = NULL;
       return C_ORM_ERROR_MEMORY;
     }
   }
-  *out_ptr = realloc(ptr, size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_realloc(ptr, size, out_ptr);
 }
 
 /**
@@ -143,7 +61,7 @@ static c_orm_error_t mock_realloc_fail(void *ptr, size_t size, void **out_ptr) {
  * @return C_ORM_OK on success.
  */
 static c_orm_error_t mock_free(void *p) {
-  free(p);
+  c_orm_default_free(p);
   return C_ORM_OK;
 }
 
@@ -196,7 +114,8 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
   old_realloc = c_orm_realloc;
   old_free = c_orm_free;
 
-  c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail, mock_free);
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail,
+                                           mock_free));
 
   /* Baseline pass */
   g_malloc_fail = 0;
@@ -206,7 +125,7 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
   rc = sql_parse_table(list, &table, &err_info);
   ASSERT_EQ(C_ORM_OK, rc);
   sql_table_C_ORM_FREE(table);
-  (void)c_orm_system_free(table);
+  c_orm_system_free(table);
   table = NULL;
   sql_token_list_free(list);
   list = NULL;
@@ -216,7 +135,7 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
   for (j = 0; j < n_tables; ++j) {
     sql_table_C_ORM_FREE(&tables[j]);
   }
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   for (sql_idx = 0; sqls[sql_idx] != NULL; sql_idx++) {
@@ -234,7 +153,7 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
         rc = sql_parse_table(list, &table, &err_info);
         if (rc == C_ORM_OK) {
           sql_table_C_ORM_FREE(table);
-          (void)c_orm_system_free(table);
+          c_orm_system_free(table);
           table = NULL;
         }
         sql_token_list_free(list);
@@ -256,13 +175,13 @@ enum greatest_test_res test_sql_lexer_oom_impl(void) {
         for (j = 0; j < n_tables; ++j) {
           sql_table_C_ORM_FREE(&tables[j]);
         }
-        (void)c_orm_system_free(tables);
+        c_orm_system_free(tables);
         tables = NULL;
       }
     }
   }
 
-  c_orm_set_allocators(old_malloc, old_realloc, old_free);
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(old_malloc, old_realloc, old_free));
   PASS();
 }
 
@@ -288,21 +207,21 @@ enum greatest_test_res test_sql_parser_missing_keys(void) {
   rc = parse_sql_ddl("CREATE TABLE t (id INT, PRIMARY);", &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* Missing KEY after FOREIGN at table level */
   rc = parse_sql_ddl("CREATE TABLE t (id INT, FOREIGN);", &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* Invalid table-level constraint */
   rc = parse_sql_ddl("CREATE TABLE t (id INT, INVALID);", &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* Constraint but missing columns in parenthesis */
@@ -310,7 +229,7 @@ enum greatest_test_res test_sql_parser_missing_keys(void) {
                      &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* Constraint missing right paren */
@@ -318,7 +237,7 @@ enum greatest_test_res test_sql_parser_missing_keys(void) {
                      &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* FOREIGN KEY but missing REFERENCES */
@@ -326,7 +245,7 @@ enum greatest_test_res test_sql_parser_missing_keys(void) {
                      &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* FOREIGN KEY REFERENCES but missing table name */
@@ -334,7 +253,7 @@ enum greatest_test_res test_sql_parser_missing_keys(void) {
                      &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* FOREIGN KEY REFERENCES table name but missing left paren */
@@ -342,7 +261,7 @@ enum greatest_test_res test_sql_parser_missing_keys(void) {
                      &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* FOREIGN KEY REFERENCES table ( missing col name */
@@ -351,7 +270,7 @@ enum greatest_test_res test_sql_parser_missing_keys(void) {
       &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* FOREIGN KEY REFERENCES table ( col missing right paren */
@@ -360,7 +279,7 @@ enum greatest_test_res test_sql_parser_missing_keys(void) {
       &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   PASS();
@@ -422,7 +341,8 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
   old_realloc = c_orm_realloc;
   old_free = c_orm_free;
 
-  c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail, mock_free);
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail,
+                                           mock_free));
 
   /* Baseline pass */
   c_orm_parser_set_fail(-1);
@@ -433,7 +353,7 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
   rc = sql_parse_table(list, &ast, &err_info);
   ASSERT_EQ(C_ORM_OK, rc);
   sql_table_C_ORM_FREE(ast);
-  (void)c_orm_system_free(ast);
+  c_orm_system_free(ast);
   ast = NULL;
   sql_token_list_free(list);
   list = NULL;
@@ -457,7 +377,7 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
       g_malloc_fail = 0;
       if (rc == C_ORM_OK) {
         sql_table_C_ORM_FREE(ast);
-        (void)c_orm_system_free(ast);
+        c_orm_system_free(ast);
         ast = NULL;
       }
       sql_token_list_free(list);
@@ -472,7 +392,7 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
       if (rc == C_ORM_OK) {
         c_orm_parser_set_fail(-1);
         sql_table_C_ORM_FREE(ast);
-        (void)c_orm_system_free(ast);
+        c_orm_system_free(ast);
         ast = NULL;
       }
       c_orm_parser_set_fail(-1);
@@ -482,7 +402,7 @@ enum greatest_test_res test_sql_parser_exhaustive_oom_impl(void) {
   }
 
   g_malloc_fail = 0;
-  c_orm_set_allocators(old_malloc, old_realloc, old_free);
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(old_malloc, old_realloc, old_free));
   PASS();
 }
 

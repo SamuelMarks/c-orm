@@ -602,6 +602,35 @@ C_ORM_EXPORT c_orm_error_t c_orm_system_calloc(size_t nmemb, size_t size,
 C_ORM_EXPORT c_orm_error_t c_orm_system_realloc(void *ptr, size_t size,
                                                 void **out_ptr);
 
+/**
+ * @brief Default CRT malloc wrapper on the c-orm library heap.
+ *
+ * @param size Number of bytes to allocate.
+ * @param out_ptr Output pointer receiving allocated memory, or NULL on failure.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_default_malloc(size_t size, void **out_ptr);
+
+/**
+ * @brief Default CRT realloc wrapper on the c-orm library heap.
+ *
+ * @param ptr Existing memory block or NULL.
+ * @param size New size in bytes.
+ * @param out_ptr Output pointer receiving reallocated memory, or NULL on
+ * failure.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on failure.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_default_realloc(void *ptr, size_t size,
+                                                 void **out_ptr);
+
+/**
+ * @brief Default CRT free wrapper on the c-orm library heap.
+ *
+ * @param ptr Pointer to memory block allocated on the c-orm library heap.
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_default_free(void *ptr);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

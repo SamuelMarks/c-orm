@@ -53,6 +53,28 @@ C_ORM_EXPORT c_orm_error_t c_orm_fopen(FILE **fp_ptr, const char *filename,
 C_ORM_EXPORT c_orm_error_t c_orm_tmpfile(FILE **fp_ptr);
 
 /**
+ * @brief Closes a `FILE *` stream opened on the c-orm library CRT.
+ *
+ * @param fp File handle to close (safe if NULL).
+ * @return C_ORM_OK on success.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_fclose(FILE *fp);
+
+/**
+ * @brief Rewinds a `FILE *` stream on the c-orm library CRT and reads up to
+ * `buf_cap - 1` bytes as a NUL-terminated string.
+ *
+ * @param fp Open file handle on the c-orm CRT.
+ * @param buf Destination buffer.
+ * @param buf_cap Destination capacity in bytes (`> 0`).
+ * @param out_read Optional output byte count read.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_UNKNOWN on invalid arguments.
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_rewind_and_read(FILE *fp, char *buf,
+                                                 size_t buf_cap,
+                                                 size_t *out_read);
+
+/**
  * @brief Cross-platform environment variable setter returning c_orm_error_t.
  *
  * @param name Environment variable name.
@@ -168,9 +190,21 @@ C_ORM_EXPORT extern int c_orm_mock_safe_crt_countdown;
 #define C_ORM_STRCAT(dest, size, src) c_orm_strcat_s((dest), (size), (src))
 #define C_ORM_STRNCAT(dest, size, src, count)                                  \
   c_orm_strncat_s((dest), (size), (src), (count))
+#if defined(_MSC_VER) && defined(C_ORM_SHARED) && !defined(_DLL) &&            \
+    !defined(c_orm_EXPORTS) && !defined(c_orm_async_EXPORTS)
+#define C_ORM_FOPEN(fp_ptr, filename, mode)                                    \
+  (((fp_ptr) && (filename) && (mode) && (filename)[0] != '\0' &&               \
+    (mode)[0] != '\0' && fopen_s((fp_ptr), (filename), (mode)) == 0)           \
+       ? C_ORM_OK                                                              \
+       : ((fp_ptr) ? (*(fp_ptr) = NULL, C_ORM_ERROR_UNKNOWN)                   \
+                   : C_ORM_ERROR_UNKNOWN))
+#define C_ORM_TMPFILE(fp_ptr)                                                  \
+  (((fp_ptr) && tmpfile_s((fp_ptr)) == 0) ? C_ORM_OK : C_ORM_ERROR_UNKNOWN)
+#else
 #define C_ORM_FOPEN(fp_ptr, filename, mode)                                    \
   c_orm_fopen((fp_ptr), (filename), (mode))
 #define C_ORM_TMPFILE(fp_ptr) c_orm_tmpfile((fp_ptr))
+#endif
 #define C_ORM_GETENV(dest, size, var_name)                                     \
   c_orm_getenv_s((dest), (size), (var_name))
 

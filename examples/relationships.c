@@ -11,6 +11,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_MSC_VER) && defined(_DEBUG)
+#include <crtdbg.h>
+#endif
 /* clang-format on */
 
 #define ROLE_FIELDS(X, S)                                                      \
@@ -61,6 +64,26 @@ C_ORM_STRUCT_WITH_RELATIONS(User, USER_FIELDS, USER_RELS)
  * @param op_mode Operational mode for testing error branches.
  * @return C_ORM_OK on success or error code.
  */
+/**
+ * @brief Releases loaded relations on non-NULL `obj` via
+ * `c_orm_free_relations`.
+ * @param meta Non-NULL table metadata.
+ * @param obj Non-NULL struct instance.
+ * @return Status code cast to int.
+ */
+static int rel_calc_free_relations(const c_orm_table_meta_t *meta, void *obj) {
+  return (int)c_orm_free_relations(meta, obj);
+}
+
+/**
+ * @brief Disconnects `db` during error cleanup.
+ * @param db Database connection handle.
+ * @return C_ORM_OK on success, or driver disconnect error code.
+ */
+static c_orm_error_t rel_conn_cleanup_free(c_orm_db_t *db) {
+  return db->vtable->disconnect(db);
+}
+
 c_orm_error_t run_relationships_ops(c_orm_db_t *db, const char *rel_name,
                                     int op_mode);
 c_orm_error_t run_relationships_example(const char *db_path);
@@ -81,6 +104,7 @@ c_orm_error_t run_relationships_ops(c_orm_db_t *db, const char *rel_name,
   struct Role r;
   struct User fetched;
   const char *paths[2];
+  char alice_buf[] = "Alice";
   int i;
 
   c_orm_column_meta_t post_cols[3];
@@ -149,10 +173,14 @@ c_orm_error_t run_relationships_ops(c_orm_db_t *db, const char *rel_name,
   /* Insert nested User */
   memset(&new_user, 0, sizeof(new_user));
   new_user.id = 1;
-  new_user.username = "Alice";
+  new_user.username = alice_buf;
 
-  if (op_mode == 1) {
-    c_orm_execute_raw(db, "INSERT INTO User VALUES (1, 'dup')");
+  if (op_mode == 1 || op_mode == 5) {
+    rc = c_orm_execute_raw(db, (op_mode == 5)
+                                   ? "INSERT INTO MissingTbl VALUES (1)"
+                                   : "INSERT INTO User VALUES (1, 'dup')");
+    if (rc != C_ORM_OK)
+      return rc;
   }
 
   printf("Inserting User Alice...\n");
@@ -187,8 +215,8 @@ c_orm_error_t run_relationships_ops(c_orm_db_t *db, const char *rel_name,
   printf("  -> Roles loaded: %d\n", (int)fetched.roles.data.length);
   printf("     First Role ID: %d\n", fetched.roles.data.data[0].id);
 
-  c_orm_free_relations(&user_m, &fetched);
-  free(fetched.username);
+  c_orm_system_free(fetched.username);
+  (i = rel_calc_free_relations(&user_m, &fetched));
 
   printf("Demonstrating Cascade Delete (Cleans User, Posts, and Join Table "
          "rows)...\n");
@@ -220,9 +248,12 @@ c_orm_error_t run_relationships_example(const char *db_path) {
     return rc;
 
   rc = run_relationships_ops(db, "roles", 0);
-  db->vtable->disconnect(db);
+  if (rc != C_ORM_OK) {
+    rel_conn_cleanup_free(db);
+    return rc;
+  }
 
-  return rc;
+  return db->vtable->disconnect(db);
 }
 
 int main(void);
@@ -236,6 +267,20 @@ int main(void) {
   c_orm_db_t *db = NULL;
   int mode;
   int failed = 0;
+
+#if defined(_MSC_VER) && defined(_DEBUG)
+  _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+#endif
+
+  remove("rel_err_example.db");
+  failed |= (run_relationships_example("rel_err_example.db") != C_ORM_OK);
+  failed |= (run_relationships_example("rel_err_example.db") == C_ORM_OK);
+  remove("rel_err_example.db");
 
   failed |= (run_relationships_example(":memory:") != C_ORM_OK);
   failed |= (run_relationships_example(NULL) == C_ORM_OK);
@@ -258,7 +303,7 @@ int main(void) {
   failed |= (run_relationships_ops(db, "invalid_rel", 0) == C_ORM_OK);
   failed |= (db->vtable->disconnect(db) != C_ORM_OK);
 
-  for (mode = 1; mode <= 4; mode++) {
+  for (mode = 1; mode <= 5; mode++) {
     db = NULL;
     failed |= (c_orm_sqlite_connect(":memory:", &db) != C_ORM_OK);
     failed |= (run_relationships_ops(db, "roles", mode) == C_ORM_OK);

@@ -245,10 +245,12 @@ struct FreeParent {
  */
 static c_orm_error_t mock_decrypt(const void *in, size_t ins, void *ctx,
                                   void **out, size_t *outs) {
+  c_orm_error_t rc;
   (void)ctx;
   *out = NULL;
-  if (c_orm_system_malloc(ins, out) != C_ORM_OK || !*out)
-    return C_ORM_ERROR_MEMORY;
+  rc = c_orm_system_malloc(ins, out);
+  if (rc != C_ORM_OK)
+    return rc;
   memcpy(*out, in, ins);
   *outs = ins;
   return C_ORM_OK;
@@ -264,10 +266,12 @@ static c_orm_error_t mock_decrypt(const void *in, size_t ins, void *ctx,
  */
 static c_orm_error_t mock_encrypt(const void *in, size_t ins, void *ctx,
                                   void **out, size_t *outs) {
+  c_orm_error_t rc;
   (void)ctx;
   *out = NULL;
-  if (c_orm_system_malloc(ins, out) != C_ORM_OK || !*out)
-    return C_ORM_ERROR_MEMORY;
+  rc = c_orm_system_malloc(ins, out);
+  if (rc != C_ORM_OK)
+    return rc;
   memcpy(*out, in, ins);
   *outs = ins;
   return C_ORM_OK;
@@ -300,19 +304,12 @@ static c_orm_error_t mock_malloc_fail(size_t size, void **out_ptr) {
   void *ptr;
   if (g_malloc_fail) {
     if (g_malloc_target == g_malloc_count++) {
-      if (out_ptr) {
-        *out_ptr = NULL;
-      }
+      *out_ptr = NULL;
       return C_ORM_ERROR_MEMORY;
     }
   }
-  ptr = malloc(size == 0 ? 1 : size);
-  if (!ptr) {
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
-    return C_ORM_ERROR_MEMORY;
-  }
+  ptr = NULL;
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(size, &ptr));
   tracked_allocs[tracked_count++] = ptr;
   *out_ptr = ptr;
   return C_ORM_OK;
@@ -331,19 +328,12 @@ static c_orm_error_t mock_realloc_fail(void *ptr, size_t size, void **out_ptr) {
   int i;
   if (g_malloc_fail) {
     if (g_malloc_target == g_malloc_count++) {
-      if (out_ptr) {
-        *out_ptr = NULL;
-      }
+      *out_ptr = NULL;
       return C_ORM_ERROR_MEMORY;
     }
   }
-  new_ptr = realloc(ptr, size == 0 ? 1 : size);
-  if (!new_ptr) {
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
-    return C_ORM_ERROR_MEMORY;
-  }
+  new_ptr = NULL;
+  ASSERT_EQ(C_ORM_OK, c_orm_default_realloc(ptr, size, &new_ptr));
   for (i = 0; i < tracked_count; i++) {
     if (tracked_allocs[i] == ptr) {
       tracked_allocs[i] = new_ptr;
@@ -371,7 +361,7 @@ static c_orm_error_t mock_free(void *ptr) {
       tracked_allocs[i] = NULL;
     }
   }
-  free(ptr);
+  c_orm_default_free(ptr);
   return C_ORM_OK;
 }
 
@@ -382,7 +372,7 @@ static void free_tracked(void) {
   int i;
   for (i = 0; i < tracked_count; i++) {
     if (tracked_allocs[i]) {
-      free(tracked_allocs[i]);
+      c_orm_default_free(tracked_allocs[i]);
       tracked_allocs[i] = NULL;
     }
   }
@@ -1597,12 +1587,14 @@ static c_orm_error_t mock_test_encrypt_hook_ok(const void *in_data,
                                                size_t in_size, void *ctx,
                                                void **out_data,
                                                size_t *out_size) {
+  c_orm_error_t rc;
   (void)ctx;
   if (!in_data)
     return C_ORM_ERROR_MEMORY;
-  *out_data = malloc(in_size);
-  if (!*out_data)
-    return C_ORM_ERROR_MEMORY;
+  *out_data = NULL;
+  rc = c_orm_system_malloc(in_size, out_data);
+  if (rc != C_ORM_OK)
+    return rc;
   memcpy(*out_data, in_data, in_size);
   *out_size = in_size;
   return C_ORM_OK;
@@ -1634,13 +1626,10 @@ static int g_deep_alloc_cnt = 0;
  */
 static c_orm_error_t mock_deep_malloc(size_t sz, void **out_ptr) {
   if (g_deep_fail_oom == g_deep_alloc_cnt++) {
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
-  *out_ptr = malloc(sz == 0 ? 1 : sz);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(sz, out_ptr);
 }
 
 /** @brief Index of realloc call that should trigger failure in
@@ -1659,13 +1648,10 @@ static int g_deep_realloc_cnt = 0;
 static c_orm_error_t mock_deep_realloc(void *ptr, size_t sz, void **out_ptr) {
   if (g_deep_fail_realloc == g_deep_realloc_cnt++ ||
       (g_deep_fail_realloc == 99 && sz >= 200)) {
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
-  *out_ptr = realloc(ptr, sz == 0 ? 1 : sz);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_realloc(ptr, sz, out_ptr);
 }
 
 /**
@@ -1923,9 +1909,7 @@ dummy_cov_expire_callback_100(c_orm_db_t *db, const c_orm_table_meta_t *meta,
  */
 static c_orm_error_t cov_always_null_malloc(size_t s, void **out_ptr) {
   (void)s;
-  if (out_ptr) {
-    *out_ptr = NULL;
-  }
+  *out_ptr = NULL;
   return C_ORM_ERROR_MEMORY;
 }
 

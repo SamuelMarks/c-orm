@@ -18,81 +18,8 @@ extern "C" {
 #include <errno.h>
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
-
+#include "test_assert_zero_branch.h"
 /* clang-format on */
-
-/**
- * @brief Test write_struct_to_sql_create_table with basic SQLite schema.
- * @return GREATEST test result.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    enum greatest_test_res _rc = (res);                                        \
-    greatest_info.assertions++;                                                \
-    if (_rc != GREATEST_TEST_RES_PASS) {                                       \
-      return _rc;                                                              \
-    }                                                                          \
-  } while ((void)0, 0)
 
 /** @brief Countdown for mock malloc in c_to_sql tests. */
 static int c2s_oom_countdown = -1;
@@ -106,16 +33,11 @@ static int c2s_oom_countdown = -1;
 static c_orm_error_t c2s_mock_malloc(size_t size, void **out_ptr) {
   if (c2s_oom_countdown == 0) {
     c2s_oom_countdown--;
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
-  if (c2s_oom_countdown > 0) {
-    c2s_oom_countdown--;
-  }
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  c2s_oom_countdown--;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /**
@@ -128,16 +50,11 @@ static c_orm_error_t c2s_mock_malloc(size_t size, void **out_ptr) {
 static c_orm_error_t c2s_mock_realloc(void *ptr, size_t size, void **out_ptr) {
   if (c2s_oom_countdown == 0) {
     c2s_oom_countdown--;
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
-  if (c2s_oom_countdown > 0) {
-    c2s_oom_countdown--;
-  }
-  *out_ptr = realloc(ptr, size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  c2s_oom_countdown--;
+  return c_orm_default_realloc(ptr, size, out_ptr);
 }
 
 /**
@@ -168,16 +85,15 @@ TEST test_write_struct_to_sql_create_table(void) {
   sf.size = 3;
   sf.fields = fields;
 
-  C_ORM_TMPFILE(&fp);
+  c_orm_tmpfile(&fp);
   ASSERT(fp != NULL);
 
   rc = write_struct_to_sql_create_table(fp, "users", &sf,
                                         C_TO_SQL_DIALECT_SQLITE);
   ASSERT_EQ(C_ORM_OK, rc);
 
-  rewind(fp);
-  fread(buf, 1, sizeof(buf) - 1, fp);
-  fclose(fp);
+  c_orm_rewind_and_read(fp, buf, sizeof(buf), NULL);
+  c_orm_fclose(fp);
 
   ASSERT(strstr(buf, "CREATE TABLE users") != NULL);
   ASSERT(strstr(buf, "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL") != NULL);
@@ -218,7 +134,7 @@ TEST test_cdd_c_meta_to_sql_create_table(void) {
   ASSERT(strstr(out_sql, "id INT PRIMARY KEY") != NULL);
   ASSERT(strstr(out_sql, "name VARCHAR(255)") != NULL);
 
-  (void)c_orm_system_free(out_sql);
+  c_orm_system_free(out_sql);
   PASS();
 }
 
@@ -274,8 +190,8 @@ TEST test_cdd_c_meta_diff_and_sql(void) {
   ASSERT(strstr(up_sql, "ADD COLUMN description TEXT") != NULL);
   ASSERT(strstr(down_sql, "DROP COLUMN description") != NULL);
 
-  (void)c_orm_system_free(up_sql);
-  (void)c_orm_system_free(down_sql);
+  c_orm_system_free(up_sql);
+  c_orm_system_free(down_sql);
   cdd_c_meta_diff_free(&diff);
   PASS();
 }
@@ -294,7 +210,7 @@ TEST test_cdd_c_get_schema_inspection_query(void) {
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(query != NULL);
   ASSERT(strstr(query, "information_schema") != NULL);
-  (void)c_orm_system_free(query);
+  c_orm_system_free(query);
 
   PASS();
 }
@@ -313,14 +229,14 @@ TEST test_cdd_c_emit_index(void) {
   ASSERT(query != NULL);
   ASSERT(strstr(query, "UNIQUE INDEX idx_users_email ON users (email)") !=
          NULL);
-  (void)c_orm_system_free(query);
+  c_orm_system_free(query);
   query = NULL;
 
   rc = cdd_c_emit_drop_index("idx_users_email", &query);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(query != NULL);
   ASSERT(strstr(query, "DROP INDEX idx_users_email") != NULL);
-  (void)c_orm_system_free(query);
+  c_orm_system_free(query);
 
   PASS();
 }
@@ -389,7 +305,7 @@ TEST test_c_to_sql_errors(void) {
   memset(&meta, 0, sizeof(meta));
   memset(&diff, 0, sizeof(diff));
 
-  C_ORM_TMPFILE(&fp);
+  c_orm_tmpfile(&fp);
 
   /* write_struct_to_sql_create_table NULL variations */
   rc =
@@ -399,7 +315,19 @@ TEST test_c_to_sql_errors(void) {
   ASSERT(rc != C_ORM_OK);
   rc = write_struct_to_sql_create_table(fp, "t", NULL, C_TO_SQL_DIALECT_SQLITE);
   ASSERT(rc != C_ORM_OK);
-  fclose(fp);
+  {
+    struct StructField bad_field;
+    memset(&bad_field, 0, sizeof(bad_field));
+    bad_field.name[0] = 'x';
+    sf.fields = &bad_field;
+    sf.size = 1;
+    rc =
+        write_struct_to_sql_create_table(fp, "t", &sf, C_TO_SQL_DIALECT_SQLITE);
+    ASSERT_EQ(C_ORM_ERROR_NULL_POINTER, rc);
+    sf.fields = NULL;
+    sf.size = 0;
+  }
+  c_orm_fclose(fp);
   fp = NULL;
 
   /* cdd_c_meta_to_sql_create_table NULL variations */
@@ -504,7 +432,7 @@ TEST test_cdd_c_meta_to_sql_create_table_pg(void) {
   ASSERT(strstr(out_sql, "score DOUBLE PRECISION") != NULL);
   ASSERT(strstr(out_sql, "is_active BOOLEAN") != NULL);
   ASSERT(strstr(out_sql, "user_id INTEGER REFERENCES user(id)") != NULL);
-  (void)c_orm_system_free(out_sql);
+  c_orm_system_free(out_sql);
   out_sql = NULL;
 
   rc = cdd_c_meta_to_sql_create_table(&meta, C_TO_SQL_DIALECT_SQLITE, &out_sql);
@@ -512,7 +440,7 @@ TEST test_cdd_c_meta_to_sql_create_table_pg(void) {
   ASSERT(out_sql != NULL);
   ASSERT(strstr(out_sql, "id INTEGER PRIMARY KEY AUTOINCREMENT") != NULL);
   ASSERT(strstr(out_sql, "is_active INTEGER") != NULL);
-  (void)c_orm_system_free(out_sql);
+  c_orm_system_free(out_sql);
 
   PASS();
 }
@@ -531,7 +459,7 @@ TEST test_cdd_c_get_schema_inspection_query_sqlite_mysql(void) {
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(query != NULL);
   ASSERT(strstr(query, "PRAGMA table_info(users);") != NULL);
-  (void)c_orm_system_free(query);
+  c_orm_system_free(query);
   query = NULL;
 
   rc = cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_MYSQL, "users",
@@ -539,7 +467,7 @@ TEST test_cdd_c_get_schema_inspection_query_sqlite_mysql(void) {
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(query != NULL);
   ASSERT(strstr(query, "SHOW COLUMNS FROM users;") != NULL);
-  (void)c_orm_system_free(query);
+  c_orm_system_free(query);
   query = NULL;
 
   /* invalid dialect */
@@ -594,8 +522,8 @@ TEST test_cdd_c_meta_diff_sqlite(void) {
   ASSERT(down_sql != NULL);
   ASSERT(strstr(down_sql, "ALTER TABLE test_table DROP COLUMN description") !=
          NULL);
-  (void)c_orm_system_free(up_sql);
-  (void)c_orm_system_free(down_sql);
+  c_orm_system_free(up_sql);
+  c_orm_system_free(down_sql);
 
   cdd_c_meta_diff_free(&diff);
   cdd_c_meta_diff_free(NULL); /* coverage */
@@ -696,7 +624,7 @@ TEST test_c_to_sql_oom_and_long_identifiers(void) {
                           &m_child, C_TO_SQL_DIALECT_SQLITE, &out_sql));
   ASSERT(out_sql != NULL);
   ASSERT(strstr(out_sql, long_tbl) != NULL);
-  (void)c_orm_system_free(out_sql);
+  c_orm_system_free(out_sql);
   out_sql = NULL;
 
   schemas[0] = &m_child;
@@ -707,45 +635,49 @@ TEST test_c_to_sql_oom_and_long_identifiers(void) {
 
   /* OOM sweep across cdd_c_meta_to_sql_create_table */
   c_orm_set_allocators(c2s_mock_malloc, c2s_mock_realloc, c_orm_free);
-  for (step = 0; step < 8; ++step) {
+  for (step = 0;; ++step) {
     c2s_oom_countdown = step;
     out_sql = NULL;
     if (cdd_c_meta_to_sql_create_table(&m_child, C_TO_SQL_DIALECT_SQLITE,
                                        &out_sql) == C_ORM_OK) {
-      (void)c_orm_system_free(out_sql);
+      c_orm_system_free(out_sql);
       break;
     }
+    ASSERT(step < 50);
   }
 
   /* OOM sweep across cdd_c_meta_diff (altered, added, dropped) */
-  for (step = 0; step < 4; ++step) {
+  for (step = 0;; ++step) {
     c2s_oom_countdown = step;
     if (cdd_c_meta_diff(&m_parent, &m_child, &diff) == C_ORM_OK) {
       cdd_c_meta_diff_free(&diff);
       break;
     }
+    ASSERT(step < 50);
   }
-  for (step = 0; step < 4; ++step) {
+  for (step = 0;; ++step) {
     c2s_oom_countdown = step;
     if (cdd_c_meta_diff(&m_child, &m_parent, &diff) == C_ORM_OK) {
       cdd_c_meta_diff_free(&diff);
       break;
     }
+    ASSERT(step < 50);
   }
 
   /* OOM sweep across cdd_c_meta_diff_to_sql */
   c2s_oom_countdown = -1;
   ASSERT_EQ(C_ORM_OK, cdd_c_meta_diff(&m_parent, &m_child, &diff));
-  for (step = 0; step < 8; ++step) {
+  for (step = 0;; ++step) {
     c2s_oom_countdown = step;
     up_sql = NULL;
     down_sql = NULL;
     if (cdd_c_meta_diff_to_sql("child_item", &diff, C_TO_SQL_DIALECT_POSTGRESQL,
                                &up_sql, &down_sql) == C_ORM_OK) {
-      (void)c_orm_system_free(up_sql);
-      (void)c_orm_system_free(down_sql);
+      c_orm_system_free(up_sql);
+      c_orm_system_free(down_sql);
       break;
     }
+    ASSERT(step < 50);
   }
   cdd_c_meta_diff_free(&diff);
 
@@ -804,40 +736,36 @@ TEST test_c_to_sql_edge_cases(void) {
   sf.size = 2;
   sf.fields = fields;
 
-  C_ORM_TMPFILE(&fp);
+  c_orm_tmpfile(&fp);
   ASSERT(fp != NULL);
   rc =
       write_struct_to_sql_create_table(fp, "test", &sf, C_TO_SQL_DIALECT_MYSQL);
   ASSERT_EQ(C_ORM_OK, rc);
-  rewind(fp);
-  memset(buf, 0, sizeof(buf));
-  fread(buf, 1, sizeof(buf) - 1, fp);
-  fclose(fp);
+  c_orm_rewind_and_read(fp, buf, sizeof(buf), NULL);
+  c_orm_fclose(fp);
   fp = NULL;
   ASSERT(strstr(buf, "unknown_field BLOB") != NULL);
 
   /* Dialect type maps */
-  C_ORM_TMPFILE(&fp);
+  c_orm_tmpfile(&fp);
   ASSERT(fp != NULL);
   C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "float");
   C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "bool");
   rc =
       write_struct_to_sql_create_table(fp, "test", &sf, C_TO_SQL_DIALECT_MYSQL);
   ASSERT_EQ(C_ORM_OK, rc);
-  fclose(fp);
+  c_orm_fclose(fp);
   fp = NULL;
 
-  C_ORM_TMPFILE(&fp);
+  c_orm_tmpfile(&fp);
   ASSERT(fp != NULL);
   C_ORM_STRCPY(fields[0].type, sizeof(fields[0].type), "double");
   C_ORM_STRCPY(fields[1].type, sizeof(fields[1].type), "bool");
   rc =
       write_struct_to_sql_create_table(fp, "test", &sf, C_TO_SQL_DIALECT_MYSQL);
   ASSERT_EQ(C_ORM_OK, rc);
-  rewind(fp);
-  memset(buf, 0, sizeof(buf));
-  fread(buf, 1, sizeof(buf) - 1, fp);
-  fclose(fp);
+  c_orm_rewind_and_read(fp, buf, sizeof(buf), NULL);
+  c_orm_fclose(fp);
   fp = NULL;
   ASSERT(strstr(buf, "unknown_field DOUBLE") != NULL);
   ASSERT(strstr(buf, "id TINYINT(1)") != NULL);
@@ -868,16 +796,16 @@ TEST test_c_to_sql_edge_cases(void) {
   rc = cdd_c_meta_diff_to_sql("diff_table", &diff, C_TO_SQL_DIALECT_SQLITE, &up,
                               &down);
   ASSERT_EQ(C_ORM_OK, rc);
-  (void)c_orm_system_free(up);
-  (void)c_orm_system_free(down);
+  c_orm_system_free(up);
+  c_orm_system_free(down);
   up = NULL;
   down = NULL;
 
   rc = cdd_c_meta_diff_to_sql("diff_table", &diff, C_TO_SQL_DIALECT_MYSQL, &up,
                               &down);
   ASSERT_EQ(C_ORM_OK, rc);
-  (void)c_orm_system_free(up);
-  (void)c_orm_system_free(down);
+  c_orm_system_free(up);
+  c_orm_system_free(down);
   up = NULL;
   down = NULL;
 
@@ -936,29 +864,25 @@ TEST test_c_to_sql_additional_branches(void) {
   sf.fields = fields;
 
   /* SQLite: Id is char* (TEXT), so AUTOINCREMENT is NOT emitted! */
-  C_ORM_TMPFILE(&fp);
+  c_orm_tmpfile(&fp);
   ASSERT(fp != NULL);
   rc = write_struct_to_sql_create_table(fp, "my_table", &sf,
                                         C_TO_SQL_DIALECT_SQLITE);
   ASSERT_EQ(C_ORM_OK, rc);
-  rewind(fp);
-  memset(buf, 0, sizeof(buf));
-  fread(buf, 1, sizeof(buf) - 1, fp);
-  fclose(fp);
+  c_orm_rewind_and_read(fp, buf, sizeof(buf), NULL);
+  c_orm_fclose(fp);
   fp = NULL;
   ASSERT(strstr(buf, "Id TEXT PRIMARY KEY") != NULL);
   ASSERT(strstr(buf, "ID REAL PRIMARY KEY NOT NULL") != NULL);
 
   /* PostgreSQL dialect check for double, number, bool, string */
-  C_ORM_TMPFILE(&fp);
+  c_orm_tmpfile(&fp);
   ASSERT(fp != NULL);
   rc = write_struct_to_sql_create_table(fp, "my_table_pg", &sf,
                                         C_TO_SQL_DIALECT_POSTGRESQL);
   ASSERT_EQ(C_ORM_OK, rc);
-  rewind(fp);
-  memset(buf, 0, sizeof(buf));
-  fread(buf, 1, sizeof(buf) - 1, fp);
-  fclose(fp);
+  c_orm_rewind_and_read(fp, buf, sizeof(buf), NULL);
+  c_orm_fclose(fp);
   fp = NULL;
   ASSERT(strstr(buf, "ID DOUBLE PRECISION PRIMARY KEY NOT NULL") != NULL);
   ASSERT(strstr(buf, "a BOOLEAN") != NULL);
@@ -983,7 +907,7 @@ TEST test_c_to_sql_additional_branches(void) {
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(strstr(out_sql, "id TEXT PRIMARY KEY") != NULL);
   ASSERT(strstr(out_sql, "AUTOINCREMENT") == NULL);
-  (void)c_orm_system_free(out_sql);
+  c_orm_system_free(out_sql);
   out_sql = NULL;
 
   /* 3. Multi-level / multi-dependency topological sort */
@@ -1261,20 +1185,20 @@ TEST test_c_to_sql_exhaustive_db2_odbc_and_oom(void) {
     ASSERT_EQ(C_ORM_OK,
               cdd_c_meta_to_sql_create_table(&meta, all_dialects[d], &out_sql));
     ASSERT(out_sql != NULL);
-    (void)c_orm_system_free(out_sql);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_sql));
     out_sql = NULL;
 
     /* DB2 with INTEGER PK and VARCHAR PK in cdd_c_meta_to_sql_create_table */
     props[0].type = "int32_t";
     ASSERT_EQ(C_ORM_OK,
               cdd_c_meta_to_sql_create_table(&meta, all_dialects[d], &out_sql));
-    (void)c_orm_system_free(out_sql);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_sql));
     out_sql = NULL;
 
     props[0].type = "char*";
     ASSERT_EQ(C_ORM_OK,
               cdd_c_meta_to_sql_create_table(&meta, all_dialects[d], &out_sql));
-    (void)c_orm_system_free(out_sql);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_sql));
     out_sql = NULL;
   }
 
@@ -1332,11 +1256,11 @@ TEST test_c_to_sql_exhaustive_db2_odbc_and_oom(void) {
     sf.size = 3;
     sf.fields = sfields;
 
-    C_ORM_TMPFILE(&fp);
+    c_orm_tmpfile(&fp);
     ASSERT(fp != NULL);
     ASSERT_EQ(C_ORM_OK, write_struct_to_sql_create_table(
                             fp, "db2_struct_t", &sf, C_TO_SQL_DIALECT_DB2));
-    fclose(fp);
+    c_orm_fclose(fp);
   }
 
   /* 3. cdd_c_meta_to_sql_create_table append countdown + get_fail + sb_append_n
@@ -1356,15 +1280,16 @@ TEST test_c_to_sql_exhaustive_db2_odbc_and_oom(void) {
     m.num_props = 2;
 
     for (d = 0; d < 5; ++d) {
-      for (step = 0; step < 25; ++step) {
+      for (step = 0;; ++step) {
         c_orm_mock_string_builder_append_countdown = step;
         out_sql = NULL;
         rc = cdd_c_meta_to_sql_create_table(&m, all_dialects[d], &out_sql);
         c_orm_mock_string_builder_append_countdown = -1;
         if (rc == C_ORM_OK) {
-          (void)c_orm_system_free(out_sql);
+          ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_sql));
           break;
         }
+        ASSERT(step < 100);
       }
     }
     c_orm_mock_string_builder_get_fail = 1;
@@ -1407,7 +1332,7 @@ TEST test_c_to_sql_exhaustive_db2_odbc_and_oom(void) {
     ASSERT_EQ(C_ORM_OK, cdd_c_meta_diff(&m_old, &m_new, &diff));
 
     for (d = 0; d < 5; ++d) {
-      for (step = 0; step < 120; ++step) {
+      for (step = 0;; ++step) {
         c_orm_mock_string_builder_append_countdown = step;
         up_sql = NULL;
         down_sql = NULL;
@@ -1415,10 +1340,11 @@ TEST test_c_to_sql_exhaustive_db2_odbc_and_oom(void) {
                                     &down_sql);
         c_orm_mock_string_builder_append_countdown = -1;
         if (rc == C_ORM_OK) {
-          (void)c_orm_system_free(up_sql);
-          (void)c_orm_system_free(down_sql);
+          ASSERT_EQ(C_ORM_OK, c_orm_system_free(up_sql));
+          ASSERT_EQ(C_ORM_OK, c_orm_system_free(down_sql));
           break;
         }
+        ASSERT(step < 250);
       }
     }
 
@@ -1427,7 +1353,7 @@ TEST test_c_to_sql_exhaustive_db2_odbc_and_oom(void) {
     /* Empty diff OOM sweep hits up_sb finish & down_sb finish cleanly */
     memset(&diff, 0, sizeof(diff));
     c_orm_set_allocators(c2s_mock_malloc, c2s_mock_realloc, c_orm_free);
-    for (step = 0; step < 10; ++step) {
+    for (step = 0;; ++step) {
       c2s_oom_countdown = step;
       up_sql = NULL;
       down_sql = NULL;
@@ -1435,10 +1361,11 @@ TEST test_c_to_sql_exhaustive_db2_odbc_and_oom(void) {
                                   &up_sql, &down_sql);
       c2s_oom_countdown = -1;
       if (rc == C_ORM_OK) {
-        (void)c_orm_system_free(up_sql);
-        (void)c_orm_system_free(down_sql);
+        c_orm_system_free(up_sql);
+        c_orm_system_free(down_sql);
         break;
       }
+      ASSERT(step < 50);
     }
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
 
@@ -1504,53 +1431,57 @@ TEST test_c_to_sql_exhaustive_db2_odbc_and_oom(void) {
     c2s_oom_countdown = -1;
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
   }
-  for (step = 0; step < 10; ++step) {
+  for (step = 0;; ++step) {
     c_orm_mock_string_builder_append_countdown = step;
     out_sql = NULL;
     rc = cdd_c_get_zos_schema_inspection_query("ACCOUNTS", &out_sql);
     c_orm_mock_string_builder_append_countdown = -1;
     if (rc == C_ORM_OK) {
       ASSERT(strstr(out_sql, "SYSIBM.SYSCOLUMNS") != NULL);
-      (void)c_orm_system_free(out_sql);
+      c_orm_system_free(out_sql);
       break;
     }
+    ASSERT(step < 50);
   }
 
   for (d = 0; d < 5; ++d) {
-    for (step = 0; step < 10; ++step) {
+    for (step = 0;; ++step) {
       c_orm_mock_string_builder_append_countdown = step;
       out_sql = NULL;
       rc = cdd_c_get_schema_inspection_query(all_dialects[d], "ACCOUNTS",
                                              &out_sql);
       c_orm_mock_string_builder_append_countdown = -1;
       if (rc == C_ORM_OK) {
-        (void)c_orm_system_free(out_sql);
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_sql));
         break;
       }
+      ASSERT(step < 50);
     }
   }
 
   /* 6. Index emitters: non-unique + append countdowns */
-  for (step = 0; step < 10; ++step) {
+  for (step = 0;; ++step) {
     c_orm_mock_string_builder_append_countdown = step;
     out_sql = NULL;
     rc = cdd_c_emit_create_index("tbl", "idx_a", "col_a", 0, &out_sql);
     c_orm_mock_string_builder_append_countdown = -1;
     if (rc == C_ORM_OK) {
       ASSERT(strstr(out_sql, "CREATE INDEX idx_a") != NULL);
-      (void)c_orm_system_free(out_sql);
+      c_orm_system_free(out_sql);
       break;
     }
+    ASSERT(step < 50);
   }
-  for (step = 0; step < 6; ++step) {
+  for (step = 0;; ++step) {
     c_orm_mock_string_builder_append_countdown = step;
     out_sql = NULL;
     rc = cdd_c_emit_drop_index("idx_a", &out_sql);
     c_orm_mock_string_builder_append_countdown = -1;
     if (rc == C_ORM_OK) {
-      (void)c_orm_system_free(out_sql);
+      c_orm_system_free(out_sql);
       break;
     }
+    ASSERT(step < 50);
   }
 
   /* 7. c_orm_table_meta_to_sql_create_table across all types, dialects,
@@ -1680,27 +1611,29 @@ TEST test_c_to_sql_exhaustive_db2_odbc_and_oom(void) {
     c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
 
     for (d = 0; d < 5; ++d) {
-      for (step = 0; step < 18; ++step) {
+      for (step = 0;; ++step) {
         c_orm_mock_safe_crt_countdown = step;
         out_sql = NULL;
         rc = c_orm_table_meta_to_sql_create_table(&tmeta, all_dialects[d],
                                                   &out_sql);
         c_orm_mock_safe_crt_countdown = -1;
         if (rc == C_ORM_OK) {
-          (void)c_orm_system_free(out_sql);
+          ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_sql));
           break;
         }
+        ASSERT(step < 50);
       }
-      for (step = 0; step < 140; ++step) {
+      for (step = 0;; ++step) {
         c_orm_mock_string_builder_append_countdown = step;
         out_sql = NULL;
         rc = c_orm_table_meta_to_sql_create_table(&tmeta, all_dialects[d],
                                                   &out_sql);
         c_orm_mock_string_builder_append_countdown = -1;
         if (rc == C_ORM_OK) {
-          (void)c_orm_system_free(out_sql);
+          ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_sql));
           break;
         }
+        ASSERT(step < 300);
       }
     }
 
@@ -1735,7 +1668,7 @@ TEST test_c_to_sql_exhaustive_db2_odbc_and_oom(void) {
 
       ASSERT_EQ(C_ORM_OK, c_orm_table_meta_to_sql_create_table(
                               &emeta, C_TO_SQL_DIALECT_DB2, &out_sql));
-      (void)c_orm_system_free(out_sql);
+      c_orm_system_free(out_sql);
 
       all_enum_cols[15].type = C_ORM_TYPE_VARBINARY;
       ASSERT_EQ(C_ORM_OK, c_orm_table_meta_to_cdd_meta(&emeta, &cmeta));
@@ -1799,6 +1732,42 @@ TEST test_c_to_sql_exhaustive_db2_odbc_and_oom(void) {
       ameta.props = NULL;
       ASSERT_EQ(C_ORM_OK, c_orm_cdd_meta_to_table_meta(&ameta, &rt));
       ASSERT_EQ(C_ORM_OK, c_orm_free_table_meta(rt));
+    }
+
+    /* DB2/ODBC/zOS inspection query ORDER BY append OOM */
+    {
+      int ap_cd;
+
+      for (ap_cd = 0;; ++ap_cd) {
+        char *iq = NULL;
+        c_orm_mock_string_builder_append_countdown = ap_cd;
+        if (cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_DB2, "T", &iq) ==
+            C_ORM_OK) {
+          c_orm_system_free(iq);
+          break;
+        }
+        ASSERT(ap_cd < 50);
+      }
+      for (ap_cd = 0;; ++ap_cd) {
+        char *iq = NULL;
+        c_orm_mock_string_builder_append_countdown = ap_cd;
+        if (cdd_c_get_schema_inspection_query(C_TO_SQL_DIALECT_ODBC, "T",
+                                              &iq) == C_ORM_OK) {
+          c_orm_system_free(iq);
+          break;
+        }
+        ASSERT(ap_cd < 50);
+      }
+      for (ap_cd = 0;; ++ap_cd) {
+        char *iq = NULL;
+        c_orm_mock_string_builder_append_countdown = ap_cd;
+        if (cdd_c_get_zos_schema_inspection_query("S.T", &iq) == C_ORM_OK) {
+          c_orm_system_free(iq);
+          break;
+        }
+        ASSERT(ap_cd < 50);
+      }
+      c_orm_mock_string_builder_append_countdown = -1;
     }
   }
 

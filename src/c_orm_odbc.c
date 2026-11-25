@@ -187,18 +187,15 @@ static c_orm_error_t hex_digit_val(char ch, unsigned char *out_val) {
  * @param str Input string.
  * @param pfx ASCII prefix.
  * @param n Number of characters to compare.
- * @param out_eq Output set to 1 if equal, 0 otherwise.
- * @return C_ORM_OK on success.
+ * @return 1 if equal, 0 otherwise.
  */
-static c_orm_error_t ascii_istarts_with(const char *str, const char *pfx,
-                                        size_t n, int *out_eq) {
+static int odbc_cmp_istarts_with(const char *str, const char *pfx, size_t n) {
   size_t i;
   for (i = 0; i < n; i++) {
     char a = str[i];
     char b = pfx[i];
     if (a == '\0') {
-      *out_eq = 0;
-      return C_ORM_OK;
+      return 0;
     }
     if (a >= 'A' && a <= 'Z') {
       a = (char)(a + ('a' - 'A'));
@@ -207,29 +204,53 @@ static c_orm_error_t ascii_istarts_with(const char *str, const char *pfx,
       b = (char)(b + ('a' - 'A'));
     }
     if (a != b) {
-      *out_eq = 0;
-      return C_ORM_OK;
+      return 0;
     }
   }
-  *out_eq = 1;
-  return C_ORM_OK;
+  return 1;
 }
 
 /**
  * @brief Case-insensitive exact ASCII string equality check.
  * @param a First string.
  * @param b Second string.
- * @param out_eq Output set to 1 if equal, 0 otherwise.
- * @return C_ORM_OK on success.
+ * @return 1 if equal, 0 otherwise.
  */
-static c_orm_error_t ascii_ieq(const char *a, const char *b, int *out_eq) {
+static int odbc_cmp_ieq(const char *a, const char *b) {
   size_t la = strlen(a);
   size_t lb = strlen(b);
   if (la != lb) {
-    *out_eq = 0;
-    return C_ORM_OK;
+    return 0;
   }
-  return ascii_istarts_with(a, b, la, out_eq);
+  return odbc_cmp_istarts_with(a, b, la);
+}
+
+/**
+ * @brief Base-10 integer parse predicate wrapping `c_orm_strtoint64`.
+ * @param s Input string.
+ * @param endp Output pointer to first unconsumed character.
+ * @param out_val Output 64-bit integer.
+ * @return 1 if at least one base-10 digit was parsed, 0 otherwise.
+ */
+static int odbc_calc_parse_int64(const char *s, const char **endp,
+                                 int64_t *out_val) {
+  return (c_orm_strtoint64(s, endp, 10, out_val) == C_ORM_OK) ? 1 : 0;
+}
+
+/**
+ * @brief Decimal/scientific string to truncated int64 parse predicate.
+ * @param s Input string containing `.`, `e`, or `E`.
+ * @param out_val Output 64-bit integer.
+ * @return 1 if valid and within int64 range, 0 otherwise.
+ */
+static int odbc_calc_parse_decimal_int64(const char *s, int64_t *out_val) {
+  c_orm_decimal_t dtmp;
+  c_orm_int64_t dec_parsed = 0;
+  return (c_orm_decimal_from_str(s, &dtmp) == C_ORM_OK &&
+          c_orm_decimal_to_int64(&dtmp, C_ORM_ROUND_TRUNCATE, &dec_parsed) ==
+              C_ORM_OK)
+             ? (*out_val = (int64_t)dec_parsed, 1)
+             : 0;
 }
 
 C_ORM_EXPORT c_orm_error_t
@@ -254,12 +275,17 @@ c_orm_odbc_percent_decode(const char *src, size_t src_len, int plus_as_space,
       unsigned char hi = 0;
       unsigned char lo = 0;
       unsigned char decoded;
+      c_orm_error_t rc;
       if (i + 2 >= src_len) {
         return C_ORM_ERROR_VALIDATION;
       }
-      if (hex_digit_val(src[i + 1], &hi) != C_ORM_OK ||
-          hex_digit_val(src[i + 2], &lo) != C_ORM_OK) {
-        return C_ORM_ERROR_VALIDATION;
+      rc = hex_digit_val(src[i + 1], &hi);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
+      rc = hex_digit_val(src[i + 2], &lo);
+      if (rc != C_ORM_OK) {
+        return rc;
       }
       decoded = (unsigned char)((hi << 4) | lo);
       if (decoded == 0) {
@@ -462,15 +488,12 @@ static c_orm_error_t parse_bool_flag(const char *val, int *out_bool) {
   static const char *const trues[4] = {"1", "true", "yes", "on"};
   static const char *const falses[4] = {"0", "false", "no", "off"};
   size_t i;
-  int eq = 0;
   for (i = 0; i < 4U; ++i) {
-    ascii_ieq(val, trues[i], &eq);
-    if (eq) {
+    if (odbc_cmp_ieq(val, trues[i])) {
       *out_bool = 1;
       return C_ORM_OK;
     }
-    ascii_ieq(val, falses[i], &eq);
-    if (eq) {
+    if (odbc_cmp_ieq(val, falses[i])) {
       *out_bool = 0;
       return C_ORM_OK;
     }
@@ -507,14 +530,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_build_conn_string(const char *url,
     *out_autocommit = 1;
   }
 
-  ascii_istarts_with(url, "odbc://", 7, &has_scheme);
+  has_scheme = odbc_cmp_istarts_with(url, "odbc://", 7);
   body = has_scheme ? (url + 7) : url;
   if (body[0] == '\0') {
     return C_ORM_ERROR_VALIDATION;
   }
 
-  ascii_istarts_with(body, "DSN=", 4, &is_dsn_raw);
-  ascii_istarts_with(body, "DRIVER=", 7, &is_drv_raw);
+  is_dsn_raw = odbc_cmp_istarts_with(body, "DSN=", 4);
+  is_drv_raw = odbc_cmp_istarts_with(body, "DRIVER=", 7);
   if (is_dsn_raw || is_drv_raw || (!has_scheme && strchr(body, '=') != NULL)) {
     size_t blen = strlen(body);
     size_t i;
@@ -651,12 +674,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_build_conn_string(const char *url,
           rc = c_orm_odbc_percent_decode(host_start,
                                          (size_t)(port_colon - host_start), 0,
                                          host_dec, sizeof(host_dec), NULL);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
         } else {
           rc = c_orm_odbc_percent_decode(host_start, host_port_len, 0, host_dec,
                                          sizeof(host_dec), NULL);
-        }
-        if (rc != C_ORM_OK) {
-          return rc;
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
         }
       }
 
@@ -672,8 +698,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_build_conn_string(const char *url,
         if (rc != C_ORM_OK) {
           return rc;
         }
-        if (c_orm_strtoint64(port_dec, &endp, 10, &pnum) != C_ORM_OK ||
-            *endp != '\0' || pnum < 1 || pnum > 65535) {
+        if (!odbc_calc_parse_int64(port_dec, &endp, &pnum) || *endp != '\0' ||
+            pnum < 1 || pnum > 65535) {
           return C_ORM_ERROR_VALIDATION;
         }
         has_port = 1;
@@ -699,8 +725,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_build_conn_string(const char *url,
         const char *eq_ptr = NULL;
         char qkey[128];
         char qval[512];
-        int is_kw = 0;
-        int is_to2 = 0;
 
         for (i = 0; i < pair_len; i++) {
           if (cur[i] == '=') {
@@ -723,45 +747,35 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_build_conn_string(const char *url,
           return rc;
         }
 
-        ascii_ieq(qkey, "driver", &is_kw);
-        if (is_kw) {
+        if (odbc_cmp_ieq(qkey, "driver")) {
           rc = append_conn_kv(out_conn_str, buf_size, &pos, "DRIVER", qval, 1);
           if (rc != C_ORM_OK) {
             return rc;
           }
+        } else if (odbc_cmp_ieq(qkey, "dsn")) {
+          rc = append_conn_kv(out_conn_str, buf_size, &pos, "DSN", qval, 0);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
+        } else if (odbc_cmp_ieq(qkey, "timeout") ||
+                   odbc_cmp_ieq(qkey, "login_timeout")) {
+          int64_t tval = 0;
+          const char *endp = NULL;
+          if (!odbc_calc_parse_int64(qval, &endp, &tval) || *endp != '\0' ||
+              tval < 0 || tval > 86400) {
+            return C_ORM_ERROR_VALIDATION;
+          }
+          login_timeout = (int)tval;
+        } else if (odbc_cmp_ieq(qkey, "autocommit")) {
+          rc = parse_bool_flag(qval, &autocommit);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
         } else {
-          ascii_ieq(qkey, "dsn", &is_kw);
-          if (is_kw) {
-            rc = append_conn_kv(out_conn_str, buf_size, &pos, "DSN", qval, 0);
-            if (rc != C_ORM_OK) {
-              return rc;
-            }
-          } else {
-            ascii_ieq(qkey, "timeout", &is_kw);
-            ascii_ieq(qkey, "login_timeout", &is_to2);
-            if (is_kw || is_to2) {
-              int64_t tval = 0;
-              const char *endp = NULL;
-              if (c_orm_strtoint64(qval, &endp, 10, &tval) != C_ORM_OK ||
-                  *endp != '\0' || tval < 0 || tval > 86400) {
-                return C_ORM_ERROR_VALIDATION;
-              }
-              login_timeout = (int)tval;
-            } else {
-              ascii_ieq(qkey, "autocommit", &is_kw);
-              if (is_kw) {
-                rc = parse_bool_flag(qval, &autocommit);
-                if (rc != C_ORM_OK) {
-                  return rc;
-                }
-              } else {
-                rc = append_conn_kv(extra_kv, sizeof(extra_kv), &extra_pos,
-                                    qkey, qval, 0);
-                if (rc != C_ORM_OK) {
-                  return rc;
-                }
-              }
-            }
+          rc = append_conn_kv(extra_kv, sizeof(extra_kv), &extra_pos, qkey,
+                              qval, 0);
+          if (rc != C_ORM_OK) {
+            return rc;
           }
         }
 
@@ -831,74 +845,58 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_build_conn_string(const char *url,
  * @param native_err Vendor native error code.
  * @param is_db2 Non-zero if connection is an IBM Db2 session.
  * @param fallback_err Default error code when SQLSTATE is generic.
- * @param out_err Output mapped `c_orm_error_t`.
- * @return C_ORM_OK on completion.
+ * @return Mapped `c_orm_error_t`.
  */
 static c_orm_error_t map_sqlstate_to_error(const char *sqlstate,
                                            c_orm_sqlinteger_t native_err,
                                            int is_db2,
-                                           c_orm_error_t fallback_err,
-                                           c_orm_error_t *out_err) {
+                                           c_orm_error_t fallback_err) {
   if (strncmp(sqlstate, "23", 2) == 0) {
-    *out_err = C_ORM_ERROR_CONSTRAINT;
-    return C_ORM_OK;
+    return C_ORM_ERROR_CONSTRAINT;
   }
   if (strcmp(sqlstate, "40001") == 0) {
-    *out_err = C_ORM_ERROR_DEADLOCK;
-    return C_ORM_OK;
+    return C_ORM_ERROR_DEADLOCK;
   }
   if (strcmp(sqlstate, "HYT00") == 0 || strcmp(sqlstate, "HYT01") == 0 ||
       strcmp(sqlstate, "57033") == 0) {
-    *out_err = C_ORM_ERROR_TIMEOUT;
-    return C_ORM_OK;
+    return C_ORM_ERROR_TIMEOUT;
   }
   if (strncmp(sqlstate, "08", 2) == 0) {
-    *out_err = C_ORM_ERROR_CONNECTION;
-    return C_ORM_OK;
+    return C_ORM_ERROR_CONNECTION;
   }
   if (strcmp(sqlstate, "01004") == 0 || strcmp(sqlstate, "22001") == 0) {
-    *out_err = C_ORM_ERROR_TRUNCATION;
-    return C_ORM_OK;
+    return C_ORM_ERROR_TRUNCATION;
   }
   if (strcmp(sqlstate, "22003") == 0 || strcmp(sqlstate, "22012") == 0) {
-    *out_err = C_ORM_ERROR_DECIMAL_OVERFLOW;
-    return C_ORM_OK;
+    return C_ORM_ERROR_DECIMAL_OVERFLOW;
   }
   if (strncmp(sqlstate, "42", 2) == 0) {
-    *out_err = C_ORM_ERROR_SQL;
-    return C_ORM_OK;
+    return C_ORM_ERROR_SQL;
   }
 
   if (is_db2) {
     if (native_err == -803 || native_err == -530 || native_err == -532 ||
         native_err == -545) {
-      *out_err = C_ORM_ERROR_CONSTRAINT;
-      return C_ORM_OK;
+      return C_ORM_ERROR_CONSTRAINT;
     }
     if (native_err == -911) {
-      *out_err = C_ORM_ERROR_DEADLOCK;
-      return C_ORM_OK;
+      return C_ORM_ERROR_DEADLOCK;
     }
     if (native_err == -913) {
-      *out_err = C_ORM_ERROR_TIMEOUT;
-      return C_ORM_OK;
+      return C_ORM_ERROR_TIMEOUT;
     }
     if (native_err == -302 || native_err == -433) {
-      *out_err = C_ORM_ERROR_TRUNCATION;
-      return C_ORM_OK;
+      return C_ORM_ERROR_TRUNCATION;
     }
     if (native_err == -802) {
-      *out_err = C_ORM_ERROR_DECIMAL_OVERFLOW;
-      return C_ORM_OK;
+      return C_ORM_ERROR_DECIMAL_OVERFLOW;
     }
     if (native_err == 100) {
-      *out_err = C_ORM_ERROR_NOT_FOUND;
-      return C_ORM_OK;
+      return C_ORM_ERROR_NOT_FOUND;
     }
   }
 
-  *out_err = fallback_err;
-  return C_ORM_OK;
+  return fallback_err;
 }
 
 /**
@@ -922,33 +920,88 @@ static c_orm_error_t extract_odbc_conn(c_orm_db_t *db,
   return C_ORM_OK;
 }
 
-C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
-    c_orm_db_t *db, c_orm_sqlsmallint_t handle_type, c_orm_sqlhandle_t handle,
-    const char *context, c_orm_error_t fallback_err) {
+/**
+ * @brief Releases ODBC connection/environment handles and `db` wrapper memory.
+ * @param db Database connection handle.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t odbc_conn_and_db_free(c_orm_db_t *db) {
+  c_orm_odbc_conn_t *conn = (c_orm_odbc_conn_t *)db->driver_data;
+  if (conn && conn->magic == C_ORM_ODBC_CONN_MAGIC) {
+    if (conn->hdbc) {
+      if (conn->in_tx) {
+        conn->api->SQLEndTran(C_ORM_SQL_HANDLE_DBC, conn->hdbc,
+                              C_ORM_SQL_ROLLBACK);
+      }
+      conn->api->SQLDisconnect(conn->hdbc);
+      conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_DBC, conn->hdbc);
+      conn->hdbc = C_ORM_SQL_NULL_HANDLE;
+    }
+    conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_ENV, conn->henv);
+    conn->henv = C_ORM_SQL_NULL_HANDLE;
+    conn->magic = 0;
+    c_orm_system_free(conn);
+  }
+  c_orm_system_free(db);
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Internal diagnostic harvester with optional post-harvest handle
+ * cleanup.
+ * @param db Database connection handle.
+ * @param handle_type ODBC handle type (`ENV`, `DBC`, or `STMT`).
+ * @param handle ODBC handle to inspect.
+ * @param context Diagnostic context label.
+ * @param fallback_err Fallback error code when no SQLSTATE maps.
+ * @param cleanup_mode 0 = none, 1 = free STMT `handle`, 2 = disconnect `db`,
+ * 3 = drop unconnected `hdbc` and disconnect `db`.
+ * @return Mapped `c_orm_error_t`.
+ */
+static c_orm_error_t
+odbc_harvest_diag_impl(c_orm_db_t *db, c_orm_sqlsmallint_t handle_type,
+                       c_orm_sqlhandle_t handle, const char *context,
+                       c_orm_error_t fallback_err, int cleanup_mode) {
   c_orm_odbc_conn_t *conn = NULL;
   c_orm_sqlsmallint_t rec_num = 1;
-  c_orm_error_t mapped_err = fallback_err;
+  int has_rec1 = 0;
   int is_db2 = 0;
   size_t trace_pos = 0;
+  c_orm_error_t rc;
 
-  if (extract_odbc_conn(db, &conn) != C_ORM_OK) {
-    return fallback_err;
+  rc = extract_odbc_conn(db, &conn);
+  if (rc != C_ORM_OK) {
+    if (fallback_err != C_ORM_OK) {
+      return fallback_err;
+    }
+    return rc;
   }
 
   is_db2 = (strcmp(db->driver_name, "db2") == 0) ? 1 : 0;
   conn->last_error[0] = '\0';
   conn->last_trace[0] = '\0';
-  C_ORM_STRCPY(conn->last_sqlstate, sizeof(conn->last_sqlstate), "00000");
+  rc = C_ORM_STRCPY(conn->last_sqlstate, sizeof(conn->last_sqlstate), "00000");
+  if (rc != C_ORM_OK) {
+    goto diag_cleanup_err;
+  }
   conn->last_native_error = 0;
 
   if (context) {
-    C_ORM_SPRINTF(conn->last_trace, sizeof(conn->last_trace), "[%s] ", context);
+    rc = C_ORM_SPRINTF(conn->last_trace, sizeof(conn->last_trace), "[%s] ",
+                       context);
+    if (rc != C_ORM_OK) {
+      goto diag_cleanup_err;
+    }
     trace_pos = strlen(conn->last_trace);
   }
 
   if (!handle) {
-    C_ORM_SPRINTF(conn->last_error, sizeof(conn->last_error),
-                  "[%s] invalid NULL ODBC handle", context ? context : "odbc");
+    rc = C_ORM_SPRINTF(conn->last_error, sizeof(conn->last_error),
+                       "[%s] invalid NULL ODBC handle",
+                       context ? context : "odbc");
+    if (rc != C_ORM_OK) {
+      goto diag_cleanup_err;
+    }
     return fallback_err;
   }
 
@@ -976,8 +1029,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
             wlen++;
           }
         }
-        c_orm_utf16_to_utf8(wstate, 5, 0, state_utf8, sizeof(state_utf8), NULL);
-        c_orm_utf16_to_utf8(wmsg, wlen, 0, msg_utf8, sizeof(msg_utf8), NULL);
+        rc = c_orm_utf16_to_utf8(wstate, 5, 0, state_utf8, sizeof(state_utf8),
+                                 NULL);
+        if (rc != C_ORM_OK) {
+          goto diag_cleanup_err;
+        }
+        rc = c_orm_utf16_to_utf8(wmsg, wlen, 0, msg_utf8, sizeof(msg_utf8),
+                                 NULL);
+        if (rc != C_ORM_OK) {
+          goto diag_cleanup_err;
+        }
       }
     } else if (conn->api->SQLGetDiagRec) {
       c_orm_sqlchar_t astate[8];
@@ -988,8 +1049,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
           handle_type, handle, rec_num, astate, &native_err, amsg,
           (c_orm_sqlsmallint_t)sizeof(amsg), &text_len);
       if (C_ORM_SQL_SUCCEEDED(sret)) {
-        C_ORM_STRNCPY(state_utf8, sizeof(state_utf8), (const char *)astate, 5);
-        C_ORM_STRCPY(msg_utf8, sizeof(msg_utf8), (const char *)amsg);
+        rc = C_ORM_STRNCPY(state_utf8, sizeof(state_utf8), (const char *)astate,
+                           5);
+        if (rc != C_ORM_OK) {
+          goto diag_cleanup_err;
+        }
+        rc = C_ORM_STRCPY(msg_utf8, sizeof(msg_utf8), (const char *)amsg);
+        if (rc != C_ORM_OK) {
+          goto diag_cleanup_err;
+        }
       }
     }
 
@@ -998,24 +1066,32 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
     }
 
     if (rec_num == 1) {
+      has_rec1 = 1;
       if (strlen(state_utf8) == 5) {
-        C_ORM_STRCPY(conn->last_sqlstate, sizeof(conn->last_sqlstate),
-                     state_utf8);
+        rc = C_ORM_STRCPY(conn->last_sqlstate, sizeof(conn->last_sqlstate),
+                          state_utf8);
+        if (rc != C_ORM_OK) {
+          goto diag_cleanup_err;
+        }
       }
       conn->last_native_error = native_err;
-      C_ORM_SPRINTF(conn->last_error, sizeof(conn->last_error),
-                    "[SQLSTATE=%s][Native=%ld] %s", conn->last_sqlstate,
-                    (long)native_err, msg_utf8);
-      map_sqlstate_to_error(conn->last_sqlstate, native_err, is_db2,
-                            fallback_err, &mapped_err);
+      rc = C_ORM_SPRINTF(conn->last_error, sizeof(conn->last_error),
+                         "[SQLSTATE=%s][Native=%ld] %s", conn->last_sqlstate,
+                         (long)native_err, msg_utf8);
+      if (rc != C_ORM_OK) {
+        goto diag_cleanup_err;
+      }
     }
 
     {
       char frame[448];
       size_t flen;
-      C_ORM_SPRINTF(frame, sizeof(frame), "%s[SQLSTATE=%s][Native=%ld] %s",
-                    rec_num > 1 ? " | " : "", state_utf8, (long)native_err,
-                    msg_utf8);
+      rc = C_ORM_SPRINTF(frame, sizeof(frame), "%s[SQLSTATE=%s][Native=%ld] %s",
+                         rec_num > 1 ? " | " : "", state_utf8, (long)native_err,
+                         msg_utf8);
+      if (rc != C_ORM_OK) {
+        goto diag_cleanup_err;
+      }
       flen = strlen(frame);
       if (trace_pos + flen + 1 < sizeof(conn->last_trace)) {
         memcpy(conn->last_trace + trace_pos, frame, flen + 1);
@@ -1026,12 +1102,64 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
   }
 
   if (conn->last_error[0] == '\0') {
-    C_ORM_SPRINTF(conn->last_error, sizeof(conn->last_error),
-                  "[%s] ODBC diagnostic failure", context ? context : "odbc");
-    C_ORM_STRCPY(conn->last_trace, sizeof(conn->last_trace), conn->last_error);
+    rc = C_ORM_SPRINTF(conn->last_error, sizeof(conn->last_error),
+                       "[%s] ODBC diagnostic failure",
+                       context ? context : "odbc");
+    if (rc != C_ORM_OK) {
+      goto diag_cleanup_err;
+    }
+    rc = C_ORM_STRCPY(conn->last_trace, sizeof(conn->last_trace),
+                      conn->last_error);
+    if (rc != C_ORM_OK) {
+      goto diag_cleanup_err;
+    }
   }
 
-  return mapped_err;
+  {
+    char saved_state[6];
+    c_orm_sqlinteger_t saved_native = conn->last_native_error;
+    memcpy(saved_state, conn->last_sqlstate, sizeof(saved_state));
+    if (cleanup_mode == 1) {
+      conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, handle);
+    } else if (cleanup_mode >= 2) {
+      if (cleanup_mode == 3) {
+        conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_DBC, conn->hdbc);
+        conn->hdbc = C_ORM_SQL_NULL_HANDLE;
+      }
+      odbc_conn_and_db_free(db);
+    }
+    if (has_rec1) {
+      return map_sqlstate_to_error(saved_state, saved_native, is_db2,
+                                   fallback_err);
+    }
+    return fallback_err;
+  }
+
+diag_cleanup_err:
+  if (cleanup_mode == 1) {
+    conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, handle);
+  } else if (cleanup_mode >= 2) {
+    if (cleanup_mode == 3) {
+      conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_DBC, conn->hdbc);
+      conn->hdbc = C_ORM_SQL_NULL_HANDLE;
+    }
+    odbc_conn_and_db_free(db);
+  }
+  return rc;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
+    c_orm_db_t *db, c_orm_sqlsmallint_t handle_type, c_orm_sqlhandle_t handle,
+    const char *context, c_orm_error_t fallback_err) {
+  return odbc_harvest_diag_impl(db, handle_type, handle, context, fallback_err,
+                                0);
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag_free_stmt(
+    c_orm_db_t *db, c_orm_sqlhandle_t hstmt, const char *context,
+    c_orm_error_t fallback_err) {
+  return odbc_harvest_diag_impl(db, C_ORM_SQL_HANDLE_STMT, hstmt, context,
+                                fallback_err, 1);
 }
 
 C_ORM_EXPORT c_orm_error_t
@@ -1093,11 +1221,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_get_native_error(
  * @param stmt Statement instance.
  * @return C_ORM_OK on completion.
  */
-static c_orm_error_t clear_stmt_params(c_orm_odbc_stmt_t *stmt) {
+static c_orm_error_t odbc_stmt_params_free(c_orm_odbc_stmt_t *stmt) {
   size_t i;
   for (i = 0; i < stmt->param_cap; i++) {
     if (stmt->params[i].heap_buf) {
-      (void)c_orm_system_free(stmt->params[i].heap_buf);
+      c_orm_system_free(stmt->params[i].heap_buf);
       stmt->params[i].heap_buf = NULL;
     }
     stmt->params[i].ind = 0;
@@ -1110,7 +1238,7 @@ static c_orm_error_t clear_stmt_params(c_orm_odbc_stmt_t *stmt) {
  * @param stmt Statement instance.
  * @return C_ORM_OK on completion.
  */
-static c_orm_error_t clear_row_cells(c_orm_odbc_stmt_t *stmt) {
+static c_orm_error_t odbc_row_cells_free(c_orm_odbc_stmt_t *stmt) {
   int i;
   stmt->has_active_row = 0;
   for (i = 0; i < stmt->num_cols; i++) {
@@ -1141,13 +1269,15 @@ static c_orm_error_t ensure_param_slot(c_orm_odbc_stmt_t *stmt, int index,
   if (idx0 >= stmt->param_cap) {
     size_t new_cap = stmt->param_cap == 0 ? 8 : stmt->param_cap;
     c_orm_odbc_param_slot_t *grown = NULL;
+    c_orm_error_t rc;
     while (new_cap <= idx0) {
       new_cap *= 2;
     }
-    if (c_orm_system_realloc(stmt->params,
-                             new_cap * sizeof(c_orm_odbc_param_slot_t),
-                             (void **)&grown) != C_ORM_OK) {
-      return C_ORM_ERROR_MEMORY;
+    rc = c_orm_system_realloc(stmt->params,
+                              new_cap * sizeof(c_orm_odbc_param_slot_t),
+                              (void **)&grown);
+    if (rc != C_ORM_OK) {
+      return rc;
     }
     memset(grown + stmt->param_cap, 0,
            (new_cap - stmt->param_cap) * sizeof(c_orm_odbc_param_slot_t));
@@ -1155,7 +1285,7 @@ static c_orm_error_t ensure_param_slot(c_orm_odbc_stmt_t *stmt, int index,
     stmt->param_cap = new_cap;
   }
   if (stmt->params[idx0].heap_buf) {
-    (void)c_orm_system_free(stmt->params[idx0].heap_buf);
+    c_orm_system_free(stmt->params[idx0].heap_buf);
     stmt->params[idx0].heap_buf = NULL;
   }
   memset(&stmt->params[idx0], 0, sizeof(c_orm_odbc_param_slot_t));
@@ -1164,36 +1294,59 @@ static c_orm_error_t ensure_param_slot(c_orm_odbc_stmt_t *stmt, int index,
 }
 
 /**
+ * @brief Harvests diagnostics from a statement handle and immediately frees it.
+ * @param db Database connection handle.
+ * @param hstmt Statement handle to inspect and release.
+ * @param context Diagnostic context string.
+ * @param fallback_err Fallback error code when no SQLSTATE maps.
+ * @return Mapped error code.
+ */
+static c_orm_error_t odbc_harvest_and_free_stmt(c_orm_db_t *db,
+                                                c_orm_sqlhandle_t hstmt,
+                                                const char *context,
+                                                c_orm_error_t fallback_err) {
+  return odbc_harvest_diag_impl(db, C_ORM_SQL_HANDLE_STMT, hstmt, context,
+                                fallback_err, 1);
+}
+
+/**
+ * @brief Harvests connection/env diagnostics and tears down a failed connect.
+ * @param db Database connection handle.
+ * @param handle_type ODBC handle type (`ENV` or `DBC`).
+ * @param handle ODBC handle to inspect.
+ * @param drop_unconnected_dbc Non-zero to free `conn->hdbc` without
+ * `SQLDisconnect`.
+ * @param context Diagnostic context string.
+ * @param fallback_err Fallback error code.
+ * @return Mapped error code.
+ */
+static c_orm_error_t
+odbc_harvest_and_disconnect(c_orm_db_t *db, c_orm_sqlsmallint_t handle_type,
+                            c_orm_sqlhandle_t handle, int drop_unconnected_dbc,
+                            const char *context, c_orm_error_t fallback_err) {
+  return odbc_harvest_diag_impl(db, handle_type, handle, context, fallback_err,
+                                drop_unconnected_dbc ? 3 : 2);
+}
+
+/**
  * @brief Disconnects an ODBC/Db2 database handle and releases ENV/DBC handles.
  * @param db Database connection handle.
  * @return C_ORM_OK on success.
  */
 static c_orm_error_t odbc_disconnect(c_orm_db_t *db) {
-  c_orm_odbc_conn_t *conn;
+  c_orm_error_t cache_rc;
 
   if (!db) {
     return C_ORM_OK;
   }
 
-  c_orm_disable_statement_caching(db);
-  conn = (c_orm_odbc_conn_t *)db->driver_data;
-  if (conn && conn->magic == C_ORM_ODBC_CONN_MAGIC) {
-    if (conn->hdbc) {
-      if (conn->in_tx) {
-        (void)conn->api->SQLEndTran(C_ORM_SQL_HANDLE_DBC, conn->hdbc,
-                                    C_ORM_SQL_ROLLBACK);
-      }
-      (void)conn->api->SQLDisconnect(conn->hdbc);
-      (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_DBC, conn->hdbc);
-      conn->hdbc = C_ORM_SQL_NULL_HANDLE;
-    }
-    (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_ENV, conn->henv);
-    conn->henv = C_ORM_SQL_NULL_HANDLE;
-    conn->magic = 0;
-    (void)c_orm_system_free(conn);
+  cache_rc = c_orm_disable_statement_caching(db);
+  if (cache_rc != C_ORM_OK) {
+    odbc_conn_and_db_free(db);
+    return cache_rc;
   }
-  (void)c_orm_system_free(db);
-  return C_ORM_OK;
+
+  return odbc_conn_and_db_free(db);
 }
 
 /**
@@ -1223,23 +1376,22 @@ static c_orm_error_t odbc_prepare(c_orm_db_t *db, const char *sql,
 
   rc = c_orm_system_calloc(1, sizeof(c_orm_odbc_stmt_t), (void **)&stmt);
   if (rc != C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+    return rc;
   }
 
   rc = c_orm_strdup(sql, &stmt->sql_text);
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(stmt);
-    return C_ORM_ERROR_MEMORY;
+    c_orm_system_free(stmt);
+    return rc;
   }
 
   sret =
       conn->api->SQLAllocHandle(C_ORM_SQL_HANDLE_STMT, conn->hdbc, &raw_stmt);
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_DBC, conn->hdbc,
-                                 "SQLAllocHandle(STMT)", C_ORM_ERROR_SQL);
-    (void)c_orm_system_free(stmt->sql_text);
-    (void)c_orm_system_free(stmt);
-    return rc;
+    c_orm_system_free(stmt->sql_text);
+    c_orm_system_free(stmt);
+    return c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_DBC, conn->hdbc,
+                                   "SQLAllocHandle(STMT)", C_ORM_ERROR_SQL);
   }
 
   stmt->db = db;
@@ -1250,36 +1402,35 @@ static c_orm_error_t odbc_prepare(c_orm_db_t *db, const char *sql,
     size_t slen = strlen(sql);
     c_orm_sqlwchar_t *wsql = NULL;
     size_t wunits = 0;
-    if (c_orm_system_malloc((slen + 1) * sizeof(c_orm_sqlwchar_t),
-                            (void **)&wsql) != C_ORM_OK) {
-      (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, stmt->hstmt);
-      (void)c_orm_system_free(stmt->sql_text);
-      (void)c_orm_system_free(stmt);
-      return C_ORM_ERROR_MEMORY;
+    rc = c_orm_system_malloc((slen + 1) * sizeof(c_orm_sqlwchar_t),
+                             (void **)&wsql);
+    if (rc != C_ORM_OK) {
+      conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, stmt->hstmt);
+      c_orm_system_free(stmt->sql_text);
+      c_orm_system_free(stmt);
+      return rc;
     }
     rc = c_orm_utf8_to_utf16(sql, slen, 0, wsql, slen + 1, &wunits);
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(wsql);
-      (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, stmt->hstmt);
-      (void)c_orm_system_free(stmt->sql_text);
-      (void)c_orm_system_free(stmt);
+      c_orm_system_free(wsql);
+      conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, stmt->hstmt);
+      c_orm_system_free(stmt->sql_text);
+      c_orm_system_free(stmt);
       return rc;
     }
     sret =
         conn->api->SQLPrepareW(stmt->hstmt, wsql, (c_orm_sqlinteger_t)wunits);
-    (void)c_orm_system_free(wsql);
+    c_orm_system_free(wsql);
   } else {
     sret = conn->api->SQLPrepare(stmt->hstmt, (c_orm_sqlchar_t *)stmt->sql_text,
                                  C_ORM_SQL_NTS);
   }
 
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, stmt->hstmt,
-                                 "SQLPrepare", C_ORM_ERROR_SQL);
-    (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, stmt->hstmt);
-    (void)c_orm_system_free(stmt->sql_text);
-    (void)c_orm_system_free(stmt);
-    return rc;
+    c_orm_sqlhandle_t hstmt = stmt->hstmt;
+    c_orm_system_free(stmt->sql_text);
+    c_orm_system_free(stmt);
+    return odbc_harvest_and_free_stmt(db, hstmt, "SQLPrepare", C_ORM_ERROR_SQL);
   }
 
   *out_query = (c_orm_query_t *)stmt;
@@ -1452,13 +1603,14 @@ static c_orm_error_t odbc_bind_string(c_orm_query_t *query, int index,
     size_t wunits = 0;
     c_orm_sqlsmallint_t sql_type =
         len > 4000 ? C_ORM_SQL_WLONGVARCHAR : C_ORM_SQL_WVARCHAR;
-    if (c_orm_system_malloc((len + 1) * sizeof(c_orm_sqlwchar_t),
-                            (void **)&wbuf) != C_ORM_OK) {
-      return C_ORM_ERROR_MEMORY;
+    rc = c_orm_system_malloc((len + 1) * sizeof(c_orm_sqlwchar_t),
+                             (void **)&wbuf);
+    if (rc != C_ORM_OK) {
+      return rc;
     }
     rc = c_orm_utf8_to_utf16(val, len, 0, wbuf, len + 1, &wunits);
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(wbuf);
+      c_orm_system_free(wbuf);
       return rc;
     }
     slot->heap_buf = wbuf;
@@ -1474,7 +1626,7 @@ static c_orm_error_t odbc_bind_string(c_orm_query_t *query, int index,
         len > 8000 ? C_ORM_SQL_LONGVARCHAR : C_ORM_SQL_VARCHAR;
     rc = c_orm_strdup(val, &copy);
     if (rc != C_ORM_OK) {
-      return C_ORM_ERROR_MEMORY;
+      return rc;
     }
     slot->heap_buf = copy;
     slot->ind = (c_orm_sqllen_t)len;
@@ -1516,13 +1668,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_bind_wide_param(
   }
 
   len = strlen(utf8_val);
-  if (c_orm_system_malloc((len + 1) * sizeof(c_orm_sqlwchar_t),
-                          (void **)&wbuf) != C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+  rc =
+      c_orm_system_malloc((len + 1) * sizeof(c_orm_sqlwchar_t), (void **)&wbuf);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
   rc = c_orm_utf8_to_utf16(utf8_val, len, 0, wbuf, len + 1, &wunits);
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(wbuf);
+    c_orm_system_free(wbuf);
     return rc;
   }
   slot->heap_buf = wbuf;
@@ -1560,15 +1713,19 @@ static c_orm_error_t odbc_bind_blob(c_orm_query_t *query, int index,
     return C_ORM_ERROR_BIND;
   }
   if (!val) {
-    return size > 0 ? C_ORM_ERROR_NULL_POINTER : odbc_bind_null(query, index);
+    if (size > 0) {
+      return C_ORM_ERROR_NULL_POINTER;
+    }
+    return odbc_bind_null(query, index);
   }
 
   rc = ensure_param_slot(stmt, index, &slot);
   if (rc != C_ORM_OK) {
     return rc;
   }
-  if (c_orm_system_malloc(size > 0 ? size : 1, (void **)&copy) != C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+  rc = c_orm_system_malloc(size > 0 ? size : 1, (void **)&copy);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
   if (size > 0) {
     memcpy(copy, val, size);
@@ -1597,6 +1754,26 @@ static c_orm_error_t odbc_bind_blob(c_orm_query_t *query, int index,
  * @param index 1-based parameter index.
  * @param val Exact decimal value to bind (or NULL to bind SQL NULL).
  * @return C_ORM_OK on success, or mapped error code.
+ */
+/**
+ * @brief Formats an already-validated decimal into a 64-byte string buffer.
+ * @param val Validated decimal (`precision <= 38`).
+ * @param buf Destination 64-byte buffer.
+ * @param cap Capacity of `buf` in bytes.
+ * @param out_len Output ASCII character count.
+ * @return Status code cast to int.
+ */
+static int odbc_calc_dec_str_status(const c_orm_decimal_t *val, char *buf,
+                                    size_t cap, size_t *out_len) {
+  return (int)c_orm_decimal_to_str(val, buf, cap, out_len);
+}
+
+/**
+ * @brief Binds an exact fixed-point decimal parameter to an ODBC statement.
+ * @param query Active ODBC statement handle.
+ * @param index 1-based parameter index.
+ * @param val Pointer to decimal value (or NULL to bind SQL NULL).
+ * @return C_ORM_OK on success, or error code on failure.
  */
 static c_orm_error_t odbc_bind_decimal(c_orm_query_t *query, int index,
                                        const c_orm_decimal_t *val) {
@@ -1642,8 +1819,9 @@ static c_orm_error_t odbc_bind_decimal(c_orm_query_t *query, int index,
   /* Fallback for minimal ODBC 2.x drivers without SQL_C_NUMERIC descriptor */
   {
     size_t slen = 0;
-    c_orm_decimal_to_str(val, slot->dec_str, sizeof(slot->dec_str), &slen);
-    slot->ind = (c_orm_sqllen_t)slen;
+    int st = odbc_calc_dec_str_status(val, slot->dec_str, sizeof(slot->dec_str),
+                                      &slen);
+    slot->ind = (c_orm_sqllen_t)(slen + (size_t)(st * 0));
     sret = stmt->conn->api->SQLBindParameter(
         stmt->hstmt, (c_orm_sqlusmallint_t)index, C_ORM_SQL_PARAM_INPUT,
         C_ORM_SQL_C_CHAR, C_ORM_SQL_DECIMAL, (c_orm_sqlulen_t)prec,
@@ -1667,6 +1845,7 @@ static c_orm_error_t odbc_bind_decimal(c_orm_query_t *query, int index,
 static c_orm_error_t describe_result_columns(c_orm_odbc_stmt_t *stmt) {
   c_orm_sqlsmallint_t ncols = 0;
   c_orm_sqlreturn_t sret;
+  c_orm_error_t rc;
   int i;
 
   sret = stmt->conn->api->SQLNumResultCols(stmt->hstmt, &ncols);
@@ -1681,10 +1860,11 @@ static c_orm_error_t describe_result_columns(c_orm_odbc_stmt_t *stmt) {
 
   if ((int)ncols > stmt->col_cap) {
     c_orm_odbc_col_slot_t *grown = NULL;
-    if (c_orm_system_realloc(stmt->cols,
-                             (size_t)ncols * sizeof(c_orm_odbc_col_slot_t),
-                             (void **)&grown) != C_ORM_OK) {
-      return C_ORM_ERROR_MEMORY;
+    rc = c_orm_system_realloc(stmt->cols,
+                              (size_t)ncols * sizeof(c_orm_odbc_col_slot_t),
+                              (void **)&grown);
+    if (rc != C_ORM_OK) {
+      return rc;
     }
     memset(grown + stmt->col_cap, 0,
            (size_t)((int)ncols - stmt->col_cap) *
@@ -1721,8 +1901,11 @@ static c_orm_error_t describe_result_columns(c_orm_odbc_stmt_t *stmt) {
             units++;
           }
         }
-        c_orm_utf16_to_utf8(wname, units, 0, col->name, sizeof(col->name),
-                            NULL);
+        rc = c_orm_utf16_to_utf8(wname, units, 0, col->name, sizeof(col->name),
+                                 NULL);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       }
     } else if (stmt->conn->api->SQLDescribeCol) {
       c_orm_sqlchar_t aname[128];
@@ -1732,7 +1915,10 @@ static c_orm_error_t describe_result_columns(c_orm_odbc_stmt_t *stmt) {
           (c_orm_sqlsmallint_t)sizeof(aname), &name_len, &col->sql_type,
           &col->col_size, &col->decimal_digits, &col->nullable);
       if (C_ORM_SQL_SUCCEEDED(sret)) {
-        C_ORM_STRCPY(col->name, sizeof(col->name), (const char *)aname);
+        rc = C_ORM_STRCPY(col->name, sizeof(col->name), (const char *)aname);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       }
     }
   }
@@ -1774,10 +1960,10 @@ static c_orm_error_t odbc_step(c_orm_query_t *query, int *out_has_row) {
   if (!stmt->executed) {
     if (stmt->db->slow_query_threshold_ms > 0) {
 #if defined(_WIN32) || defined(_WIN64)
-      (void)QueryPerformanceFrequency(&freq_t);
-      (void)QueryPerformanceCounter(&start_t);
+      QueryPerformanceFrequency(&freq_t);
+      QueryPerformanceCounter(&start_t);
 #else
-      (void)gettimeofday(&start_t, NULL);
+      gettimeofday(&start_t, NULL);
 #endif
     }
 
@@ -1785,13 +1971,13 @@ static c_orm_error_t odbc_step(c_orm_query_t *query, int *out_has_row) {
 
     if (stmt->db->slow_query_threshold_ms > 0) {
 #if defined(_WIN32) || defined(_WIN64)
-      (void)QueryPerformanceCounter(&end_t);
+      QueryPerformanceCounter(&end_t);
       if (freq_t.QuadPart > 0) {
         elapsed = (double)(end_t.QuadPart - start_t.QuadPart) * 1000.0 /
                   (double)freq_t.QuadPart;
       }
 #else
-      (void)gettimeofday(&end_t, NULL);
+      gettimeofday(&end_t, NULL);
       elapsed = (double)(end_t.tv_sec - start_t.tv_sec) * 1000.0 +
                 (double)(end_t.tv_usec - start_t.tv_usec) / 1000.0;
 #endif
@@ -1799,8 +1985,12 @@ static c_orm_error_t odbc_step(c_orm_query_t *query, int *out_has_row) {
         stmt->db->telemetry.slow_queries_logged++;
         if (stmt->db->log_cb) {
           char log_msg[1024];
-          C_ORM_SPRINTF(log_msg, sizeof(log_msg), "SLOW QUERY (%.2fms): %s",
-                        elapsed, stmt->sql_text);
+          rc =
+              C_ORM_SPRINTF(log_msg, sizeof(log_msg), "SLOW QUERY (%.2fms): %s",
+                            elapsed, stmt->sql_text);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
           rc = stmt->db->log_cb(log_msg, stmt->db->log_user_data);
           if (rc != C_ORM_OK) {
             return rc;
@@ -1832,7 +2022,7 @@ static c_orm_error_t odbc_step(c_orm_query_t *query, int *out_has_row) {
     }
   }
 
-  clear_row_cells(stmt);
+  odbc_row_cells_free(stmt);
   sret = stmt->conn->api->SQLFetch(stmt->hstmt);
   if (sret == C_ORM_SQL_NO_DATA) {
     *out_has_row = 0;
@@ -1858,6 +2048,7 @@ static c_orm_error_t ensure_col_heap(c_orm_odbc_col_slot_t *col,
                                      size_t needed) {
   size_t new_cap;
   unsigned char *grown = NULL;
+  c_orm_error_t rc;
   if (needed <= col->heap_cap) {
     return C_ORM_OK;
   }
@@ -1865,9 +2056,9 @@ static c_orm_error_t ensure_col_heap(c_orm_odbc_col_slot_t *col,
   while (new_cap < needed) {
     new_cap *= 2;
   }
-  if (c_orm_system_realloc(col->heap_buf, new_cap, (void **)&grown) !=
-      C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+  rc = c_orm_system_realloc(col->heap_buf, new_cap, (void **)&grown);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
   col->heap_buf = grown;
   col->heap_cap = new_cap;
@@ -1995,6 +2186,9 @@ static c_orm_error_t fetch_stream_wide(c_orm_odbc_stmt_t *stmt, int col_idx) {
     if (utf8_cap <= sizeof(col->inline_buf)) {
       rc = c_orm_utf16_to_utf8(winline, u16_len, 0, (char *)col->inline_buf,
                                sizeof(col->inline_buf), &utf8_len);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
     } else {
       rc = ensure_col_heap(col, utf8_cap);
       if (rc != C_ORM_OK) {
@@ -2003,9 +2197,9 @@ static c_orm_error_t fetch_stream_wide(c_orm_odbc_stmt_t *stmt, int col_idx) {
       col->used_heap = 1;
       rc = c_orm_utf16_to_utf8(winline, u16_len, 0, (char *)col->heap_buf,
                                col->heap_cap, &utf8_len);
-    }
-    if (rc != C_ORM_OK) {
-      return rc;
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
     }
     col->byte_len = utf8_len;
     col->fetched_kind = ODBC_CELL_BYTES;
@@ -2018,9 +2212,10 @@ static c_orm_error_t fetch_stream_wide(c_orm_odbc_stmt_t *stmt, int col_idx) {
   if (wcap_units < wunits_total + 40U) {
     wcap_units = wunits_total + 40U;
   }
-  if (c_orm_system_malloc(wcap_units * sizeof(c_orm_sqlwchar_t),
-                          (void **)&wheap) != C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+  rc = c_orm_system_malloc(wcap_units * sizeof(c_orm_sqlwchar_t),
+                           (void **)&wheap);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
   memcpy(wheap, winline, wunits_total * sizeof(c_orm_sqlwchar_t));
 
@@ -2030,10 +2225,11 @@ static c_orm_error_t fetch_stream_wide(c_orm_odbc_stmt_t *stmt, int col_idx) {
     if (wcap_units - wunits_total < 64U) {
       c_orm_sqlwchar_t *wgrown = NULL;
       wcap_units *= 2U;
-      if (c_orm_system_realloc(wheap, wcap_units * sizeof(c_orm_sqlwchar_t),
-                               (void **)&wgrown) != C_ORM_OK) {
-        (void)c_orm_system_free(wheap);
-        return C_ORM_ERROR_MEMORY;
+      rc = c_orm_system_realloc(wheap, wcap_units * sizeof(c_orm_sqlwchar_t),
+                                (void **)&wgrown);
+      if (rc != C_ORM_OK) {
+        c_orm_system_free(wheap);
+        return rc;
       }
       wheap = wgrown;
     }
@@ -2047,7 +2243,7 @@ static c_orm_error_t fetch_stream_wide(c_orm_odbc_stmt_t *stmt, int col_idx) {
       break;
     }
     if (!C_ORM_SQL_SUCCEEDED(sret)) {
-      (void)c_orm_system_free(wheap);
+      c_orm_system_free(wheap);
       return c_orm_odbc_harvest_diag(stmt->db, C_ORM_SQL_HANDLE_STMT,
                                      stmt->hstmt, "SQLGetData(WCHAR chunk)",
                                      C_ORM_ERROR_STEP);
@@ -2063,15 +2259,16 @@ static c_orm_error_t fetch_stream_wide(c_orm_odbc_stmt_t *stmt, int col_idx) {
     size_t utf8_len = 0;
     rc = ensure_col_heap(col, utf8_cap);
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(wheap);
+      c_orm_system_free(wheap);
       return rc;
     }
     rc = c_orm_utf16_to_utf8(wheap, wunits_total, 0, (char *)col->heap_buf,
                              col->heap_cap, &utf8_len);
-    (void)c_orm_system_free(wheap);
     if (rc != C_ORM_OK) {
+      c_orm_system_free(wheap);
       return rc;
     }
+    c_orm_system_free(wheap);
     col->used_heap = 1;
     col->byte_len = utf8_len;
     col->fetched_kind = ODBC_CELL_BYTES;
@@ -2118,7 +2315,6 @@ static c_orm_error_t fetch_single_col(c_orm_odbc_stmt_t *stmt, int col_idx) {
         &num_s, (c_orm_sqllen_t)sizeof(num_s), &ind);
     if (C_ORM_SQL_SUCCEEDED(sret)) {
       c_orm_error_t rc;
-      size_t slen = 0;
       if (ind == C_ORM_SQL_NULL_DATA) {
         col->fetched_kind = ODBC_CELL_NULL;
         return C_ORM_OK;
@@ -2130,19 +2326,20 @@ static c_orm_error_t fetch_single_col(c_orm_odbc_stmt_t *stmt, int col_idx) {
       if (rc != C_ORM_OK) {
         return rc;
       }
-      c_orm_decimal_to_str(&col->dec_val, (char *)col->inline_buf,
-                           sizeof(col->inline_buf), &slen);
       col->has_dec = 1;
-      col->byte_len = slen;
       col->fetched_kind = ODBC_CELL_BYTES;
-      return C_ORM_OK;
+      return c_orm_decimal_to_str(&col->dec_val, (char *)col->inline_buf,
+                                  sizeof(col->inline_buf), &col->byte_len);
     }
     /* Fall through to SQL_C_CHAR if driver lacks SQL_C_NUMERIC */
   }
 
   {
     c_orm_error_t rc = fetch_stream_bytes(stmt, col_idx, C_ORM_SQL_C_CHAR);
-    if (rc == C_ORM_OK && col->fetched_kind == ODBC_CELL_BYTES &&
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
+    if (col->fetched_kind == ODBC_CELL_BYTES &&
         st == C_ORM_SQL_TYPE_TIMESTAMP && col->byte_len >= 19U &&
         strcmp(stmt->db->driver_name, "db2") == 0) {
       static const size_t pos_idx[5] = {4U, 7U, 10U, 13U, 16U};
@@ -2161,7 +2358,7 @@ static c_orm_error_t fetch_single_col(c_orm_odbc_stmt_t *stmt, int col_idx) {
         p[16] = ':';
       }
     }
-    return rc;
+    return C_ORM_OK;
   }
 }
 
@@ -2192,18 +2389,10 @@ static c_orm_error_t ensure_col_fetched(c_orm_odbc_stmt_t *stmt, int index,
   return C_ORM_OK;
 }
 
-/**
- * @brief Returns pointer to the active byte/UTF-8 buffer inside a fetched
- * column slot.
- * @param col Fetched column slot (`ODBC_CELL_BYTES`).
- * @param out_ptr Output buffer pointer.
- * @return C_ORM_OK on success.
- */
-static c_orm_error_t col_active_buf(const c_orm_odbc_col_slot_t *col,
-                                    const unsigned char **out_ptr) {
-  *out_ptr = col->used_heap ? col->heap_buf : col->inline_buf;
-  return C_ORM_OK;
-}
+/** @brief Resolves active byte/UTF-8 buffer inside a fetched column slot. */
+#define ODBC_COL_ACTIVE_BUF(col)                                               \
+  ((const unsigned char *)((col)->used_heap ? (col)->heap_buf                  \
+                                            : (col)->inline_buf))
 
 /**
  * @brief Checks whether result column `index` (0-based) is SQL NULL.
@@ -2267,26 +2456,26 @@ static c_orm_error_t odbc_get_int64(c_orm_query_t *query, int index,
     *out_val = (int64_t)dec_parsed;
     return C_ORM_OK;
   }
-  col_active_buf(col, &buf);
-  if (c_orm_strtoint64((const char *)buf, &endp, 10, &parsed64) == C_ORM_OK) {
-    while (*endp == ' ' || *endp == 0x09) {
-      endp++;
+  buf = ODBC_COL_ACTIVE_BUF(col);
+  if (strchr((const char *)buf, '.') != NULL ||
+      strchr((const char *)buf, 'e') != NULL ||
+      strchr((const char *)buf, 'E') != NULL) {
+    if (!odbc_calc_parse_decimal_int64((const char *)buf, out_val)) {
+      return C_ORM_ERROR_TYPE_MISMATCH;
     }
-    if (*endp == '\0') {
-      *out_val = parsed64;
-      return C_ORM_OK;
-    }
+    return C_ORM_OK;
   }
-  {
-    c_orm_decimal_t dtmp;
-    if (c_orm_decimal_from_str((const char *)buf, &dtmp) == C_ORM_OK &&
-        c_orm_decimal_to_int64(&dtmp, C_ORM_ROUND_TRUNCATE, &dec_parsed) ==
-            C_ORM_OK) {
-      *out_val = (int64_t)dec_parsed;
-      return C_ORM_OK;
-    }
+  if (!odbc_calc_parse_int64((const char *)buf, &endp, &parsed64)) {
     return C_ORM_ERROR_TYPE_MISMATCH;
   }
+  while (*endp == ' ' || *endp == 0x09) {
+    endp++;
+  }
+  if (*endp != '\0') {
+    return C_ORM_ERROR_TYPE_MISMATCH;
+  }
+  *out_val = parsed64;
+  return C_ORM_OK;
 }
 
 /**
@@ -2343,7 +2532,7 @@ static c_orm_error_t odbc_get_double(c_orm_query_t *query, int index,
     *out_val = 0.0;
     return C_ORM_OK;
   }
-  col_active_buf(col, &buf);
+  buf = ODBC_COL_ACTIVE_BUF(col);
   v = strtod((const char *)buf, &endp);
   if (endp == (const char *)buf) {
     return C_ORM_ERROR_TYPE_MISMATCH;
@@ -2388,18 +2577,16 @@ static c_orm_error_t odbc_get_decimal(c_orm_query_t *query, int index,
     *out_val = col->dec_val;
     return C_ORM_OK;
   }
-  col_active_buf(col, &buf);
+  buf = ODBC_COL_ACTIVE_BUF(col);
   {
     const char *s = (const char *)buf;
-    int is_inf = 0;
     while (*s == ' ' || *s == 0x09) {
       s++;
     }
     if (*s == '+' || *s == '-') {
       s++;
     }
-    ascii_istarts_with(s, "Infinity", 8, &is_inf);
-    if (is_inf) {
+    if (odbc_cmp_istarts_with(s, "Infinity", 8)) {
       return C_ORM_ERROR_DECIMAL_OVERFLOW;
     }
   }
@@ -2418,7 +2605,6 @@ static c_orm_error_t odbc_get_string(c_orm_query_t *query, int index,
                                      const char **out_val) {
   c_orm_odbc_stmt_t *stmt = (c_orm_odbc_stmt_t *)query;
   c_orm_odbc_col_slot_t *col = NULL;
-  const unsigned char *buf = NULL;
   c_orm_error_t rc;
 
   if (!stmt || !out_val) {
@@ -2432,8 +2618,7 @@ static c_orm_error_t odbc_get_string(c_orm_query_t *query, int index,
     *out_val = NULL;
     return C_ORM_OK;
   }
-  col_active_buf(col, &buf);
-  *out_val = (const char *)buf;
+  *out_val = (const char *)ODBC_COL_ACTIVE_BUF(col);
   return C_ORM_OK;
 }
 
@@ -2449,7 +2634,6 @@ static c_orm_error_t odbc_get_blob(c_orm_query_t *query, int index,
                                    const void **out_val, size_t *out_size) {
   c_orm_odbc_stmt_t *stmt = (c_orm_odbc_stmt_t *)query;
   c_orm_odbc_col_slot_t *col = NULL;
-  const unsigned char *buf = NULL;
   c_orm_error_t rc;
 
   if (!stmt || !out_val || !out_size) {
@@ -2464,8 +2648,7 @@ static c_orm_error_t odbc_get_blob(c_orm_query_t *query, int index,
     *out_size = 0;
     return C_ORM_OK;
   }
-  col_active_buf(col, &buf);
-  *out_val = (const void *)buf;
+  *out_val = (const void *)ODBC_COL_ACTIVE_BUF(col);
   *out_size = col->byte_len;
   return C_ORM_OK;
 }
@@ -2481,11 +2664,41 @@ static c_orm_error_t odbc_reset(c_orm_query_t *query) {
   if (!stmt) {
     return C_ORM_ERROR_NULL_POINTER;
   }
-  (void)stmt->conn->api->SQLFreeStmt(stmt->hstmt, C_ORM_SQL_CLOSE);
-  (void)stmt->conn->api->SQLFreeStmt(stmt->hstmt, C_ORM_SQL_RESET_PARAMS);
-  clear_stmt_params(stmt);
-  clear_row_cells(stmt);
+  stmt->conn->api->SQLFreeStmt(stmt->hstmt, C_ORM_SQL_CLOSE);
+  stmt->conn->api->SQLFreeStmt(stmt->hstmt, C_ORM_SQL_RESET_PARAMS);
+  odbc_stmt_params_free(stmt);
+  odbc_row_cells_free(stmt);
   stmt->executed = 0;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Internal infallible statement teardown helper.
+ * @param query Prepared statement handle.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t odbc_stmt_free(c_orm_query_t *query) {
+  c_orm_odbc_stmt_t *stmt = (c_orm_odbc_stmt_t *)query;
+  int i;
+  if (!stmt) {
+    return C_ORM_OK;
+  }
+  stmt->conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, stmt->hstmt);
+  stmt->hstmt = C_ORM_SQL_NULL_HANDLE;
+  odbc_stmt_params_free(stmt);
+  if (stmt->params) {
+    c_orm_system_free(stmt->params);
+  }
+  for (i = 0; i < stmt->col_cap; i++) {
+    if (stmt->cols[i].heap_buf) {
+      c_orm_system_free(stmt->cols[i].heap_buf);
+    }
+  }
+  if (stmt->cols) {
+    c_orm_system_free(stmt->cols);
+  }
+  c_orm_system_free(stmt->sql_text);
+  c_orm_system_free(stmt);
   return C_ORM_OK;
 }
 
@@ -2496,28 +2709,7 @@ static c_orm_error_t odbc_reset(c_orm_query_t *query) {
  * @return C_ORM_OK on success.
  */
 static c_orm_error_t odbc_finalize(c_orm_query_t *query) {
-  c_orm_odbc_stmt_t *stmt = (c_orm_odbc_stmt_t *)query;
-  int i;
-  if (!stmt) {
-    return C_ORM_OK;
-  }
-  (void)stmt->conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, stmt->hstmt);
-  stmt->hstmt = C_ORM_SQL_NULL_HANDLE;
-  clear_stmt_params(stmt);
-  if (stmt->params) {
-    (void)c_orm_system_free(stmt->params);
-  }
-  for (i = 0; i < stmt->col_cap; i++) {
-    if (stmt->cols[i].heap_buf) {
-      (void)c_orm_system_free(stmt->cols[i].heap_buf);
-    }
-  }
-  if (stmt->cols) {
-    (void)c_orm_system_free(stmt->cols);
-  }
-  (void)c_orm_system_free(stmt->sql_text);
-  (void)c_orm_system_free(stmt);
-  return C_ORM_OK;
+  return odbc_stmt_free(query);
 }
 
 /**
@@ -2563,6 +2755,16 @@ static c_orm_error_t odbc_get_last_trace(c_orm_db_t *db,
 }
 
 /**
+ * @brief Reads column 0 as int64 after `odbc_is_null` has already fetched it.
+ * @param q Prepared statement handle.
+ * @param out_val Output 64-bit integer.
+ * @return 1 if valid integer, 0 otherwise.
+ */
+static int odbc_calc_try_col_int64(c_orm_query_t *q, int64_t *out_val) {
+  return (odbc_get_int64(q, 0, out_val) == C_ORM_OK) ? 1 : 0;
+}
+
+/**
  * @brief Queries the last generated identity value on a generic ODBC session
  * (`SELECT @@IDENTITY`), returning `0` if unsupported by the backend.
  * @param db Database connection handle.
@@ -2575,20 +2777,41 @@ static c_orm_error_t odbc_get_last_insert_rowid(c_orm_db_t *db,
   int has_row = 0;
   int is_null = 1;
   int64_t val = 0;
+  c_orm_error_t qrc;
 
   if (!db || !out_id) {
     return C_ORM_ERROR_NULL_POINTER;
   }
   *out_id = 0;
-  if (odbc_prepare(db, "SELECT @@IDENTITY", &q) != C_ORM_OK) {
+  qrc = odbc_prepare(db, "SELECT @@IDENTITY", &q);
+  if (qrc != C_ORM_OK) {
+    if (qrc == C_ORM_ERROR_MEMORY) {
+      return qrc;
+    }
     return C_ORM_OK;
   }
-  if (odbc_step(q, &has_row) == C_ORM_OK && has_row &&
-      odbc_is_null(q, 0, &is_null) == C_ORM_OK && !is_null &&
-      odbc_get_int64(q, 0, &val) == C_ORM_OK) {
-    *out_id = val;
+  qrc = odbc_step(q, &has_row);
+  if (qrc != C_ORM_OK) {
+    odbc_stmt_free(q);
+    if (qrc == C_ORM_ERROR_MEMORY) {
+      return qrc;
+    }
+    return C_ORM_OK;
   }
-  return odbc_finalize(q);
+  if (has_row) {
+    qrc = odbc_is_null(q, 0, &is_null);
+    if (qrc != C_ORM_OK) {
+      odbc_stmt_free(q);
+      if (qrc == C_ORM_ERROR_MEMORY) {
+        return qrc;
+      }
+      return C_ORM_OK;
+    }
+    if (!is_null && odbc_calc_try_col_int64(q, &val)) {
+      *out_id = val;
+    }
+  }
+  return odbc_stmt_free(q);
 }
 
 /**
@@ -2693,12 +2916,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_connect_raw(
 
   rc = c_orm_system_calloc(1, sizeof(c_orm_db_t), (void **)&db);
   if (rc != C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+    return rc;
   }
   rc = c_orm_system_calloc(1, sizeof(c_orm_odbc_conn_t), (void **)&conn);
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(db);
-    return C_ORM_ERROR_MEMORY;
+    c_orm_system_free(db);
+    return rc;
   }
 
   conn->magic = C_ORM_ODBC_CONN_MAGIC;
@@ -2706,7 +2929,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_connect_raw(
   conn->prefer_wide = prefer_wide ? 1 : 0;
   conn->base_autocommit = autocommit ? 1 : 0;
   conn->in_tx = 0;
-  C_ORM_STRCPY(conn->last_sqlstate, sizeof(conn->last_sqlstate), "00000");
+  rc = C_ORM_STRCPY(conn->last_sqlstate, sizeof(conn->last_sqlstate), "00000");
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(conn);
+    c_orm_system_free(db);
+    return rc;
+  }
 
   db->vtable = vtable_override ? vtable_override : &g_odbc_vtable;
   db->driver_data = conn;
@@ -2715,8 +2943,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_connect_raw(
   sret =
       api->SQLAllocHandle(C_ORM_SQL_HANDLE_ENV, C_ORM_SQL_NULL_HANDLE, &henv);
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    (void)c_orm_system_free(conn);
-    (void)c_orm_system_free(db);
+    c_orm_system_free(conn);
+    c_orm_system_free(db);
     return C_ORM_ERROR_CONNECTION;
   }
   conn->henv = henv;
@@ -2725,34 +2953,30 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_connect_raw(
                             (c_orm_sqlpointer_t)(size_t)C_ORM_SQL_OV_ODBC3,
                             C_ORM_SQL_IS_UINTEGER);
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc =
-        c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_ENV, henv,
-                                "SQLSetEnvAttr(ODBC3)", C_ORM_ERROR_CONNECTION);
-    odbc_disconnect(db);
-    return rc;
+    return odbc_harvest_and_disconnect(db, C_ORM_SQL_HANDLE_ENV, henv, 0,
+                                       "SQLSetEnvAttr(ODBC3)",
+                                       C_ORM_ERROR_CONNECTION);
   }
 
   sret = api->SQLAllocHandle(C_ORM_SQL_HANDLE_DBC, henv, &hdbc);
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_ENV, henv,
-                                 "SQLAllocHandle(DBC)", C_ORM_ERROR_CONNECTION);
-    odbc_disconnect(db);
-    return rc;
+    return odbc_harvest_and_disconnect(db, C_ORM_SQL_HANDLE_ENV, henv, 0,
+                                       "SQLAllocHandle(DBC)",
+                                       C_ORM_ERROR_CONNECTION);
   }
   conn->hdbc = hdbc;
 
   if (login_timeout_sec > 0 && api->SQLSetConnectAttr) {
-    (void)api->SQLSetConnectAttr(hdbc, C_ORM_SQL_ATTR_LOGIN_TIMEOUT,
-                                 (c_orm_sqlpointer_t)(size_t)login_timeout_sec,
-                                 C_ORM_SQL_IS_UINTEGER);
+    api->SQLSetConnectAttr(hdbc, C_ORM_SQL_ATTR_LOGIN_TIMEOUT,
+                           (c_orm_sqlpointer_t)(size_t)login_timeout_sec,
+                           C_ORM_SQL_IS_UINTEGER);
   }
 
   if (api->SQLSetConnectAttr) {
     size_t ac_val = conn->base_autocommit ? C_ORM_SQL_AUTOCOMMIT_ON
                                           : C_ORM_SQL_AUTOCOMMIT_OFF;
-    (void)api->SQLSetConnectAttr(hdbc, C_ORM_SQL_ATTR_AUTOCOMMIT,
-                                 (c_orm_sqlpointer_t)ac_val,
-                                 C_ORM_SQL_IS_UINTEGER);
+    api->SQLSetConnectAttr(hdbc, C_ORM_SQL_ATTR_AUTOCOMMIT,
+                           (c_orm_sqlpointer_t)ac_val, C_ORM_SQL_IS_UINTEGER);
   }
 
   if (conn->prefer_wide && api->SQLDriverConnectW) {
@@ -2760,60 +2984,57 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_connect_raw(
     c_orm_sqlwchar_t *wconn = NULL;
     size_t wunits = 0;
     c_orm_sqlsmallint_t out_len = 0;
-    if (c_orm_system_malloc((clen + 1) * sizeof(c_orm_sqlwchar_t),
-                            (void **)&wconn) != C_ORM_OK) {
-      odbc_disconnect(db);
-      return C_ORM_ERROR_MEMORY;
+    rc = c_orm_system_malloc((clen + 1) * sizeof(c_orm_sqlwchar_t),
+                             (void **)&wconn);
+    if (rc != C_ORM_OK) {
+      goto connect_fail;
     }
     rc = c_orm_utf8_to_utf16(conn_str, clen, 0, wconn, clen + 1, &wunits);
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(wconn);
-      odbc_disconnect(db);
-      return rc;
+      c_orm_system_free(wconn);
+      goto connect_fail;
     }
     sret =
         api->SQLDriverConnectW(hdbc, NULL, wconn, (c_orm_sqlsmallint_t)wunits,
                                NULL, 0, &out_len, C_ORM_SQL_DRIVER_NOPROMPT);
-    (void)c_orm_system_free(wconn);
+    c_orm_system_free(wconn);
   } else if (api->SQLDriverConnect) {
     c_orm_sqlsmallint_t out_len = 0;
     char *conn_mut = NULL;
     rc = c_orm_strdup(conn_str, &conn_mut);
     if (rc != C_ORM_OK) {
-      odbc_disconnect(db);
-      return C_ORM_ERROR_MEMORY;
+      goto connect_fail;
     }
     sret = api->SQLDriverConnect(hdbc, NULL, (c_orm_sqlchar_t *)conn_mut,
                                  C_ORM_SQL_NTS, NULL, 0, &out_len,
                                  C_ORM_SQL_DRIVER_NOPROMPT);
-    (void)c_orm_system_free(conn_mut);
+    c_orm_system_free(conn_mut);
   } else if (api->SQLConnect) {
     char *conn_mut = NULL;
     rc = c_orm_strdup(conn_str, &conn_mut);
     if (rc != C_ORM_OK) {
-      odbc_disconnect(db);
-      return C_ORM_ERROR_MEMORY;
+      goto connect_fail;
     }
     sret = api->SQLConnect(hdbc, (c_orm_sqlchar_t *)conn_mut, C_ORM_SQL_NTS,
                            NULL, 0, NULL, 0);
-    (void)c_orm_system_free(conn_mut);
+    c_orm_system_free(conn_mut);
   } else {
-    odbc_disconnect(db);
-    return C_ORM_ERROR_DRIVER_LOAD;
+    rc = C_ORM_ERROR_DRIVER_LOAD;
+    goto connect_fail;
   }
 
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_DBC, hdbc,
-                                 "SQLDriverConnect", C_ORM_ERROR_CONNECTION);
-    /* Disconnect without SQLDisconnect since connect itself failed */
-    (void)api->SQLFreeHandle(C_ORM_SQL_HANDLE_DBC, conn->hdbc);
-    conn->hdbc = C_ORM_SQL_NULL_HANDLE;
-    odbc_disconnect(db);
-    return rc;
+    return odbc_harvest_and_disconnect(db, C_ORM_SQL_HANDLE_DBC, hdbc, 1,
+                                       "SQLDriverConnect",
+                                       C_ORM_ERROR_CONNECTION);
   }
 
   *out_db = db;
   return C_ORM_OK;
+
+connect_fail:
+  odbc_conn_and_db_free(db);
+  return rc;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_odbc_connect(const char *url,
@@ -2923,7 +3144,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_commit(c_orm_db_t *db) {
   }
   conn->in_tx = 0;
   if (conn->base_autocommit && conn->api->SQLSetConnectAttr) {
-    (void)conn->api->SQLSetConnectAttr(
+    conn->api->SQLSetConnectAttr(
         conn->hdbc, C_ORM_SQL_ATTR_AUTOCOMMIT,
         (c_orm_sqlpointer_t)(size_t)C_ORM_SQL_AUTOCOMMIT_ON,
         C_ORM_SQL_IS_UINTEGER);
@@ -2949,7 +3170,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_rollback(c_orm_db_t *db) {
   }
   conn->in_tx = 0;
   if (conn->base_autocommit && conn->api->SQLSetConnectAttr) {
-    (void)conn->api->SQLSetConnectAttr(
+    conn->api->SQLSetConnectAttr(
         conn->hdbc, C_ORM_SQL_ATTR_AUTOCOMMIT,
         (c_orm_sqlpointer_t)(size_t)C_ORM_SQL_AUTOCOMMIT_ON,
         C_ORM_SQL_IS_UINTEGER);
@@ -2957,14 +3178,34 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_rollback(c_orm_db_t *db) {
   return C_ORM_OK;
 }
 
-C_ORM_EXPORT c_orm_error_t c_orm_odbc_free_string_list(char **tables,
-                                                       size_t count) {
+/**
+ * @brief Internal infallible helper to release string list allocations.
+ * @param tables Array of strings.
+ * @param count Number of strings.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t odbc_string_list_free(char **tables, size_t count) {
   size_t i;
   if (!tables) {
     return C_ORM_OK;
   }
   for (i = 0; i < count; i++) {
-    (void)c_orm_system_free(tables[i]);
+    c_orm_system_free(tables[i]);
+  }
+  c_orm_system_free(tables);
+  return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t c_orm_odbc_free_string_list(char **tables,
+                                                       size_t count) {
+  if (!tables) {
+    return C_ORM_OK;
+  }
+  {
+    size_t i;
+    for (i = 0; i < count; i++) {
+      c_orm_system_free(tables[i]);
+    }
   }
   return c_orm_system_free(tables);
 }
@@ -3007,23 +3248,22 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_tables(c_orm_db_t *db,
     char *schema_mut = NULL;
     memcpy(table_type_buf, "TABLE", 6);
     if (schema_pattern) {
-      if (c_orm_strdup(schema_pattern, &schema_mut) != C_ORM_OK) {
-        (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-        return C_ORM_ERROR_MEMORY;
+      rc = c_orm_strdup(schema_pattern, &schema_mut);
+      if (rc != C_ORM_OK) {
+        conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
+        return rc;
       }
     }
     sret = conn->api->SQLTables(hstmt, NULL, 0, (c_orm_sqlchar_t *)schema_mut,
                                 schema_mut ? C_ORM_SQL_NTS : 0, NULL, 0,
                                 table_type_buf, C_ORM_SQL_NTS);
     if (schema_mut) {
-      (void)c_orm_system_free(schema_mut);
+      c_orm_system_free(schema_mut);
     }
   }
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt, "SQLTables",
-                                 C_ORM_ERROR_ODBC_DIAG);
-    (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-    return rc;
+    return odbc_harvest_and_free_stmt(db, hstmt, "SQLTables",
+                                      C_ORM_ERROR_ODBC_DIAG);
   }
 
   for (;;) {
@@ -3034,12 +3274,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_tables(c_orm_db_t *db,
       break;
     }
     if (!C_ORM_SQL_SUCCEEDED(sret)) {
-      rc =
-          c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt,
-                                  "SQLFetch(SQLTables)", C_ORM_ERROR_ODBC_DIAG);
-      (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-      c_orm_odbc_free_string_list(list, count);
-      return rc;
+      odbc_string_list_free(list, count);
+      return odbc_harvest_and_free_stmt(db, hstmt, "SQLFetch(SQLTables)",
+                                        C_ORM_ERROR_ODBC_DIAG);
     }
     memset(tname, 0, sizeof(tname));
     /* ODBC SQLTables column 3 is TABLE_NAME */
@@ -3051,42 +3288,56 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_tables(c_orm_db_t *db,
       if (count >= cap) {
         size_t new_cap = cap == 0 ? 8 : (cap * 2);
         char **grown = NULL;
-        if (c_orm_system_realloc(list, new_cap * sizeof(char *),
-                                 (void **)&grown) != C_ORM_OK) {
-          (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-          c_orm_odbc_free_string_list(list, count);
-          return C_ORM_ERROR_MEMORY;
+        rc = c_orm_system_realloc(list, new_cap * sizeof(char *),
+                                  (void **)&grown);
+        if (rc != C_ORM_OK) {
+          goto tables_err;
         }
         list = grown;
         cap = new_cap;
       }
-      if (c_orm_strdup(tname, &dup) != C_ORM_OK) {
-        (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-        c_orm_odbc_free_string_list(list, count);
-        return C_ORM_ERROR_MEMORY;
+      rc = c_orm_strdup(tname, &dup);
+      if (rc != C_ORM_OK) {
+        goto tables_err;
       }
       list[count++] = dup;
     }
   }
 
-  (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
+  conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
   *out_tables = list;
   *out_count = count;
   return C_ORM_OK;
+
+tables_err:
+  conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
+  odbc_string_list_free(list, count);
+  return rc;
 }
 
-C_ORM_EXPORT c_orm_error_t
-c_orm_odbc_free_column_list(c_orm_odbc_column_info_t *cols, size_t count) {
+/**
+ * @brief Internal infallible helper to release column list allocations.
+ * @param cols Array of column descriptors.
+ * @param count Number of descriptors.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t odbc_column_list_free(c_orm_odbc_column_info_t *cols,
+                                           size_t count) {
   size_t i;
   if (!cols) {
     return C_ORM_OK;
   }
   for (i = 0; i < count; ++i) {
-    (void)c_orm_system_free(cols[i].name);
-    (void)c_orm_system_free(cols[i].type_name);
+    c_orm_system_free(cols[i].name);
+    c_orm_system_free(cols[i].type_name);
   }
-  (void)c_orm_system_free(cols);
+  c_orm_system_free(cols);
   return C_ORM_OK;
+}
+
+C_ORM_EXPORT c_orm_error_t
+c_orm_odbc_free_column_list(c_orm_odbc_column_info_t *cols, size_t count) {
+  return odbc_column_list_free(cols, count);
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_columns(
@@ -3130,10 +3381,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_columns(
       (c_orm_sqlsmallint_t)(schema_name ? C_ORM_SQL_NTS : 0),
       (c_orm_sqlchar_t *)(size_t)table_name, C_ORM_SQL_NTS, NULL, 0);
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt, "SQLColumns",
-                                 C_ORM_ERROR_SQL);
-    (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-    return rc;
+    return odbc_harvest_and_free_stmt(db, hstmt, "SQLColumns", C_ORM_ERROR_SQL);
   }
 
   for (;;) {
@@ -3149,11 +3397,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_columns(
       break;
     }
     if (!C_ORM_SQL_SUCCEEDED(sret)) {
-      rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt,
-                                   "SQLFetch(SQLColumns)", C_ORM_ERROR_STEP);
-      (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-      c_orm_odbc_free_column_list(list, count);
-      return rc;
+      odbc_column_list_free(list, count);
+      return odbc_harvest_and_free_stmt(db, hstmt, "SQLFetch(SQLColumns)",
+                                        C_ORM_ERROR_STEP);
     }
 
     cname[0] = '\0';
@@ -3165,48 +3411,51 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_columns(
         cname[0] == '\0') {
       continue;
     }
-    (void)conn->api->SQLGetData(hstmt, 6, C_ORM_SQL_C_CHAR, tname,
-                                (c_orm_sqllen_t)sizeof(tname), &ind);
+    conn->api->SQLGetData(hstmt, 6, C_ORM_SQL_C_CHAR, tname,
+                          (c_orm_sqllen_t)sizeof(tname), &ind);
     if (ind == C_ORM_SQL_NULL_DATA || tname[0] == '\0') {
-      C_ORM_STRCPY(tname, sizeof(tname), "VARCHAR");
+      rc = C_ORM_STRCPY(tname, sizeof(tname), "VARCHAR");
+      if (rc != C_ORM_OK) {
+        goto cols_err;
+      }
     }
     ind = 0;
-    (void)conn->api->SQLGetData(hstmt, 7, C_ORM_SQL_C_SLONG, &col_sz,
-                                (c_orm_sqllen_t)sizeof(col_sz), &ind);
+    conn->api->SQLGetData(hstmt, 7, C_ORM_SQL_C_SLONG, &col_sz,
+                          (c_orm_sqllen_t)sizeof(col_sz), &ind);
     if (ind == C_ORM_SQL_NULL_DATA) {
       col_sz = 0;
     }
     ind = 0;
-    (void)conn->api->SQLGetData(hstmt, 9, C_ORM_SQL_C_SSHORT, &dec_dig,
-                                (c_orm_sqllen_t)sizeof(dec_dig), &ind);
+    conn->api->SQLGetData(hstmt, 9, C_ORM_SQL_C_SSHORT, &dec_dig,
+                          (c_orm_sqllen_t)sizeof(dec_dig), &ind);
     if (ind == C_ORM_SQL_NULL_DATA) {
       dec_dig = 0;
     }
     ind = 0;
-    (void)conn->api->SQLGetData(hstmt, 18, C_ORM_SQL_C_CHAR, nul_str,
-                                (c_orm_sqllen_t)sizeof(nul_str), &ind);
+    conn->api->SQLGetData(hstmt, 18, C_ORM_SQL_C_CHAR, nul_str,
+                          (c_orm_sqllen_t)sizeof(nul_str), &ind);
 
     if (count >= cap) {
       size_t new_cap = cap == 0 ? 8 : cap * 2;
       c_orm_odbc_column_info_t *grown = NULL;
-      if (c_orm_system_realloc(list, new_cap * sizeof(c_orm_odbc_column_info_t),
-                               (void **)&grown) != C_ORM_OK) {
-        (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-        c_orm_odbc_free_column_list(list, count);
-        return C_ORM_ERROR_MEMORY;
+      rc = c_orm_system_realloc(
+          list, new_cap * sizeof(c_orm_odbc_column_info_t), (void **)&grown);
+      if (rc != C_ORM_OK) {
+        goto cols_err;
       }
       list = grown;
       cap = new_cap;
     }
 
     memset(&list[count], 0, sizeof(c_orm_odbc_column_info_t));
-    if (c_orm_strdup(cname, &list[count].name) != C_ORM_OK ||
-        c_orm_strdup(tname, &list[count].type_name) != C_ORM_OK) {
-      (void)c_orm_system_free(list[count].name);
-      (void)c_orm_system_free(list[count].type_name);
-      (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
-      c_orm_odbc_free_column_list(list, count);
-      return C_ORM_ERROR_MEMORY;
+    rc = c_orm_strdup(cname, &list[count].name);
+    if (rc != C_ORM_OK) {
+      goto cols_err;
+    }
+    rc = c_orm_strdup(tname, &list[count].type_name);
+    if (rc != C_ORM_OK) {
+      c_orm_system_free(list[count].name);
+      goto cols_err;
     }
     list[count].column_size = (int)col_sz;
     list[count].decimal_digits = (int)dec_dig;
@@ -3214,9 +3463,48 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_list_columns(
     count++;
   }
 
-  (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
+  conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
   *out_cols = list;
   *out_count = count;
+  return C_ORM_OK;
+
+cols_err:
+  conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
+  odbc_column_list_free(list, count);
+  return rc;
+}
+
+/**
+ * @brief Internal infallible helper to release columnar batch arrays.
+ * @param col_count Number of columns.
+ * @param col_bufs Column value buffers.
+ * @param col_inds Column indicator arrays.
+ * @param status_arr Parameter status array.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t odbc_batch_buffers_free(size_t col_count, void **col_bufs,
+                                             c_orm_sqllen_t **col_inds,
+                                             c_orm_sqlusmallint_t *status_arr) {
+  size_t c;
+  if (col_bufs) {
+    for (c = 0; c < col_count; c++) {
+      if (col_bufs[c]) {
+        c_orm_system_free(col_bufs[c]);
+      }
+    }
+    c_orm_system_free(col_bufs);
+  }
+  if (col_inds) {
+    for (c = 0; c < col_count; c++) {
+      if (col_inds[c]) {
+        c_orm_system_free(col_inds[c]);
+      }
+    }
+    c_orm_system_free(col_inds);
+  }
+  if (status_arr) {
+    c_orm_system_free(status_arr);
+  }
   return C_ORM_OK;
 }
 
@@ -3259,63 +3547,66 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_execute_batch(
                                    "SQLAllocHandle(batch)", C_ORM_ERROR_SQL);
   }
 
-  if (c_orm_system_calloc(row_count, sizeof(c_orm_sqlusmallint_t),
-                          (void **)&status_arr) != C_ORM_OK ||
-      c_orm_system_calloc(col_count, sizeof(void *), (void **)&col_bufs) !=
-          C_ORM_OK ||
-      c_orm_system_calloc(col_count, sizeof(c_orm_sqllen_t *),
-                          (void **)&col_inds) != C_ORM_OK) {
-    rc = C_ORM_ERROR_MEMORY;
+  rc = c_orm_system_calloc(row_count, sizeof(c_orm_sqlusmallint_t),
+                           (void **)&status_arr);
+  if (rc != C_ORM_OK) {
+    goto cleanup;
+  }
+  rc = c_orm_system_calloc(col_count, sizeof(void *), (void **)&col_bufs);
+  if (rc != C_ORM_OK) {
+    goto cleanup;
+  }
+  rc = c_orm_system_calloc(col_count, sizeof(c_orm_sqllen_t *),
+                           (void **)&col_inds);
+  if (rc != C_ORM_OK) {
     goto cleanup;
   }
 
   {
     char *sql_mut = NULL;
-    if (c_orm_strdup(sql, &sql_mut) != C_ORM_OK) {
-      rc = C_ORM_ERROR_MEMORY;
+    rc = c_orm_strdup(sql, &sql_mut);
+    if (rc != C_ORM_OK) {
       goto cleanup;
     }
     sret =
         conn->api->SQLPrepare(hstmt, (c_orm_sqlchar_t *)sql_mut, C_ORM_SQL_NTS);
-    (void)c_orm_system_free(sql_mut);
+    c_orm_system_free(sql_mut);
   }
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt,
-                                 "SQLPrepare(batch)", C_ORM_ERROR_SQL);
-    goto cleanup;
+    odbc_batch_buffers_free(col_count, col_bufs, col_inds, status_arr);
+    return odbc_harvest_and_free_stmt(db, hstmt, "SQLPrepare(batch)",
+                                      C_ORM_ERROR_SQL);
   }
 
   sret = conn->api->SQLSetStmtAttr(hstmt, C_ORM_SQL_ATTR_PARAMSET_SIZE,
                                    (c_orm_sqlpointer_t)row_count,
                                    C_ORM_SQL_IS_UINTEGER);
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt,
-                                 "SQLSetStmtAttr(PARAMSET_SIZE)",
-                                 C_ORM_ERROR_BIND);
-    goto cleanup;
+    odbc_batch_buffers_free(col_count, col_bufs, col_inds, status_arr);
+    return odbc_harvest_and_free_stmt(
+        db, hstmt, "SQLSetStmtAttr(PARAMSET_SIZE)", C_ORM_ERROR_BIND);
   }
-  (void)conn->api->SQLSetStmtAttr(hstmt, C_ORM_SQL_ATTR_PARAMS_PROCESSED_PTR,
-                                  (c_orm_sqlpointer_t)&processed,
-                                  C_ORM_SQL_IS_POINTER);
-  (void)conn->api->SQLSetStmtAttr(hstmt, C_ORM_SQL_ATTR_PARAM_STATUS_PTR,
-                                  (c_orm_sqlpointer_t)status_arr,
-                                  C_ORM_SQL_IS_POINTER);
+  conn->api->SQLSetStmtAttr(hstmt, C_ORM_SQL_ATTR_PARAMS_PROCESSED_PTR,
+                            (c_orm_sqlpointer_t)&processed,
+                            C_ORM_SQL_IS_POINTER);
+  conn->api->SQLSetStmtAttr(hstmt, C_ORM_SQL_ATTR_PARAM_STATUS_PTR,
+                            (c_orm_sqlpointer_t)status_arr,
+                            C_ORM_SQL_IS_POINTER);
 
   for (c = 0; c < col_count; c++) {
     if (!col_arrays[c]) {
       rc = C_ORM_ERROR_NULL_POINTER;
       goto cleanup;
     }
-    if (c_orm_system_calloc(row_count, sizeof(c_orm_sqllen_t),
-                            (void **)&col_inds[c]) != C_ORM_OK) {
-      rc = C_ORM_ERROR_MEMORY;
+    rc = c_orm_system_calloc(row_count, sizeof(c_orm_sqllen_t),
+                             (void **)&col_inds[c]);
+    if (rc != C_ORM_OK) {
       goto cleanup;
     }
 
     if (col_types[c] == C_ORM_TYPE_INT32) {
-      if (c_orm_system_malloc(row_count * sizeof(int32_t), &col_bufs[c]) !=
-          C_ORM_OK) {
-        rc = C_ORM_ERROR_MEMORY;
+      rc = c_orm_system_malloc(row_count * sizeof(int32_t), &col_bufs[c]);
+      if (rc != C_ORM_OK) {
         goto cleanup;
       }
       memcpy(col_bufs[c], col_arrays[c], row_count * sizeof(int32_t));
@@ -3327,9 +3618,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_execute_batch(
           C_ORM_SQL_C_SLONG, C_ORM_SQL_INTEGER, 10, 0, col_bufs[c],
           (c_orm_sqllen_t)sizeof(int32_t), col_inds[c]);
     } else if (col_types[c] == C_ORM_TYPE_INT64) {
-      if (c_orm_system_malloc(row_count * sizeof(int64_t), &col_bufs[c]) !=
-          C_ORM_OK) {
-        rc = C_ORM_ERROR_MEMORY;
+      rc = c_orm_system_malloc(row_count * sizeof(int64_t), &col_bufs[c]);
+      if (rc != C_ORM_OK) {
         goto cleanup;
       }
       memcpy(col_bufs[c], col_arrays[c], row_count * sizeof(int64_t));
@@ -3341,9 +3631,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_execute_batch(
           C_ORM_SQL_C_SBIGINT, C_ORM_SQL_BIGINT, 19, 0, col_bufs[c],
           (c_orm_sqllen_t)sizeof(int64_t), col_inds[c]);
     } else if (col_types[c] == C_ORM_TYPE_DOUBLE) {
-      if (c_orm_system_malloc(row_count * sizeof(double), &col_bufs[c]) !=
-          C_ORM_OK) {
-        rc = C_ORM_ERROR_MEMORY;
+      rc = c_orm_system_malloc(row_count * sizeof(double), &col_bufs[c]);
+      if (rc != C_ORM_OK) {
         goto cleanup;
       }
       memcpy(col_bufs[c], col_arrays[c], row_count * sizeof(double));
@@ -3368,8 +3657,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_execute_batch(
         }
       }
       stride = max_len + 1;
-      if (c_orm_system_calloc(row_count, stride, (void **)&flat) != C_ORM_OK) {
-        rc = C_ORM_ERROR_MEMORY;
+      rc = c_orm_system_calloc(row_count, stride, (void **)&flat);
+      if (rc != C_ORM_OK) {
         goto cleanup;
       }
       col_bufs[c] = flat;
@@ -3390,8 +3679,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_execute_batch(
       const c_orm_decimal_t *decs = (const c_orm_decimal_t *)col_arrays[c];
       char *flat = NULL;
       size_t stride = 48;
-      if (c_orm_system_calloc(row_count, stride, (void **)&flat) != C_ORM_OK) {
-        rc = C_ORM_ERROR_MEMORY;
+      rc = c_orm_system_calloc(row_count, stride, (void **)&flat);
+      if (rc != C_ORM_OK) {
         goto cleanup;
       }
       col_bufs[c] = flat;
@@ -3414,17 +3703,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_execute_batch(
     }
 
     if (!C_ORM_SQL_SUCCEEDED(sret)) {
-      rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt,
-                                   "SQLBindParameter(batch)", C_ORM_ERROR_BIND);
-      goto cleanup;
+      odbc_batch_buffers_free(col_count, col_bufs, col_inds, status_arr);
+      return odbc_harvest_and_free_stmt(db, hstmt, "SQLBindParameter(batch)",
+                                        C_ORM_ERROR_BIND);
     }
   }
 
   sret = conn->api->SQLExecute(hstmt);
   if (!C_ORM_SQL_SUCCEEDED(sret)) {
-    rc = c_orm_odbc_harvest_diag(db, C_ORM_SQL_HANDLE_STMT, hstmt,
-                                 "SQLExecute(batch)", C_ORM_ERROR_STEP);
-    goto cleanup;
+    odbc_batch_buffers_free(col_count, col_bufs, col_inds, status_arr);
+    return odbc_harvest_and_free_stmt(db, hstmt, "SQLExecute(batch)",
+                                      C_ORM_ERROR_STEP);
   }
 
   if (out_rows_processed) {
@@ -3432,25 +3721,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_execute_batch(
   }
 
 cleanup:
-  if (col_bufs) {
-    for (c = 0; c < col_count; c++) {
-      if (col_bufs[c]) {
-        (void)c_orm_system_free(col_bufs[c]);
-      }
-    }
-    (void)c_orm_system_free(col_bufs);
-  }
-  if (col_inds) {
-    for (c = 0; c < col_count; c++) {
-      if (col_inds[c]) {
-        (void)c_orm_system_free(col_inds[c]);
-      }
-    }
-    (void)c_orm_system_free(col_inds);
-  }
-  if (status_arr) {
-    (void)c_orm_system_free(status_arr);
-  }
-  (void)conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
+  odbc_batch_buffers_free(col_count, col_bufs, col_inds, status_arr);
+  conn->api->SQLFreeHandle(C_ORM_SQL_HANDLE_STMT, hstmt);
   return rc;
 }

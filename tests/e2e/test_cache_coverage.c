@@ -13,6 +13,7 @@ extern "C" {
 #include "c_orm_db.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -90,7 +91,7 @@ static c_orm_error_t my_mock_unlock(pthread_mutex_t *m) {
  */
 static c_orm_error_t my_mock_destroy(pthread_mutex_t *m) {
   if (mock_mutex_destroy_fail) {
-    (void)orig_mutex_destroy(m);
+    ASSERT_EQ(C_ORM_OK, orig_mutex_destroy(m));
     return C_ORM_ERROR_BUSY;
   }
   return orig_mutex_destroy(m);
@@ -99,82 +100,6 @@ static c_orm_error_t my_mock_destroy(pthread_mutex_t *m) {
 
 static int oom_countdown = -1;
 static int oom_active = 0;
-
-/**
- * @brief Mock malloc callback for OOM testing.
- * @param size Allocation size in bytes.
- * @return Allocated pointer or NULL.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
 
 /**
  * @brief Executes mock_malloc.
@@ -186,15 +111,12 @@ static c_orm_error_t mock_malloc(size_t size, void **out_ptr) {
   if (oom_active) {
     if (oom_countdown == 0) {
       oom_countdown--;
-      if (out_ptr) {
-        *out_ptr = NULL;
-      }
+      *out_ptr = NULL;
       return C_ORM_ERROR_MEMORY;
     }
     oom_countdown--;
   }
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /** @brief Bitmask controlling which mock_free calls fail. */
@@ -209,10 +131,10 @@ static unsigned int cache_free_call_idx = 0;
  * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY when masked.
  */
 static c_orm_error_t mock_free(void *ptr) {
-  free(ptr);
+  c_orm_default_free(ptr);
   if (cache_free_fail_mask != 0) {
     unsigned int idx = cache_free_call_idx++;
-    if (idx < 31 && (cache_free_fail_mask & (1u << idx)) != 0) {
+    if ((cache_free_fail_mask & (1u << (idx & 31u))) != 0) {
       return C_ORM_ERROR_MEMORY;
     }
   }
@@ -241,12 +163,15 @@ static int mock_finalize_fail = 0;
 static c_orm_error_t mock_prepare(c_orm_db_t *db, const char *sql,
                                   c_orm_query_t **out_query) {
   mock_query_t *q;
+  c_orm_error_t rc;
   (void)db;
   (void)sql;
   if (mock_prepare_fail) {
     return C_ORM_ERROR_SQL;
   }
-  q = (mock_query_t *)malloc(sizeof(mock_query_t));
+  q = NULL;
+  rc = c_orm_default_malloc(sizeof(mock_query_t), (void **)&q);
+  ASSERT_EQ(C_ORM_OK, rc);
   q->id = 1;
   *out_query = (c_orm_query_t *)q;
   return C_ORM_OK;
@@ -274,7 +199,7 @@ static c_orm_error_t mock_finalize(c_orm_query_t *query) {
   if (mock_finalize_fail) {
     return C_ORM_ERROR_SQL;
   }
-  (void)c_orm_system_free(query);
+  c_orm_system_free(query);
   return C_ORM_OK;
 }
 
@@ -446,19 +371,17 @@ TEST test_cache_prepare_miss(void) {
   oom_active = 1;
   oom_countdown = 0;
   rc = c_orm_prepare_cached(&mock_db, "SELECT 1", &q);
-  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  ASSERT_EQ(NULL, q);
   oom_active = 0;
-  rc = c_orm_finalize_cached(&mock_db, q);
-  ASSERT_EQ(C_ORM_OK, rc);
 
   /* OOM entry->sql alloc */
   oom_active = 1;
   oom_countdown = 1;
   rc = c_orm_prepare_cached(&mock_db, "SELECT 1", &q);
-  ASSERT_EQ(C_ORM_OK, rc);
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
+  ASSERT_EQ(NULL, q);
   oom_active = 0;
-  rc = c_orm_finalize_cached(&mock_db, q);
-  ASSERT_EQ(C_ORM_OK, rc);
 
   rc = c_orm_disable_statement_caching(&mock_db);
   ASSERT_EQ(C_ORM_OK, rc);
@@ -598,7 +521,7 @@ TEST test_cache_prepare_eviction(void) {
   rc = c_orm_prepare_cached(&mock_db, "SELECT 5", &q5);
   ASSERT_EQ(C_ORM_ERROR_SQL, rc);
   mock_finalize_fail = 0;
-  (void)c_orm_system_free(q1);
+  c_orm_system_free(q1);
 
   /* Clean up all queries */
   rc = c_orm_finalize_cached(&mock_db, q4);
@@ -634,19 +557,23 @@ TEST test_cache_finalize_args(void) {
   ASSERT_EQ(C_ORM_OK, rc);
 
   /* finalize something not in cache */
-  not_in_cache = (mock_query_t *)malloc(sizeof(mock_query_t));
+  not_in_cache = NULL;
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_default_malloc(sizeof(mock_query_t), (void **)&not_in_cache));
   ASSERT(not_in_cache != NULL);
   rc = c_orm_finalize_cached(&mock_db, (c_orm_query_t *)not_in_cache);
   ASSERT_EQ(C_ORM_OK, rc);
 
   /* finalize something not in cache with fail */
-  not_in_cache = (mock_query_t *)malloc(sizeof(mock_query_t));
+  not_in_cache = NULL;
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_default_malloc(sizeof(mock_query_t), (void **)&not_in_cache));
   ASSERT(not_in_cache != NULL);
   mock_finalize_fail = 1;
   rc = c_orm_finalize_cached(&mock_db, (c_orm_query_t *)not_in_cache);
   ASSERT_EQ(C_ORM_ERROR_SQL, rc);
   mock_finalize_fail = 0;
-  free(not_in_cache);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_free(not_in_cache));
 
   rc = c_orm_finalize_cached(&mock_db, q);
   ASSERT_EQ(C_ORM_OK, rc);
@@ -871,6 +798,17 @@ TEST test_cache_all_mutex_and_free_error_branches(void) {
   mock_finalize_fail = 0;
   ASSERT_EQ(C_ORM_OK, c_orm_finalize_cached(&db, q2));
   ASSERT_EQ(C_ORM_OK, c_orm_disable_statement_caching(&db));
+
+  ASSERT_EQ(C_ORM_ERROR_BUSY, c_orm_mutex_lock(NULL));
+  ASSERT_EQ(C_ORM_ERROR_BUSY, c_orm_mutex_unlock(NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_mutex_destroy(NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_disable_statement_caching(NULL));
+  ASSERT_EQ(C_ORM_OK, c_orm_mutex_create(&db.modality_lock));
+  ASSERT_EQ(C_ORM_OK, c_orm_disable_statement_caching(&db));
+  ASSERT_EQ(C_ORM_OK, c_orm_mutex_create(&db.modality_lock));
+  c_orm_mock_cache_destroy_fail = 1;
+  ASSERT_EQ(C_ORM_ERROR_BUSY, c_orm_disable_statement_caching(&db));
+  c_orm_mock_cache_destroy_fail = 0;
   PASS();
 }
 

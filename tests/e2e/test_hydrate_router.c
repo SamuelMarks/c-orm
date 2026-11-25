@@ -12,11 +12,11 @@ extern "C" {
 #include "hydrate_router.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 /* clang-format on */
 
 /**
@@ -53,80 +53,6 @@ static c_orm_error_t mock_hydrator_err(void *out_struct,
 /**
  * @brief Tests NULL parameter handling in mock hydrator.
  * @return GREATEST test result.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
-
-/**
- * @brief Executes test_mock_hydrator_null.
  */
 TEST test_mock_hydrator_null(void) {
   int x;
@@ -220,11 +146,13 @@ TEST test_hydrate_router_dispatch(void) {
   err_msg = NULL;
 
   memset(&m1, 0, sizeof(m1));
-  cdd_c_abstract_struct_init(&row);
-  cdd_c_hydrate_router_init(&router);
+  ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_init(&row));
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_init(&router));
 
-  cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator);
-  cdd_c_hydrate_router_register(&router, 2, &m1, mock_hydrator_err);
+  ASSERT_EQ(C_ORM_OK,
+            cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator));
+  ASSERT_EQ(C_ORM_OK,
+            cdd_c_hydrate_router_register(&router, 2, &m1, mock_hydrator_err));
 
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
             cdd_c_hydrate_router_dispatch(NULL, 1, &row, &out_val));
@@ -238,28 +166,28 @@ TEST test_hydrate_router_dispatch(void) {
   ASSERT_EQ((c_orm_error_t)0,
             cdd_c_hydrate_router_dispatch(&router, 1, &row, &out_val));
   ASSERT_EQ(42, out_val);
-  cdd_c_hydrate_router_get_last_error(&err_msg);
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_get_last_error(&err_msg));
   ASSERT_EQ(NULL, err_msg);
 
   /* Missing route */
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
             cdd_c_hydrate_router_dispatch(&router, 999, &row, &out_val));
-  cdd_c_hydrate_router_get_last_error(&err_msg);
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_get_last_error(&err_msg));
   ASSERT(err_msg != NULL);
   ASSERT(strstr(err_msg, "Route not found") != NULL);
 
   /* Failing route */
   ASSERT_EQ(C_ORM_ERROR_VALIDATION,
             cdd_c_hydrate_router_dispatch(&router, 2, &row, &out_val));
-  cdd_c_hydrate_router_get_last_error(&err_msg);
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_get_last_error(&err_msg));
   ASSERT(err_msg != NULL);
   ASSERT(strstr(err_msg, "Hydration function returned error") != NULL);
 
   /* Last error null check */
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_hydrate_router_get_last_error(NULL));
 
-  cdd_c_hydrate_router_free(&router);
-  cdd_c_abstract_struct_free(&row);
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_free(&router));
+  ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_free(&row));
   PASS();
 }
 
@@ -274,9 +202,7 @@ static c_orm_error_t mock_realloc_hydrate(void *ptr, size_t size,
                                           void **out_ptr) {
   (void)ptr;
   (void)size;
-  if (out_ptr) {
-    *out_ptr = NULL;
-  }
+  *out_ptr = NULL;
   return C_ORM_ERROR_MEMORY;
 }
 
@@ -310,16 +236,20 @@ TEST test_hydrate_router_register_oom(void) {
   memset(&m1, 0, sizeof(m1));
   ASSERT_EQ(0, cdd_c_hydrate_router_init(&router));
 
-  c_orm_set_allocators(c_orm_malloc, mock_realloc_hydrate, c_orm_free);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(c_orm_malloc, mock_realloc_hydrate,
+                                           c_orm_free));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
             cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator));
 
-  c_orm_set_allocators(c_orm_malloc, mock_ok_null_realloc_hydrate, c_orm_free);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(c_orm_malloc, mock_ok_null_realloc_hydrate,
+                                 c_orm_free));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
             cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator));
 
-  c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free);
-  cdd_c_hydrate_router_free(&router);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(c_orm_malloc, old_realloc, c_orm_free));
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_free(&router));
   PASS();
 }
 
@@ -339,10 +269,12 @@ TEST test_hydrate_router_set_error_fail(void) {
   out_val = 0;
 
   memset(&m1, 0, sizeof(m1));
-  cdd_c_abstract_struct_init(&row);
-  cdd_c_hydrate_router_init(&router);
-  cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator);
-  cdd_c_hydrate_router_register(&router, 2, &m1, mock_hydrator_err);
+  ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_init(&row));
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_init(&router));
+  ASSERT_EQ(C_ORM_OK,
+            cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator));
+  ASSERT_EQ(C_ORM_OK,
+            cdd_c_hydrate_router_register(&router, 2, &m1, mock_hydrator_err));
 
   c_orm_mock_hydrate_router_set_last_error_fail = 1;
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
@@ -359,24 +291,24 @@ TEST test_hydrate_router_set_error_fail(void) {
 
   /* Cover branches inside set_last_error */
   c_orm_mock_hydrate_router_set_last_error_fail = 1;
-  cdd_c_hydrate_router_set_last_error(NULL);
-  cdd_c_hydrate_router_set_last_error("Something else");
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_set_last_error(NULL));
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_set_last_error("Something else"));
 
   c_orm_mock_hydrate_router_set_last_error_fail = 2;
-  cdd_c_hydrate_router_set_last_error(NULL);
-  cdd_c_hydrate_router_set_last_error("Something else");
+  ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_hydrate_router_set_last_error(NULL));
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_set_last_error("Something else"));
 
   c_orm_mock_hydrate_router_set_last_error_fail = 3;
-  cdd_c_hydrate_router_set_last_error(NULL);
-  cdd_c_hydrate_router_set_last_error("Something else");
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_set_last_error(NULL));
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_set_last_error("Something else"));
 
   c_orm_mock_hydrate_router_set_last_error_fail = 4;
-  cdd_c_hydrate_router_set_last_error(NULL);
-  cdd_c_hydrate_router_set_last_error("Something else");
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_set_last_error(NULL));
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_set_last_error("Something else"));
 
   c_orm_mock_hydrate_router_set_last_error_fail = 0;
-  cdd_c_hydrate_router_free(&router);
-  cdd_c_abstract_struct_free(&row);
+  ASSERT_EQ(C_ORM_OK, cdd_c_hydrate_router_free(&router));
+  ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_free(&row));
   PASS();
 }
 
@@ -385,20 +317,12 @@ TEST test_hydrate_router_set_error_fail(void) {
  * @param hydrate_router_suite Suite runner function name.
  */
 SUITE(hydrate_router_suite) {
-  static int recursed = 0;
   RUN_TEST(test_mock_hydrator_null);
   RUN_TEST(test_hydrate_router_init_free);
   RUN_TEST(test_hydrate_router_registration);
   RUN_TEST(test_hydrate_router_dispatch);
   RUN_TEST(test_hydrate_router_register_oom);
   RUN_TEST(test_hydrate_router_set_error_fail);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    hydrate_router_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }
 
 #ifdef __cplusplus

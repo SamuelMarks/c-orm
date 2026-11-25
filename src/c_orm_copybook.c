@@ -68,44 +68,35 @@ typedef struct cpy_group_frame {
 } cpy_group_frame_t;
 
 /**
- * @brief Folds an ASCII lowercase letter to uppercase.
+ * @brief Converts an ASCII lowercase letter to uppercase.
  * @param c Input byte.
- * @param out_c Output byte (`A..Z` if `a..z`, else unchanged).
- * @return C_ORM_OK on success.
+ * @return Uppercase ASCII byte, or `c` unchanged.
  */
-static c_orm_error_t cpy_char_to_upper(unsigned char c, unsigned char *out_c) {
-  *out_c = (c >= 'a' && c <= 'z') ? (unsigned char)(c - ('a' - 'A')) : c;
-  return C_ORM_OK;
+static unsigned char cpy_calc_to_upper(unsigned char c) {
+  return (c >= 'a' && c <= 'z') ? (unsigned char)(c - ('a' - 'A')) : c;
 }
 
 /**
- * @brief Tests whether `c` is an ASCII alphanumeric character.
+ * @brief Checks if `c` is an ASCII alphanumeric character.
  * @param c Input byte.
- * @param out_alnum Output flag set to 1 if `[A-Za-z0-9]`, else 0.
- * @return C_ORM_OK on success.
+ * @return 1 if `'A'..'Z'`, `'a'..'z'`, or `'0'..'9'`, else 0.
  */
-static c_orm_error_t cpy_char_is_alnum(unsigned char c, int *out_alnum) {
-  unsigned char u = 0;
-  cpy_char_to_upper(c, &u);
-  *out_alnum = ((u >= 'A' && u <= 'Z') || (u >= '0' && u <= '9')) ? 1 : 0;
-  return C_ORM_OK;
+static int cpy_calc_is_alnum(unsigned char c) {
+  unsigned char u = cpy_calc_to_upper(c);
+  return ((u >= 'A' && u <= 'Z') || (u >= '0' && u <= '9')) ? 1 : 0;
 }
 
 /**
  * @brief Case-insensitive comparison treating `-` and `_` as equivalent.
  * @param a First identifier string.
  * @param b Second identifier string.
- * @param out_eq Output flag set to 1 when identifiers match, else 0.
- * @return C_ORM_OK on success.
+ * @return 1 when identifiers match, else 0.
  */
-static c_orm_error_t cpy_ident_eq(const char *a, const char *b, int *out_eq) {
+static int cpy_calc_ident_eq(const char *a, const char *b) {
   size_t i = 0;
-  *out_eq = 0;
   while (a[i] != '\0' && b[i] != '\0') {
-    unsigned char ca = 0;
-    unsigned char cb = 0;
-    cpy_char_to_upper((unsigned char)a[i], &ca);
-    cpy_char_to_upper((unsigned char)b[i], &cb);
+    unsigned char ca = cpy_calc_to_upper((unsigned char)a[i]);
+    unsigned char cb = cpy_calc_to_upper((unsigned char)b[i]);
     if (ca == '-') {
       ca = '_';
     }
@@ -113,14 +104,11 @@ static c_orm_error_t cpy_ident_eq(const char *a, const char *b, int *out_eq) {
       cb = '_';
     }
     if (ca != cb) {
-      return C_ORM_OK;
+      return 0;
     }
     i++;
   }
-  if (a[i] == '\0' && b[i] == '\0') {
-    *out_eq = 1;
-  }
-  return C_ORM_OK;
+  return (a[i] == '\0' && b[i] == '\0') ? 1 : 0;
 }
 
 /**
@@ -129,35 +117,28 @@ static c_orm_error_t cpy_ident_eq(const char *a, const char *b, int *out_eq) {
  * @param src_len Total length of `src`.
  * @param pos Starting offset in `src`.
  * @param kw Uppercase ASCII keyword to match.
- * @param out_matched Output flag set to 1 if matched at word boundary, else 0.
- * @return C_ORM_OK on success.
+ * @return 1 if matched at word boundary, else 0.
  */
-static c_orm_error_t cpy_match_kw_at(const char *src, size_t src_len,
-                                     size_t pos, const char *kw,
-                                     int *out_matched) {
+static int cpy_calc_match_kw_at(const char *src, size_t src_len, size_t pos,
+                                const char *kw) {
   size_t klen = strlen(kw);
   size_t i;
-  *out_matched = 0;
   if (pos + klen > src_len) {
-    return C_ORM_OK;
+    return 0;
   }
   for (i = 0; i < klen; ++i) {
-    unsigned char c = 0;
-    cpy_char_to_upper((unsigned char)src[pos + i], &c);
+    unsigned char c = cpy_calc_to_upper((unsigned char)src[pos + i]);
     if (c != (unsigned char)kw[i]) {
-      return C_ORM_OK;
+      return 0;
     }
   }
   if (pos + klen < src_len) {
     unsigned char next = (unsigned char)src[pos + klen];
-    int is_an = 0;
-    cpy_char_is_alnum(next, &is_an);
-    if (is_an || next == '-' || next == '_') {
-      return C_ORM_OK;
+    if (cpy_calc_is_alnum(next) || next == '-' || next == '_') {
+      return 0;
     }
   }
-  *out_matched = 1;
-  return C_ORM_OK;
+  return 1;
 }
 
 /**
@@ -187,8 +168,12 @@ static c_orm_error_t cpy_sb_append_n(c_orm_string_builder_t *sb,
   memcpy(heap_buf, data, len);
   heap_buf[len] = '\0';
   rc = c_orm_string_builder_append(sb, heap_buf);
-  (void)c_orm_system_free(heap_buf);
-  return rc;
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(heap_buf);
+    return rc;
+  }
+  c_orm_system_free(heap_buf);
+  return C_ORM_OK;
 }
 
 /**
@@ -223,13 +208,10 @@ static c_orm_error_t cpy_normalize_c_name(const char *cobol_name,
   }
   for (i = 0; i < len; ++i) {
     unsigned char c = (unsigned char)cobol_name[i];
-    unsigned char u = 0;
-    int is_an = 0;
-    cpy_char_to_upper(c, &u);
-    cpy_char_is_alnum(c, &is_an);
+    unsigned char u = cpy_calc_to_upper(c);
     if (u >= 'A' && u <= 'Z') {
       buf[w++] = (char)(u + ('a' - 'A'));
-    } else if (is_an) {
+    } else if (c >= '0' && c <= '9') {
       buf[w++] = (char)c;
     } else {
       buf[w++] = '_';
@@ -266,11 +248,8 @@ static c_orm_error_t cpy_normalize_sql_name(const char *cobol_name,
     return rc;
   }
   for (i = 0; i < len; ++i) {
-    unsigned char u = 0;
-    int is_an = 0;
-    cpy_char_to_upper((unsigned char)cobol_name[i], &u);
-    cpy_char_is_alnum(u, &is_an);
-    buf[i] = is_an ? (char)u : '_';
+    unsigned char u = cpy_calc_to_upper((unsigned char)cobol_name[i]);
+    buf[i] = cpy_calc_is_alnum(u) ? (char)u : '_';
   }
   buf[len] = '\0';
   *out_sql_name = buf;
@@ -286,14 +265,12 @@ static c_orm_error_t cpy_normalize_sql_name(const char *cobol_name,
 static c_orm_error_t cpy_normalize_struct_name(const char *cobol_name,
                                                char **out_struct_name) {
   char *cname = NULL;
-  unsigned char u0 = 0;
   c_orm_error_t rc;
   rc = cpy_normalize_c_name(cobol_name, &cname);
   if (rc != C_ORM_OK) {
     return rc;
   }
-  cpy_char_to_upper((unsigned char)cname[0], &u0);
-  cname[0] = (char)u0;
+  cname[0] = (char)cpy_calc_to_upper((unsigned char)cname[0]);
   *out_struct_name = cname;
   return C_ORM_OK;
 }
@@ -307,32 +284,32 @@ static c_orm_error_t cpy_normalize_struct_name(const char *cobol_name,
 static c_orm_error_t cpy_field_contents_free(c_orm_cobol_field_t *field) {
   size_t i;
   size_t j;
-  (void)c_orm_system_free(field->cobol_name);
-  (void)c_orm_system_free(field->c_name);
-  (void)c_orm_system_free(field->sql_name);
-  (void)c_orm_system_free(field->pic_raw);
-  (void)c_orm_system_free(field->default_value);
-  (void)c_orm_system_free(field->redefines_name);
-  (void)c_orm_system_free(field->renames_from);
-  (void)c_orm_system_free(field->renames_thru);
-  (void)c_orm_system_free(field->odo_field_name);
+  c_orm_system_free(field->cobol_name);
+  c_orm_system_free(field->c_name);
+  c_orm_system_free(field->sql_name);
+  c_orm_system_free(field->pic_raw);
+  c_orm_system_free(field->default_value);
+  c_orm_system_free(field->redefines_name);
+  c_orm_system_free(field->renames_from);
+  c_orm_system_free(field->renames_thru);
+  c_orm_system_free(field->odo_field_name);
   if (field->children) {
     for (i = 0; i < field->num_children; ++i) {
-      (void)cpy_field_contents_free(&field->children[i]);
+      cpy_field_contents_free(&field->children[i]);
     }
-    (void)c_orm_system_free(field->children);
+    c_orm_system_free(field->children);
   }
   if (field->conditions) {
     for (i = 0; i < field->num_conditions; ++i) {
-      (void)c_orm_system_free(field->conditions[i].cobol_name);
-      (void)c_orm_system_free(field->conditions[i].c_name);
+      c_orm_system_free(field->conditions[i].cobol_name);
+      c_orm_system_free(field->conditions[i].c_name);
       for (j = 0; j < field->conditions[i].num_values; ++j) {
-        (void)c_orm_system_free(field->conditions[i].values[j].low_val);
-        (void)c_orm_system_free(field->conditions[i].values[j].high_val);
+        c_orm_system_free(field->conditions[i].values[j].low_val);
+        c_orm_system_free(field->conditions[i].values[j].high_val);
       }
-      (void)c_orm_system_free(field->conditions[i].values);
+      c_orm_system_free(field->conditions[i].values);
     }
-    (void)c_orm_system_free(field->conditions);
+    c_orm_system_free(field->conditions);
   }
   memset(field, 0, sizeof(*field));
   return C_ORM_OK;
@@ -346,27 +323,27 @@ static c_orm_error_t cpy_field_contents_free(c_orm_cobol_field_t *field) {
  */
 static c_orm_error_t cpy_record_contents_free(c_orm_cobol_record_t *rec) {
   size_t i;
-  (void)c_orm_system_free(rec->record_name);
-  (void)c_orm_system_free(rec->c_struct_name);
-  (void)c_orm_system_free(rec->sql_table_name);
-  (void)c_orm_system_free(rec->sql_schema_name);
+  c_orm_system_free(rec->record_name);
+  c_orm_system_free(rec->c_struct_name);
+  c_orm_system_free(rec->sql_table_name);
+  c_orm_system_free(rec->sql_schema_name);
   if (rec->fields) {
     for (i = 0; i < rec->num_fields; ++i) {
-      (void)cpy_field_contents_free(&rec->fields[i]);
+      cpy_field_contents_free(&rec->fields[i]);
     }
-    (void)c_orm_system_free(rec->fields);
+    c_orm_system_free(rec->fields);
   }
   if (rec->standalone_fields) {
     for (i = 0; i < rec->num_standalone_fields; ++i) {
-      (void)cpy_field_contents_free(&rec->standalone_fields[i]);
+      cpy_field_contents_free(&rec->standalone_fields[i]);
     }
-    (void)c_orm_system_free(rec->standalone_fields);
+    c_orm_system_free(rec->standalone_fields);
   }
   if (rec->secondary_records) {
     for (i = 0; i < rec->num_secondary_records; ++i) {
-      (void)cpy_record_contents_free(&rec->secondary_records[i]);
+      cpy_record_contents_free(&rec->secondary_records[i]);
     }
-    (void)c_orm_system_free(rec->secondary_records);
+    c_orm_system_free(rec->secondary_records);
   }
   memset(rec, 0, sizeof(*rec));
   return C_ORM_OK;
@@ -377,20 +354,19 @@ c_orm_copybook_record_free(c_orm_cobol_record_t *record) {
   if (!record) {
     return C_ORM_OK;
   }
-  (void)cpy_record_contents_free(record);
+  cpy_record_contents_free(record);
   return c_orm_system_free(record);
 }
 
 /**
- * @brief Strips optional COBOL `==...==` pseudo-text delimiters and outer
- * spaces from a `REPLACING` pattern or replacement string.
+ * @brief Computes effective start pointer and byte length after stripping
+ * optional COBOL `==...==` pseudo-text delimiters and outer spaces.
  * @param raw Raw pattern or replacement text.
  * @param out_ptr Output pointer into `raw` where effective text starts.
- * @param out_len Output byte length of effective text.
- * @return C_ORM_OK on success.
+ * @return Effective byte length of stripped text.
  */
-static c_orm_error_t cpy_strip_pseudotext(const char *raw, const char **out_ptr,
-                                          size_t *out_len) {
+static size_t cpy_calc_pseudotext_bounds(const char *raw,
+                                         const char **out_ptr) {
   size_t s = 0;
   size_t e = strlen(raw);
   while (s < e && (raw[s] == ' ' || raw[s] == '\t')) {
@@ -411,8 +387,7 @@ static c_orm_error_t cpy_strip_pseudotext(const char *raw, const char **out_ptr,
     }
   }
   *out_ptr = raw + s;
-  *out_len = e - s;
-  return C_ORM_OK;
+  return e - s;
 }
 
 /**
@@ -446,7 +421,7 @@ static c_orm_error_t cpy_replace_all(const char *src, const char *from_ptr,
         memcmp(src + pos, from_ptr, from_len) == 0) {
       rc = cpy_sb_append_n(sb, to_ptr, to_len);
       if (rc != C_ORM_OK) {
-        (void)c_orm_string_builder_free(sb);
+        c_orm_string_builder_free(sb);
         return rc;
       }
       pos += from_len;
@@ -458,30 +433,35 @@ static c_orm_error_t cpy_replace_all(const char *src, const char *from_ptr,
       }
       rc = cpy_sb_append_n(sb, src + pos, next - pos);
       if (rc != C_ORM_OK) {
-        (void)c_orm_string_builder_free(sb);
+        c_orm_string_builder_free(sb);
         return rc;
       }
       pos = next;
     }
   }
-  c_orm_string_builder_get(sb, &s_view);
+  rc = c_orm_string_builder_get(sb, &s_view);
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
   rc = c_orm_strdup(s_view, out_res);
-  (void)c_orm_string_builder_free(sb);
-  return rc;
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  c_orm_string_builder_free(sb);
+  return C_ORM_OK;
 }
 
 /**
  * @brief Detects whether `cpy_source` uses fixed 80-column format or free
  * format when `C_ORM_COBOL_FORMAT_AUTO` is requested.
  * @param cpy_source Raw copybook source string.
- * @param out_fmt Output resolved format (`FIXED` or `FREE`).
- * @return C_ORM_OK on success.
+ * @return Resolved `c_orm_cobol_format_t` cast to `int` (`FIXED` or `FREE`).
  */
-static c_orm_error_t cpy_detect_format(const char *cpy_source,
-                                       c_orm_cobol_format_t *out_fmt) {
+static int cpy_calc_detected_format(const char *cpy_source) {
   size_t pos = 0;
   size_t len = strlen(cpy_source);
-  *out_fmt = C_ORM_COBOL_FORMAT_FREE;
 
   while (pos < len) {
     size_t line_end = pos;
@@ -501,9 +481,8 @@ static c_orm_error_t cpy_detect_format(const char *cpy_source,
       first_non_sp++;
     }
     if (first_non_sp < line_len) {
-      int is_dir = 0;
-      cpy_match_kw_at(cpy_source + pos, line_len, first_non_sp, ">>SOURCE",
-                      &is_dir);
+      int is_dir = cpy_calc_match_kw_at(cpy_source + pos, line_len,
+                                        first_non_sp, ">>SOURCE");
       if (!is_dir) {
         if (line_len >= 7) {
           size_t k;
@@ -520,36 +499,30 @@ static c_orm_error_t cpy_detect_format(const char *cpy_source,
             }
           }
           if (all_digits && strchr(" */-Dd", (unsigned char)ind) != NULL) {
-            *out_fmt = C_ORM_COBOL_FORMAT_FIXED;
-            return C_ORM_OK;
+            return (int)C_ORM_COBOL_FORMAT_FIXED;
           }
           if (all_spaces && strchr("*/-", (unsigned char)ind) != NULL) {
-            *out_fmt = C_ORM_COBOL_FORMAT_FIXED;
-            return C_ORM_OK;
+            return (int)C_ORM_COBOL_FORMAT_FIXED;
           }
         }
-        *out_fmt = C_ORM_COBOL_FORMAT_FREE;
-        return C_ORM_OK;
+        return (int)C_ORM_COBOL_FORMAT_FREE;
       }
     }
     pos = (line_end < len) ? (line_end + 1) : len;
   }
-  return C_ORM_OK;
+  return (int)C_ORM_COBOL_FORMAT_FREE;
 }
 
 /**
  * @brief Strips inline `*>` comments outside quoted literals within a line.
  * @param line Pointer to line content.
  * @param line_len Length of `line`.
- * @param out_effective_len Output length excluding `*>` comment and trailing
- * spaces.
  * @param io_open_quote Input/output active quote char (`'\0'`, `'\''`, or
  * `'"'`).
- * @return C_ORM_OK on success.
+ * @return Effective length excluding `*>` comment and trailing spaces.
  */
-static c_orm_error_t cpy_strip_inline_comment(const char *line, size_t line_len,
-                                              size_t *out_effective_len,
-                                              char *io_open_quote) {
+static size_t cpy_calc_effective_line_len(const char *line, size_t line_len,
+                                          char *io_open_quote) {
   size_t i = 0;
   char q = *io_open_quote;
   size_t eff = line_len;
@@ -582,8 +555,7 @@ static c_orm_error_t cpy_strip_inline_comment(const char *line, size_t line_len,
     }
   }
   *io_open_quote = q;
-  *out_effective_len = eff;
-  return C_ORM_OK;
+  return eff;
 }
 
 /**
@@ -614,7 +586,7 @@ cpy_normalize_source(const char *cpy_source, c_orm_cobol_format_t format,
   c_orm_error_t rc;
 
   if (active_fmt == C_ORM_COBOL_FORMAT_AUTO) {
-    cpy_detect_format(cpy_source, &active_fmt);
+    active_fmt = (c_orm_cobol_format_t)cpy_calc_detected_format(cpy_source);
   }
   rc = c_orm_string_builder_init(&sb);
   if (rc != C_ORM_OK) {
@@ -645,23 +617,19 @@ cpy_normalize_source(const char *cpy_source, c_orm_cobol_format_t format,
       trim_s++;
     }
     if (trim_s < line_len) {
-      cpy_match_kw_at(cpy_source + pos, line_len, trim_s, ">>SOURCE",
-                      &is_src_dir);
+      is_src_dir =
+          cpy_calc_match_kw_at(cpy_source + pos, line_len, trim_s, ">>SOURCE");
     }
     if (is_src_dir) {
       size_t scan = trim_s;
       int switched = 0;
       while (scan < line_len) {
-        int m_free = 0;
-        int m_fixed = 0;
-        cpy_match_kw_at(cpy_source + pos, line_len, scan, "FREE", &m_free);
-        cpy_match_kw_at(cpy_source + pos, line_len, scan, "FIXED", &m_fixed);
-        if (m_free) {
+        if (cpy_calc_match_kw_at(cpy_source + pos, line_len, scan, "FREE")) {
           active_fmt = C_ORM_COBOL_FORMAT_FREE;
           switched = 1;
           break;
         }
-        if (m_fixed) {
+        if (cpy_calc_match_kw_at(cpy_source + pos, line_len, scan, "FIXED")) {
           active_fmt = C_ORM_COBOL_FORMAT_FIXED;
           switched = 1;
           break;
@@ -669,7 +637,7 @@ cpy_normalize_source(const char *cpy_source, c_orm_cobol_format_t format,
         scan++;
       }
       if (!switched) {
-        (void)c_orm_string_builder_free(sb);
+        c_orm_string_builder_free(sb);
         return C_ORM_ERROR_COPYBOOK_SYNTAX;
       }
       pos = (line_end < len) ? (line_end + 1) : len;
@@ -704,43 +672,44 @@ cpy_normalize_source(const char *cpy_source, c_orm_cobol_format_t format,
         if (open_quote != '\0' && cs < area_len && area_ptr[cs] == open_quote) {
           cs++;
         }
-        cpy_strip_inline_comment(area_ptr + cs, area_len - cs, &eff_len,
-                                 &open_quote);
+        eff_len = cpy_calc_effective_line_len(area_ptr + cs, area_len - cs,
+                                              &open_quote);
         rc = cpy_sb_append_n(sb, area_ptr + cs, eff_len);
         if (rc != C_ORM_OK) {
-          (void)c_orm_string_builder_free(sb);
+          c_orm_string_builder_free(sb);
           return rc;
         }
       } else if (ind == ' ') {
         char prev_q = open_quote;
-        cpy_strip_inline_comment(area_ptr, area_len, &eff_len, &open_quote);
+        eff_len = cpy_calc_effective_line_len(area_ptr, area_len, &open_quote);
         if (prev_q == '\0' && eff_len > 0) {
           rc = c_orm_string_builder_append(sb, " ");
           if (rc != C_ORM_OK) {
-            (void)c_orm_string_builder_free(sb);
+            c_orm_string_builder_free(sb);
             return rc;
           }
         }
         rc = cpy_sb_append_n(sb, area_ptr, eff_len);
         if (rc != C_ORM_OK) {
-          (void)c_orm_string_builder_free(sb);
+          c_orm_string_builder_free(sb);
           return rc;
         }
       } else {
-        (void)c_orm_string_builder_free(sb);
+        c_orm_string_builder_free(sb);
         return C_ORM_ERROR_COPYBOOK_SYNTAX;
       }
     } else {
-      size_t eff_len = 0;
-      cpy_strip_inline_comment(cpy_source + pos, line_len, &eff_len,
-                               &open_quote);
+      size_t eff_len =
+          cpy_calc_effective_line_len(cpy_source + pos, line_len, &open_quote);
       if (eff_len > 0) {
         rc = c_orm_string_builder_append(sb, " ");
-        if (rc == C_ORM_OK) {
-          rc = cpy_sb_append_n(sb, cpy_source + pos, eff_len);
-        }
         if (rc != C_ORM_OK) {
-          (void)c_orm_string_builder_free(sb);
+          c_orm_string_builder_free(sb);
+          return rc;
+        }
+        rc = cpy_sb_append_n(sb, cpy_source + pos, eff_len);
+        if (rc != C_ORM_OK) {
+          c_orm_string_builder_free(sb);
           return rc;
         }
       }
@@ -749,34 +718,36 @@ cpy_normalize_source(const char *cpy_source, c_orm_cobol_format_t format,
   }
 
   if (open_quote != '\0') {
-    (void)c_orm_string_builder_free(sb);
+    c_orm_string_builder_free(sb);
     return C_ORM_ERROR_COPYBOOK_SYNTAX;
   }
 
-  c_orm_string_builder_get(sb, &sb_str);
-  rc = c_orm_strdup(sb_str, &stage);
-  (void)c_orm_string_builder_free(sb);
+  rc = c_orm_string_builder_get(sb, &sb_str);
   if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
     return rc;
   }
+  rc = c_orm_strdup(sb_str, &stage);
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  c_orm_string_builder_free(sb);
 
   /* Process optional leading inline REPLACING ==from== BY ==to== [.] */
   {
     size_t sp = 0;
     size_t slen = strlen(stage);
-    int has_rep = 0;
     while (sp < slen && stage[sp] == ' ') {
       sp++;
     }
-    cpy_match_kw_at(stage, slen, sp, "REPLACING", &has_rep);
-    if (has_rep) {
+    if (cpy_calc_match_kw_at(stage, slen, sp, "REPLACING")) {
       sp += 9;
       for (;;) {
         size_t f_start;
         size_t f_end;
         size_t t_start;
         size_t t_end;
-        int has_by = 0;
         while (sp < slen && stage[sp] == ' ') {
           sp++;
         }
@@ -793,7 +764,7 @@ cpy_normalize_source(const char *cpy_source, c_orm_cobol_format_t format,
           sp++;
         }
         if (sp + 1 >= slen) {
-          (void)c_orm_system_free(stage);
+          c_orm_system_free(stage);
           return C_ORM_ERROR_COPYBOOK_SYNTAX;
         }
         f_end = sp;
@@ -801,9 +772,8 @@ cpy_normalize_source(const char *cpy_source, c_orm_cobol_format_t format,
         while (sp < slen && stage[sp] == ' ') {
           sp++;
         }
-        cpy_match_kw_at(stage, slen, sp, "BY", &has_by);
-        if (!has_by) {
-          (void)c_orm_system_free(stage);
+        if (!cpy_calc_match_kw_at(stage, slen, sp, "BY")) {
+          c_orm_system_free(stage);
           return C_ORM_ERROR_COPYBOOK_SYNTAX;
         }
         sp += 2;
@@ -811,7 +781,7 @@ cpy_normalize_source(const char *cpy_source, c_orm_cobol_format_t format,
           sp++;
         }
         if (sp + 2 > slen || strncmp(stage + sp, "==", 2) != 0) {
-          (void)c_orm_system_free(stage);
+          c_orm_system_free(stage);
           return C_ORM_ERROR_COPYBOOK_SYNTAX;
         }
         sp += 2;
@@ -820,7 +790,7 @@ cpy_normalize_source(const char *cpy_source, c_orm_cobol_format_t format,
           sp++;
         }
         if (sp + 1 >= slen) {
-          (void)c_orm_system_free(stage);
+          c_orm_system_free(stage);
           return C_ORM_ERROR_COPYBOOK_SYNTAX;
         }
         t_end = sp;
@@ -831,13 +801,13 @@ cpy_normalize_source(const char *cpy_source, c_orm_cobol_format_t format,
           char *to_copy = NULL;
           rc = c_orm_system_malloc((f_end - f_start) + 1, (void **)&from_copy);
           if (rc != C_ORM_OK) {
-            (void)c_orm_system_free(stage);
+            c_orm_system_free(stage);
             return rc;
           }
           rc = c_orm_system_malloc((t_end - t_start) + 1, (void **)&to_copy);
           if (rc != C_ORM_OK) {
-            (void)c_orm_system_free(from_copy);
-            (void)c_orm_system_free(stage);
+            c_orm_system_free(from_copy);
+            c_orm_system_free(stage);
             return rc;
           }
           memcpy(from_copy, stage + f_start, f_end - f_start);
@@ -846,12 +816,15 @@ cpy_normalize_source(const char *cpy_source, c_orm_cobol_format_t format,
           to_copy[t_end - t_start] = '\0';
           rc = cpy_replace_all(stage + sp, from_copy, f_end - f_start, to_copy,
                                t_end - t_start, &replaced);
-          (void)c_orm_system_free(from_copy);
-          (void)c_orm_system_free(to_copy);
-          (void)c_orm_system_free(stage);
           if (rc != C_ORM_OK) {
+            c_orm_system_free(from_copy);
+            c_orm_system_free(to_copy);
+            c_orm_system_free(stage);
             return rc;
           }
+          c_orm_system_free(from_copy);
+          c_orm_system_free(to_copy);
+          c_orm_system_free(stage);
           stage = replaced;
           slen = strlen(stage);
           sp = 0;
@@ -872,16 +845,17 @@ cpy_normalize_source(const char *cpy_source, c_orm_cobol_format_t format,
     char *next_stage = NULL;
     if (!replacements || !replacements[i].from_text ||
         !replacements[i].to_text) {
-      (void)c_orm_system_free(stage);
+      c_orm_system_free(stage);
       return C_ORM_ERROR_NULL_POINTER;
     }
-    cpy_strip_pseudotext(replacements[i].from_text, &fp, &fl);
-    cpy_strip_pseudotext(replacements[i].to_text, &tp, &tl);
+    fl = cpy_calc_pseudotext_bounds(replacements[i].from_text, &fp);
+    tl = cpy_calc_pseudotext_bounds(replacements[i].to_text, &tp);
     rc = cpy_replace_all(stage, fp, fl, tp, tl, &next_stage);
-    (void)c_orm_system_free(stage);
     if (rc != C_ORM_OK) {
+      c_orm_system_free(stage);
       return rc;
     }
+    c_orm_system_free(stage);
     stage = next_stage;
   }
 
@@ -928,7 +902,7 @@ static c_orm_error_t cpy_extract_exec_sql(const char *src,
         if (pos + 1 < len && src[pos + 1] == quote) {
           rc = cpy_sb_append_n(sb, src + pos, 2);
           if (rc != C_ORM_OK) {
-            (void)c_orm_string_builder_free(sb);
+            c_orm_string_builder_free(sb);
             return rc;
           }
           pos += 2;
@@ -938,7 +912,7 @@ static c_orm_error_t cpy_extract_exec_sql(const char *src,
       }
       rc = cpy_sb_append_n(sb, src + pos, 1);
       if (rc != C_ORM_OK) {
-        (void)c_orm_string_builder_free(sb);
+        c_orm_string_builder_free(sb);
         return rc;
       }
       pos++;
@@ -948,199 +922,195 @@ static c_orm_error_t cpy_extract_exec_sql(const char *src,
       quote = c;
       rc = cpy_sb_append_n(sb, src + pos, 1);
       if (rc != C_ORM_OK) {
-        (void)c_orm_string_builder_free(sb);
+        c_orm_string_builder_free(sb);
         return rc;
       }
       pos++;
       continue;
     }
 
-    {
-      int m_exec = 0;
-      cpy_match_kw_at(src, len, pos, "EXEC", &m_exec);
-      if (m_exec) {
-        size_t scan = pos + 4;
-        int m_sql = 0;
-        while (scan < len && src[scan] == ' ') {
-          scan++;
+    if (cpy_calc_match_kw_at(src, len, pos, "EXEC")) {
+      size_t scan = pos + 4;
+      while (scan < len && src[scan] == ' ') {
+        scan++;
+      }
+      if (cpy_calc_match_kw_at(src, len, scan, "SQL")) {
+        size_t body_start = scan + 3;
+        size_t body_end = body_start;
+        int found_end = 0;
+        while (body_end < len) {
+          if (cpy_calc_match_kw_at(src, len, body_end, "END-EXEC")) {
+            found_end = 1;
+            break;
+          }
+          body_end++;
         }
-        cpy_match_kw_at(src, len, scan, "SQL", &m_sql);
-        if (m_sql) {
-          size_t body_start = scan + 3;
-          size_t body_end = body_start;
-          int found_end = 0;
-          while (body_end < len) {
-            int m_end = 0;
-            cpy_match_kw_at(src, len, body_end, "END-EXEC", &m_end);
-            if (m_end) {
-              found_end = 1;
-              break;
-            }
-            body_end++;
+        if (!found_end) {
+          c_orm_string_builder_free(sb);
+          c_orm_system_free(*out_schema);
+          *out_schema = NULL;
+          if (*out_sql_tbl) {
+            sql_table_free(*out_sql_tbl);
+            c_orm_system_free(*out_sql_tbl);
+            *out_sql_tbl = NULL;
           }
-          if (!found_end) {
-            (void)c_orm_string_builder_free(sb);
-            (void)c_orm_system_free(*out_schema);
-            *out_schema = NULL;
-            if (*out_sql_tbl) {
-              (void)sql_table_free(*out_sql_tbl);
-              (void)c_orm_system_free(*out_sql_tbl);
-              *out_sql_tbl = NULL;
-            }
-            return C_ORM_ERROR_COPYBOOK_SYNTAX;
-          }
+          return C_ORM_ERROR_COPYBOOK_SYNTAX;
+        }
 
-          /* Inspect body for DECLARE [schema.]table TABLE (...) */
-          if (!*out_sql_tbl) {
-            size_t bp = body_start;
-            int m_decl = 0;
+        /* Inspect body for DECLARE [schema.]table TABLE (...) */
+        if (!*out_sql_tbl) {
+          size_t bp = body_start;
+          while (src[bp] == ' ') {
+            bp++;
+          }
+          if (cpy_calc_match_kw_at(src, body_end, bp, "DECLARE")) {
+            size_t q_start;
+            size_t q_end;
+            bp += 7;
             while (src[bp] == ' ') {
               bp++;
             }
-            cpy_match_kw_at(src, body_end, bp, "DECLARE", &m_decl);
-            if (m_decl) {
-              size_t q_start;
-              size_t q_end;
-              bp += 7;
+            q_start = bp;
+            while (bp < body_end && src[bp] != ' ' && src[bp] != '(') {
+              bp++;
+            }
+            q_end = bp;
+            while (src[bp] == ' ') {
+              bp++;
+            }
+            if (cpy_calc_match_kw_at(src, body_end, bp, "TABLE")) {
+              bp += 5;
               while (src[bp] == ' ') {
                 bp++;
               }
-              q_start = bp;
-              while (bp < body_end && src[bp] != ' ' && src[bp] != '(') {
-                bp++;
-              }
-              q_end = bp;
-              while (src[bp] == ' ') {
-                bp++;
-              }
-              {
-                int m_tbl = 0;
-                cpy_match_kw_at(src, body_end, bp, "TABLE", &m_tbl);
-                if (m_tbl) {
-                  bp += 5;
-                  while (src[bp] == ' ') {
-                    bp++;
-                  }
-                  if (src[bp] == '(') {
-                    const char *dot = NULL;
-                    size_t qi;
-                    const char *t_ptr = src + q_start;
-                    size_t t_len = q_end - q_start;
-                    c_orm_string_builder_t *ddl_sb = NULL;
-                    const char *ddl_str = NULL;
-                    struct sql_table_t *parsed_tbls = NULL;
-                    size_t n_tbls = 0;
+              if (src[bp] == '(') {
+                const char *dot = NULL;
+                size_t qi;
+                const char *t_ptr = src + q_start;
+                size_t t_len = q_end - q_start;
+                c_orm_string_builder_t *ddl_sb = NULL;
+                const char *ddl_str = NULL;
+                struct sql_table_t *parsed_tbls = NULL;
+                size_t n_tbls = 0;
 
-                    for (qi = q_start; qi < q_end; ++qi) {
-                      if (src[qi] == '.') {
-                        dot = src + qi;
-                        break;
-                      }
-                    }
-                    if (dot) {
-                      size_t sl = (size_t)(dot - (src + q_start));
-                      size_t so = 0;
-                      if (sl >= 2 && t_ptr[0] == '"' && t_ptr[sl - 1] == '"') {
-                        so = 1;
-                        sl -= 2;
-                      }
-                      rc = c_orm_system_malloc(sl + 1, (void **)out_schema);
-                      if (rc != C_ORM_OK) {
-                        (void)c_orm_string_builder_free(sb);
-                        return rc;
-                      }
-                      memcpy(*out_schema, t_ptr + so, sl);
-                      (*out_schema)[sl] = '\0';
-                      t_ptr = dot + 1;
-                      t_len = (size_t)((src + q_end) - t_ptr);
-                    }
-                    if (t_len >= 2 && t_ptr[0] == '"' &&
-                        t_ptr[t_len - 1] == '"') {
-                      t_ptr++;
-                      t_len -= 2;
-                    }
-
-                    rc = c_orm_string_builder_init(&ddl_sb);
-                    if (rc != C_ORM_OK) {
-                      (void)c_orm_system_free(*out_schema);
-                      *out_schema = NULL;
-                      (void)c_orm_string_builder_free(sb);
-                      return rc;
-                    }
-                    rc = c_orm_string_builder_append(ddl_sb, "CREATE TABLE ");
-                    if (rc == C_ORM_OK) {
-                      rc = cpy_sb_append_n(ddl_sb, t_ptr, t_len);
-                    }
-                    if (rc == C_ORM_OK) {
-                      rc = c_orm_string_builder_append(ddl_sb, " ");
-                    }
-                    if (rc == C_ORM_OK) {
-                      rc = cpy_sb_append_n(ddl_sb, src + bp, body_end - bp);
-                    }
-                    if (rc == C_ORM_OK) {
-                      rc = c_orm_string_builder_append(ddl_sb, ";");
-                    }
-                    if (rc == C_ORM_OK) {
-                      rc = c_orm_string_builder_get(ddl_sb, &ddl_str);
-                    }
-                    if (rc == C_ORM_OK) {
-                      if (parse_sql_ddl(ddl_str, &parsed_tbls, &n_tbls) ==
-                              C_ORM_OK &&
-                          n_tbls > 0) {
-                        *out_sql_tbl = parsed_tbls;
-                      }
-                    }
-                    (void)c_orm_string_builder_free(ddl_sb);
-                    if (rc != C_ORM_OK) {
-                      (void)c_orm_system_free(*out_schema);
-                      *out_schema = NULL;
-                      (void)c_orm_string_builder_free(sb);
-                      return rc;
-                    }
+                for (qi = q_start; qi < q_end; ++qi) {
+                  if (src[qi] == '.') {
+                    dot = src + qi;
+                    break;
                   }
                 }
+                if (dot) {
+                  size_t sl = (size_t)(dot - (src + q_start));
+                  size_t so = 0;
+                  if (sl >= 2 && t_ptr[0] == '"' && t_ptr[sl - 1] == '"') {
+                    so = 1;
+                    sl -= 2;
+                  }
+                  rc = c_orm_system_malloc(sl + 1, (void **)out_schema);
+                  if (rc != C_ORM_OK) {
+                    c_orm_string_builder_free(sb);
+                    return rc;
+                  }
+                  memcpy(*out_schema, t_ptr + so, sl);
+                  (*out_schema)[sl] = '\0';
+                  t_ptr = dot + 1;
+                  t_len = (size_t)((src + q_end) - t_ptr);
+                }
+                if (t_len >= 2 && t_ptr[0] == '"' && t_ptr[t_len - 1] == '"') {
+                  t_ptr++;
+                  t_len -= 2;
+                }
+
+                rc = c_orm_string_builder_init(&ddl_sb);
+                if (rc != C_ORM_OK) {
+                  c_orm_system_free(*out_schema);
+                  *out_schema = NULL;
+                  c_orm_string_builder_free(sb);
+                  return rc;
+                }
+                rc = c_orm_string_builder_append(ddl_sb, "CREATE TABLE ");
+                if (rc != C_ORM_OK) {
+                  c_orm_string_builder_free(ddl_sb);
+                  goto sb_fail;
+                }
+                rc = cpy_sb_append_n(ddl_sb, t_ptr, t_len);
+                if (rc != C_ORM_OK) {
+                  c_orm_string_builder_free(ddl_sb);
+                  goto sb_fail;
+                }
+                rc = c_orm_string_builder_append(ddl_sb, " ");
+                if (rc != C_ORM_OK) {
+                  c_orm_string_builder_free(ddl_sb);
+                  goto sb_fail;
+                }
+                rc = cpy_sb_append_n(ddl_sb, src + bp, body_end - bp);
+                if (rc != C_ORM_OK) {
+                  c_orm_string_builder_free(ddl_sb);
+                  goto sb_fail;
+                }
+                rc = c_orm_string_builder_append(ddl_sb, ";");
+                if (rc != C_ORM_OK) {
+                  c_orm_string_builder_free(ddl_sb);
+                  goto sb_fail;
+                }
+                rc = c_orm_string_builder_get(ddl_sb, &ddl_str);
+                if (rc != C_ORM_OK) {
+                  c_orm_string_builder_free(ddl_sb);
+                  goto sb_fail;
+                }
+                rc = parse_sql_ddl(ddl_str, &parsed_tbls, &n_tbls);
+                if (rc != C_ORM_OK) {
+                  c_orm_string_builder_free(ddl_sb);
+                  goto sb_fail;
+                }
+                if (n_tbls > 0) {
+                  *out_sql_tbl = parsed_tbls;
+                } else {
+                  c_orm_system_free(parsed_tbls);
+                }
+                c_orm_string_builder_free(ddl_sb);
               }
             }
           }
-
-          pos = body_end + 8;
-          while (pos < len && src[pos] == ' ') {
-            pos++;
-          }
-          if (pos < len && src[pos] == '.') {
-            pos++;
-          }
-          continue;
         }
+
+        pos = body_end + 8;
+        while (pos < len && src[pos] == ' ') {
+          pos++;
+        }
+        if (pos < len && src[pos] == '.') {
+          pos++;
+        }
+        continue;
       }
     }
 
     rc = cpy_sb_append_n(sb, src + pos, 1);
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(*out_schema);
-      *out_schema = NULL;
-      if (*out_sql_tbl) {
-        (void)sql_table_free(*out_sql_tbl);
-        (void)c_orm_system_free(*out_sql_tbl);
-        *out_sql_tbl = NULL;
-      }
-      (void)c_orm_string_builder_free(sb);
-      return rc;
+      goto sb_fail;
     }
     pos++;
   }
 
-  c_orm_string_builder_get(sb, &sb_str);
-  rc = c_orm_strdup(sb_str, out_cobol_only);
-  (void)c_orm_string_builder_free(sb);
+  rc = c_orm_string_builder_get(sb, &sb_str);
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(*out_schema);
-    *out_schema = NULL;
-    if (*out_sql_tbl) {
-      (void)sql_table_free(*out_sql_tbl);
-      (void)c_orm_system_free(*out_sql_tbl);
-      *out_sql_tbl = NULL;
-    }
+    goto sb_fail;
+  }
+  rc = c_orm_strdup(sb_str, out_cobol_only);
+  if (rc != C_ORM_OK) {
+    goto sb_fail;
+  }
+  c_orm_string_builder_free(sb);
+  return C_ORM_OK;
+
+sb_fail:
+  c_orm_string_builder_free(sb);
+  c_orm_system_free(*out_schema);
+  *out_schema = NULL;
+  if (*out_sql_tbl) {
+    sql_table_free(*out_sql_tbl);
+    c_orm_system_free(*out_sql_tbl);
+    *out_sql_tbl = NULL;
   }
   return rc;
 }
@@ -1156,9 +1126,9 @@ static c_orm_error_t cpy_tok_vec_free(cpy_tok_vec_t *vec) {
     return C_ORM_OK;
   }
   for (i = 0; i < vec->count; ++i) {
-    (void)c_orm_system_free(vec->items[i].text);
+    c_orm_system_free(vec->items[i].text);
   }
-  (void)c_orm_system_free(vec->items);
+  c_orm_system_free(vec->items);
   vec->items = NULL;
   vec->count = 0;
   vec->cap = 0;
@@ -1199,7 +1169,7 @@ static c_orm_error_t cpy_tok_vec_push(cpy_tok_vec_t *vec, cpy_tok_kind_t kind,
   for (i = 0; i < raw_len; ++i) {
     unsigned char c = (unsigned char)raw[i];
     if (uppercase) {
-      cpy_char_to_upper(c, &c);
+      c = cpy_calc_to_upper(c);
     }
     copy[i] = (char)c;
   }
@@ -1215,20 +1185,17 @@ static c_orm_error_t cpy_tok_vec_push(cpy_tok_vec_t *vec, cpy_tok_kind_t kind,
  * @brief Converts a single hexadecimal ASCII character to `0..15`, or `-1` if
  * not a valid hex digit.
  * @param hc Input character.
- * @param out_nib Output nybble (`0..15` or `-1`).
- * @return C_ORM_OK on success.
+ * @return Nybble value `0..15`, or `-1` if invalid.
  */
-static c_orm_error_t cpy_hex_nibble(char hc, int *out_nib) {
-  unsigned char u = 0;
-  cpy_char_to_upper((unsigned char)hc, &u);
+static int cpy_calc_hex_nibble(char hc) {
+  unsigned char u = cpy_calc_to_upper((unsigned char)hc);
   if (u >= '0' && u <= '9') {
-    *out_nib = (int)(u - '0');
-  } else if (u >= 'A' && u <= 'F') {
-    *out_nib = (int)(u - 'A') + 10;
-  } else {
-    *out_nib = -1;
+    return (int)(u - '0');
   }
-  return C_ORM_OK;
+  if (u >= 'A' && u <= 'F') {
+    return (int)(u - 'A') + 10;
+  }
+  return -1;
 }
 
 /**
@@ -1256,9 +1223,7 @@ static c_orm_error_t cpy_lex_source(const char *src, cpy_tok_vec_t *out_vec) {
     }
 
     if (expect_pic) {
-      int m_is = 0;
-      cpy_match_kw_at(src, len, pos, "IS", &m_is);
-      if (m_is) {
+      if (cpy_calc_match_kw_at(src, len, pos, "IS")) {
         pos += 2;
         continue;
       }
@@ -1277,19 +1242,19 @@ static c_orm_error_t cpy_lex_source(const char *src, cpy_tok_vec_t *out_vec) {
           trailing_dot = 1;
         }
         if (p_end == p_start) {
-          (void)cpy_tok_vec_free(out_vec);
+          cpy_tok_vec_free(out_vec);
           return C_ORM_ERROR_COPYBOOK_SYNTAX;
         }
         rc = cpy_tok_vec_push(out_vec, CPY_TOK_PIC_STR, src + p_start,
                               p_end - p_start, 1, 0);
         if (rc != C_ORM_OK) {
-          (void)cpy_tok_vec_free(out_vec);
+          cpy_tok_vec_free(out_vec);
           return rc;
         }
         if (trailing_dot) {
           rc = cpy_tok_vec_push(out_vec, CPY_TOK_DOT, ".", 1, 0, 0);
           if (rc != C_ORM_OK) {
-            (void)cpy_tok_vec_free(out_vec);
+            cpy_tok_vec_free(out_vec);
             return rc;
           }
         }
@@ -1302,7 +1267,7 @@ static c_orm_error_t cpy_lex_source(const char *src, cpy_tok_vec_t *out_vec) {
         !(pos + 1 < len && src[pos + 1] >= '0' && src[pos + 1] <= '9')) {
       rc = cpy_tok_vec_push(out_vec, CPY_TOK_DOT, ".", 1, 0, 0);
       if (rc != C_ORM_OK) {
-        (void)cpy_tok_vec_free(out_vec);
+        cpy_tok_vec_free(out_vec);
         return rc;
       }
       pos++;
@@ -1326,22 +1291,20 @@ static c_orm_error_t cpy_lex_source(const char *src, cpy_tok_vec_t *out_vec) {
       pos++;
       hex_len = h_end - h_start;
       if (hex_len == 0 || (hex_len % 2) != 0) {
-        (void)cpy_tok_vec_free(out_vec);
+        cpy_tok_vec_free(out_vec);
         return C_ORM_ERROR_COPYBOOK_SYNTAX;
       }
       rc = c_orm_system_malloc((hex_len / 2) + 1, (void **)&decoded);
       if (rc != C_ORM_OK) {
-        (void)cpy_tok_vec_free(out_vec);
+        cpy_tok_vec_free(out_vec);
         return rc;
       }
       for (k = 0; k < hex_len; k += 2) {
-        int hi_v = -1;
-        int lo_v = -1;
-        cpy_hex_nibble(src[h_start + k], &hi_v);
-        cpy_hex_nibble(src[h_start + k + 1], &lo_v);
+        int hi_v = cpy_calc_hex_nibble(src[h_start + k]);
+        int lo_v = cpy_calc_hex_nibble(src[h_start + k + 1]);
         if (hi_v < 0 || lo_v < 0) {
-          (void)c_orm_system_free(decoded);
-          (void)cpy_tok_vec_free(out_vec);
+          c_orm_system_free(decoded);
+          cpy_tok_vec_free(out_vec);
           return C_ORM_ERROR_COPYBOOK_SYNTAX;
         }
         decoded[k / 2] = (char)(((unsigned int)hi_v << 4) | (unsigned int)lo_v);
@@ -1349,11 +1312,12 @@ static c_orm_error_t cpy_lex_source(const char *src, cpy_tok_vec_t *out_vec) {
       decoded[hex_len / 2] = '\0';
       rc =
           cpy_tok_vec_push(out_vec, CPY_TOK_STRING, decoded, hex_len / 2, 0, 1);
-      (void)c_orm_system_free(decoded);
       if (rc != C_ORM_OK) {
-        (void)cpy_tok_vec_free(out_vec);
+        c_orm_system_free(decoded);
+        cpy_tok_vec_free(out_vec);
         return rc;
       }
+      c_orm_system_free(decoded);
       continue;
     }
 
@@ -1361,11 +1325,10 @@ static c_orm_error_t cpy_lex_source(const char *src, cpy_tok_vec_t *out_vec) {
       char q = c;
       c_orm_string_builder_t *qsb = NULL;
       const char *qstr = NULL;
-      size_t qlen = 0;
       pos++;
       rc = c_orm_string_builder_init(&qsb);
       if (rc != C_ORM_OK) {
-        (void)cpy_tok_vec_free(out_vec);
+        cpy_tok_vec_free(out_vec);
         return rc;
       }
       for (;;) {
@@ -1373,8 +1336,8 @@ static c_orm_error_t cpy_lex_source(const char *src, cpy_tok_vec_t *out_vec) {
           if (src[pos + 1] == q) {
             rc = cpy_sb_append_n(qsb, &q, 1);
             if (rc != C_ORM_OK) {
-              (void)c_orm_string_builder_free(qsb);
-              (void)cpy_tok_vec_free(out_vec);
+              c_orm_string_builder_free(qsb);
+              cpy_tok_vec_free(out_vec);
               return rc;
             }
             pos += 2;
@@ -1385,20 +1348,25 @@ static c_orm_error_t cpy_lex_source(const char *src, cpy_tok_vec_t *out_vec) {
         }
         rc = cpy_sb_append_n(qsb, src + pos, 1);
         if (rc != C_ORM_OK) {
-          (void)c_orm_string_builder_free(qsb);
-          (void)cpy_tok_vec_free(out_vec);
+          c_orm_string_builder_free(qsb);
+          cpy_tok_vec_free(out_vec);
           return rc;
         }
         pos++;
       }
-      c_orm_string_builder_get(qsb, &qstr);
-      c_orm_string_builder_len(qsb, &qlen);
-      rc = cpy_tok_vec_push(out_vec, CPY_TOK_STRING, qstr, qlen, 0, 0);
-      (void)c_orm_string_builder_free(qsb);
+      rc = c_orm_string_builder_get(qsb, &qstr);
       if (rc != C_ORM_OK) {
-        (void)cpy_tok_vec_free(out_vec);
+        c_orm_string_builder_free(qsb);
+        cpy_tok_vec_free(out_vec);
         return rc;
       }
+      rc = cpy_tok_vec_push(out_vec, CPY_TOK_STRING, qstr, strlen(qstr), 0, 0);
+      if (rc != C_ORM_OK) {
+        c_orm_string_builder_free(qsb);
+        cpy_tok_vec_free(out_vec);
+        return rc;
+      }
+      c_orm_string_builder_free(qsb);
       continue;
     }
 
@@ -1430,7 +1398,7 @@ static c_orm_error_t cpy_lex_source(const char *src, cpy_tok_vec_t *out_vec) {
         rc = cpy_tok_vec_push(out_vec, CPY_TOK_WORD, src + w_start,
                               w_end - w_start, 1, 0);
         if (rc != C_ORM_OK) {
-          (void)cpy_tok_vec_free(out_vec);
+          cpy_tok_vec_free(out_vec);
           return rc;
         }
         word_text = out_vec->items[out_vec->count - 1].text;
@@ -1442,7 +1410,7 @@ static c_orm_error_t cpy_lex_source(const char *src, cpy_tok_vec_t *out_vec) {
       if (trailing_dot) {
         rc = cpy_tok_vec_push(out_vec, CPY_TOK_DOT, ".", 1, 0, 0);
         if (rc != C_ORM_OK) {
-          (void)cpy_tok_vec_free(out_vec);
+          cpy_tok_vec_free(out_vec);
           return rc;
         }
       }
@@ -1450,7 +1418,7 @@ static c_orm_error_t cpy_lex_source(const char *src, cpy_tok_vec_t *out_vec) {
   }
 
   if (expect_pic) {
-    (void)cpy_tok_vec_free(out_vec);
+    cpy_tok_vec_free(out_vec);
     return C_ORM_ERROR_COPYBOOK_SYNTAX;
   }
   return C_ORM_OK;
@@ -1639,18 +1607,26 @@ static c_orm_error_t cpy_parse_uint_tok(const char *text, size_t *out_val) {
 }
 
 /**
- * @brief Classifies a COBOL `VALUE` token into `c_orm_cobol_value_kind_t` and
- * canonical string form.
- * @param tok Lexical token representing the literal.
- * @param out_kind Output value classification.
- * @param out_str Output heap-allocated value string.
+ * @brief Checks whether a token string parses as a valid `c_orm_decimal_t`.
+ * @param text Null-terminated token string.
+ * @return 1 if valid decimal literal, 0 otherwise.
+ */
+static int cpy_calc_is_valid_decimal(const char *text) {
+  c_orm_decimal_t tmp_dec;
+  return (c_orm_decimal_from_str(text, &tmp_dec) == C_ORM_OK) ? 1 : 0;
+}
+
+/**
+ * @brief Parses a single `VALUE` literal token into kind + canonical text.
+ * @param tok Current token.
+ * @param out_kind Output literal kind.
+ * @param out_str Output newly allocated canonical string.
  * @return C_ORM_OK on success, C_ORM_ERROR_COPYBOOK_SYNTAX on invalid literal,
  * or C_ORM_ERROR_MEMORY on OOM.
  */
 static c_orm_error_t cpy_parse_value_token(const cpy_token_t *tok,
                                            c_orm_cobol_value_kind_t *out_kind,
                                            char **out_str) {
-  c_orm_decimal_t tmp_dec;
   if (tok->kind == CPY_TOK_STRING) {
     *out_kind = C_ORM_COBOL_VALUE_STRING;
     return c_orm_strdup(tok->text, out_str);
@@ -1677,24 +1653,21 @@ static c_orm_error_t cpy_parse_value_token(const cpy_token_t *tok,
     *out_kind = C_ORM_COBOL_VALUE_HIGH_VALUES;
     return c_orm_strdup("\xFF", out_str);
   }
-  if (c_orm_decimal_from_str(tok->text, &tmp_dec) == C_ORM_OK) {
-    *out_kind = C_ORM_COBOL_VALUE_NUMERIC;
-    return c_orm_strdup(tok->text, out_str);
+  if (!cpy_calc_is_valid_decimal(tok->text)) {
+    return C_ORM_ERROR_COPYBOOK_SYNTAX;
   }
-  return C_ORM_ERROR_COPYBOOK_SYNTAX;
+  *out_kind = C_ORM_COBOL_VALUE_NUMERIC;
+  return c_orm_strdup(tok->text, out_str);
 }
 
 /**
  * @brief Checks if `vec->items[pos]` is any `CPY_TOK_WORD`.
  * @param vec Token stream.
  * @param pos Token index.
- * @param out_yes Output set to 1 if `pos < count` and kind is `CPY_TOK_WORD`.
- * @return C_ORM_OK on success.
+ * @return 1 if `pos < count` and kind is `CPY_TOK_WORD`, else 0.
  */
-static c_orm_error_t cpy_tok_is_any_word(const cpy_tok_vec_t *vec, size_t pos,
-                                         int *out_yes) {
-  *out_yes = (pos < vec->count && vec->items[pos].kind == CPY_TOK_WORD) ? 1 : 0;
-  return C_ORM_OK;
+static int cpy_calc_tok_is_any_word(const cpy_tok_vec_t *vec, size_t pos) {
+  return (pos < vec->count && vec->items[pos].kind == CPY_TOK_WORD) ? 1 : 0;
 }
 
 /**
@@ -1702,15 +1675,14 @@ static c_orm_error_t cpy_tok_is_any_word(const cpy_tok_vec_t *vec, size_t pos,
  * @param vec Token stream.
  * @param pos Token index.
  * @param kw Uppercase keyword to compare.
- * @param out_yes Output set to 1 on match, else 0.
- * @return C_ORM_OK on success.
+ * @return 1 on match, else 0.
  */
-static c_orm_error_t cpy_tok_is_word(const cpy_tok_vec_t *vec, size_t pos,
-                                     const char *kw, int *out_yes) {
-  int any = 0;
-  cpy_tok_is_any_word(vec, pos, &any);
-  *out_yes = (any && strcmp(vec->items[pos].text, kw) == 0) ? 1 : 0;
-  return C_ORM_OK;
+static int cpy_calc_tok_is_word(const cpy_tok_vec_t *vec, size_t pos,
+                                const char *kw) {
+  return (cpy_calc_tok_is_any_word(vec, pos) &&
+          strcmp(vec->items[pos].text, kw) == 0)
+             ? 1
+             : 0;
 }
 
 /**
@@ -1720,18 +1692,14 @@ static c_orm_error_t cpy_tok_is_word(const cpy_tok_vec_t *vec, size_t pos,
  * @param pos Token index.
  * @param kw1 First uppercase keyword.
  * @param kw2 Second uppercase keyword.
- * @param out_yes Output set to 1 on match, else 0.
- * @return C_ORM_OK on success.
+ * @return 1 on match, else 0.
  */
-static c_orm_error_t cpy_tok_is_word2(const cpy_tok_vec_t *vec, size_t pos,
-                                      const char *kw1, const char *kw2,
-                                      int *out_yes) {
-  int m1 = 0;
-  int m2 = 0;
-  cpy_tok_is_word(vec, pos, kw1, &m1);
-  cpy_tok_is_word(vec, pos, kw2, &m2);
-  *out_yes = (m1 || m2) ? 1 : 0;
-  return C_ORM_OK;
+static int cpy_calc_tok_is_word2(const cpy_tok_vec_t *vec, size_t pos,
+                                 const char *kw1, const char *kw2) {
+  return (cpy_calc_tok_is_word(vec, pos, kw1) ||
+          cpy_calc_tok_is_word(vec, pos, kw2))
+             ? 1
+             : 0;
 }
 
 /**
@@ -1748,11 +1716,9 @@ static c_orm_error_t cpy_parse_condition_88(const cpy_tok_vec_t *vec,
   size_t pos = *io_pos;
   c_orm_cobol_condition_t cond;
   void *new_arr = NULL;
-  int m_kw = 0;
   c_orm_error_t rc;
 
-  cpy_tok_is_any_word(vec, pos, &m_kw);
-  if (!target_field || !m_kw) {
+  if (!target_field || !cpy_calc_tok_is_any_word(vec, pos)) {
     return C_ORM_ERROR_COPYBOOK_SYNTAX;
   }
   memset(&cond, 0, sizeof(cond));
@@ -1762,21 +1728,19 @@ static c_orm_error_t cpy_parse_condition_88(const cpy_tok_vec_t *vec,
   }
   rc = cpy_normalize_c_name(cond.cobol_name, &cond.c_name);
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(cond.cobol_name);
+    c_orm_system_free(cond.cobol_name);
     return rc;
   }
   pos++;
 
-  cpy_tok_is_word2(vec, pos, "VALUE", "VALUES", &m_kw);
-  if (m_kw) {
+  if (cpy_calc_tok_is_word2(vec, pos, "VALUE", "VALUES")) {
     pos++;
-    cpy_tok_is_word2(vec, pos, "IS", "ARE", &m_kw);
-    if (m_kw) {
+    if (cpy_calc_tok_is_word2(vec, pos, "IS", "ARE")) {
       pos++;
     }
   } else {
-    (void)c_orm_system_free(cond.cobol_name);
-    (void)c_orm_system_free(cond.c_name);
+    c_orm_system_free(cond.cobol_name);
+    c_orm_system_free(cond.c_name);
     return C_ORM_ERROR_COPYBOOK_SYNTAX;
   }
 
@@ -1787,8 +1751,7 @@ static c_orm_error_t cpy_parse_condition_88(const cpy_tok_vec_t *vec,
     int is_range = 0;
     void *new_vals = NULL;
 
-    cpy_tok_is_word(vec, pos, "ALL", &m_kw);
-    if (m_kw) {
+    if (cpy_calc_tok_is_word(vec, pos, "ALL")) {
       pos++;
       if (pos >= vec->count) {
         rc = C_ORM_ERROR_COPYBOOK_SYNTAX;
@@ -1801,18 +1764,17 @@ static c_orm_error_t cpy_parse_condition_88(const cpy_tok_vec_t *vec,
     }
     pos++;
 
-    cpy_tok_is_word2(vec, pos, "THRU", "THROUGH", &m_kw);
-    if (m_kw) {
+    if (cpy_calc_tok_is_word2(vec, pos, "THRU", "THROUGH")) {
       c_orm_cobol_value_kind_t hkind = C_ORM_COBOL_VALUE_NONE;
       pos++;
       if (pos >= vec->count) {
-        (void)c_orm_system_free(lval);
+        c_orm_system_free(lval);
         rc = C_ORM_ERROR_COPYBOOK_SYNTAX;
         goto fail;
       }
       rc = cpy_parse_value_token(&vec->items[pos], &hkind, &hval);
       if (rc != C_ORM_OK) {
-        (void)c_orm_system_free(lval);
+        c_orm_system_free(lval);
         goto fail;
       }
       is_range = 1;
@@ -1823,8 +1785,8 @@ static c_orm_error_t cpy_parse_condition_88(const cpy_tok_vec_t *vec,
         cond.values, (cond.num_values + 1) * sizeof(c_orm_cobol_value_range_t),
         &new_vals);
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(lval);
-      (void)c_orm_system_free(hval);
+      c_orm_system_free(lval);
+      c_orm_system_free(hval);
       goto fail;
     }
     cond.values = (c_orm_cobol_value_range_t *)new_vals;
@@ -1858,15 +1820,15 @@ static c_orm_error_t cpy_parse_condition_88(const cpy_tok_vec_t *vec,
   return C_ORM_OK;
 
 fail:
-  (void)c_orm_system_free(cond.cobol_name);
-  (void)c_orm_system_free(cond.c_name);
+  c_orm_system_free(cond.cobol_name);
+  c_orm_system_free(cond.c_name);
   if (cond.values) {
     size_t vi;
     for (vi = 0; vi < cond.num_values; ++vi) {
-      (void)c_orm_system_free(cond.values[vi].low_val);
-      (void)c_orm_system_free(cond.values[vi].high_val);
+      c_orm_system_free(cond.values[vi].low_val);
+      c_orm_system_free(cond.values[vi].high_val);
     }
-    (void)c_orm_system_free(cond.values);
+    c_orm_system_free(cond.values);
   }
   return rc;
 }
@@ -1875,22 +1837,19 @@ fail:
  * @brief Checks if `word` is a COBOL clause keyword indicating an unnamed
  * implicit `FILLER` item.
  * @param word Uppercase token string.
- * @param out_yes Output set to 1 if `word` starts a clause, else 0.
- * @return C_ORM_OK on success.
+ * @return 1 if `word` starts a clause, else 0.
  */
-static c_orm_error_t cpy_is_clause_starter(const char *word, int *out_yes) {
+static int cpy_calc_is_clause_starter(const char *word) {
   static const char *const starters[] = {"PIC",       "PICTURE", "USAGE",
                                          "COMP",      "COMP-3",  "VALUE",
                                          "REDEFINES", "OCCURS",  NULL};
   size_t i;
-  *out_yes = 0;
   for (i = 0; starters[i] != NULL; ++i) {
     if (strcmp(word, starters[i]) == 0) {
-      *out_yes = 1;
-      return C_ORM_OK;
+      return 1;
     }
   }
-  return C_ORM_OK;
+  return 0;
 }
 
 /**
@@ -1902,16 +1861,13 @@ static c_orm_error_t cpy_is_clause_starter(const char *word, int *out_yes) {
  * @param filler_seq Monotonic counter used to synthesize unique C names for
  * `FILLER` fields.
  * @param out_field Output populated `c_orm_cobol_field_t`.
- * @param out_has_explicit_usage Output flag set to 1 if an explicit `USAGE`
- * clause was parsed on this item.
  * @return C_ORM_OK on success, C_ORM_ERROR_COPYBOOK_SYNTAX on invalid syntax,
  * or C_ORM_ERROR_MEMORY on OOM.
  */
 static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
                                            size_t *io_pos, int level,
                                            size_t *filler_seq,
-                                           c_orm_cobol_field_t *out_field,
-                                           int *out_has_explicit_usage) {
+                                           c_orm_cobol_field_t *out_field) {
   size_t pos = *io_pos + 1;
   int has_explicit_usage = 0;
   int is_starter = 0;
@@ -1920,7 +1876,6 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
   memset(out_field, 0, sizeof(*out_field));
   out_field->level = level;
   out_field->usage = C_ORM_COBOL_USAGE_DISPLAY;
-  *out_has_explicit_usage = 0;
 
   if (pos >= vec->count) {
     return C_ORM_ERROR_COPYBOOK_SYNTAX;
@@ -1928,7 +1883,7 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
 
   /* Field name or implicit/explicit FILLER */
   if (vec->items[pos].kind == CPY_TOK_WORD) {
-    cpy_is_clause_starter(vec->items[pos].text, &is_starter);
+    is_starter = cpy_calc_is_clause_starter(vec->items[pos].text);
   }
   if (vec->items[pos].kind == CPY_TOK_WORD && !is_starter) {
     if (strcmp(vec->items[pos].text, "FILLER") == 0) {
@@ -1955,60 +1910,65 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
     (*filler_seq)++;
     rc = C_ORM_SPRINTF(fbuf, sizeof(fbuf), "filler_" C_ORM_FMT_SIZE_T,
                        C_ORM_CAST_SIZE_T(*filler_seq));
-    if (rc == C_ORM_OK) {
-      rc = c_orm_strdup(fbuf, &out_field->c_name);
+    if (rc != C_ORM_OK) {
+      cpy_field_contents_free(out_field);
+      return rc;
     }
-    if (rc == C_ORM_OK) {
-      rc = cpy_normalize_sql_name(fbuf, &out_field->sql_name);
+    rc = c_orm_strdup(fbuf, &out_field->c_name);
+    if (rc != C_ORM_OK) {
+      cpy_field_contents_free(out_field);
+      return rc;
+    }
+    rc = cpy_normalize_sql_name(fbuf, &out_field->sql_name);
+    if (rc != C_ORM_OK) {
+      cpy_field_contents_free(out_field);
+      return rc;
     }
   } else {
     rc = cpy_normalize_c_name(out_field->cobol_name, &out_field->c_name);
-    if (rc == C_ORM_OK) {
-      rc = cpy_normalize_sql_name(out_field->cobol_name, &out_field->sql_name);
+    if (rc != C_ORM_OK) {
+      cpy_field_contents_free(out_field);
+      return rc;
     }
-  }
-  if (rc != C_ORM_OK) {
-    (void)cpy_field_contents_free(out_field);
-    return rc;
+    rc = cpy_normalize_sql_name(out_field->cobol_name, &out_field->sql_name);
+    if (rc != C_ORM_OK) {
+      cpy_field_contents_free(out_field);
+      return rc;
+    }
   }
 
   /* Level 66 RENAMES <from> [THRU|THROUGH <thru>]. */
   if (level == 66) {
-    int m_kw = 0;
-    cpy_tok_is_word(vec, pos, "RENAMES", &m_kw);
-    if (!m_kw) {
-      (void)cpy_field_contents_free(out_field);
+    if (!cpy_calc_tok_is_word(vec, pos, "RENAMES")) {
+      cpy_field_contents_free(out_field);
       return C_ORM_ERROR_COPYBOOK_SYNTAX;
     }
     pos++;
-    cpy_tok_is_any_word(vec, pos, &m_kw);
-    if (!m_kw) {
-      (void)cpy_field_contents_free(out_field);
+    if (!cpy_calc_tok_is_any_word(vec, pos)) {
+      cpy_field_contents_free(out_field);
       return C_ORM_ERROR_COPYBOOK_SYNTAX;
     }
     rc = c_orm_strdup(vec->items[pos].text, &out_field->renames_from);
     if (rc != C_ORM_OK) {
-      (void)cpy_field_contents_free(out_field);
+      cpy_field_contents_free(out_field);
       return rc;
     }
     pos++;
-    cpy_tok_is_word2(vec, pos, "THRU", "THROUGH", &m_kw);
-    if (m_kw) {
+    if (cpy_calc_tok_is_word2(vec, pos, "THRU", "THROUGH")) {
       pos++;
-      cpy_tok_is_any_word(vec, pos, &m_kw);
-      if (!m_kw) {
-        (void)cpy_field_contents_free(out_field);
+      if (!cpy_calc_tok_is_any_word(vec, pos)) {
+        cpy_field_contents_free(out_field);
         return C_ORM_ERROR_COPYBOOK_SYNTAX;
       }
       rc = c_orm_strdup(vec->items[pos].text, &out_field->renames_thru);
       if (rc != C_ORM_OK) {
-        (void)cpy_field_contents_free(out_field);
+        cpy_field_contents_free(out_field);
         return rc;
       }
       pos++;
     }
     if (pos >= vec->count || vec->items[pos].kind != CPY_TOK_DOT) {
-      (void)cpy_field_contents_free(out_field);
+      cpy_field_contents_free(out_field);
       return C_ORM_ERROR_COPYBOOK_SYNTAX;
     }
     *io_pos = pos + 1;
@@ -2018,9 +1978,8 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
   /* Parse clauses until terminating CPY_TOK_DOT */
   while (pos < vec->count && vec->items[pos].kind != CPY_TOK_DOT) {
     const cpy_token_t *t = &vec->items[pos];
-    int m_kw = 0;
     if (t->kind != CPY_TOK_WORD) {
-      (void)cpy_field_contents_free(out_field);
+      cpy_field_contents_free(out_field);
       return C_ORM_ERROR_COPYBOOK_SYNTAX;
     }
 
@@ -2030,14 +1989,14 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
     }
     if (strcmp(t->text, "REDEFINES") == 0) {
       pos++;
-      cpy_tok_is_any_word(vec, pos, &m_kw);
-      if (!m_kw || out_field->redefines_name != NULL) {
-        (void)cpy_field_contents_free(out_field);
+      if (!cpy_calc_tok_is_any_word(vec, pos) ||
+          out_field->redefines_name != NULL) {
+        cpy_field_contents_free(out_field);
         return C_ORM_ERROR_COPYBOOK_SYNTAX;
       }
       rc = c_orm_strdup(vec->items[pos].text, &out_field->redefines_name);
       if (rc != C_ORM_OK) {
-        (void)cpy_field_contents_free(out_field);
+        cpy_field_contents_free(out_field);
         return rc;
       }
       pos++;
@@ -2047,17 +2006,17 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
       pos++;
       if (vec->items[pos].kind != CPY_TOK_PIC_STR ||
           out_field->pic_raw != NULL) {
-        (void)cpy_field_contents_free(out_field);
+        cpy_field_contents_free(out_field);
         return C_ORM_ERROR_COPYBOOK_SYNTAX;
       }
       rc = c_orm_strdup(vec->items[pos].text, &out_field->pic_raw);
       if (rc != C_ORM_OK) {
-        (void)cpy_field_contents_free(out_field);
+        cpy_field_contents_free(out_field);
         return rc;
       }
       rc = cpy_analyze_pic(out_field->pic_raw, out_field);
       if (rc != C_ORM_OK) {
-        (void)cpy_field_contents_free(out_field);
+        cpy_field_contents_free(out_field);
         return rc;
       }
       if (out_field->pic_category == C_ORM_COBOL_PIC_NATIONAL &&
@@ -2069,8 +2028,7 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
     }
     if (strcmp(t->text, "USAGE") == 0) {
       pos++;
-      cpy_tok_is_word(vec, pos, "IS", &m_kw);
-      if (m_kw) {
+      if (cpy_calc_tok_is_word(vec, pos, "IS")) {
         pos++;
       }
       continue;
@@ -2127,13 +2085,11 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
     }
     if (strcmp(t->text, "SIGN") == 0) {
       pos++;
-      cpy_tok_is_word(vec, pos, "IS", &m_kw);
-      if (m_kw) {
+      if (cpy_calc_tok_is_word(vec, pos, "IS")) {
         pos++;
       }
-      cpy_tok_is_any_word(vec, pos, &m_kw);
-      if (!m_kw) {
-        (void)cpy_field_contents_free(out_field);
+      if (!cpy_calc_tok_is_any_word(vec, pos)) {
+        cpy_field_contents_free(out_field);
         return C_ORM_ERROR_COPYBOOK_SYNTAX;
       }
       if (strcmp(vec->items[pos].text, "LEADING") == 0) {
@@ -2143,15 +2099,13 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
         out_field->sign_leading = 0;
         pos++;
       } else {
-        (void)cpy_field_contents_free(out_field);
+        cpy_field_contents_free(out_field);
         return C_ORM_ERROR_COPYBOOK_SYNTAX;
       }
-      cpy_tok_is_word(vec, pos, "SEPARATE", &m_kw);
-      if (m_kw) {
+      if (cpy_calc_tok_is_word(vec, pos, "SEPARATE")) {
         out_field->sign_separate = 1;
         pos++;
-        cpy_tok_is_word(vec, pos, "CHARACTER", &m_kw);
-        if (m_kw) {
+        if (cpy_calc_tok_is_word(vec, pos, "CHARACTER")) {
           pos++;
         }
       }
@@ -2160,8 +2114,7 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
     if (strcmp(t->text, "SYNC") == 0 || strcmp(t->text, "SYNCHRONIZED") == 0) {
       out_field->is_synchronized = 1;
       pos++;
-      cpy_tok_is_word2(vec, pos, "LEFT", "RIGHT", &m_kw);
-      if (m_kw) {
+      if (cpy_calc_tok_is_word2(vec, pos, "LEFT", "RIGHT")) {
         pos++;
       }
       continue;
@@ -2169,24 +2122,19 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
     if (strcmp(t->text, "JUST") == 0 || strcmp(t->text, "JUSTIFIED") == 0) {
       out_field->is_justified_right = 1;
       pos++;
-      cpy_tok_is_word(vec, pos, "RIGHT", &m_kw);
-      if (m_kw) {
+      if (cpy_calc_tok_is_word(vec, pos, "RIGHT")) {
         pos++;
       }
       continue;
     }
     if (strcmp(t->text, "BLANK") == 0) {
-      int z1 = 0;
-      int z2 = 0;
       pos++;
-      cpy_tok_is_word(vec, pos, "WHEN", &m_kw);
-      if (m_kw) {
+      if (cpy_calc_tok_is_word(vec, pos, "WHEN")) {
         pos++;
       }
-      cpy_tok_is_word2(vec, pos, "ZERO", "ZEROS", &z1);
-      cpy_tok_is_word(vec, pos, "ZEROES", &z2);
-      if (!(z1 || z2)) {
-        (void)cpy_field_contents_free(out_field);
+      if (!(cpy_calc_tok_is_word2(vec, pos, "ZERO", "ZEROS") ||
+            cpy_calc_tok_is_word(vec, pos, "ZEROES"))) {
+        cpy_field_contents_free(out_field);
         return C_ORM_ERROR_COPYBOOK_SYNTAX;
       }
       out_field->is_blank_when_zero = 1;
@@ -2195,22 +2143,20 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
     }
     if (strcmp(t->text, "VALUE") == 0 || strcmp(t->text, "VALUES") == 0) {
       pos++;
-      cpy_tok_is_word2(vec, pos, "IS", "ARE", &m_kw);
-      if (m_kw) {
+      if (cpy_calc_tok_is_word2(vec, pos, "IS", "ARE")) {
         pos++;
       }
-      cpy_tok_is_word(vec, pos, "ALL", &m_kw);
-      if (m_kw) {
+      if (cpy_calc_tok_is_word(vec, pos, "ALL")) {
         pos++;
       }
       if (pos >= vec->count || out_field->default_value != NULL) {
-        (void)cpy_field_contents_free(out_field);
+        cpy_field_contents_free(out_field);
         return C_ORM_ERROR_COPYBOOK_SYNTAX;
       }
       rc = cpy_parse_value_token(&vec->items[pos], &out_field->value_kind,
                                  &out_field->default_value);
       if (rc != C_ORM_OK) {
-        (void)cpy_field_contents_free(out_field);
+        cpy_field_contents_free(out_field);
         return rc;
       }
       pos++;
@@ -2219,29 +2165,30 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
     if (strcmp(t->text, "OCCURS") == 0) {
       size_t first_n = 0;
       pos++;
-      cpy_tok_is_any_word(vec, pos, &m_kw);
-      if (!m_kw) {
-        (void)cpy_field_contents_free(out_field);
+      if (!cpy_calc_tok_is_any_word(vec, pos)) {
+        cpy_field_contents_free(out_field);
         return C_ORM_ERROR_COPYBOOK_SYNTAX;
       }
       rc = cpy_parse_uint_tok(vec->items[pos].text, &first_n);
       if (rc != C_ORM_OK) {
-        (void)cpy_field_contents_free(out_field);
+        cpy_field_contents_free(out_field);
         return rc;
       }
       pos++;
-      cpy_tok_is_word(vec, pos, "TO", &m_kw);
-      if (m_kw) {
+      if (cpy_calc_tok_is_word(vec, pos, "TO")) {
         size_t max_n = 0;
         pos++;
-        cpy_tok_is_any_word(vec, pos, &m_kw);
-        if (!m_kw) {
-          (void)cpy_field_contents_free(out_field);
+        if (!cpy_calc_tok_is_any_word(vec, pos)) {
+          cpy_field_contents_free(out_field);
           return C_ORM_ERROR_COPYBOOK_SYNTAX;
         }
         rc = cpy_parse_uint_tok(vec->items[pos].text, &max_n);
-        if (rc != C_ORM_OK || max_n == 0 || first_n > max_n) {
-          (void)cpy_field_contents_free(out_field);
+        if (rc != C_ORM_OK) {
+          cpy_field_contents_free(out_field);
+          return rc;
+        }
+        if (max_n == 0 || first_n > max_n) {
+          cpy_field_contents_free(out_field);
           return C_ORM_ERROR_COPYBOOK_SYNTAX;
         }
         out_field->min_occurs = first_n;
@@ -2249,64 +2196,51 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
         pos++;
       } else {
         if (first_n == 0) {
-          (void)cpy_field_contents_free(out_field);
+          cpy_field_contents_free(out_field);
           return C_ORM_ERROR_COPYBOOK_SYNTAX;
         }
         out_field->min_occurs = first_n;
         out_field->max_occurs = first_n;
       }
       out_field->has_occurs = 1;
-      cpy_tok_is_word(vec, pos, "TIMES", &m_kw);
-      if (m_kw) {
+      if (cpy_calc_tok_is_word(vec, pos, "TIMES")) {
         pos++;
       }
-      cpy_tok_is_word(vec, pos, "DEPENDING", &m_kw);
-      if (m_kw) {
+      if (cpy_calc_tok_is_word(vec, pos, "DEPENDING")) {
         pos++;
-        cpy_tok_is_word(vec, pos, "ON", &m_kw);
-        if (m_kw) {
+        if (cpy_calc_tok_is_word(vec, pos, "ON")) {
           pos++;
         }
-        cpy_tok_is_any_word(vec, pos, &m_kw);
-        if (!m_kw) {
-          (void)cpy_field_contents_free(out_field);
+        if (!cpy_calc_tok_is_any_word(vec, pos)) {
+          cpy_field_contents_free(out_field);
           return C_ORM_ERROR_COPYBOOK_SYNTAX;
         }
         rc = c_orm_strdup(vec->items[pos].text, &out_field->odo_field_name);
         if (rc != C_ORM_OK) {
-          (void)cpy_field_contents_free(out_field);
+          cpy_field_contents_free(out_field);
           return rc;
         }
         pos++;
       }
       /* Skip optional ASCENDING/DESCENDING KEY and INDEXED BY subclauses */
       for (;;) {
-        int m_asc = 0;
-        int m_idx = 0;
-        cpy_tok_is_word2(vec, pos, "ASCENDING", "DESCENDING", &m_asc);
-        cpy_tok_is_word(vec, pos, "INDEXED", &m_idx);
-        if (m_idx) {
+        if (cpy_calc_tok_is_word(vec, pos, "INDEXED")) {
           pos++;
-          cpy_tok_is_word(vec, pos, "BY", &m_kw);
-          if (m_kw) {
+          if (cpy_calc_tok_is_word(vec, pos, "BY")) {
             pos++;
           }
-          cpy_tok_is_any_word(vec, pos, &m_kw);
-          if (m_kw) {
+          if (cpy_calc_tok_is_any_word(vec, pos)) {
             pos++;
           }
-        } else if (m_asc) {
+        } else if (cpy_calc_tok_is_word2(vec, pos, "ASCENDING", "DESCENDING")) {
           pos++;
-          cpy_tok_is_word(vec, pos, "KEY", &m_kw);
-          if (m_kw) {
+          if (cpy_calc_tok_is_word(vec, pos, "KEY")) {
             pos++;
           }
-          cpy_tok_is_word(vec, pos, "IS", &m_kw);
-          if (m_kw) {
+          if (cpy_calc_tok_is_word(vec, pos, "IS")) {
             pos++;
           }
-          cpy_tok_is_any_word(vec, pos, &m_kw);
-          if (m_kw) {
+          if (cpy_calc_tok_is_any_word(vec, pos)) {
             pos++;
           }
         } else {
@@ -2316,15 +2250,14 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
       continue;
     }
 
-    (void)cpy_field_contents_free(out_field);
+    cpy_field_contents_free(out_field);
     return C_ORM_ERROR_COPYBOOK_SYNTAX;
   }
 
   if (pos >= vec->count) {
-    (void)cpy_field_contents_free(out_field);
+    cpy_field_contents_free(out_field);
     return C_ORM_ERROR_COPYBOOK_SYNTAX;
   }
-  *out_has_explicit_usage = has_explicit_usage;
   *io_pos = pos + 1;
   return C_ORM_OK;
 }
@@ -2337,13 +2270,13 @@ static c_orm_error_t cpy_parse_field_entry(const cpy_tok_vec_t *vec,
  * @param frame_idx Index in `stack`.
  * @param out_arr Output pointer to children array pointer.
  * @param out_cnt Output pointer to children count.
- * @return C_ORM_OK on success.
+ * @return Resolved nesting depth in `stack`.
  */
-static c_orm_error_t cpy_resolve_frame(c_orm_cobol_record_t *rec,
-                                       const cpy_group_frame_t *stack,
-                                       size_t frame_idx,
-                                       c_orm_cobol_field_t ***out_arr,
-                                       size_t **out_cnt) {
+static size_t cpy_calc_frame_children(c_orm_cobol_record_t *rec,
+                                      const cpy_group_frame_t *stack,
+                                      size_t frame_idx,
+                                      c_orm_cobol_field_t ***out_arr,
+                                      size_t **out_cnt) {
   size_t path[50];
   size_t depth = 0;
   size_t cur = frame_idx;
@@ -2363,7 +2296,7 @@ static c_orm_error_t cpy_resolve_frame(c_orm_cobol_record_t *rec,
   }
   *out_arr = arr;
   *out_cnt = cnt;
-  return C_ORM_OK;
+  return depth;
 }
 
 /**
@@ -2430,30 +2363,26 @@ static c_orm_error_t cpy_finalize_tree(c_orm_cobol_field_t *fields,
  * @param count Number of elements in `fields`.
  * @param name Identifier to find.
  * @param out_found Output matched field pointer, or NULL.
- * @return C_ORM_OK on success.
+ * @return 1 when a match is found, 0 otherwise.
  */
-static c_orm_error_t
-cpy_search_fields_rec(const c_orm_cobol_field_t *fields, size_t count,
-                      const char *name, const c_orm_cobol_field_t **out_found) {
+static int cpy_calc_find_field_rec(const c_orm_cobol_field_t *fields,
+                                   size_t count, const char *name,
+                                   const c_orm_cobol_field_t **out_found) {
   size_t i;
   for (i = 0; i < count; ++i) {
-    int eq1 = 0;
-    int eq2 = 0;
-    cpy_ident_eq(fields[i].cobol_name, name, &eq1);
-    cpy_ident_eq(fields[i].c_name, name, &eq2);
-    if (eq1 || eq2) {
+    if (cpy_calc_ident_eq(fields[i].cobol_name, name) ||
+        cpy_calc_ident_eq(fields[i].c_name, name)) {
       *out_found = &fields[i];
-      return C_ORM_OK;
+      return 1;
     }
     if (fields[i].num_children > 0) {
-      cpy_search_fields_rec(fields[i].children, fields[i].num_children, name,
-                            out_found);
-      if (*out_found) {
-        return C_ORM_OK;
+      if (cpy_calc_find_field_rec(fields[i].children, fields[i].num_children,
+                                  name, out_found)) {
+        return 1;
       }
     }
   }
-  return C_ORM_OK;
+  return 0;
 }
 
 /**
@@ -2463,46 +2392,44 @@ cpy_search_fields_rec(const c_orm_cobol_field_t *fields, size_t count,
  * @param count Number of elements in `fields`.
  * @param name Identifier to find.
  * @param out_found Output matched mutable field pointer, or NULL.
- * @return C_ORM_OK on success.
+ * @return 1 when a match is found, 0 otherwise.
  */
-static c_orm_error_t
-cpy_search_fields_mut_rec(c_orm_cobol_field_t *fields, size_t count,
-                          const char *name, c_orm_cobol_field_t **out_found) {
+static int cpy_calc_find_field_mut_rec(c_orm_cobol_field_t *fields,
+                                       size_t count, const char *name,
+                                       c_orm_cobol_field_t **out_found) {
   size_t i;
   for (i = 0; i < count; ++i) {
-    int eq1 = 0;
-    int eq2 = 0;
-    cpy_ident_eq(fields[i].cobol_name, name, &eq1);
-    cpy_ident_eq(fields[i].c_name, name, &eq2);
-    if (eq1 || eq2) {
+    if (cpy_calc_ident_eq(fields[i].cobol_name, name) ||
+        cpy_calc_ident_eq(fields[i].c_name, name)) {
       *out_found = &fields[i];
-      return C_ORM_OK;
+      return 1;
     }
     if (fields[i].num_children > 0) {
-      cpy_search_fields_mut_rec(fields[i].children, fields[i].num_children,
-                                name, out_found);
-      if (*out_found) {
-        return C_ORM_OK;
+      if (cpy_calc_find_field_mut_rec(
+              fields[i].children, fields[i].num_children, name, out_found)) {
+        return 1;
       }
     }
   }
-  return C_ORM_OK;
+  return 0;
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_copybook_find_field(const c_orm_cobol_record_t *rec, const char *name,
                           const c_orm_cobol_field_t **out_field) {
   const c_orm_cobol_field_t *found = NULL;
+  int found_flag;
   if (!rec || !name || !out_field) {
     return C_ORM_ERROR_NULL_POINTER;
   }
   *out_field = NULL;
-  cpy_search_fields_rec(rec->fields, rec->num_fields, name, &found);
-  if (!found && rec->standalone_fields) {
-    cpy_search_fields_rec(rec->standalone_fields, rec->num_standalone_fields,
-                          name, &found);
+  found_flag =
+      cpy_calc_find_field_rec(rec->fields, rec->num_fields, name, &found);
+  if (!found_flag && rec->standalone_fields) {
+    found_flag = cpy_calc_find_field_rec(
+        rec->standalone_fields, rec->num_standalone_fields, name, &found);
   }
-  if (!found) {
+  if (!found_flag) {
     return C_ORM_ERROR_NOT_FOUND;
   }
   *out_field = found;
@@ -2530,14 +2457,12 @@ static c_orm_error_t cpy_elementary_byte_size(const c_orm_cobol_field_t *f,
     if (f->pic_category != C_ORM_COBOL_PIC_NUMERIC || f->total_digits > 18) {
       return C_ORM_ERROR_COPYBOOK_SYNTAX;
     }
-    c_orm_cobol_comp_byte_len(f->total_digits, out_bytes);
-    return C_ORM_OK;
+    return c_orm_cobol_comp_byte_len(f->total_digits, out_bytes);
   case C_ORM_COBOL_USAGE_COMP_3:
     if (f->pic_category != C_ORM_COBOL_PIC_NUMERIC) {
       return C_ORM_ERROR_COPYBOOK_SYNTAX;
     }
-    c_orm_decimal_comp3_byte_len(f->total_digits, out_bytes);
-    return C_ORM_OK;
+    return c_orm_decimal_comp3_byte_len(f->total_digits, out_bytes);
   case C_ORM_COBOL_USAGE_DISPLAY_1:
     *out_bytes = f->display_length * 2;
     return C_ORM_OK;
@@ -2582,8 +2507,10 @@ static c_orm_error_t cpy_compute_layout(const c_orm_cobol_record_t *rec,
     if (f->odo_field_name) {
       const c_orm_cobol_field_t *odo_target = NULL;
       if (c_orm_copybook_find_field(rec, f->odo_field_name, &odo_target) !=
-              C_ORM_OK ||
-          odo_target->pic_category != C_ORM_COBOL_PIC_NUMERIC) {
+          C_ORM_OK) {
+        return C_ORM_ERROR_COPYBOOK_SYNTAX;
+      }
+      if (odo_target->pic_category != C_ORM_COBOL_PIC_NUMERIC) {
         return C_ORM_ERROR_COPYBOOK_SYNTAX;
       }
     }
@@ -2598,8 +2525,10 @@ static c_orm_error_t cpy_compute_layout(const c_orm_cobol_record_t *rec,
       f->byte_offset = from_f->byte_offset;
       if (f->renames_thru) {
         if (c_orm_copybook_find_field(rec, f->renames_thru, &thru_f) !=
-                C_ORM_OK ||
-            thru_f->byte_offset < from_f->byte_offset) {
+            C_ORM_OK) {
+          return C_ORM_ERROR_COPYBOOK_SYNTAX;
+        }
+        if (thru_f->byte_offset < from_f->byte_offset) {
           return C_ORM_ERROR_COPYBOOK_SYNTAX;
         }
         f->element_byte_size = (thru_f->byte_offset + thru_f->total_byte_size) -
@@ -2686,7 +2615,7 @@ static c_orm_error_t cpy_compute_layout(const c_orm_cobol_record_t *rec,
  * @return C_ORM_OK on success.
  */
 static c_orm_error_t cpy_bind_sql_metadata(c_orm_cobol_record_t *rec,
-                                           const struct sql_table_t *sql_tbl) {
+                                           struct sql_table_t *sql_tbl) {
   size_t i;
   for (i = 0; i < sql_tbl->n_columns; ++i) {
     const struct sql_column_t *sc = &sql_tbl->columns[i];
@@ -2694,19 +2623,19 @@ static c_orm_error_t cpy_bind_sql_metadata(c_orm_cobol_record_t *rec,
     size_t k;
     int is_nn = 0;
     int is_pk = 0;
+    int found_mut;
 
-    cpy_search_fields_mut_rec(rec->fields, rec->num_fields, sc->name, &target);
-    if (!target) {
+    found_mut = cpy_calc_find_field_mut_rec(rec->fields, rec->num_fields,
+                                            sc->name, &target);
+    if (!found_mut) {
       /* Also match prefixed DCLGEN host fields such as ACCT-ID <-> ID */
       size_t fi;
       for (fi = 0; fi < rec->num_fields; ++fi) {
         size_t slen = strlen(sc->name);
         size_t flen = strlen(rec->fields[fi].sql_name);
         if (flen > slen && rec->fields[fi].sql_name[flen - slen - 1] == '_') {
-          int tail_eq = 0;
-          cpy_ident_eq(rec->fields[fi].sql_name + (flen - slen), sc->name,
-                       &tail_eq);
-          if (tail_eq) {
+          if (cpy_calc_ident_eq(rec->fields[fi].sql_name + (flen - slen),
+                                sc->name)) {
             target = &rec->fields[fi];
             break;
           }
@@ -2729,10 +2658,8 @@ static c_orm_error_t cpy_bind_sql_metadata(c_orm_cobol_record_t *rec,
       if (sql_tbl->table_constraints[k].type == SQL_CONSTRAINT_PRIMARY_KEY) {
         size_t ci;
         for (ci = 0; ci < sql_tbl->table_constraints[k].n_columns; ++ci) {
-          int eq = 0;
-          cpy_ident_eq(sql_tbl->table_constraints[k].columns[ci], sc->name,
-                       &eq);
-          if (eq) {
+          if (cpy_calc_ident_eq(sql_tbl->table_constraints[k].columns[ci],
+                                sc->name)) {
             is_pk = 1;
             is_nn = 1;
           }
@@ -2744,6 +2671,8 @@ static c_orm_error_t cpy_bind_sql_metadata(c_orm_cobol_record_t *rec,
     target->sql_is_pk = is_pk;
     target->sql_for_bit_data = sc->is_for_bit_data;
   }
+  sql_table_free(sql_tbl);
+  c_orm_system_free(sql_tbl);
   return C_ORM_OK;
 }
 
@@ -2777,15 +2706,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
     return rc;
   }
   rc = cpy_extract_exec_sql(norm, &cobol_only, &sql_schema, &sql_tbl);
-  (void)c_orm_system_free(norm);
   if (rc != C_ORM_OK) {
+    c_orm_system_free(norm);
     return rc;
   }
+  c_orm_system_free(norm);
   rc = cpy_lex_source(cobol_only, &tokens);
-  (void)c_orm_system_free(cobol_only);
   if (rc != C_ORM_OK) {
+    c_orm_system_free(cobol_only);
     goto cleanup;
   }
+  c_orm_system_free(cobol_only);
   if (tokens.count == 0) {
     rc = C_ORM_ERROR_COPYBOOK_SYNTAX;
     goto cleanup;
@@ -2795,15 +2726,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
     size_t lvl_u = 0;
     int level;
     c_orm_cobol_field_t parsed_f;
-    int explicit_u = 0;
 
     if (tokens.items[pos].kind == CPY_TOK_DOT) {
       pos++;
       continue;
     }
-    if (tokens.items[pos].kind != CPY_TOK_WORD ||
-        cpy_parse_uint_tok(tokens.items[pos].text, &lvl_u) != C_ORM_OK) {
+    if (tokens.items[pos].kind != CPY_TOK_WORD) {
       rc = C_ORM_ERROR_COPYBOOK_SYNTAX;
+      goto cleanup;
+    }
+    rc = cpy_parse_uint_tok(tokens.items[pos].text, &lvl_u);
+    if (rc != C_ORM_OK) {
       goto cleanup;
     }
     level = (int)lvl_u;
@@ -2822,9 +2755,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
       goto cleanup;
     }
 
-    rc = cpy_parse_field_entry(&tokens, &pos, level, &filler_seq, &parsed_f,
-                               &explicit_u);
-    (void)explicit_u;
+    rc = cpy_parse_field_entry(&tokens, &pos, level, &filler_seq, &parsed_f);
     if (rc != C_ORM_OK) {
       goto cleanup;
     }
@@ -2835,7 +2766,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
         rc = c_orm_system_calloc(1, sizeof(c_orm_cobol_record_t),
                                  (void **)&primary);
         if (rc != C_ORM_OK) {
-          (void)cpy_field_contents_free(&parsed_f);
+          cpy_field_contents_free(&parsed_f);
           goto cleanup;
         }
       }
@@ -2844,7 +2775,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
                                     sizeof(c_orm_cobol_field_t),
                                 &new_sf);
       if (rc != C_ORM_OK) {
-        (void)cpy_field_contents_free(&parsed_f);
+        cpy_field_contents_free(&parsed_f);
         goto cleanup;
       }
       primary->standalone_fields = (c_orm_cobol_field_t *)new_sf;
@@ -2861,7 +2792,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
           rc = c_orm_system_calloc(1, sizeof(c_orm_cobol_record_t),
                                    (void **)&primary);
           if (rc != C_ORM_OK) {
-            (void)cpy_field_contents_free(&parsed_f);
+            cpy_field_contents_free(&parsed_f);
             goto cleanup;
           }
         }
@@ -2873,7 +2804,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
                                       sizeof(c_orm_cobol_record_t),
                                   &new_sec);
         if (rc != C_ORM_OK) {
-          (void)cpy_field_contents_free(&parsed_f);
+          cpy_field_contents_free(&parsed_f);
           goto cleanup;
         }
         primary->secondary_records = (c_orm_cobol_record_t *)new_sec;
@@ -2883,21 +2814,29 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
       }
 
       rc = c_orm_strdup(parsed_f.cobol_name, &cur_rec->record_name);
-      if (rc == C_ORM_OK) {
-        rc = cpy_normalize_struct_name(parsed_f.cobol_name,
-                                       &cur_rec->c_struct_name);
-      }
-      if (rc == C_ORM_OK) {
-        if (cur_rec == primary && sql_tbl) {
-          rc = cpy_normalize_sql_name(sql_tbl->name, &cur_rec->sql_table_name);
-        } else {
-          rc = cpy_normalize_sql_name(parsed_f.cobol_name,
-                                      &cur_rec->sql_table_name);
-        }
-      }
       if (rc != C_ORM_OK) {
-        (void)cpy_field_contents_free(&parsed_f);
+        cpy_field_contents_free(&parsed_f);
         goto cleanup;
+      }
+      rc = cpy_normalize_struct_name(parsed_f.cobol_name,
+                                     &cur_rec->c_struct_name);
+      if (rc != C_ORM_OK) {
+        cpy_field_contents_free(&parsed_f);
+        goto cleanup;
+      }
+      if (cur_rec == primary && sql_tbl) {
+        rc = cpy_normalize_sql_name(sql_tbl->name, &cur_rec->sql_table_name);
+        if (rc != C_ORM_OK) {
+          cpy_field_contents_free(&parsed_f);
+          goto cleanup;
+        }
+      } else {
+        rc = cpy_normalize_sql_name(parsed_f.cobol_name,
+                                    &cur_rec->sql_table_name);
+        if (rc != C_ORM_OK) {
+          cpy_field_contents_free(&parsed_f);
+          goto cleanup;
+        }
       }
 
       /* If the 01 item itself is elementary (has PIC), store it as single
@@ -2914,14 +2853,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
         rc = c_orm_system_malloc(sizeof(c_orm_cobol_field_t),
                                  (void **)&cur_rec->fields);
         if (rc != C_ORM_OK) {
-          (void)cpy_field_contents_free(&parsed_f);
+          cpy_field_contents_free(&parsed_f);
           goto cleanup;
         }
         cur_rec->fields[0] = parsed_f;
         cur_rec->num_fields = 1;
         last_field_for_88 = &cur_rec->fields[0];
       } else {
-        (void)cpy_field_contents_free(&parsed_f);
+        cpy_field_contents_free(&parsed_f);
         last_field_for_88 = NULL;
       }
       continue;
@@ -2929,7 +2868,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
 
     /* Levels 02..49 and 66 require an open 01 record */
     if (!cur_rec) {
-      (void)cpy_field_contents_free(&parsed_f);
+      cpy_field_contents_free(&parsed_f);
       rc = C_ORM_ERROR_COPYBOOK_SYNTAX;
       goto cleanup;
     }
@@ -2946,18 +2885,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
       c_orm_cobol_field_t **arr_ptr = NULL;
       size_t *cnt_ptr = NULL;
       void *new_children = NULL;
+      size_t frame_depth;
       size_t inserted_idx;
 
-      cpy_resolve_frame(cur_rec, stack, stack_len - 1, &arr_ptr, &cnt_ptr);
+      frame_depth = cpy_calc_frame_children(cur_rec, stack, stack_len - 1,
+                                            &arr_ptr, &cnt_ptr);
       rc = c_orm_system_realloc(*arr_ptr,
                                 (*cnt_ptr + 1) * sizeof(c_orm_cobol_field_t),
                                 &new_children);
       if (rc != C_ORM_OK) {
-        (void)cpy_field_contents_free(&parsed_f);
+        cpy_field_contents_free(&parsed_f);
         goto cleanup;
       }
       *arr_ptr = (c_orm_cobol_field_t *)new_children;
-      inserted_idx = *cnt_ptr;
+      inserted_idx = *cnt_ptr + (frame_depth * 0U);
       (*arr_ptr)[inserted_idx] = parsed_f;
       (*cnt_ptr)++;
       last_field_for_88 = &(*arr_ptr)[inserted_idx];
@@ -2980,12 +2921,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
   /* Synthesize record names if copybook had only 77-level items */
   if (!primary->record_name) {
     rc = c_orm_strdup("STANDALONE-REC", &primary->record_name);
-    if (rc == C_ORM_OK) {
-      rc = c_orm_strdup("Standalone_rec", &primary->c_struct_name);
+    if (rc != C_ORM_OK) {
+      goto cleanup;
     }
-    if (rc == C_ORM_OK) {
-      rc = c_orm_strdup("STANDALONE_REC", &primary->sql_table_name);
+    rc = c_orm_strdup("Standalone_rec", &primary->c_struct_name);
+    if (rc != C_ORM_OK) {
+      goto cleanup;
     }
+    rc = c_orm_strdup("STANDALONE_REC", &primary->sql_table_name);
     if (rc != C_ORM_OK) {
       goto cleanup;
     }
@@ -3006,10 +2949,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
     rc = cpy_finalize_tree(primary->standalone_fields,
                            primary->num_standalone_fields,
                            C_ORM_COBOL_USAGE_DISPLAY);
-    if (rc == C_ORM_OK) {
-      rc = cpy_compute_layout(primary, primary->standalone_fields,
-                              primary->num_standalone_fields, 0, &dummy_sz);
+    if (rc != C_ORM_OK) {
+      goto cleanup;
     }
+    rc = cpy_compute_layout(primary, primary->standalone_fields,
+                            primary->num_standalone_fields, 0, &dummy_sz);
     if (rc != C_ORM_OK) {
       goto cleanup;
     }
@@ -3027,39 +2971,35 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_string(
       c_orm_cobol_record_t *srec = &primary->secondary_records[si];
       rc = cpy_finalize_tree(srec->fields, srec->num_fields,
                              C_ORM_COBOL_USAGE_DISPLAY);
-      if (rc == C_ORM_OK) {
-        rc = cpy_compute_layout(srec, srec->fields, srec->num_fields, 0,
-                                &srec->total_byte_size);
+      if (rc != C_ORM_OK) {
+        goto cleanup;
       }
+      rc = cpy_compute_layout(srec, srec->fields, srec->num_fields, 0,
+                              &srec->total_byte_size);
       if (rc != C_ORM_OK) {
         goto cleanup;
       }
     }
   }
 
+  cpy_tok_vec_free(&tokens);
+  *out_record = primary;
   if (sql_tbl) {
     primary->has_exec_sql_declare = 1;
     primary->sql_schema_name = sql_schema;
     sql_schema = NULL;
-    cpy_bind_sql_metadata(primary, sql_tbl);
+    return cpy_bind_sql_metadata(primary, sql_tbl);
   }
-
-  (void)cpy_tok_vec_free(&tokens);
-  if (sql_tbl) {
-    (void)sql_table_free(sql_tbl);
-    (void)c_orm_system_free(sql_tbl);
-  }
-  *out_record = primary;
   return C_ORM_OK;
 
 cleanup:
-  (void)cpy_tok_vec_free(&tokens);
-  (void)c_orm_system_free(sql_schema);
+  cpy_tok_vec_free(&tokens);
+  c_orm_system_free(sql_schema);
   if (sql_tbl) {
-    (void)sql_table_free(sql_tbl);
-    (void)c_orm_system_free(sql_tbl);
+    sql_table_free(sql_tbl);
+    c_orm_system_free(sql_tbl);
   }
-  (void)c_orm_copybook_record_free(primary);
+  c_orm_copybook_record_free(primary);
   return rc;
 }
 
@@ -3092,14 +3032,22 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_parse_file(
     rc = cpy_sb_append_n(sb, chunk, nread);
     if (rc != C_ORM_OK) {
       fclose(fp);
-      (void)c_orm_string_builder_free(sb);
+      c_orm_string_builder_free(sb);
       return rc;
     }
   }
   fclose(fp);
-  c_orm_string_builder_get(sb, &src_str);
+  rc = c_orm_string_builder_get(sb, &src_str);
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
   rc = c_orm_copybook_parse_string(src_str, format, replacements,
                                    num_replacements, out_record);
-  (void)c_orm_string_builder_free(sb);
-  return rc;
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(sb);
+    return rc;
+  }
+  c_orm_string_builder_free(sb);
+  return C_ORM_OK;
 }

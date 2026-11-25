@@ -30,29 +30,22 @@ static int g_exhaust_realloc_countdown = -1;
  */
 static c_orm_error_t exhaust_mock_malloc(size_t sz, void **out_ptr) {
   if (g_exhaust_fail_malloc) {
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
   if (g_exhaust_fail_malloc_struct && sz == sizeof(struct NestedChild)) {
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
   if (g_exhaust_malloc_countdown >= 0) {
     if (g_exhaust_malloc_countdown == 0) {
       g_exhaust_malloc_countdown = -1;
-      if (out_ptr) {
-        *out_ptr = NULL;
-      }
+      *out_ptr = NULL;
       return C_ORM_ERROR_MEMORY;
     }
     g_exhaust_malloc_countdown--;
   }
-  *out_ptr = malloc(sz == 0 ? 1 : sz);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(sz, out_ptr);
 }
 
 /**
@@ -66,30 +59,23 @@ static c_orm_error_t exhaust_mock_realloc(void *ptr, size_t sz,
                                           void **out_ptr) {
   if (g_exhaust_fail_realloc_size) {
     if (sz == 4 * sizeof(struct NestedChild)) {
-      if (out_ptr) {
-        *out_ptr = NULL;
-      }
+      *out_ptr = NULL;
       return C_ORM_ERROR_MEMORY;
     }
   }
   if (g_exhaust_fail_realloc == 1 && !ptr) {
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
   if (g_exhaust_realloc_countdown >= 0) {
     if (g_exhaust_realloc_countdown == 0) {
       g_exhaust_realloc_countdown = -1;
-      if (out_ptr) {
-        *out_ptr = NULL;
-      }
+      *out_ptr = NULL;
       return C_ORM_ERROR_MEMORY;
     }
     g_exhaust_realloc_countdown--;
   }
-  *out_ptr = realloc(ptr, sz == 0 ? 1 : sz);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_realloc(ptr, sz, out_ptr);
 }
 
 /**
@@ -97,6 +83,8 @@ static c_orm_error_t exhaust_mock_realloc(void *ptr, size_t sz,
  * @return GREATEST test result.
  */
 TEST test_api_finalize_cached_errors(void) {
+  static char c_mut_s0[] = "i64name";
+
   struct FullParentObj p;
   struct NestedChild c_items[2];
   c_orm_column_meta_t p_cols[3];
@@ -224,7 +212,8 @@ TEST test_api_finalize_cached_errors(void) {
   p_meta.query_select_by_pk_for_update =
       "SELECT id, name, age FROM p WHERE id=? FOR UPDATE";
 
-  out_arr.data = malloc(sizeof(struct FullParentObj) * 2);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(sizeof(struct FullParentObj) * 2,
+                                           &out_arr.data));
   memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
   memcpy((char *)out_arr.data + sizeof(struct FullParentObj), &p,
          sizeof(struct FullParentObj));
@@ -238,9 +227,9 @@ TEST test_api_finalize_cached_errors(void) {
   memset(&s_item, 0, sizeof(s_item));
   memset(s_cols, 0, sizeof(s_cols));
   memset(&s_meta, 0, sizeof(s_meta));
-  s_item.id = (char *)malloc(8);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(8, (void **)&s_item.id));
   C_ORM_STRCPY(s_item.id, 8, "s1");
-  s_item.name = (char *)malloc(8);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(8, (void **)&s_item.name));
   C_ORM_STRCPY(s_item.name, 8, "sname");
   s_cols[0].name = "id";
   s_cols[0].type = C_ORM_TYPE_STRING;
@@ -264,7 +253,7 @@ TEST test_api_finalize_cached_errors(void) {
   memset(i64_cols, 0, sizeof(i64_cols));
   memset(&i64_meta, 0, sizeof(i64_meta));
   i64_item.id = 100;
-  i64_item.name = "i64name";
+  i64_item.name = c_mut_s0;
   i64_cols[0].name = "id";
   i64_cols[0].type = C_ORM_TYPE_INT64;
   i64_cols[0].is_pk = 1;
@@ -347,7 +336,8 @@ TEST test_api_finalize_cached_errors(void) {
   rc = c_orm_update_partial(&g_db, &p_meta, &p, fields, 2);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
 
-  /* Non-int32, non-string PK in update_partial (line 6725) */
+  /* INT64 PK in update_partial (with g_db_fail still set ->
+   * C_ORM_ERROR_UNKNOWN) */
   g_step_count = 0;
   rc = c_orm_update_partial(&g_db, &i64_meta, &i64_item, fields, 1);
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, rc);
@@ -407,14 +397,16 @@ TEST test_api_finalize_cached_errors(void) {
     rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "tags_m2m", &p);
     ASSERT(rc != C_ORM_OK);
 
-    free(p.children_o2m.data);
-    free(p.tags_m2m.data);
-    free(p.child_o2o);
+    c_orm_system_free(p.children_o2m.data);
+    c_orm_system_free(p.tags_m2m.data);
+    c_orm_system_free(p.child_o2o);
     memset(&p, 0, sizeof(p));
     p.id = 1;
 
-    free(out_arr.data);
-    out_arr.data = calloc(2, sizeof(struct FullParentObj));
+    c_orm_system_free(out_arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(2 * sizeof(struct FullParentObj),
+                                             &out_arr.data));
+    memset(out_arr.data, 0, 2 * sizeof(struct FullParentObj));
     out_arr.length = 2;
     out_arr.capacity = 2;
     g_db_count = 0;
@@ -422,8 +414,10 @@ TEST test_api_finalize_cached_errors(void) {
     rc = c_orm_find_all_with_relation(&g_db, &p_meta, "child_o2o", &out_arr);
     ASSERT(rc != C_ORM_OK);
 
-    free(out_arr.data);
-    out_arr.data = calloc(2, sizeof(struct FullParentObj));
+    c_orm_system_free(out_arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(2 * sizeof(struct FullParentObj),
+                                             &out_arr.data));
+    memset(out_arr.data, 0, 2 * sizeof(struct FullParentObj));
     out_arr.length = 2;
     out_arr.capacity = 2;
     g_db_count = 0;
@@ -431,8 +425,10 @@ TEST test_api_finalize_cached_errors(void) {
     rc = c_orm_find_all_with_relation(&g_db, &p_meta, "children_o2m", &out_arr);
     ASSERT(rc != C_ORM_OK);
 
-    free(out_arr.data);
-    out_arr.data = calloc(2, sizeof(struct FullParentObj));
+    c_orm_system_free(out_arr.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(2 * sizeof(struct FullParentObj),
+                                             &out_arr.data));
+    memset(out_arr.data, 0, 2 * sizeof(struct FullParentObj));
     out_arr.length = 2;
     out_arr.capacity = 2;
     g_db_count = 0;
@@ -583,9 +579,9 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_set_allocators(exhaust_mock_malloc, orig_r, orig_f);
   c_orm_mock_finalize_cached_fail = 1;
   for (t = 0; t <= 10; t++) {
-    free(p.children_o2m.data);
-    free(p.tags_m2m.data);
-    free(p.child_o2o);
+    c_orm_system_free(p.children_o2m.data);
+    c_orm_system_free(p.tags_m2m.data);
+    c_orm_system_free(p.child_o2o);
     memset(&p, 0, sizeof(p));
     p.id = 1;
     g_step_count = 0;
@@ -593,9 +589,9 @@ TEST test_api_finalize_cached_errors(void) {
     rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "child_o2o", &p);
     ASSERT(rc != C_ORM_OK);
 
-    free(p.children_o2m.data);
-    free(p.tags_m2m.data);
-    free(p.child_o2o);
+    c_orm_system_free(p.children_o2m.data);
+    c_orm_system_free(p.tags_m2m.data);
+    c_orm_system_free(p.child_o2o);
     memset(&p, 0, sizeof(p));
     p.id = 1;
     g_step_count = 0;
@@ -603,9 +599,9 @@ TEST test_api_finalize_cached_errors(void) {
     rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "children_o2m", &p);
     ASSERT(rc != C_ORM_OK);
 
-    free(p.children_o2m.data);
-    free(p.tags_m2m.data);
-    free(p.child_o2o);
+    c_orm_system_free(p.children_o2m.data);
+    c_orm_system_free(p.tags_m2m.data);
+    c_orm_system_free(p.child_o2o);
     memset(&p, 0, sizeof(p));
     p.id = 1;
     g_step_count = 0;
@@ -613,9 +609,9 @@ TEST test_api_finalize_cached_errors(void) {
     rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "tags_m2m", &p);
     ASSERT(rc != C_ORM_OK);
   }
-  free(p.children_o2m.data);
-  free(p.tags_m2m.data);
-  free(p.child_o2o);
+  c_orm_system_free(p.children_o2m.data);
+  c_orm_system_free(p.tags_m2m.data);
+  c_orm_system_free(p.child_o2o);
   memset(&p, 0, sizeof(p));
   p.id = 1;
   c_orm_mock_finalize_cached_fail = 0;
@@ -634,7 +630,7 @@ TEST test_api_finalize_cached_errors(void) {
 
   /* 6. Child hydrate fail with finalize cached failure (lines 1301, 1331, 1734,
    * 1774) */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -706,7 +702,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1652: bind_int32 fail & finalize fail */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -720,7 +716,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1663: first child step fail & finalize fail */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -738,7 +734,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1721: O2O struct malloc fail & finalize fail */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -760,7 +756,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1734: O2O child hydrate fail & finalize fail */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -780,7 +776,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1756: O2M child realloc fail & finalize fail */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -802,7 +798,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1774: O2M child hydrate fail & finalize fail */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -822,7 +818,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1791: child 2nd step fail & finalize fail */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -841,7 +837,7 @@ TEST test_api_finalize_cached_errors(void) {
   c_orm_mock_finalize_cached_countdown = -1;
 
   /* Line 1798-1799: child query normal finish & finalize fail */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
   out_arr.length = 0;
   out_arr.capacity = 0;
@@ -866,9 +862,9 @@ TEST test_api_finalize_cached_errors(void) {
   g_step_max = 1;
 
   c_orm_mock_finalize_cached_fail = 0;
-  free(s_item.id);
-  free(s_item.name);
-  free(out_arr.data);
+  c_orm_system_free(s_item.id);
+  c_orm_system_free(s_item.name);
+  c_orm_system_free(out_arr.data);
 
   PASS();
 }
@@ -971,7 +967,8 @@ TEST test_api_string_builder_error_branches(void) {
   p_meta.query_select_all = "SELECT 1 FROM p";
   p_meta.query_insert = "INSERT INTO p (id, name, age) VALUES (?, ?, ?)";
 
-  out_arr.data = malloc(sizeof(struct ExtendedParent) * 2);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(sizeof(struct ExtendedParent) * 2,
+                                           &out_arr.data));
   memcpy(out_arr.data, &p, sizeof(struct ExtendedParent));
   memcpy((char *)out_arr.data + sizeof(struct ExtendedParent), &p,
          sizeof(struct ExtendedParent));
@@ -984,21 +981,21 @@ TEST test_api_string_builder_error_branches(void) {
     c_orm_mock_string_builder_append_countdown = cd;
     rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "child_o2o", &p);
     if (rc == C_ORM_OK) {
-      free(p.child_o2o);
+      c_orm_system_free(p.child_o2o);
       p.child_o2o = NULL;
     }
     g_step_count = 0;
     c_orm_mock_string_builder_append_countdown = cd;
     rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "children_o2m", &p);
     if (rc == C_ORM_OK) {
-      free(p.children_o2m.data);
+      c_orm_system_free(p.children_o2m.data);
       p.children_o2m.data = NULL;
     }
     g_step_count = 0;
     c_orm_mock_string_builder_append_countdown = cd;
     rc = c_orm_find_with_relation_int32(&g_db, &p_meta, 1, "tags_m2m", &p);
     if (rc == C_ORM_OK) {
-      free(p.tags_m2m.data);
+      c_orm_system_free(p.tags_m2m.data);
       p.tags_m2m.data = NULL;
     }
   }
@@ -1012,53 +1009,53 @@ TEST test_api_string_builder_error_branches(void) {
 
   /* 2. Sweep c_orm_find_all_with_relation for M2M and O2M (length=2 for comma)
    */
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
-  for (cd = 0; cd < 40; cd++) {
+  for (cd = 0;; cd++) {
     memset(&out_arr, 0, sizeof(out_arr));
     g_step_count = 0;
     c_orm_mock_string_builder_append_countdown = cd;
     rc = c_orm_find_all_with_relation(&g_db, &p_meta, "tags_m2m", &out_arr);
     if (rc == C_ORM_OK) {
       struct ExtendedParent *ep = (struct ExtendedParent *)out_arr.data;
-      if (ep) {
-        free(ep[0].tags_m2m.data);
-      }
-      free(out_arr.data);
+      ASSERT(ep != NULL);
+      c_orm_system_free(ep[0].tags_m2m.data);
+      c_orm_system_free(out_arr.data);
       out_arr.data = NULL;
       break;
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
+    ASSERT(cd < 100);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
   g_step_max = 2;
-  for (cd = 0; cd < 30; cd++) {
+  for (cd = 0;; cd++) {
     memset(&out_arr, 0, sizeof(out_arr));
     g_step_count = 0;
     c_orm_mock_string_builder_append_countdown = cd;
     rc = c_orm_find_all_with_relation(&g_db, &p_meta, "children_o2m", &out_arr);
     if (rc == C_ORM_OK) {
       struct ExtendedParent *ep = (struct ExtendedParent *)out_arr.data;
-      if (ep) {
-        free(ep[0].children_o2m.data);
-        if (out_arr.length > 1) {
-          free(ep[1].children_o2m.data);
-        }
-      }
-      free(out_arr.data);
+      ASSERT(ep != NULL);
+      ASSERT_EQ((size_t)2, out_arr.length);
+      c_orm_system_free(ep[0].children_o2m.data);
+      c_orm_system_free(ep[1].children_o2m.data);
+      c_orm_system_free(out_arr.data);
       out_arr.data = NULL;
       break;
     }
-    free(out_arr.data);
+    c_orm_system_free(out_arr.data);
     out_arr.data = NULL;
+    ASSERT(cd < 100);
   }
   c_orm_mock_string_builder_append_countdown = -1;
   g_step_max = 1;
 
   /* Targeted comma append failure (lines 1586-1587) */
-  out_arr.data = malloc(sizeof(struct ExtendedParent) * 2);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(sizeof(struct ExtendedParent) * 2,
+                                           &out_arr.data));
   out_arr.length = 2;
   g_step_count = 0;
   c_orm_mock_string_builder_append_countdown = 6;
@@ -1066,8 +1063,9 @@ TEST test_api_string_builder_error_branches(void) {
   ASSERT(rc != C_ORM_OK);
   c_orm_mock_string_builder_append_countdown = -1;
 
-  free(out_arr.data);
-  out_arr.data = malloc(sizeof(struct ExtendedParent) * 2);
+  c_orm_system_free(out_arr.data);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(sizeof(struct ExtendedParent) * 2,
+                                           &out_arr.data));
   out_arr.length = 2;
   g_step_count = 0;
   c_orm_mock_string_builder_get_fail = 1;
@@ -1076,20 +1074,23 @@ TEST test_api_string_builder_error_branches(void) {
   c_orm_mock_string_builder_get_fail = 0;
 
   /* 3. Sweep c_orm_insert_batch_ext */
-  for (cd = 0; cd < 40; cd++) {
+  for (cd = 0;; cd++) {
     struct ExtendedParent batch[2];
+    c_orm_error_t rc_ign;
     memset(batch, 0, sizeof(batch));
     batch[0].id = 1;
     batch[1].id = 2;
     c_orm_mock_string_builder_append_countdown = cd;
-    rc = c_orm_insert_batch_ext(&g_db, &p_meta, batch, 2, 2,
-                                C_ORM_ON_CONFLICT_FAIL, NULL, NULL);
+    rc_ign = c_orm_insert_batch_ext(&g_db, &p_meta, batch, 2, 2,
+                                    C_ORM_ON_CONFLICT_FAIL, NULL, NULL);
+    ASSERT_NEQ((c_orm_error_t)-999, rc_ign);
     c_orm_mock_string_builder_append_countdown = cd;
     rc = c_orm_insert_batch_ext(&g_db, &p_meta, batch, 2, 2,
                                 C_ORM_ON_CONFLICT_DO_NOTHING, NULL, NULL);
     if (rc == C_ORM_OK) {
       break;
     }
+    ASSERT(cd < 100);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
@@ -1106,7 +1107,7 @@ TEST test_api_string_builder_error_branches(void) {
   }
 
   /* 4. Sweep c_orm_delete_batch */
-  for (cd = 0; cd < 30; cd++) {
+  for (cd = 0;; cd++) {
     struct ExtendedParent batch[2];
     memset(batch, 0, sizeof(batch));
     batch[0].id = 1;
@@ -1116,6 +1117,7 @@ TEST test_api_string_builder_error_branches(void) {
     if (rc == C_ORM_OK) {
       break;
     }
+    ASSERT(cd < 100);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
@@ -1131,7 +1133,7 @@ TEST test_api_string_builder_error_branches(void) {
   }
 
   /* 5. Sweep c_orm_update_batch (3 columns for comma) */
-  for (cd = 0; cd < 35; cd++) {
+  for (cd = 0;; cd++) {
     struct ExtendedParent batch[2];
     memset(batch, 0, sizeof(batch));
     batch[0].id = 1;
@@ -1141,6 +1143,7 @@ TEST test_api_string_builder_error_branches(void) {
     if (rc == C_ORM_OK) {
       break;
     }
+    ASSERT(cd < 100);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
@@ -1156,12 +1159,13 @@ TEST test_api_string_builder_error_branches(void) {
   }
 
   /* 6. Sweep c_orm_update_partial (2 fields for comma) */
-  for (cd = 0; cd < 20; cd++) {
+  for (cd = 0;; cd++) {
     c_orm_mock_string_builder_append_countdown = cd;
     rc = c_orm_update_partial(&g_db, &p_meta, &p, fields, 2);
     if (rc == C_ORM_OK) {
       break;
     }
+    ASSERT(cd < 100);
   }
   c_orm_mock_string_builder_append_countdown = -1;
 
@@ -1180,8 +1184,8 @@ TEST test_api_string_builder_error_branches(void) {
     gen_data = NULL;
     gen_count = 0;
     rc = c_orm_find_all_generic(&g_db, &p_meta, &gen_data, &gen_count);
-    if (rc == C_ORM_OK && gen_data) {
-      free(gen_data);
+    if (rc == C_ORM_OK) {
+      c_orm_system_free(gen_data);
       gen_data = NULL;
     }
     c_orm_mock_string_builder_append_countdown = cd;
@@ -1213,7 +1217,7 @@ TEST test_api_string_builder_error_branches(void) {
   ASSERT_EQ(C_ORM_ERROR_MEMORY, rc);
   c_orm_mock_string_builder_get_fail = 0;
 
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
 
   PASS();
 }
@@ -1505,7 +1509,8 @@ TEST test_api_relation_dot_missing_branches(void) {
   p_meta.query_select_by_pk = "SELECT id FROM p WHERE id=?";
   p_meta.query_select_all = "SELECT id FROM p";
 
-  out_arr.data = malloc(sizeof(struct ExtendedParent));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_default_malloc(sizeof(struct ExtendedParent), &out_arr.data));
   memcpy(out_arr.data, &p, sizeof(struct ExtendedParent));
   out_arr.length = 1;
   out_arr.capacity = 1;
@@ -1565,7 +1570,7 @@ TEST test_api_relation_dot_missing_branches(void) {
     p.children_o2m.capacity = 0;
   }
 
-  free(out_arr.data);
+  c_orm_system_free(out_arr.data);
   out_arr.data = NULL;
 
   PASS();
@@ -1734,7 +1739,7 @@ static c_orm_error_t ex_ttl_expire_ok(c_orm_db_t *db,
  * @return C_ORM_ERROR_MEMORY.
  */
 static c_orm_error_t ex_fail_free(void *ptr) {
-  free(ptr);
+  c_orm_default_free(ptr);
   return C_ORM_ERROR_MEMORY;
 }
 
@@ -1875,6 +1880,10 @@ static c_orm_error_t ex_abs_get_str(c_orm_query_t *q, int idx,
  * @return GREATEST test result.
  */
 TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
+  static char c_mut_s1[] = "parent";
+  static char c_mut_s2[] = "2026-05-01 10:20:30";
+  static char c_mut_s3[] = "hi";
+
   struct ExhaustExtRow ext_row;
   c_orm_column_meta_t ext_cols[12];
   c_orm_table_meta_t ext_meta;
@@ -1996,9 +2005,9 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
   /* Validate DECIMAL invalid precision & rescale overflow */
   ext_row.dec_val.precision = 99;
   ASSERT_NEQ(C_ORM_OK, c_orm_validate(&ext_meta, &ext_row));
-  (void)c_orm_decimal_from_str("999999999.99", &ext_row.dec_val);
+  ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("999999999.99", &ext_row.dec_val));
   ASSERT_EQ(C_ORM_ERROR_DECIMAL_OVERFLOW, c_orm_validate(&ext_meta, &ext_row));
-  (void)c_orm_decimal_from_str("12.34", &ext_row.dec_val);
+  ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("12.34", &ext_row.dec_val));
   ASSERT_EQ(C_ORM_OK, c_orm_validate(&ext_meta, &ext_row));
 
   /* Blob sizes: empty (mode 9), > fixed_length (mode 10), error (mode 8) */
@@ -2022,7 +2031,11 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
   ASSERT_NEQ(C_ORM_OK, c_orm_insert(&edb, &ext_meta, &ext_row));
 
   /* Hydrate error modes: get_decimal err (1), rescale err (2), get_str err (4),
-   * get_blob err (8), get_decimal==NULL with valid/NULL/invalid/err string */
+   * get_blob err (8), is_null err (11), get_decimal==NULL with
+   * valid/NULL/invalid/err string */
+  g_ex_ext_mode = 11;
+  ASSERT_NEQ(C_ORM_OK, c_orm_hydrate_row_from(&edb, (c_orm_query_t *)1,
+                                              &ext_meta, &ext_row, 0));
   g_ex_ext_mode = 1;
   ASSERT_NEQ(C_ORM_OK, c_orm_hydrate_row_from(&edb, (c_orm_query_t *)1,
                                               &ext_meta, &ext_row, 0));
@@ -2065,7 +2078,7 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
   ext_cols[1].precision = 0; /* bypass validate rescale so bind_row runs */
   ASSERT_NEQ(C_ORM_OK, c_orm_insert(&edb, &ext_meta, &ext_row));
   ext_cols[1].precision = 10;
-  (void)c_orm_decimal_from_str("12.34", &ext_row.dec_val);
+  ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("12.34", &ext_row.dec_val));
   evt.bind_decimal = ex_mock_bind_decimal;
 
   /* Test CHAR_FIXED inline bind failure & BINARY_FIXED inline bind failure */
@@ -2093,15 +2106,16 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
 
   /* OOM sweep on c_orm_hydrate_row_from (hits nullable decimal malloc OOM) */
   c_orm_set_allocators(exhaust_mock_malloc, orig_r, orig_f);
-  for (step = 0; step < 10; step++) {
+  for (step = 0;; step++) {
     g_exhaust_malloc_countdown = step;
     if (c_orm_hydrate_row_from(&edb, (c_orm_query_t *)1, &ext_meta, &ext_row,
                                0) == C_ORM_OK) {
       g_exhaust_malloc_countdown = -1;
-      (void)c_orm_free_columns(&ext_meta, &ext_row);
+      ASSERT_EQ(C_ORM_OK, c_orm_free_columns(&ext_meta, &ext_row));
       break;
     }
     g_exhaust_malloc_countdown = -1;
+    ASSERT(step < 50);
   }
   c_orm_set_allocators(orig_m, orig_r, orig_f);
 
@@ -2144,10 +2158,12 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
     ASSERT_EQ(C_ORM_OK,
               c_orm_insert_batch_ext(&edb, &bmeta, b, 2, 2,
                                      C_ORM_ON_CONFLICT_DO_UPDATE, NULL, NULL));
-    for (step = 0; step < 100; step++) {
+    for (step = 0;; step++) {
+      c_orm_error_t brc;
       c_orm_mock_string_builder_append_countdown = step;
-      (void)c_orm_insert_batch_ext(&edb, &bmeta, b, 2, 2,
+      brc = c_orm_insert_batch_ext(&edb, &bmeta, b, 2, 2,
                                    C_ORM_ON_CONFLICT_DO_NOTHING, NULL, NULL);
+      ASSERT_NEQ((c_orm_error_t)-999, brc);
       c_orm_mock_string_builder_append_countdown = step;
       if (c_orm_insert_batch_ext(&edb, &bmeta, b, 2, 2,
                                  C_ORM_ON_CONFLICT_DO_UPDATE, NULL,
@@ -2156,9 +2172,10 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
         break;
       }
       c_orm_mock_string_builder_append_countdown = -1;
+      ASSERT(step < 200);
     }
     bmeta.num_columns = 2; /* 0 non-PK cols on MySQL DO_UPDATE */
-    for (step = 0; step < 60; step++) {
+    for (step = 0;; step++) {
       c_orm_mock_string_builder_append_countdown = step;
       if (c_orm_insert_batch_ext(&edb, &bmeta, b, 1, 1,
                                  C_ORM_ON_CONFLICT_DO_UPDATE, NULL,
@@ -2167,6 +2184,7 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
         break;
       }
       c_orm_mock_string_builder_append_countdown = -1;
+      ASSERT(step < 100);
     }
 
     /* SQLite/Postgres/NULL driver_name composite PK DO_NOTHING & DO_UPDATE */
@@ -2175,7 +2193,7 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
               c_orm_insert_batch_ext(&edb, &bmeta, b, 1, 1,
                                      C_ORM_ON_CONFLICT_DO_UPDATE, NULL, NULL));
     edb.driver_name = "postgres";
-    for (step = 0; step < 60; step++) {
+    for (step = 0;; step++) {
       c_orm_mock_string_builder_append_countdown = step;
       if (c_orm_insert_batch_ext(&edb, &bmeta, b, 1, 1,
                                  C_ORM_ON_CONFLICT_DO_UPDATE, NULL,
@@ -2184,12 +2202,15 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
         break;
       }
       c_orm_mock_string_builder_append_countdown = -1;
+      ASSERT(step < 100);
     }
     bmeta.num_columns = 4;
-    for (step = 0; step < 100; step++) {
+    for (step = 0;; step++) {
+      c_orm_error_t brc;
       c_orm_mock_string_builder_append_countdown = step;
-      (void)c_orm_insert_batch_ext(&edb, &bmeta, b, 2, 2,
+      brc = c_orm_insert_batch_ext(&edb, &bmeta, b, 2, 2,
                                    C_ORM_ON_CONFLICT_DO_NOTHING, NULL, NULL);
+      ASSERT_NEQ((c_orm_error_t)-999, brc);
       c_orm_mock_string_builder_append_countdown = step;
       if (c_orm_insert_batch_ext(&edb, &bmeta, b, 2, 2,
                                  C_ORM_ON_CONFLICT_DO_UPDATE, NULL,
@@ -2198,6 +2219,7 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
         break;
       }
       c_orm_mock_string_builder_append_countdown = -1;
+      ASSERT(step < 200);
     }
   }
 
@@ -2251,31 +2273,32 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
       g_ex_ext_mode = step;
       g_ex_abs_row = 0;
       ASSERT_NEQ(C_ORM_OK, c_orm_find_all_abstract(&adb, "SELECT 1", &aarr));
-      (void)c_orm_abstract_free(&aarr);
+      ASSERT_EQ(C_ORM_OK, c_orm_abstract_free(&aarr));
     }
 
     /* OOM sweep on c_orm_find_all_abstract with 18 rows */
     g_ex_ext_mode = 0;
     g_ex_abs_max = 18;
     c_orm_set_allocators(exhaust_mock_malloc, exhaust_mock_realloc, orig_f);
-    for (step = 0; step < 40; step++) {
+    for (step = 0;; step++) {
       memset(&aarr, 0, sizeof(aarr));
       g_ex_abs_row = 0;
       g_exhaust_malloc_countdown = step;
       if (c_orm_find_all_abstract(&adb, "SELECT 1", &aarr) == C_ORM_OK) {
         g_exhaust_malloc_countdown = -1;
-        (void)c_orm_abstract_free(&aarr);
+        ASSERT_EQ(C_ORM_OK, c_orm_abstract_free(&aarr));
         break;
       }
       g_exhaust_malloc_countdown = -1;
-      (void)c_orm_abstract_free(&aarr);
+      ASSERT_EQ(C_ORM_OK, c_orm_abstract_free(&aarr));
+      ASSERT(step < 200);
     }
     memset(&aarr, 0, sizeof(aarr));
     g_ex_abs_row = 0;
     g_exhaust_realloc_countdown = 0;
     ASSERT_NEQ(C_ORM_OK, c_orm_find_all_abstract(&adb, "SELECT 1", &aarr));
     g_exhaust_realloc_countdown = -1;
-    (void)c_orm_abstract_free(&aarr);
+    ASSERT_EQ(C_ORM_OK, c_orm_abstract_free(&aarr));
     c_orm_set_allocators(orig_m, orig_r, orig_f);
     g_ex_abs_max = 2;
   }
@@ -2318,7 +2341,7 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
 
     p.id = 1;
     p.belongs_to_id = 2;
-    p.name = "parent";
+    p.name = c_mut_s1;
     c.id = 2;
     c.parent_id = 1;
 
@@ -2409,7 +2432,7 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
       (void)c_orm_delete(&g_db, &p_meta, &p);
       c_orm_mock_safe_crt_countdown = step;
       (void)c_orm_find_all_paginated(&g_db, &p_meta, &pag_arr, 10, 0);
-      free(pag_arr.data);
+      c_orm_system_free(pag_arr.data);
       pag_arr.data = NULL;
       pag_arr.length = 0;
       pag_arr.capacity = 0;
@@ -2425,11 +2448,11 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
       (void)c_orm_sync(&g_db, &p_meta, &p, "o2o", &c, 1);
       c_orm_mock_safe_crt_countdown = step;
       (void)c_orm_load_relation_ext(&g_db, &p, &p_meta, 0, 5, 1);
-      free(p.m2m.data);
+      c_orm_system_free(p.m2m.data);
       p.m2m.data = NULL;
       c_orm_mock_safe_crt_countdown = step;
       (void)c_orm_load_relation_ext(&g_db, &p, &p_meta, 1, 5, 1);
-      free(p.o2m_children.data);
+      c_orm_system_free(p.o2m_children.data);
       p.o2m_children.data = NULL;
       c_orm_mock_safe_crt_countdown = -1;
     }
@@ -2443,7 +2466,7 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
       g_exhaust_malloc_countdown = step;
       (void)c_orm_load_relation_ext(&g_db, &p, &p_meta, 0, 5, 1);
       g_exhaust_malloc_countdown = -1;
-      free(p.m2m.data);
+      c_orm_system_free(p.m2m.data);
       p.m2m.data = NULL;
 
       p.o2m_children.data = NULL;
@@ -2451,14 +2474,14 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
       g_exhaust_malloc_countdown = step;
       (void)c_orm_load_relation_ext(&g_db, &p, &p_meta, 1, 5, 1);
       g_exhaust_malloc_countdown = -1;
-      free(p.o2m_children.data);
+      c_orm_system_free(p.o2m_children.data);
       p.o2m_children.data = NULL;
 
       p.o2o_child = NULL;
       g_exhaust_malloc_countdown = step;
       (void)c_orm_load_relation_ext(&g_db, &p, &p_meta, 2, 5, 1);
       g_exhaust_malloc_countdown = -1;
-      free(p.o2o_child);
+      c_orm_system_free(p.o2o_child);
       p.o2o_child = NULL;
     }
     c_orm_set_allocators(orig_m, orig_r, orig_f);
@@ -2617,13 +2640,14 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
     c_orm_mock_finalize_cached_fail = 0;
 
     c_orm_set_allocators(exhaust_mock_malloc, exhaust_mock_realloc, orig_f);
-    for (step = 0; step < 30; step++) {
+    for (step = 0;; step++) {
       g_exhaust_malloc_countdown = step;
       if (c_orm_upsert(&edb, &ext_meta, &ext_row) == C_ORM_OK) {
         g_exhaust_malloc_countdown = -1;
         break;
       }
       g_exhaust_malloc_countdown = -1;
+      ASSERT(step < 60);
     }
     c_orm_set_allocators(orig_m, orig_r, orig_f);
 
@@ -2688,22 +2712,25 @@ TEST test_api_db2_decimal_safe_crt_and_abstract_exhaustive(void) {
       ts_meta.query_insert = "INSERT INTO ts_t VALUES (?, ?)";
       edb.timezone.offset_minutes = 60;
       g_ex_ext_mode = 14;
-      for (step = 0; step < 5; step++) {
+      for (step = 0;; step++) {
         memset(&ts_row, 0, sizeof(ts_row));
         c_orm_mock_safe_crt_countdown = step;
         if (c_orm_hydrate_row_from(&edb, (c_orm_query_t *)1, &ts_meta, &ts_row,
                                    0) == C_ORM_OK) {
           c_orm_mock_safe_crt_countdown = -1;
-          (void)c_orm_free_columns(&ts_meta, &ts_row);
+          ASSERT_EQ(C_ORM_OK, c_orm_free_columns(&ts_meta, &ts_row));
           break;
         }
         c_orm_mock_safe_crt_countdown = -1;
+        ASSERT(step < 20);
       }
-      ts_row.ts = "2026-05-01 10:20:30";
-      ts_row.s = "hi";
+      ts_row.ts = c_mut_s2;
+      ts_row.s = c_mut_s3;
       for (step = 0; step < 4; step++) {
+        c_orm_error_t irc;
         c_orm_mock_safe_crt_countdown = step;
-        (void)c_orm_insert(&edb, &ts_meta, &ts_row);
+        irc = c_orm_insert(&edb, &ts_meta, &ts_row);
+        ASSERT_NEQ((c_orm_error_t)-999, irc);
         c_orm_mock_safe_crt_countdown = -1;
       }
       g_ex_ext_mode = 0;
@@ -2826,10 +2853,8 @@ static c_orm_error_t fz_pfx_get_i32(c_orm_query_t *q, int idx, int32_t *out_v) {
  */
 static c_orm_error_t fz_pfx_get_i64(c_orm_query_t *q, int idx, int64_t *out_v) {
   (void)q;
-  if (g_fz_mode == 3 && idx == 2) {
-    return C_ORM_ERROR_SQL;
-  }
-  if (g_fz_mode == 50 || g_fz_mode == 55) {
+  (void)idx;
+  if (g_fz_mode == 3 || g_fz_mode == 55) {
     return C_ORM_ERROR_SQL;
   }
   *out_v = (g_fz_mode == 56) ? 0 : 10;
@@ -2845,7 +2870,7 @@ static c_orm_error_t fz_pfx_get_i64(c_orm_query_t *q, int idx, int64_t *out_v) {
  */
 static c_orm_error_t fz_pfx_get_dbl(c_orm_query_t *q, int idx, double *out_v) {
   (void)q;
-  if ((g_fz_mode == 4 && idx == 3) || (g_fz_mode == 5 && idx == 4)) {
+  if (g_fz_mode == 4 || (g_fz_mode == 5 && idx == 4)) {
     return C_ORM_ERROR_SQL;
   }
   *out_v = 2.5;
@@ -2879,7 +2904,8 @@ static c_orm_error_t fz_pfx_get_dec(c_orm_query_t *q, int idx,
 static c_orm_error_t fz_pfx_get_str(c_orm_query_t *q, int idx,
                                     const char **out_v) {
   (void)q;
-  if (g_fz_mode == 7 && idx == 7) {
+  (void)idx;
+  if (g_fz_mode == 7) {
     return C_ORM_ERROR_SQL;
   }
   *out_v = "pfx_val";
@@ -2898,7 +2924,8 @@ static c_orm_error_t fz_pfx_get_blob(c_orm_query_t *q, int idx,
                                      const void **out_v, size_t *sz) {
   static const unsigned char b2[2] = {0xAA, 0xBB};
   (void)q;
-  if (g_fz_mode == 8 && idx == 8) {
+  (void)idx;
+  if (g_fz_mode == 8) {
     return C_ORM_ERROR_SQL;
   }
   *out_v = b2;
@@ -2946,6 +2973,9 @@ static c_orm_error_t fz_custom_step(c_orm_query_t *q, int *out_has) {
  */
 static c_orm_error_t fz_last_rowid(c_orm_db_t *db, int64_t *out_id) {
   (void)db;
+  if (g_fz_mode == 57) {
+    return C_ORM_ERROR_MEMORY;
+  }
   if (g_fz_mode == 53) {
     return C_ORM_ERROR_SQL;
   }
@@ -2954,10 +2984,208 @@ static c_orm_error_t fz_last_rowid(c_orm_db_t *db, int64_t *out_id) {
 }
 
 /**
+ * @brief Mock get_int64 returning C_ORM_ERROR_MEMORY on mode 71 or SQL error on
+ * 72/73.
+ * @param q Query handle.
+ * @param idx Column index.
+ * @param out_v Output 64-bit integer.
+ * @return Error code or C_ORM_OK.
+ */
+static c_orm_error_t fz_get_i64_oom(c_orm_query_t *q, int idx, int64_t *out_v) {
+  (void)q;
+  (void)idx;
+  if (g_fz_mode == 71) {
+    return C_ORM_ERROR_MEMORY;
+  }
+  if (g_fz_mode == 72 || g_fz_mode == 73) {
+    return C_ORM_ERROR_TYPE_MISMATCH;
+  }
+  *out_v = 77;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Mock get_double returning C_ORM_ERROR_MEMORY on mode 72 or SQL error
+ * on 73.
+ * @param q Query handle.
+ * @param idx Column index.
+ * @param out_v Output double.
+ * @return Error code or C_ORM_OK.
+ */
+static c_orm_error_t fz_get_dbl_oom(c_orm_query_t *q, int idx, double *out_v) {
+  (void)q;
+  (void)idx;
+  (void)out_v;
+  if (g_fz_mode == 72) {
+    return C_ORM_ERROR_MEMORY;
+  }
+  return C_ORM_ERROR_TYPE_MISMATCH;
+}
+
+static int g_fz_bind_cd = -1;
+
+/**
+ * @brief Countdown helper returning C_ORM_ERROR_BIND when `g_fz_bind_cd`
+ * reaches 0.
+ * @return C_ORM_ERROR_BIND or C_ORM_OK.
+ */
+static c_orm_error_t fz_bind_tick(void) {
+  if (g_fz_bind_cd >= 0) {
+    if (g_fz_bind_cd == 0) {
+      g_fz_bind_cd = -1;
+      return C_ORM_ERROR_BIND;
+    }
+    g_fz_bind_cd--;
+  }
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Countdown mock bind_int32.
+ * @param q Query handle.
+ * @param i Parameter index.
+ * @param v Bound 32-bit integer.
+ * @return C_ORM_OK or C_ORM_ERROR_BIND.
+ */
+static c_orm_error_t fz_cd_bind_i32(c_orm_query_t *q, int i, int32_t v) {
+  (void)q;
+  (void)i;
+  (void)v;
+  return fz_bind_tick();
+}
+
+/**
+ * @brief Countdown mock bind_int64.
+ * @param q Query handle.
+ * @param i Parameter index.
+ * @param v Bound 64-bit integer.
+ * @return C_ORM_OK or C_ORM_ERROR_BIND.
+ */
+static c_orm_error_t fz_cd_bind_i64(c_orm_query_t *q, int i, int64_t v) {
+  (void)q;
+  (void)i;
+  (void)v;
+  return fz_bind_tick();
+}
+
+/**
+ * @brief Countdown mock bind_double.
+ * @param q Query handle.
+ * @param i Parameter index.
+ * @param v Bound double value.
+ * @return C_ORM_OK or C_ORM_ERROR_BIND.
+ */
+static c_orm_error_t fz_cd_bind_dbl(c_orm_query_t *q, int i, double v) {
+  (void)q;
+  (void)i;
+  (void)v;
+  return fz_bind_tick();
+}
+
+/**
+ * @brief Countdown mock bind_string.
+ * @param q Query handle.
+ * @param i Parameter index.
+ * @param v Bound string value.
+ * @return C_ORM_OK or C_ORM_ERROR_BIND.
+ */
+static c_orm_error_t fz_cd_bind_str(c_orm_query_t *q, int i, const char *v) {
+  (void)q;
+  (void)i;
+  (void)v;
+  return fz_bind_tick();
+}
+
+/**
+ * @brief Countdown mock bind_null.
+ * @param q Query handle.
+ * @param i Parameter index.
+ * @return C_ORM_OK or C_ORM_ERROR_BIND.
+ */
+static c_orm_error_t fz_cd_bind_null(c_orm_query_t *q, int i) {
+  (void)q;
+  (void)i;
+  return fz_bind_tick();
+}
+
+/**
+ * @brief Countdown mock bind_blob.
+ * @param q Query handle.
+ * @param i Parameter index.
+ * @param d Bound blob data pointer.
+ * @param s Bound blob byte length.
+ * @return C_ORM_OK or C_ORM_ERROR_BIND.
+ */
+static c_orm_error_t fz_cd_bind_blob(c_orm_query_t *q, int i, const void *d,
+                                     size_t s) {
+  (void)q;
+  (void)i;
+  (void)d;
+  (void)s;
+  return fz_bind_tick();
+}
+
+/**
+ * @brief Countdown mock bind_decimal.
+ * @param q Query handle.
+ * @param i Parameter index.
+ * @param d Bound decimal value pointer.
+ * @return C_ORM_OK or C_ORM_ERROR_BIND.
+ */
+static c_orm_error_t fz_cd_bind_dec(c_orm_query_t *q, int i,
+                                    const c_orm_decimal_t *d) {
+  (void)q;
+  (void)i;
+  (void)d;
+  return fz_bind_tick();
+}
+
+/**
+ * @brief Mock prepare callback returning C_ORM_ERROR_MEMORY.
+ * @param db Database connection.
+ * @param sql SQL string.
+ * @param out_q Output query handle.
+ * @return C_ORM_ERROR_MEMORY.
+ */
+static c_orm_error_t fz_prepare_oom(c_orm_db_t *db, const char *sql,
+                                    c_orm_query_t **out_q) {
+  (void)db;
+  (void)sql;
+  (void)out_q;
+  return C_ORM_ERROR_MEMORY;
+}
+
+/**
+ * @brief Mock get_string returning C_ORM_ERROR_MEMORY on mode 73 or NULL string
+ * on 74.
+ * @param q Query handle.
+ * @param idx Column index.
+ * @param out_v Output string pointer.
+ * @return Error code or C_ORM_OK.
+ */
+static c_orm_error_t fz_get_str_oom(c_orm_query_t *q, int idx,
+                                    const char **out_v) {
+  (void)q;
+  (void)idx;
+  if (g_fz_mode == 73) {
+    return C_ORM_ERROR_MEMORY;
+  }
+  *out_v = (g_fz_mode == 74) ? NULL : "";
+  return C_ORM_OK;
+}
+
+/**
  * @brief Closes the final remaining line and branch gaps in `src/c_orm_api.c`.
  * @return GREATEST test result.
  */
 TEST test_api_final_zero_gaps(void) {
+  static char c_mut_s4[] = "abc";
+  static char c_mut_s5[] = "hello";
+  static char c_mut_s6[] = "pk1";
+  static char c_mut_s7[] = "s";
+  static char c_mut_s8[] = "k";
+  static char c_mut_s9[] = "pfx_val";
+
   c_orm_malloc_fn_t orig_m = c_orm_malloc;
   c_orm_realloc_fn_t orig_r = c_orm_realloc;
   c_orm_free_fn_t orig_f = c_orm_free;
@@ -3116,17 +3344,17 @@ TEST test_api_final_zero_gaps(void) {
     g_fz_mode = 0;
     ASSERT_EQ(C_ORM_OK,
               c_orm_hydrate_row(&pdb, (c_orm_query_t *)1, &pmeta, &pobj));
-    free(pobj.child->str);
-    free(pobj.child->blob.data);
-    free(pobj.child);
+    c_orm_system_free(pobj.child->str);
+    c_orm_system_free(pobj.child->blob.data);
+    c_orm_system_free(pobj.child);
 
     pvt.get_decimal = NULL;
     memset(&pobj, 0, sizeof(pobj));
     ASSERT_EQ(C_ORM_OK,
               c_orm_hydrate_row(&pdb, (c_orm_query_t *)1, &pmeta, &pobj));
-    free(pobj.child->str);
-    free(pobj.child->blob.data);
-    free(pobj.child);
+    c_orm_system_free(pobj.child->str);
+    c_orm_system_free(pobj.child->blob.data);
+    c_orm_system_free(pobj.child);
     pvt.get_decimal = fz_pfx_get_dec;
 
     /* Error modes 1..9 (is_null, i32, i64, f32, f64, dec, str, blob, bool) */
@@ -3136,24 +3364,25 @@ TEST test_api_final_zero_gaps(void) {
       ASSERT_NEQ(C_ORM_OK,
                  c_orm_hydrate_row(&pdb, (c_orm_query_t *)1, &pmeta, &pobj));
       if (pobj.child) {
-        free(pobj.child->str);
-        free(pobj.child->blob.data);
-        free(pobj.child);
+        c_orm_system_free(pobj.child->str);
+        c_orm_system_free(pobj.child->blob.data);
+        c_orm_system_free(pobj.child);
       }
     }
     g_fz_mode = 0;
 
     /* Safe CRT failure on prefix string copy (L770) */
-    for (step = 0; step < 3; step++) {
+    for (step = 0; step < 4; step++) {
+      c_orm_error_t hrc;
       memset(&pobj, 0, sizeof(pobj));
       c_orm_mock_safe_crt_countdown = step;
-      (void)c_orm_hydrate_row(&pdb, (c_orm_query_t *)1, &pmeta, &pobj);
+      hrc = c_orm_hydrate_row(&pdb, (c_orm_query_t *)1, &pmeta, &pobj);
+      ASSERT_NEQ((c_orm_error_t)-999, hrc);
       c_orm_mock_safe_crt_countdown = -1;
-      if (pobj.child) {
-        free(pobj.child->str);
-        free(pobj.child->blob.data);
-        free(pobj.child);
-      }
+      ASSERT(pobj.child != NULL);
+      c_orm_system_free(pobj.child->str);
+      c_orm_system_free(pobj.child->blob.data);
+      c_orm_system_free(pobj.child);
     }
 
     /* Identity map cache error on prefix child (L815-816) */
@@ -3164,11 +3393,10 @@ TEST test_api_final_zero_gaps(void) {
     memset(&pobj, 0, sizeof(pobj));
     ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
               c_orm_hydrate_row(&pdb, (c_orm_query_t *)1, &pmeta, &pobj));
-    if (pobj.child) {
-      free(pobj.child->str);
-      free(pobj.child->blob.data);
-      free(pobj.child);
-    }
+    ASSERT(pobj.child != NULL);
+    c_orm_system_free(pobj.child->str);
+    c_orm_system_free(pobj.child->blob.data);
+    c_orm_system_free(pobj.child);
     ccols[0].is_pk = true;
     ccols[1].is_pk = false;
     pdb.identity_map = NULL;
@@ -3443,7 +3671,7 @@ TEST test_api_final_zero_gaps(void) {
       c_orm_mock_finalize_cached_fail = 1;
       ASSERT_NEQ(C_ORM_OK, c_orm_find_all_abstract(&fdb, "SELECT 1", &aarr));
       c_orm_mock_finalize_cached_fail = 0;
-      (void)c_orm_abstract_free(&aarr);
+      ASSERT_EQ(C_ORM_OK, c_orm_abstract_free(&aarr));
 
       /* c_orm_select_raw with non-NULL meta (+ NULLs, prepare/hydrate/fin) */
       fvt = g_vt;
@@ -3453,13 +3681,13 @@ TEST test_api_final_zero_gaps(void) {
       g_step_count = 0;
       g_step_max = 1;
       ASSERT_EQ(C_ORM_OK, c_orm_select_raw(&fdb, "SELECT 1", &bmeta, &sarr));
-      free(sarr.data);
+      c_orm_system_free(sarr.data);
       memset(&sarr, 0, sizeof(sarr));
       g_step_count = 0;
       c_orm_mock_finalize_cached_fail = 1;
       ASSERT_NEQ(C_ORM_OK, c_orm_select_raw(&fdb, "SELECT 1", &bmeta, &sarr));
       c_orm_mock_finalize_cached_fail = 0;
-      free(sarr.data);
+      c_orm_system_free(sarr.data);
       memset(&sarr, 0, sizeof(sarr));
       g_mock_step_fail_countdown = 0;
       ASSERT_NEQ(C_ORM_OK, c_orm_select_raw(&fdb, "SELECT 1", &bmeta, &sarr));
@@ -3472,7 +3700,7 @@ TEST test_api_final_zero_gaps(void) {
 
     /* CHAR_FIXED validate: precision == 0 and strlen <= precision */
     {
-      char *sval = "abc";
+      char *sval = c_mut_s4;
       c_orm_column_meta_t cf_col;
       c_orm_table_meta_t cf_meta;
       memset(&cf_col, 0, sizeof(cf_col));
@@ -3499,7 +3727,7 @@ TEST test_api_final_zero_gaps(void) {
       cdd_c_meta_t dm;
       c_orm_identity_map_t fmap;
       void *out_obj = NULL;
-      src_o.s = "hello";
+      src_o.s = c_mut_s5;
       memset(&dst_o, 0, sizeof(dst_o));
       memset(&dp, 0, sizeof(dp));
       memset(&dm, 0, sizeof(dm));
@@ -3537,7 +3765,7 @@ TEST test_api_final_zero_gaps(void) {
       c_orm_table_meta_t dpm = bmeta;
       memset(&dec_child, 0, sizeof(dec_child));
       dec_child.id = 5;
-      (void)c_orm_decimal_from_str("1.00", &dec_child.parent_fk);
+      ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("1.00", &dec_child.parent_fk));
       memset(dcc, 0, sizeof(dcc));
       dcc[0].name = "id";
       dcc[0].type = C_ORM_TYPE_INT32;
@@ -3582,7 +3810,7 @@ TEST test_api_final_zero_gaps(void) {
       c_orm_table_meta_t p_meta;
       c_orm_column_meta_t str_pk_col;
       c_orm_table_meta_t str_pk_meta;
-      char *str_pk_val = "pk1";
+      char *str_pk_val = c_mut_s6;
       cdd_c_abstract_struct_array_t aarr2;
       c_orm_db_t empty_db2;
 
@@ -3619,7 +3847,7 @@ TEST test_api_final_zero_gaps(void) {
       ASSERT_NEQ(C_ORM_OK, c_orm_find_all_with_relations(&fdb, &bmeta, p_dot, 1,
                                                          &arr_out));
       c_orm_mock_safe_crt_countdown = -1;
-      free(arr_out.data);
+      c_orm_system_free(arr_out.data);
 
       g_step_count = 0;
       g_step_max = 1;
@@ -3628,7 +3856,7 @@ TEST test_api_final_zero_gaps(void) {
       ASSERT_NEQ(C_ORM_OK, c_orm_find_all_with_relations(&fdb, &bmeta, p_nodot,
                                                          1, &arr_out));
       c_orm_mock_safe_crt_countdown = -1;
-      free(arr_out.data);
+      c_orm_system_free(arr_out.data);
 
       /* L3771-3772: c_orm_upsert prepare_cached failure */
       g_db_fail = 1;
@@ -3809,7 +4037,7 @@ TEST test_api_final_zero_gaps(void) {
         c_orm_mock_safe_crt_countdown = step;
         (void)c_orm_load_relation_ext(&fdb, &par_in, &p_meta, 0, 0, 0);
         c_orm_mock_safe_crt_countdown = -1;
-        free(par_in.children_o2m.data);
+        c_orm_system_free(par_in.children_o2m.data);
 
         memset(&par_in, 0, sizeof(par_in));
         par_in.id = 1;
@@ -3817,7 +4045,7 @@ TEST test_api_final_zero_gaps(void) {
         c_orm_mock_safe_crt_countdown = step;
         (void)c_orm_load_relation_ext(&fdb, &par_in, &p_meta, 0, 0, 0);
         c_orm_mock_safe_crt_countdown = -1;
-        free(par_in.children_o2m.data);
+        c_orm_system_free(par_in.children_o2m.data);
       }
       r_meta.order_by = NULL;
 
@@ -3873,6 +4101,745 @@ TEST test_api_final_zero_gaps(void) {
       }
       g_mock_finalize_fail = 0;
       g_db_fail = 0;
+
+      /* Exhaustive AST error percolation branch coverage */
+      {
+        /** @brief Local row fixture testing invalid decimal scale handling. */
+        struct DecScaleRow {
+          /** @brief Primary key ID. */
+          int32_t id;
+          /** @brief Decimal column value. */
+          c_orm_decimal_t dec;
+        } dsr;
+        c_orm_column_meta_t dsc[2];
+        c_orm_table_meta_t dsm;
+        c_orm_decimal_t bad_dec_key;
+
+        memset(&dsr, 0, sizeof(dsr));
+        memset(dsc, 0, sizeof(dsc));
+        memset(&dsm, 0, sizeof(dsm));
+        memset(&bad_dec_key, 0, sizeof(bad_dec_key));
+        bad_dec_key.scale = 99;
+
+        dsc[0].name = "id";
+        dsc[0].type = C_ORM_TYPE_INT32;
+        dsc[0].is_pk = true;
+        dsc[0].offset = offsetof(struct DecScaleRow, id);
+        dsc[1].name = "dec";
+        dsc[1].type = C_ORM_TYPE_DECIMAL;
+        dsc[1].scale = 99;
+        dsc[1].offset = offsetof(struct DecScaleRow, dec);
+        dsm.name = "ds_tbl";
+        dsm.columns = dsc;
+        dsm.num_columns = 2;
+        dsm.struct_size = sizeof(dsr);
+        dsm.query_select_by_pk = "SELECT id, dec FROM ds_tbl WHERE id = ?";
+
+        fvt = g_vt;
+        fvt.get_decimal = NULL;
+        fvt.get_string = fz_get_str_oom;
+        g_fz_mode = 74; /* NULL string -> c_orm_decimal_zero(99) fails */
+        ASSERT_NEQ(C_ORM_OK,
+                   c_orm_hydrate_row(&fdb, (c_orm_query_t *)1, &dsm, &dsr));
+        fvt = g_vt;
+        fvt.bind_decimal = NULL;
+        ASSERT_NEQ(C_ORM_OK,
+                   c_orm_find_by_id_decimal(&fdb, &dsm, &bad_dec_key, &dsr));
+
+        r_meta.type = C_ORM_RELATION_ONE_TO_MANY;
+        r_meta.target_meta = &dsm;
+        r_meta.foreign_key = "dec";
+        ASSERT_NEQ(C_ORM_OK,
+                   c_orm_detach(&fdb, &p_meta, &par_in, "bt_rel", &dsr));
+        r_meta.target_meta = &ch_meta;
+        r_meta.foreign_key = "id";
+        g_fz_mode = 0;
+
+        /* 2. Composite key bind/finalize branches */
+        {
+          /** @brief Multi-type row fixture for composite key bind tests. */
+          struct CompAllRow {
+            /** @brief Composite integer key column. */
+            int32_t k1;
+            /** @brief Boolean column. */
+            unsigned char bcol;
+            /** @brief Single-precision float column. */
+            float fcol;
+            /** @brief Fixed-point decimal column. */
+            c_orm_decimal_t dcol;
+            /** @brief String column. */
+            char *scol;
+          } car;
+          c_orm_column_meta_t cac[5];
+          c_orm_table_meta_t cam;
+          cdd_c_variant_t kv[1];
+          unsigned char bbyte = 1;
+
+          memset(&car, 0, sizeof(car));
+          memset(cac, 0, sizeof(cac));
+          memset(&cam, 0, sizeof(cam));
+          memset(kv, 0, sizeof(kv));
+          cac[0].name = "k1";
+          cac[0].type = C_ORM_TYPE_INT32;
+          cac[0].is_pk = true;
+          cac[0].offset = offsetof(struct CompAllRow, k1);
+          cac[1].name = "bcol";
+          cac[1].type = C_ORM_TYPE_BOOL;
+          cac[1].offset = offsetof(struct CompAllRow, bcol);
+          cac[2].name = "fcol";
+          cac[2].type = C_ORM_TYPE_FLOAT;
+          cac[2].offset = offsetof(struct CompAllRow, fcol);
+          cac[3].name = "dcol";
+          cac[3].type = C_ORM_TYPE_DECIMAL;
+          cac[3].offset = offsetof(struct CompAllRow, dcol);
+          cac[4].name = "scol";
+          cac[4].type = C_ORM_TYPE_STRING;
+          cac[4].offset = offsetof(struct CompAllRow, scol);
+          cam.name = "ca_tbl";
+          cam.columns = cac;
+          cam.num_columns = 5;
+          cam.struct_size = sizeof(car);
+          cam.query_select_by_pk = "SELECT * FROM ca_tbl WHERE k1 = ?";
+          cam.query_update =
+              "UPDATE ca_tbl SET bcol=?, fcol=?, dcol=?, scol=? WHERE k1=?";
+          cam.query_delete_by_pk = "DELETE FROM ca_tbl WHERE k1 = ?";
+
+          fvt = g_vt;
+          fvt.bind_int32 = fz_cd_bind_i32;
+          fvt.bind_int64 = fz_cd_bind_i64;
+          fvt.bind_double = fz_cd_bind_dbl;
+          fvt.bind_string = fz_cd_bind_str;
+          fvt.bind_null = fz_cd_bind_null;
+          fvt.bind_blob = fz_cd_bind_blob;
+          fvt.bind_decimal = fz_cd_bind_dec;
+
+          /* find_by_id_decimal bind_string fallback fail */
+          {
+            c_orm_decimal_t ok_dec;
+            ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("12.34", &ok_dec));
+            fvt.bind_decimal = NULL;
+            g_fz_bind_cd = 0;
+            ASSERT_NEQ(C_ORM_OK,
+                       c_orm_find_by_id_decimal(&fdb, &dsm, &ok_dec, &dsr));
+            fvt.bind_decimal = fz_cd_bind_dec;
+          }
+
+          /* find & delete composite DECIMAL keys */
+          kv[0].type = CDD_C_VARIANT_TYPE_DECIMAL;
+          g_fz_bind_cd = 0;
+          ASSERT_NEQ(C_ORM_OK,
+                     c_orm_find_by_composite_key(&fdb, &cam, 1, kv, &car));
+          g_fz_bind_cd = 0;
+          ASSERT_NEQ(C_ORM_OK,
+                     c_orm_delete_by_composite_key(&fdb, &cam, 1, kv));
+
+          /* update_by_composite_key bind failures across INT32, BOOL, FLOAT,
+           * DECIMAL, NULL/non-NULL STRING, and INT/FLOAT/STRING/DECIMAL/BLOB
+           * keys */
+          for (step = 0; step < 6; step++) {
+            car.scol = NULL;
+            kv[0].type = CDD_C_VARIANT_TYPE_INT;
+            g_fz_bind_cd = step;
+            ASSERT_NEQ(C_ORM_OK,
+                       c_orm_update_by_composite_key(&fdb, &cam, 1, kv, &car));
+          }
+          car.scol = c_mut_s7;
+          g_fz_bind_cd = 4; /* non-NULL scol bind_string fail */
+          ASSERT_NEQ(C_ORM_OK,
+                     c_orm_update_by_composite_key(&fdb, &cam, 1, kv, &car));
+
+          /* Key bind failures for FLOAT, STRING, DECIMAL, BLOB */
+          kv[0].type = CDD_C_VARIANT_TYPE_FLOAT;
+          g_fz_bind_cd = 5;
+          ASSERT_NEQ(C_ORM_OK,
+                     c_orm_update_by_composite_key(&fdb, &cam, 1, kv, &car));
+          kv[0].type = CDD_C_VARIANT_TYPE_STRING;
+          kv[0].value.s_val = c_mut_s8;
+          g_fz_bind_cd = 5;
+          ASSERT_NEQ(C_ORM_OK,
+                     c_orm_update_by_composite_key(&fdb, &cam, 1, kv, &car));
+          kv[0].type = CDD_C_VARIANT_TYPE_DECIMAL;
+          g_fz_bind_cd = 5;
+          ASSERT_NEQ(C_ORM_OK,
+                     c_orm_update_by_composite_key(&fdb, &cam, 1, kv, &car));
+          kv[0].type = CDD_C_VARIANT_TYPE_BLOB;
+          kv[0].value.b_val.data = &bbyte;
+          kv[0].value.b_val.size = 1;
+          g_fz_bind_cd = 5;
+          ASSERT_NEQ(C_ORM_OK,
+                     c_orm_update_by_composite_key(&fdb, &cam, 1, kv, &car));
+
+          /* decimal_to_str fallback + bind_string fail on col.dcol */
+          fvt.bind_decimal = NULL;
+          car.dcol.scale = 99;
+          ASSERT_NEQ(C_ORM_OK,
+                     c_orm_update_by_composite_key(&fdb, &cam, 1, kv, &car));
+          ASSERT_EQ(C_ORM_OK, c_orm_decimal_zero(2, &car.dcol));
+          for (step = 0; step <= 5; step++) {
+            g_fz_bind_cd = step;
+            ASSERT_NEQ(C_ORM_OK,
+                       c_orm_update_by_composite_key(&fdb, &cam, 1, kv, &car));
+          }
+
+          /* finalize_cached fail on comp_upd_err */
+          g_fz_bind_cd = 0;
+          c_orm_mock_finalize_cached_fail = 1;
+          ASSERT_NEQ(C_ORM_OK,
+                     c_orm_update_by_composite_key(&fdb, &cam, 1, kv, &car));
+          c_orm_mock_finalize_cached_fail = 0;
+          g_fz_bind_cd = -1;
+          fvt = g_vt;
+        }
+
+        /* 3. Polygon bind_blob failure & insert_batch step+finalize failure */
+        {
+          /** @brief Local row fixture with a polygon column. */
+          struct PolyRow {
+            /** @brief Primary key ID. */
+            int32_t id;
+            /** @brief Polygon geometry value. */
+            c_orm_polygon_t poly;
+          } pr;
+          c_orm_point_t pt = {1.0, 2.0};
+          c_orm_column_meta_t pc[2];
+          c_orm_table_meta_t pm;
+          memset(&pr, 0, sizeof(pr));
+          memset(pc, 0, sizeof(pc));
+          memset(&pm, 0, sizeof(pm));
+          pr.id = 1;
+          pr.poly.points = &pt;
+          pr.poly.num_points = 1;
+          pc[0].name = "id";
+          pc[0].type = C_ORM_TYPE_INT32;
+          pc[0].is_pk = true;
+          pc[0].offset = offsetof(struct PolyRow, id);
+          pc[1].name = "poly";
+          pc[1].type = C_ORM_TYPE_POLYGON;
+          pc[1].offset = offsetof(struct PolyRow, poly);
+          pm.name = "poly_tbl";
+          pm.columns = pc;
+          pm.num_columns = 2;
+          pm.struct_size = sizeof(pr);
+          pm.query_insert = "INSERT INTO poly_tbl VALUES (?, ?)";
+          fvt = g_vt;
+          g_db_fail = 1;
+          g_db_count = 0;
+          g_db_target = 2;
+          ASSERT_NEQ(C_ORM_OK, c_orm_insert(&fdb, &pm, &pr));
+          g_db_fail = 0;
+        }
+
+        fvt = g_vt;
+        g_db_fail = 1;
+        g_db_count = 0;
+        g_db_target = 5;
+        g_mock_finalize_fail = 1;
+        ASSERT_NEQ(C_ORM_OK, c_orm_insert_batch(&fdb, &bmeta, b, 1, 1));
+        g_mock_finalize_fail = 0;
+        g_db_fail = 0;
+
+        /* 4. Insert BelongsTo/ONE_TO_ONE get_last_insert_rowid OOM & 0, plus
+         * Db2 FINAL TABLE OOM/finalize branches */
+        fvt = g_vt;
+        fvt.step = fz_custom_step;
+        fvt.get_last_insert_rowid = fz_last_rowid;
+        memset(&par_in, 0, sizeof(par_in));
+        par_in.id = 1;
+        par_in.child_o2o = &ch_in;
+        ch_in.id = 7;
+        r_meta.type = C_ORM_RELATION_BELONGS_TO;
+        r_meta.target_meta = &ch_meta;
+        r_meta.struct_offset = offsetof(struct FullParentObj, child_o2o);
+        r_meta.data_offset = offsetof(struct FullParentObj, child_o2o);
+        r_meta.lazy_ctx_offset = offsetof(struct FullParentObj, o2o_ctx);
+        r_meta.local_key = "val";
+        r_meta.foreign_key = "id";
+        g_fz_mode = 57; /* OOM */
+        ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_insert(&fdb, &p_meta, &par_in));
+        g_fz_mode = 53; /* non-OOM SQL error fallback */
+        ASSERT_EQ(C_ORM_OK, c_orm_insert(&fdb, &p_meta, &par_in));
+        g_fz_mode = 54; /* 0 rowid */
+        ASSERT_EQ(C_ORM_OK, c_orm_insert(&fdb, &p_meta, &par_in));
+
+        r_meta.type = C_ORM_RELATION_ONE_TO_ONE;
+        r_meta.local_key = "id";
+        r_meta.foreign_key = "id";
+        g_fz_mode = 57;
+        ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_insert(&fdb, &p_meta, &par_in));
+
+        /* Db2 FINAL TABLE get_int64 OOM + fin ok/fail, set_int_field OOM + fin
+         * ok/fail, and get_last_insert_rowid OOM */
+        fdb.driver_name = "db2";
+        fvt.get_int64 = fz_get_i64_oom;
+        for (step = 0; step <= 1; step++) {
+          c_orm_query_t *dummy_q = NULL;
+          (void)dummy_q;
+          b[0].id = 0;
+          g_fz_mode = 71;
+          c_orm_mock_finalize_cached_fail = step;
+          /* Prime step to has_row=1 via mode 71 in fz_get_i64_oom while
+           * mock_step yields 1 row */
+          fvt.step = mock_step;
+          g_step_count = 0;
+          g_step_max = 1;
+          ASSERT_NEQ(C_ORM_OK, c_orm_insert(&fdb, &bmeta, &b[0]));
+        }
+        c_orm_mock_finalize_cached_fail = 0;
+
+        /* Db2 nullable int32 PK set_int_field OOM & Missing PK column */
+        {
+          /** @brief Local row fixture with nullable integer pointer PK. */
+          struct NullPkRow {
+            /** @brief Nullable primary key pointer. */
+            int32_t *id;
+          } npr;
+          c_orm_column_meta_t npc;
+          c_orm_table_meta_t npm;
+          memset(&npr, 0, sizeof(npr));
+          memset(&npc, 0, sizeof(npc));
+          memset(&npm, 0, sizeof(npm));
+          npc.name = "id";
+          npc.type = C_ORM_TYPE_INT32;
+          npc.is_pk = false;
+          npm.name = "np";
+          npm.columns = &npc;
+          npm.num_columns = 1;
+          npm.struct_size = sizeof(npr);
+        }
+        /* Non-OOM get_int64 -> fallback to get_last_insert_rowid OOM */
+        fvt.get_int64 = fz_get_i64_oom;
+        g_fz_mode = 72; /* get_int64 returns TYPE_MISMATCH */
+        fvt.get_last_insert_rowid = fz_last_rowid;
+        b[0].id = 0;
+        g_step_count = 0;
+        g_step_max = 1;
+        ASSERT_EQ(C_ORM_OK, c_orm_insert(&fdb, &bmeta, &b[0]));
+        /* get_int64 returns >0, set_int_field fails (nullable PK? No,
+         * db2_auto_pk requires !is_nullable, so test get_last_insert_rowid OOM
+         * with get_int64 == NULL!) */
+        fvt.get_int64 = NULL;
+        g_fz_mode = 57;
+        b[0].id = 0;
+        g_step_count = 0;
+        g_step_max = 1;
+        ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_insert(&fdb, &bmeta, &b[0]));
+        fdb.driver_name = "sqlite";
+        fvt = g_vt;
+        g_fz_mode = 0;
+
+        /* 5. Cascade delete prepare OOM, bind/step + finalize_cached fail, and
+         * MANY_TO_MANY join SPRINTF fail */
+        b[0].id = 1;
+        r_meta.type = C_ORM_RELATION_ONE_TO_MANY;
+        r_meta.on_delete = C_ORM_CASCADE_DELETE;
+        r_meta.local_key = "id";
+        r_meta.foreign_key = "id";
+        g_malloc_fail = 1;
+        g_malloc_count = 0;
+        g_malloc_target = 0;
+        fvt.prepare = fz_prepare_oom;
+        ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_delete(&fdb, &p_meta, &b[0]));
+        fvt = g_vt;
+        g_malloc_fail = 0;
+
+        g_mock_fail_bind = 1;
+        c_orm_mock_finalize_cached_fail = 1;
+        ASSERT_NEQ(C_ORM_OK, c_orm_delete(&fdb, &p_meta, &b[0]));
+        g_mock_fail_bind = 0;
+
+        g_db_fail = 1;
+        g_db_count = 0;
+        g_db_target = 2; /* step fails on cascade */
+        c_orm_mock_finalize_cached_fail = 0;
+        ASSERT_NEQ(C_ORM_OK, c_orm_delete(&fdb, &p_meta, &b[0]));
+        g_db_count = 0;
+        g_db_target = 2;
+        c_orm_mock_finalize_cached_fail = 1;
+        ASSERT_NEQ(C_ORM_OK, c_orm_delete(&fdb, &p_meta, &b[0]));
+        c_orm_mock_finalize_cached_fail = 0;
+        g_db_fail = 0;
+
+        r_meta.type = C_ORM_RELATION_MANY_TO_MANY;
+        r_meta.on_delete = C_ORM_CASCADE_DELETE;
+        r_meta.join_table = "jt";
+        r_meta.join_local_key = "pid";
+        r_meta.join_foreign_key = "cid";
+        c_orm_mock_safe_crt_countdown = 1; /* second SPRINTF (join table) */
+        ASSERT_NEQ(C_ORM_OK, c_orm_delete(&fdb, &p_meta, &b[0]));
+        c_orm_mock_safe_crt_countdown = -1;
+
+        r_meta.type = C_ORM_RELATION_ONE_TO_MANY;
+        r_meta.on_delete = C_ORM_CASCADE_SET_NULL;
+        c_orm_mock_safe_crt_countdown = 0;
+        ASSERT_NEQ(C_ORM_OK, c_orm_delete(&fdb, &p_meta, &b[0]));
+        c_orm_mock_safe_crt_countdown = -1;
+
+        /* Db2 INT64 PK FINAL TABLE & fallback rowid assignment */
+        {
+          /** @brief Local 64-bit integer PK row fixture for Db2 FINAL TABLE. */
+          struct Db2I64Row {
+            /** @brief 64-bit integer primary key. */
+            int64_t id;
+          } di64;
+          c_orm_column_meta_t dic;
+          c_orm_table_meta_t dim;
+          memset(&di64, 0, sizeof(di64));
+          memset(&dic, 0, sizeof(dic));
+          memset(&dim, 0, sizeof(dim));
+          dic.name = "id";
+          dic.type = C_ORM_TYPE_INT64;
+          dic.is_pk = true;
+          dim.name = "di64";
+          dim.columns = &dic;
+          dim.num_columns = 1;
+          dim.struct_size = sizeof(di64);
+          fdb.driver_name = "db2";
+          fvt = g_vt;
+          fvt.get_int64 = fz_get_i64_oom;
+          g_fz_mode = 0; /* returns 77 */
+          g_step_count = 0;
+          g_step_max = 1;
+          ASSERT_EQ(C_ORM_OK, c_orm_insert(&fdb, &dim, &di64));
+          ASSERT_EQ(77, di64.id);
+
+          di64.id = 0;
+          fvt.get_int64 = NULL;
+          fvt.get_last_insert_rowid = fz_last_rowid;
+          g_fz_mode = 0; /* returns 99 */
+          g_step_count = 0;
+          g_step_max = 1;
+          ASSERT_EQ(C_ORM_OK, c_orm_insert(&fdb, &dim, &di64));
+          ASSERT_EQ(99, di64.id);
+          fdb.driver_name = "sqlite";
+          fvt = g_vt;
+        }
+
+        /* hydrate_routed router dispatch error (unregistered query_hash) */
+        {
+          cdd_c_hydrate_router_t rtr;
+          memset(&rtr, 0, sizeof(rtr));
+          fvt = g_vt;
+          fvt.get_column_count = ex_abs_col_cnt;
+          fvt.get_column_name = fz_pfx_col_name;
+          fvt.is_null = ex_abs_is_null;
+          fdb.hydrate_router = &rtr;
+          ASSERT_NEQ(C_ORM_OK, c_orm_hydrate_routed(&fdb, (c_orm_query_t *)1,
+                                                    999U, &b[0]));
+          fdb.hydrate_router = NULL;
+          fvt = g_vt;
+        }
+
+        /* 6. Abstract row OOM on get_int64/get_double/get_string &
+         * finalize_cached failures on select_raw, find_all_abstract,
+         * find_all_paginated, attach, detach, sync */
+        fvt = g_vt;
+        fvt.get_column_count = ex_abs_col_cnt;
+        fvt.get_column_name = fz_pfx_col_name;
+        fvt.is_null = ex_abs_is_null;
+        fvt.get_int64 = fz_get_i64_oom;
+        fvt.get_double = fz_get_dbl_oom;
+        fvt.get_string = fz_get_str_oom;
+        for (step = 71; step <= 73; step++) {
+          cdd_c_abstract_struct_t arow;
+          memset(&arow, 0, sizeof(arow));
+          g_fz_mode = step;
+          ASSERT_EQ(C_ORM_ERROR_MEMORY,
+                    c_orm_hydrate_routed(&fdb, (c_orm_query_t *)1, 0, &arow));
+        }
+        g_fz_mode = 0;
+        fvt = g_vt;
+
+        /* select_raw & find_all_abstract error + finalize_cached fail */
+        g_db_fail = 1;
+        g_db_count = 0;
+        g_db_target = 1;
+        c_orm_mock_finalize_cached_fail = 1;
+        memset(&arr_out, 0, sizeof(arr_out));
+        ASSERT_NEQ(C_ORM_OK,
+                   c_orm_select_raw(&fdb, "SELECT 1", &bmeta, &arr_out));
+        g_db_count = 0;
+        g_db_target = 1;
+        memset(&aarr2, 0, sizeof(aarr2));
+        ASSERT_NEQ(C_ORM_OK, c_orm_find_all_abstract(&fdb, "SELECT 1", &aarr2));
+        g_db_count = 0;
+        g_db_target = 1;
+        ASSERT_NEQ(C_ORM_OK,
+                   c_orm_find_all_paginated(&fdb, &bmeta, &arr_out, 5, 0));
+        g_db_fail = 0;
+        c_orm_mock_finalize_cached_fail = 0;
+
+        /* attach, detach, sync bind2 & finalize_cached failures */
+        r_meta.type = C_ORM_RELATION_MANY_TO_MANY;
+        par_in.id = 1;
+        ch_in.id = 2;
+        for (step = 0; step <= 1; step++) {
+          c_orm_mock_finalize_cached_fail = step;
+          g_db_fail = 1;
+          g_db_count = 0;
+          g_db_target = 2; /* bind 2 fails */
+          ASSERT_NEQ(C_ORM_OK,
+                     c_orm_attach(&fdb, &p_meta, &par_in, "bt_rel", &ch_in));
+          g_db_count = 0;
+          g_db_target = 2;
+          ASSERT_NEQ(C_ORM_OK,
+                     c_orm_detach(&fdb, &p_meta, &par_in, "bt_rel", &ch_in));
+          g_db_count = 0;
+          g_db_target = 5; /* sync bind 2 fails */
+          ASSERT_NEQ(C_ORM_OK,
+                     c_orm_sync(&fdb, &p_meta, &par_in, "bt_rel", &ch_in, 1));
+        }
+        g_db_fail = 0;
+        c_orm_mock_finalize_cached_fail = 0;
+
+        /* 7. Timestamp & soft-delete Safe CRT failure */
+        bcols[1].name = "created_at";
+        ASSERT_EQ(C_ORM_OK, c_orm_register_timestamp_hooks(&bmeta));
+        c_orm_mock_safe_crt_countdown = 0;
+        ASSERT_NEQ(C_ORM_OK, c_orm_insert(&fdb, &bmeta, &b[0]));
+        memset(bmeta.hooks, 0, sizeof(bmeta.hooks));
+        bcols[1].name = "deleted_at";
+        ASSERT_EQ(C_ORM_OK, c_orm_register_soft_delete_hook(&bmeta));
+        c_orm_mock_safe_crt_countdown = 0;
+        ASSERT_NEQ(C_ORM_OK, c_orm_delete(&fdb, &bmeta, &b[0]));
+        memset(bmeta.hooks, 0, sizeof(bmeta.hooks));
+        bcols[1].name = "val";
+        c_orm_mock_safe_crt_countdown = -1;
+
+        /* 8. c_orm_free_relations with NULL target_meta on loaded relation */
+        memset(&par_in, 0, sizeof(par_in));
+        par_in.child_o2o = &ch_in;
+        par_in.o2o_ctx.is_loaded = 1;
+        r_meta.type = C_ORM_RELATION_ONE_TO_ONE;
+        r_meta.target_meta = NULL;
+        r_meta.struct_offset = offsetof(struct FullParentObj, child_o2o);
+        r_meta.data_offset = offsetof(struct FullParentObj, child_o2o);
+        r_meta.lazy_ctx_offset = offsetof(struct FullParentObj, o2o_ctx);
+        ASSERT_EQ(C_ORM_OK, c_orm_free_relations(&p_meta, &par_in));
+        r_meta.target_meta = &ch_meta;
+
+        /* 9. c_orm_load_relation_ext OOM countdown across MANY_TO_MANY,
+         * ONE_TO_MANY, and ONE_TO_ONE fluent AST builders */
+        {
+          c_orm_malloc_fn_t saved_m = c_orm_malloc;
+          c_orm_realloc_fn_t saved_r = c_orm_realloc;
+          c_orm_free_fn_t saved_f = c_orm_free;
+          tracked_count = 0;
+          ASSERT_EQ(C_ORM_OK,
+                    c_orm_set_allocators(mock_malloc_fail, mock_realloc_fail,
+                                         mock_free));
+          for (step = 0; step < 18; step++) {
+            c_orm_error_t lrc;
+            memset(&par_in, 0, sizeof(par_in));
+            par_in.id = 1;
+            r_meta.type = C_ORM_RELATION_MANY_TO_MANY;
+            r_meta.join_table = "jt";
+            r_meta.join_local_key = "pid";
+            r_meta.join_foreign_key = "cid";
+            r_meta.custom_filter = "1=1";
+            r_meta.soft_delete_aware = 1;
+            r_meta.order_by = "id DESC";
+            r_meta.struct_offset = offsetof(struct FullParentObj, children_o2m);
+            r_meta.data_offset = offsetof(struct FullParentObj, children_o2m);
+            r_meta.lazy_ctx_offset = offsetof(struct FullParentObj, o2m_ctx);
+            g_malloc_fail = 1;
+            g_malloc_count = 0;
+            g_malloc_target = step;
+            lrc = c_orm_load_relation_ext(&fdb, &par_in, &p_meta, 0, 5, 2);
+            ASSERT_NEQ((c_orm_error_t)-999, lrc);
+            g_malloc_fail = 0;
+            c_orm_system_free(par_in.children_o2m.data);
+
+            memset(&par_in, 0, sizeof(par_in));
+            par_in.id = 1;
+            g_step_count = 0;
+            g_step_max = 1;
+            r_meta.type = C_ORM_RELATION_ONE_TO_ONE;
+            r_meta.struct_offset = offsetof(struct FullParentObj, child_o2o);
+            r_meta.data_offset = offsetof(struct FullParentObj, child_o2o);
+            r_meta.lazy_ctx_offset = offsetof(struct FullParentObj, o2o_ctx);
+            g_malloc_fail = 1;
+            g_malloc_count = 0;
+            g_malloc_target = step;
+            lrc = c_orm_load_relation_ext(&fdb, &par_in, &p_meta, 0, 0, 0);
+            ASSERT_NEQ((c_orm_error_t)-999, lrc);
+            g_malloc_fail = 0;
+            if (par_in.child_o2o) {
+              c_orm_system_free(par_in.child_o2o);
+            }
+          }
+          r_meta.custom_filter = NULL;
+          r_meta.soft_delete_aware = 0;
+          r_meta.order_by = NULL;
+
+          /* 10. c_orm_resolve_n_plus_one string_builder_get_fail & OOM/finalize
+           * countdowns */
+          {
+            struct Generic_Array parr;
+            parr.data = &par_in;
+            parr.length = 1;
+            parr.capacity = 1;
+            par_in.id = 1;
+            par_in.child_o2o = NULL;
+            memset(&par_in.children_o2m, 0, sizeof(par_in.children_o2m));
+            r_meta.type = C_ORM_RELATION_ONE_TO_MANY;
+            r_meta.target_meta = &ch_meta;
+            r_meta.local_key = "id";
+            r_meta.foreign_key = "id";
+            r_meta.struct_offset = offsetof(struct FullParentObj, children_o2m);
+            r_meta.data_offset = offsetof(struct FullParentObj, children_o2m);
+            r_meta.lazy_ctx_offset = offsetof(struct FullParentObj, o2m_ctx);
+
+            c_orm_mock_string_builder_get_fail = 1;
+            ASSERT_NEQ(C_ORM_OK,
+                       c_orm_resolve_n_plus_one(&fdb, &parr, &p_meta, 0));
+            c_orm_mock_string_builder_get_fail = 0;
+
+            for (step = 0; step < 14; step++) {
+              int fin_step;
+              for (fin_step = 0; fin_step <= 1; fin_step++) {
+                c_orm_error_t rrc;
+                memset(&par_in.children_o2m, 0, sizeof(par_in.children_o2m));
+                g_step_count = 0;
+                g_step_max = 1;
+                c_orm_mock_finalize_cached_fail = fin_step;
+                g_malloc_fail = 1;
+                g_malloc_count = 0;
+                g_malloc_target = step;
+                rrc = c_orm_resolve_n_plus_one(&fdb, &parr, &p_meta, 0);
+                ASSERT_NEQ((c_orm_error_t)-999, rrc);
+                g_malloc_fail = 0;
+                c_orm_mock_finalize_cached_fail = 0;
+                c_orm_system_free(par_in.children_o2m.data);
+              }
+            }
+            r_meta.type = C_ORM_RELATION_ONE_TO_ONE;
+            r_meta.struct_offset = offsetof(struct FullParentObj, child_o2o);
+            r_meta.data_offset = offsetof(struct FullParentObj, child_o2o);
+            r_meta.lazy_ctx_offset = offsetof(struct FullParentObj, o2o_ctx);
+            fvt.get_int32 = fz_pfx_get_i32;
+            for (step = 0; step < 12; step++) {
+              int fin_step;
+              for (fin_step = 0; fin_step <= 1; fin_step++) {
+                c_orm_error_t rrc;
+                par_in.child_o2o = NULL;
+                par_in.o2o_ctx.is_loaded = 0;
+                g_step_count = 0;
+                g_step_max = 1;
+                c_orm_mock_finalize_cached_fail = fin_step;
+                g_malloc_fail = 1;
+                g_malloc_count = 0;
+                g_malloc_target = step;
+                rrc = c_orm_resolve_n_plus_one(&fdb, &parr, &p_meta, 0);
+                ASSERT_NEQ((c_orm_error_t)-999, rrc);
+                g_malloc_fail = 0;
+                c_orm_mock_finalize_cached_fail = 0;
+                if (par_in.child_o2o) {
+                  c_orm_system_free(par_in.child_o2o);
+                  par_in.child_o2o = NULL;
+                }
+              }
+            }
+
+            /* String PK parent & child in resolve_n_plus_one for
+             * get_field_value OOM and bind fail + finalize_cached fail */
+            {
+              /** @brief String-keyed parent fixture for N+1 resolution tests.
+               */
+              struct StrN1Parent {
+                /** @brief String primary key. */
+                char *id;
+                /** @brief Hydrated child array. */
+                struct Generic_Array children;
+                /** @brief Lazy-load relation context. */
+                c_orm_lazy_load_context_t ctx;
+              } sp;
+              /** @brief String-keyed child fixture for N+1 resolution tests. */
+              struct StrN1Child {
+                /** @brief Parent string foreign key. */
+                char *pid;
+              } sc;
+              c_orm_column_meta_t spc;
+              c_orm_column_meta_t scc;
+              c_orm_table_meta_t spm;
+              c_orm_table_meta_t scm;
+              c_orm_relation_meta_t srm;
+              struct Generic_Array sp_arr;
+
+              memset(&sp, 0, sizeof(sp));
+              memset(&sc, 0, sizeof(sc));
+              memset(&spc, 0, sizeof(spc));
+              memset(&scc, 0, sizeof(scc));
+              memset(&spm, 0, sizeof(spm));
+              memset(&scm, 0, sizeof(scm));
+              memset(&srm, 0, sizeof(srm));
+              sp.id = c_mut_s9;
+              spc.name = "id";
+              spc.type = C_ORM_TYPE_STRING;
+              spc.is_pk = true;
+              spc.offset = offsetof(struct StrN1Parent, id);
+              scc.name = "pid";
+              scc.type = C_ORM_TYPE_STRING;
+              scc.offset = offsetof(struct StrN1Child, pid);
+              scm.name = "sc_tbl";
+              scm.columns = &scc;
+              scm.num_columns = 1;
+              scm.struct_size = sizeof(sc);
+              srm.field_name = "children";
+              srm.type = C_ORM_RELATION_ONE_TO_MANY;
+              srm.target_meta = &scm;
+              srm.local_key = "id";
+              srm.foreign_key = "pid";
+              srm.struct_offset = offsetof(struct StrN1Parent, children);
+              srm.data_offset = offsetof(struct StrN1Parent, children);
+              srm.lazy_ctx_offset = offsetof(struct StrN1Parent, ctx);
+              spm.name = "sp_tbl";
+              spm.columns = &spc;
+              spm.num_columns = 1;
+              spm.struct_size = sizeof(sp);
+              spm.relations = &srm;
+              spm.num_relations = 1;
+              sp_arr.data = &sp;
+              sp_arr.length = 1;
+              sp_arr.capacity = 1;
+
+              fvt = g_vt;
+              fvt.get_string = fz_pfx_get_str;
+              for (step = 0; step < 16; step++) {
+                c_orm_error_t rrc;
+                memset(&sp.children, 0, sizeof(sp.children));
+                sp.ctx.is_loaded = 0;
+                g_step_count = 0;
+                g_step_max = 1;
+                g_malloc_fail = 1;
+                g_malloc_count = 0;
+                g_malloc_target = step;
+                rrc = c_orm_resolve_n_plus_one(&fdb, &sp_arr, &spm, 0);
+                ASSERT_NEQ((c_orm_error_t)-999, rrc);
+                g_malloc_fail = 0;
+                if (sp.children.data) {
+                  struct StrN1Child *cs = (struct StrN1Child *)sp.children.data;
+                  size_t ci;
+                  for (ci = 0; ci < sp.children.length; ci++) {
+                    c_orm_system_free(cs[ci].pid);
+                  }
+                  c_orm_system_free(sp.children.data);
+                }
+              }
+              /* bind fail + finalize_cached_fail on resolve_err */
+              fvt = g_vt;
+              fvt.bind_string = fz_cd_bind_str;
+              g_fz_bind_cd = 0;
+              c_orm_mock_finalize_cached_fail = 1;
+              ASSERT_NEQ(C_ORM_OK,
+                         c_orm_resolve_n_plus_one(&fdb, &sp_arr, &spm, 0));
+              g_fz_bind_cd = -1;
+              c_orm_mock_finalize_cached_fail = 0;
+            }
+          }
+          ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(saved_m, saved_r, saved_f));
+          tracked_count = 0;
+        }
+      }
     }
   }
 

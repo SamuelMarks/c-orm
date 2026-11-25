@@ -11,6 +11,7 @@ extern "C" {
 #include "c_orm_safe_crt.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include "openapi/parse/openapi.h"
 #include "orm_gen.h"
 #include <errno.h>
@@ -27,22 +28,6 @@ extern "C" {
 #define TEST_MKDIR(p) mkdir(p, 0777)
 #define TEST_RMDIR(p) rmdir(p)
 #endif
-
-#undef RUN_TEST
-#define RUN_TEST(TEST) \
-  do { \
-    int greatest_should_run = 0; \
-    greatest_test_pre(#TEST, &greatest_should_run); \
-    if (greatest_should_run == 1) { \
-      greatest_test_post(TEST()); \
-    } \
-  } while ((void)0, 0)
-
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
 /* clang-format on */
 
 /** @brief Counter decremented before triggering test malloc failure. */
@@ -57,14 +42,11 @@ static int oom_countdown = -1;
 static c_orm_error_t mock_malloc_oom(size_t size, void **out_ptr) {
   if (oom_countdown == 0) {
     oom_countdown--;
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
   oom_countdown--;
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /**
@@ -72,6 +54,24 @@ static c_orm_error_t mock_malloc_oom(size_t size, void **out_ptr) {
  * @return GREATEST test result.
  */
 TEST test_orm_gen_basic(void) {
+  static char c_mut_s0[] = "User";
+  static char c_mut_s1[] = "NoPKModel";
+  static char c_mut_s2[] = "BigPKModel";
+  static char c_mut_s3[] =
+      "{\"x-db-schema\": {\"primary_key\": true, \"unique\": true, \"index\": "
+      "true, \"fk\": \"Other\"}, \"x-cdd-shard-key\": true, "
+      "\"x-cdd-shard-hash\": true, \"x-cdd-track-telemetry\": true, "
+      "\"x-cdd-slow-query\": 100}";
+  static char c_mut_s4[] = "{bad json}";
+  static char c_mut_s5[] = "[\"array\"]";
+  static char c_mut_s6[] = "{\"x-db-schema\": 1}";
+  static char c_mut_s7[] =
+      "{\"x-db-schema\": {\"primary_key\": false, \"unique\": false, "
+      "\"index\": "
+      "false, \"fk\": 1}, \"x-cdd-shard-key\": false, "
+      "\"x-cdd-shard-hash\": false, \"x-cdd-track-telemetry\": false}";
+  static char c_mut_s8[] = "{\"x-db-schema\": {}}";
+
   struct OpenAPI_Spec spec;
   struct OpenApiClientConfig config;
   struct StructFields sf;
@@ -92,9 +92,9 @@ TEST test_orm_gen_basic(void) {
 
   spec.n_defined_schemas = 4;
   spec.defined_schema_names = malloc(4 * sizeof(char *));
-  spec.defined_schema_names[0] = "User";
-  spec.defined_schema_names[1] = "NoPKModel";
-  spec.defined_schema_names[2] = "BigPKModel";
+  spec.defined_schema_names[0] = c_mut_s0;
+  spec.defined_schema_names[1] = c_mut_s1;
+  spec.defined_schema_names[2] = c_mut_s2;
   spec.defined_schema_names[3] = NULL;
 
   spec.defined_schemas = calloc(4, sizeof(struct StructFields));
@@ -148,22 +148,24 @@ TEST test_orm_gen_basic(void) {
   C_ORM_STRNCPY(fields[4].name, sizeof(fields[4].name), "score", 63);
   C_ORM_STRNCPY(fields[4].type, sizeof(fields[4].type), "number", 31);
   C_ORM_STRNCPY(fields[4].format, sizeof(fields[4].format), "float", 31);
+  C_ORM_STRNCPY(fields[4].description, sizeof(fields[4].description), "[INDEX]",
+                255);
 
   C_ORM_STRNCPY(fields[5].name, sizeof(fields[5].name), "is_active", 63);
   C_ORM_STRNCPY(fields[5].type, sizeof(fields[5].type), "boolean", 31);
+  C_ORM_STRNCPY(fields[5].description, sizeof(fields[5].description), "[INDEX]",
+                255);
 
   C_ORM_STRNCPY(fields[6].name, sizeof(fields[6].name), "profile", 63);
   C_ORM_STRNCPY(fields[6].type, sizeof(fields[6].type), "object", 31);
   C_ORM_STRNCPY(fields[6].ref, sizeof(fields[6].ref), "Profile", 63);
+  C_ORM_STRNCPY(fields[6].description, sizeof(fields[6].description), "[INDEX]",
+                255);
 
   C_ORM_STRNCPY(fields[7].name, sizeof(fields[7].name), "data", 63);
   C_ORM_STRNCPY(fields[7].type, sizeof(fields[7].type), "string", 31);
   C_ORM_STRNCPY(fields[7].format, sizeof(fields[7].format), "date", 31);
-  fields[7].schema_extra_json =
-      "{\"x-db-schema\": {\"primary_key\": true, \"unique\": true, \"index\": "
-      "true, \"fk\": \"Other\"}, \"x-cdd-shard-key\": true, "
-      "\"x-cdd-shard-hash\": true, \"x-cdd-track-telemetry\": true, "
-      "\"x-cdd-slow-query\": 100}";
+  fields[7].schema_extra_json = c_mut_s3;
 
   C_ORM_STRNCPY(fields[8].name, sizeof(fields[8].name), "big_id", 63);
   C_ORM_STRNCPY(fields[8].type, sizeof(fields[8].type), "integer", 31);
@@ -176,6 +178,8 @@ TEST test_orm_gen_basic(void) {
   C_ORM_STRNCPY(fields[10].name, sizeof(fields[10].name), "double_val", 63);
   C_ORM_STRNCPY(fields[10].type, sizeof(fields[10].type), "number", 31);
   C_ORM_STRNCPY(fields[10].format, sizeof(fields[10].format), "double", 31);
+  C_ORM_STRNCPY(fields[10].description, sizeof(fields[10].description),
+                "[INDEX]", 255);
 
   C_ORM_STRNCPY(fields[11].name, sizeof(fields[11].name), "datetime_val", 63);
   C_ORM_STRNCPY(fields[11].type, sizeof(fields[11].type), "string", 31);
@@ -206,29 +210,25 @@ TEST test_orm_gen_basic(void) {
 
   C_ORM_STRNCPY(fields[16].name, sizeof(fields[16].name), "bad_json", 63);
   C_ORM_STRNCPY(fields[16].type, sizeof(fields[16].type), "string", 31);
-  fields[16].schema_extra_json = "{bad json}";
+  fields[16].schema_extra_json = c_mut_s4;
 
   C_ORM_STRNCPY(fields[17].name, sizeof(fields[17].name), "not_obj_json", 63);
   C_ORM_STRNCPY(fields[17].type, sizeof(fields[17].type), "string", 31);
-  fields[17].schema_extra_json = "[\"array\"]";
+  fields[17].schema_extra_json = c_mut_s5;
 
   C_ORM_STRNCPY(fields[18].name, sizeof(fields[18].name), "no_schema_json", 63);
   C_ORM_STRNCPY(fields[18].type, sizeof(fields[18].type), "string", 31);
-  fields[18].schema_extra_json = "{\"x-db-schema\": 1}";
+  fields[18].schema_extra_json = c_mut_s6;
 
   C_ORM_STRNCPY(fields[19].name, sizeof(fields[19].name), "schema_false_json",
                 63);
   C_ORM_STRNCPY(fields[19].type, sizeof(fields[19].type), "string", 31);
-  fields[19].schema_extra_json =
-      "{\"x-db-schema\": {\"primary_key\": false, \"unique\": false, "
-      "\"index\": "
-      "false, \"fk\": 1}, \"x-cdd-shard-key\": false, "
-      "\"x-cdd-shard-hash\": false, \"x-cdd-track-telemetry\": false}";
+  fields[19].schema_extra_json = c_mut_s7;
 
   C_ORM_STRNCPY(fields[20].name, sizeof(fields[20].name), "schema_empty_json",
                 63);
   C_ORM_STRNCPY(fields[20].type, sizeof(fields[20].type), "string", 31);
-  fields[20].schema_extra_json = "{\"x-db-schema\": {}}";
+  fields[20].schema_extra_json = c_mut_s8;
 
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, openapi_orm_generate(NULL, &config));
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, openapi_orm_generate(&spec, NULL));
@@ -258,7 +258,8 @@ TEST test_orm_gen_basic(void) {
   ASSERT_EQ(0, openapi_orm_generate(&spec, &config));
 
   old_malloc = c_orm_malloc;
-  c_orm_set_allocators(mock_malloc_oom, c_orm_realloc, c_orm_free);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(mock_malloc_oom, c_orm_realloc, c_orm_free));
   oom_countdown = 0;
   ASSERT_EQ(C_ORM_ERROR_MEMORY, openapi_orm_generate(&spec, &config));
 
@@ -267,10 +268,11 @@ TEST test_orm_gen_basic(void) {
   ASSERT_EQ(C_ORM_ERROR_MEMORY, openapi_orm_generate(&spec, &config));
 
   oom_countdown = 1;
-  openapi_orm_generate(&spec, &config);
+  ASSERT_EQ(C_ORM_OK, openapi_orm_generate(&spec, &config));
 
   oom_countdown = -1;
-  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free));
 
   config.model_header = "valid.h";
   config.filename_base = "invalid/dir/base";
@@ -297,9 +299,27 @@ TEST test_orm_gen_basic(void) {
   config.model_header = "test_gen_models.h";
   config.filename_base = "test_gen";
   ASSERT_EQ(0, openapi_orm_generate(&spec, &config));
+#ifdef C_ORM_TEST_ALLOCATOR
+  {
+    int crt_cd;
+    config.model_header = NULL;
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, openapi_orm_generate(&spec, &config));
+    c_orm_mock_safe_crt_countdown = -1;
+    config.model_header = "test_gen_models.h";
+    crt_cd = 0;
+    c_orm_mock_safe_crt_countdown = 0;
+    while (openapi_orm_generate(&spec, &config) != C_ORM_OK) {
+      c_orm_mock_safe_crt_countdown = ++crt_cd;
+    }
+    c_orm_mock_safe_crt_countdown = -1;
+    remove("test_test_gen_models.c");
+  }
+#endif
 
   remove("test_gen_models.h");
   remove("test_gen_models.c");
+  remove("test_test_gen_models.c");
   remove("valid.h");
   remove("valid.c");
 
@@ -315,17 +335,7 @@ TEST test_orm_gen_basic(void) {
  * @brief ORM generator test suite runner.
  * @param orm_gen_suite Suite runner function name.
  */
-SUITE(orm_gen_suite) {
-  static int recursed = 0;
-  RUN_TEST(test_orm_gen_basic);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    orm_gen_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
-}
+SUITE(orm_gen_suite) { RUN_TEST(test_orm_gen_basic); }
 
 #ifdef __cplusplus
 }

@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_MSC_VER) && defined(_DEBUG)
+#include <crtdbg.h>
+#endif
 
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
@@ -38,6 +41,7 @@ c_orm_error_t run_dashboard_example(const char *db_path);
  */
 c_orm_error_t run_dashboard_ops(c_orm_db_t *db, const char *sql) {
   c_orm_error_t rc;
+  c_orm_error_t fin_rc;
   c_orm_query_t *query;
   int has_row;
   int i;
@@ -70,7 +74,10 @@ c_orm_error_t run_dashboard_ops(c_orm_db_t *db, const char *sql) {
 
     rc = db->vtable->step(query, &has_row);
     if (rc != C_ORM_OK) {
-      db->vtable->finalize(query);
+      fin_rc = db->vtable->finalize(query);
+      if (fin_rc != C_ORM_OK) {
+        return fin_rc;
+      }
       return rc;
     }
     if (!has_row)
@@ -78,12 +85,18 @@ c_orm_error_t run_dashboard_ops(c_orm_db_t *db, const char *sql) {
 
     rc = db->vtable->get_string(query, 0, &event_name);
     if (rc != C_ORM_OK) {
-      db->vtable->finalize(query);
+      fin_rc = db->vtable->finalize(query);
+      if (fin_rc != C_ORM_OK) {
+        return fin_rc;
+      }
       return rc;
     }
     rc = db->vtable->get_int32(query, 1, &total);
     if (rc != C_ORM_OK) {
-      db->vtable->finalize(query);
+      fin_rc = db->vtable->finalize(query);
+      if (fin_rc != C_ORM_OK) {
+        return fin_rc;
+      }
       return rc;
     }
 
@@ -91,6 +104,15 @@ c_orm_error_t run_dashboard_ops(c_orm_db_t *db, const char *sql) {
   }
 
   return db->vtable->finalize(query);
+}
+
+/**
+ * @brief Disconnects `db` during error cleanup.
+ * @param db Database connection handle.
+ * @return C_ORM_OK on success, or driver disconnect error code.
+ */
+static c_orm_error_t dash_conn_cleanup_free(c_orm_db_t *db) {
+  return db->vtable->disconnect(db);
 }
 
 /**
@@ -116,18 +138,28 @@ c_orm_error_t run_dashboard_example(const char *db_path) {
     return rc;
 
   rc = run_dashboard_ops(db, sql);
-  db->vtable->disconnect(db);
+  if (rc != C_ORM_OK) {
+    dash_conn_cleanup_free(db);
+    return rc;
+  }
 
-  return rc;
+  return db->vtable->disconnect(db);
 }
 
-/** @brief Mock failure mode for dashboard driver callbacks. */
-static int g_dash_fail_mode = 0;
-/** @brief Non-zero when the prepared query is the SELECT aggregation query. */
-static int g_dash_is_select = 0;
+/**
+ * @brief Mock query context for dashboard error-path testing.
+ * @var fail_mode Active error injection stage (1..6).
+ * @var is_select Non-zero when prepared statement is a SELECT query.
+ * @var finalized Count of finalize invocations.
+ */
+struct dash_mock_query {
+  int fail_mode;
+  int is_select;
+  int finalized;
+};
 
 /**
- * @brief Mock prepare callback returning a non-null sentinel query handle.
+ * @brief Mock prepare callback binding `db->driver_data` as query handle.
  * @param db Database connection.
  * @param sql SQL text.
  * @param out_q Output query handle.
@@ -135,32 +167,32 @@ static int g_dash_is_select = 0;
  */
 static c_orm_error_t dash_mock_prepare(c_orm_db_t *db, const char *sql,
                                        c_orm_query_t **out_q) {
-  (void)db;
-  g_dash_is_select = (strncmp(sql, "SELECT", 6) == 0);
-  *out_q = (c_orm_query_t *)&g_dash_fail_mode;
+  struct dash_mock_query *mq = (struct dash_mock_query *)db->driver_data;
+  mq->is_select = (strncmp(sql, "SELECT", 6) == 0);
+  *out_q = (c_orm_query_t *)mq;
   return C_ORM_OK;
 }
 
 /**
- * @brief Mock step callback returning error in mode 1 or one row for SELECT.
+ * @brief Mock step callback returning error in mode 1/4 or one row for SELECT.
  * @param q Query handle.
  * @param out_has Output row flag.
  * @return C_ORM_OK or C_ORM_ERROR_STEP.
  */
 static c_orm_error_t dash_mock_step(c_orm_query_t *q, int *out_has) {
-  (void)q;
-  if (!g_dash_is_select) {
+  struct dash_mock_query *mq = (struct dash_mock_query *)q;
+  if (!mq->is_select) {
     *out_has = 0;
     return C_ORM_OK;
   }
-  if (g_dash_fail_mode == 1)
+  if (mq->fail_mode == 1 || mq->fail_mode == 4)
     return C_ORM_ERROR_STEP;
   *out_has = 1;
   return C_ORM_OK;
 }
 
 /**
- * @brief Mock get_string callback returning error in mode 2 or string
+ * @brief Mock get_string callback returning error in mode 2/5 or string
  * otherwise.
  * @param q Query handle.
  * @param idx Column index.
@@ -169,37 +201,38 @@ static c_orm_error_t dash_mock_step(c_orm_query_t *q, int *out_has) {
  */
 static c_orm_error_t dash_mock_get_str(c_orm_query_t *q, int idx,
                                        const char **out_s) {
-  (void)q;
+  struct dash_mock_query *mq = (struct dash_mock_query *)q;
   (void)idx;
-  if (g_dash_fail_mode == 2)
+  if (mq->fail_mode == 2 || mq->fail_mode == 5)
     return C_ORM_ERROR_SQL;
   *out_s = "click";
   return C_ORM_OK;
 }
 
 /**
- * @brief Mock get_int32 callback returning error in mode 3.
+ * @brief Mock get_int32 callback returning error in mode 3/6.
  * @param q Query handle.
  * @param idx Column index.
  * @param out_v Output int32 value.
- * @return C_ORM_ERROR_SQL.
+ * @return C_ORM_ERROR_SQL or C_ORM_OK.
  */
 static c_orm_error_t dash_mock_get_i32(c_orm_query_t *q, int idx,
                                        int32_t *out_v) {
-  (void)q;
-  (void)idx;
-  (void)out_v;
-  return C_ORM_ERROR_SQL;
+  struct dash_mock_query *mq = (struct dash_mock_query *)q;
+  *out_v = (int32_t)idx;
+  return (mq->fail_mode == 3 || mq->fail_mode == 6) ? C_ORM_ERROR_SQL
+                                                    : C_ORM_OK;
 }
 
 /**
- * @brief Mock finalize callback returning C_ORM_OK.
+ * @brief Mock finalize callback recording finalization on `q`.
  * @param q Query handle.
- * @return C_ORM_OK.
+ * @return C_ORM_OK or C_ORM_ERROR_SQL when `fail_mode >= 4`.
  */
 static c_orm_error_t dash_mock_finalize(c_orm_query_t *q) {
-  (void)q;
-  return C_ORM_OK;
+  struct dash_mock_query *mq = (struct dash_mock_query *)q;
+  mq->finalized++;
+  return (mq->is_select && mq->fail_mode >= 4) ? C_ORM_ERROR_SQL : C_ORM_OK;
 }
 
 int main(void);
@@ -216,6 +249,20 @@ int main(void) {
   int failed = 0;
   const char *valid_sql = "SELECT event_name, SUM(metric) as total_metric "
                           "FROM events GROUP BY event_name";
+
+#if defined(_MSC_VER) && defined(_DEBUG)
+  _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+#endif
+
+  remove("dash_err_example.db");
+  failed |= (run_dashboard_example("dash_err_example.db") != C_ORM_OK);
+  failed |= (run_dashboard_example("dash_err_example.db") == C_ORM_OK);
+  remove("dash_err_example.db");
 
   failed |= (run_dashboard_example(":memory:") != C_ORM_OK);
   failed |= (run_dashboard_example(NULL) == C_ORM_OK);
@@ -238,16 +285,21 @@ int main(void) {
       (run_dashboard_ops(db, "SELECT * FROM invalid_syntax(") == C_ORM_OK);
   failed |= (db->vtable->disconnect(db) != C_ORM_OK);
 
-  memset(&mvt, 0, sizeof(mvt));
-  mvt.prepare = dash_mock_prepare;
-  mvt.step = dash_mock_step;
-  mvt.get_string = dash_mock_get_str;
-  mvt.get_int32 = dash_mock_get_i32;
-  mvt.finalize = dash_mock_finalize;
-  memset(&mdb, 0, sizeof(mdb));
-  mdb.vtable = &mvt;
-  for (g_dash_fail_mode = 1; g_dash_fail_mode <= 3; g_dash_fail_mode++) {
-    failed |= (run_dashboard_ops(&mdb, valid_sql) == C_ORM_OK);
+  {
+    struct dash_mock_query mq;
+    memset(&mq, 0, sizeof(mq));
+    memset(&mvt, 0, sizeof(mvt));
+    mvt.prepare = dash_mock_prepare;
+    mvt.step = dash_mock_step;
+    mvt.get_string = dash_mock_get_str;
+    mvt.get_int32 = dash_mock_get_i32;
+    mvt.finalize = dash_mock_finalize;
+    memset(&mdb, 0, sizeof(mdb));
+    mdb.vtable = &mvt;
+    mdb.driver_data = &mq;
+    for (mq.fail_mode = 1; mq.fail_mode <= 6; mq.fail_mode++) {
+      failed |= (run_dashboard_ops(&mdb, valid_sql) == C_ORM_OK);
+    }
   }
 
   return failed;

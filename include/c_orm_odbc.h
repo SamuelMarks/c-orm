@@ -143,6 +143,21 @@ C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag(
     const char *context, c_orm_error_t fallback_err);
 
 /**
+ * @brief Harvests diagnostic records from a statement handle, frees the
+ * statement handle via `SQLFreeHandle(SQL_HANDLE_STMT)`, and returns the
+ * mapped `c_orm_error_t`.
+ *
+ * @param db Active ODBC or Db2 database connection.
+ * @param hstmt Target ODBC statement handle to inspect and free.
+ * @param context Short operation label for error trace context.
+ * @param fallback_err Default c_orm_error_t when no specific SQLSTATE maps.
+ * @return Mapped c_orm_error_t error code (never C_ORM_OK).
+ */
+C_ORM_EXPORT c_orm_error_t c_orm_odbc_harvest_diag_free_stmt(
+    c_orm_db_t *db, c_orm_sqlhandle_t hstmt, const char *context,
+    c_orm_error_t fallback_err);
+
+/**
  * @brief Retrieves the 5-character ANSI SQLSTATE recorded by the last
  * diagnostic on the connection (or `"00000"` if none).
  *

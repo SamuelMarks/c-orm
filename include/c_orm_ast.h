@@ -854,23 +854,9 @@ struct c_orm_ast_query {
 };
 
 /**
- * @brief Initialize a new AST query builder.
- * @param out_query Output AST query builder.
- * @return C_ORM_OK on success.
- */
-C_ORM_EXPORT c_orm_error_t c_orm_ast_query_new(c_orm_ast_query_t **out_query);
-
-/**
- * @brief Free an AST query builder.
- * @param query AST query builder.
- * @return C_ORM_OK on success.
- */
-C_ORM_EXPORT c_orm_error_t c_orm_ast_query_free(c_orm_ast_query_t *query);
-
-/**
  * @brief Initialize a new query builder.
  * @param out_query Output query builder.
- * @return 0 on success.
+ * @return C_ORM_OK on success, or error code on failure.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_query_new(c_orm_ast_query_t **out_query);
 

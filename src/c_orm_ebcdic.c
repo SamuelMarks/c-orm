@@ -39,6 +39,59 @@ static const unsigned short g_ibm037_to_uni[256] = {
     0xDC, 0xD9, 0xDA, 0x9F};
 
 /**
+ * @brief Computes the Unicode scalar value for a byte in a validated EBCDIC
+ * codepage (`IBM037`, `IBM1047`, `IBM500`, or `IBM1140`).
+ * @param cp Validated EBCDIC codepage enum.
+ * @param eb Byte to decode.
+ * @return Mapped Unicode scalar value.
+ */
+static unsigned int ebcdic_calc_map_uni(c_orm_codepage_t cp, unsigned char eb) {
+  unsigned int u = g_ibm037_to_uni[eb];
+  if (cp == C_ORM_CP_IBM1047) {
+    switch (eb) {
+    case 0x5FU:
+      return 0x5EU;
+    case 0xADU:
+      return 0x5BU;
+    case 0xB0U:
+      return 0xACU;
+    case 0xBAU:
+      return 0xDDU;
+    case 0xBBU:
+      return 0xA8U;
+    case 0xBDU:
+      return 0x5DU;
+    default:
+      return u;
+    }
+  }
+  if (cp == C_ORM_CP_IBM500) {
+    switch (eb) {
+    case 0x4AU:
+      return 0x5BU;
+    case 0x4FU:
+      return 0x21U;
+    case 0x5AU:
+      return 0x5DU;
+    case 0x5FU:
+      return 0x5EU;
+    case 0xB0U:
+      return 0xA2U;
+    case 0xBAU:
+      return 0xACU;
+    case 0xBBU:
+      return 0x7CU;
+    default:
+      return u;
+    }
+  }
+  if (cp == C_ORM_CP_IBM1140 && eb == 0x9FU) {
+    return 0x20ACU;
+  }
+  return u;
+}
+
+/**
  * @brief Looks up the Unicode codepoint for a single EBCDIC/ASCII byte.
  * @param cp Single-byte codepage enum.
  * @param eb Byte to decode.
@@ -47,75 +100,16 @@ static const unsigned short g_ibm037_to_uni[256] = {
  */
 static c_orm_error_t ebcdic_byte_to_uni(c_orm_codepage_t cp, unsigned char eb,
                                         unsigned int *out_cp_uni) {
-  unsigned int u = g_ibm037_to_uni[eb];
-  if (cp == C_ORM_CP_IBM037) {
-    *out_cp_uni = u;
+  if (cp == C_ORM_CP_IBM037 || cp == C_ORM_CP_IBM1047 ||
+      cp == C_ORM_CP_IBM500 || cp == C_ORM_CP_IBM1140) {
+    *out_cp_uni = ebcdic_calc_map_uni(cp, eb);
     return C_ORM_OK;
   }
-  if (cp == C_ORM_CP_IBM1047) {
-    switch (eb) {
-    case 0x5FU:
-      u = 0x5EU;
-      break;
-    case 0xADU:
-      u = 0x5BU;
-      break;
-    case 0xB0U:
-      u = 0xACU;
-      break;
-    case 0xBAU:
-      u = 0xDDU;
-      break;
-    case 0xBBU:
-      u = 0xA8U;
-      break;
-    case 0xBDU:
-      u = 0x5DU;
-      break;
-    default:
-      break;
-    }
-    *out_cp_uni = u;
+  if (cp == C_ORM_CP_ASCII) {
+    *out_cp_uni = (unsigned int)eb;
     return C_ORM_OK;
   }
-  if (cp == C_ORM_CP_IBM500) {
-    switch (eb) {
-    case 0x4AU:
-      u = 0x5BU;
-      break;
-    case 0x4FU:
-      u = 0x21U;
-      break;
-    case 0x5AU:
-      u = 0x5DU;
-      break;
-    case 0x5FU:
-      u = 0x5EU;
-      break;
-    case 0xB0U:
-      u = 0xA2U;
-      break;
-    case 0xBAU:
-      u = 0xACU;
-      break;
-    case 0xBBU:
-      u = 0x7CU;
-      break;
-    default:
-      break;
-    }
-    *out_cp_uni = u;
-    return C_ORM_OK;
-  }
-  if (cp == C_ORM_CP_IBM1140) {
-    if (eb == 0x9FU) {
-      u = 0x20ACU;
-    }
-    *out_cp_uni = u;
-    return C_ORM_OK;
-  }
-  *out_cp_uni = (unsigned int)eb;
-  return C_ORM_OK;
+  return C_ORM_ERROR_CODEPAGE;
 }
 
 /**
@@ -128,6 +122,7 @@ static c_orm_error_t ebcdic_byte_to_uni(c_orm_codepage_t cp, unsigned char eb,
 static c_orm_error_t uni_to_ebcdic_byte(c_orm_codepage_t cp, unsigned int uni,
                                         unsigned char *out_eb) {
   unsigned int i;
+  c_orm_error_t rc;
   if (cp == C_ORM_CP_ASCII) {
     if (uni > 0xFFU) {
       return C_ORM_ERROR_CODEPAGE;
@@ -144,7 +139,10 @@ static c_orm_error_t uni_to_ebcdic_byte(c_orm_codepage_t cp, unsigned int uni,
   }
   for (i = 0; i < 255U; ++i) {
     unsigned int mapped = 0;
-    ebcdic_byte_to_uni(cp, (unsigned char)i, &mapped);
+    rc = ebcdic_byte_to_uni(cp, (unsigned char)i, &mapped);
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
     if (mapped == uni) {
       *out_eb = (unsigned char)i;
       return C_ORM_OK;
@@ -357,14 +355,19 @@ C_ORM_EXPORT c_orm_error_t c_orm_ebcdic_to_utf8(c_orm_codepage_t cp,
       }
     }
   } else {
-    unsigned short dummy_ccsid = 0;
-    rc = c_orm_codepage_to_ccsid(cp, &dummy_ccsid);
-    if (rc != C_ORM_OK) {
-      return rc;
+    if (src_len == 0) {
+      unsigned short dummy_ccsid = 0;
+      rc = c_orm_codepage_to_ccsid(cp, &dummy_ccsid);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
     }
     for (i = 0; i < src_len; ++i) {
       unsigned int ucp = 0;
-      ebcdic_byte_to_uni(cp, src[i], &ucp);
+      rc = ebcdic_byte_to_uni(cp, src[i], &ucp);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
       rc = utf8_emit_codepoint(ucp, out_utf8, out_size, &pos);
       if (rc != C_ORM_OK) {
         return rc;
@@ -408,10 +411,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_utf8_to_ebcdic(
       pos += seq_len;
     }
   } else {
-    unsigned short dummy_ccsid = 0;
-    rc = c_orm_codepage_to_ccsid(cp, &dummy_ccsid);
-    if (rc != C_ORM_OK) {
-      return rc;
+    if (src_len == 0) {
+      unsigned short dummy_ccsid = 0;
+      rc = c_orm_codepage_to_ccsid(cp, &dummy_ccsid);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
     }
     while (i < src_len) {
       unsigned int ucp = 0;
@@ -437,11 +442,38 @@ C_ORM_EXPORT c_orm_error_t c_orm_utf8_to_ebcdic(
   return C_ORM_OK;
 }
 
+/**
+ * @brief Converts a pre-validated EBCDIC byte to single-byte ASCII.
+ * @param cp Pre-validated EBCDIC codepage.
+ * @param eb Pre-validated EBCDIC byte.
+ * @return Converted ASCII byte.
+ */
+static unsigned char ebcdic_calc_byte_to_ascii_valid(c_orm_codepage_t cp,
+                                                     unsigned char eb) {
+  return (unsigned char)ebcdic_calc_map_uni(cp, eb);
+}
+
+/**
+ * @brief Converts a pre-validated ASCII byte to single-byte EBCDIC.
+ * @param cp Pre-validated EBCDIC codepage.
+ * @param ascii Pre-validated ASCII byte.
+ * @return Converted EBCDIC byte.
+ */
+static unsigned char ebcdic_calc_ascii_to_byte_valid(c_orm_codepage_t cp,
+                                                     unsigned char ascii) {
+  unsigned int i;
+  for (i = 0; i < 255U; ++i) {
+    if (ebcdic_calc_map_uni(cp, (unsigned char)i) == (unsigned int)ascii) {
+      return (unsigned char)i;
+    }
+  }
+  return 255U;
+}
+
 C_ORM_EXPORT c_orm_error_t c_orm_ebcdic_to_ascii_inplace(c_orm_codepage_t cp,
                                                          unsigned char *buf,
                                                          size_t len) {
   size_t i;
-  c_orm_error_t rc = C_ORM_OK;
   if (!buf && len > 0) {
     return C_ORM_ERROR_NULL_POINTER;
   }
@@ -455,18 +487,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_ebcdic_to_ascii_inplace(c_orm_codepage_t cp,
     }
   }
   for (i = 0; i < len; ++i) {
-    unsigned int uni = 0;
-    rc = ebcdic_byte_to_uni(cp, buf[i], &uni);
-    buf[i] = (unsigned char)uni;
+    buf[i] = ebcdic_calc_byte_to_ascii_valid(cp, buf[i]);
   }
-  return rc;
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_ascii_to_ebcdic_inplace(c_orm_codepage_t cp,
                                                          unsigned char *buf,
                                                          size_t len) {
   size_t i;
-  c_orm_error_t rc = C_ORM_OK;
   if (!buf && len > 0) {
     return C_ORM_ERROR_NULL_POINTER;
   }
@@ -480,11 +509,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_ascii_to_ebcdic_inplace(c_orm_codepage_t cp,
     }
   }
   for (i = 0; i < len; ++i) {
-    unsigned char eb = 0;
-    rc = uni_to_ebcdic_byte(cp, (unsigned int)buf[i], &eb);
-    buf[i] = eb;
+    buf[i] = ebcdic_calc_ascii_to_byte_valid(cp, buf[i]);
   }
-  return rc;
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_cobol_format_alpha(
@@ -531,13 +558,13 @@ C_ORM_EXPORT c_orm_error_t c_orm_cobol_format_alpha(
   }
   rc = c_orm_utf8_to_ebcdic(target_cp, s, slen, work, slen, &encoded_len);
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(work);
+    c_orm_system_free(work);
     return rc;
   }
 
   if (encoded_len > field_width) {
     if (!allow_truncate) {
-      (void)c_orm_system_free(work);
+      c_orm_system_free(work);
       return C_ORM_ERROR_TRUNCATION;
     }
     if (justify_right) {
@@ -566,7 +593,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_cobol_format_alpha(
     memcpy(out_buf, work, encoded_len);
   }
 
-  (void)c_orm_system_free(work);
+  c_orm_system_free(work);
   return C_ORM_OK;
 }
 
@@ -606,10 +633,10 @@ c_orm_cobol_extract_alpha(const unsigned char *raw_buf, size_t field_width,
  * @param dst Destination 16-bit slot.
  * @param unit 16-bit code unit value.
  * @param big_endian Non-zero for big-endian wire representation.
- * @return C_ORM_OK on success.
+ * @return Number of 16-bit code units written (1).
  */
-static c_orm_error_t u16_write_slot(unsigned short *dst, unsigned short unit,
-                                    int big_endian) {
+static size_t ebcdic_calc_u16_write_slot(unsigned short *dst,
+                                         unsigned short unit, int big_endian) {
   if (big_endian) {
     unsigned char *wb = (unsigned char *)dst;
     wb[0] = (unsigned char)(unit >> 8);
@@ -617,26 +644,22 @@ static c_orm_error_t u16_write_slot(unsigned short *dst, unsigned short unit,
   } else {
     *dst = unit;
   }
-  return C_ORM_OK;
+  return 1U;
 }
 
 /**
  * @brief Reads a 16-bit code unit from src in host or big-endian wire order.
  * @param src Source 16-bit slot.
  * @param big_endian Non-zero if src is stored in big-endian wire order.
- * @param out_unit Output pointer receiving host-endian 16-bit unit.
- * @return C_ORM_OK on success.
+ * @return Host-endian 16-bit code unit.
  */
-static c_orm_error_t u16_read_slot(const unsigned short *src, int big_endian,
-                                   unsigned short *out_unit) {
+static unsigned short ebcdic_calc_u16_read_slot(const unsigned short *src,
+                                                int big_endian) {
   if (big_endian) {
     const unsigned char *rb = (const unsigned char *)src;
-    *out_unit =
-        (unsigned short)(((unsigned int)rb[0] << 8) | (unsigned int)rb[1]);
-  } else {
-    *out_unit = *src;
+    return (unsigned short)(((unsigned int)rb[0] << 8) | (unsigned int)rb[1]);
   }
-  return C_ORM_OK;
+  return *src;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_utf8_to_utf16(const char *utf8,
@@ -669,7 +692,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_utf8_to_utf16(const char *utf8,
       if (upos + 1U >= out_u16_cap) {
         return C_ORM_ERROR_OVERFLOW;
       }
-      rc = u16_write_slot(&out_u16[upos++], (unsigned short)cp, big_endian);
+      upos += ebcdic_calc_u16_write_slot(&out_u16[upos], (unsigned short)cp,
+                                         big_endian);
     } else {
       unsigned int sub = cp - 0x10000U;
       unsigned short hi = (unsigned short)(0xD800U + (sub >> 10));
@@ -677,8 +701,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_utf8_to_utf16(const char *utf8,
       if (upos + 2U >= out_u16_cap) {
         return C_ORM_ERROR_OVERFLOW;
       }
-      u16_write_slot(&out_u16[upos++], hi, big_endian);
-      rc = u16_write_slot(&out_u16[upos++], lo, big_endian);
+      upos += ebcdic_calc_u16_write_slot(&out_u16[upos], hi, big_endian);
+      upos += ebcdic_calc_u16_write_slot(&out_u16[upos], lo, big_endian);
     }
   }
 
@@ -686,7 +710,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_utf8_to_utf16(const char *utf8,
   if (out_units) {
     *out_units = upos;
   }
-  return rc;
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_utf16_to_utf8(const unsigned short *u16,
@@ -708,15 +732,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_utf16_to_utf8(const unsigned short *u16,
   }
 
   while (i < u16_units) {
-    unsigned short w0 = 0;
+    unsigned short w0 = ebcdic_calc_u16_read_slot(&u16[i++], big_endian);
     unsigned int cp;
-    rc = u16_read_slot(&u16[i++], big_endian, &w0);
     if (w0 >= 0xD800U && w0 <= 0xDBFFU) {
-      unsigned short w1 = 0;
+      unsigned short w1;
       if (i >= u16_units) {
         return C_ORM_ERROR_CODEPAGE;
       }
-      rc = u16_read_slot(&u16[i++], big_endian, &w1);
+      w1 = ebcdic_calc_u16_read_slot(&u16[i++], big_endian);
       if (w1 < 0xDC00U || w1 > 0xDFFFU) {
         return C_ORM_ERROR_CODEPAGE;
       }

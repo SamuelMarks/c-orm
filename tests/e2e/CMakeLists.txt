@@ -81,6 +81,7 @@ add_custom_target(generate_e2e_models DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Models
 add_dependencies(c_orm_e2e_tests e2e_models)
 
 target_include_directories(c_orm_e2e_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_BINARY_DIR}
     ${GREATEST_H_DIR}
 )

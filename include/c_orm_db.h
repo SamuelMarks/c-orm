@@ -240,6 +240,35 @@ typedef enum {
 } c_orm_modality_t;
 
 /**
+ * @brief Task execution callback invoked by a modality executor.
+ * @param task_ctx Opaque task payload pointer.
+ * @return C_ORM_OK on success, or operation error code.
+ */
+typedef c_orm_error_t (*c_orm_async_task_fn)(void *task_ctx);
+
+/**
+ * @brief Executor submission callback signature stored in
+ * `c_orm_async_executor_t`.
+ * @param task_fn Task callback to schedule or invoke.
+ * @param task_ctx Opaque task payload pointer.
+ * @param user_data Executor-specific user context pointer.
+ * @return C_ORM_OK on success, or error code from executor/task.
+ */
+typedef c_orm_error_t (*c_orm_async_submit_fn)(c_orm_async_task_fn task_fn,
+                                               void *task_ctx, void *user_data);
+
+/**
+ * @brief Modality executor descriptor attachable via `c_orm_set_modality`.
+ */
+typedef struct c_orm_async_executor {
+  /** @brief Callback submitting `task_fn(task_ctx)` to an event loop or pool.
+   */
+  c_orm_async_submit_fn submit;
+  /** @brief Opaque context passed to `submit`. */
+  void *user_data;
+} c_orm_async_executor_t;
+
+/**
  * @brief Structure holding the generic DB context.
  * @var vtable Driver virtual method table.
  * @var driver_data Driver-specific private data pointer.
@@ -260,7 +289,10 @@ typedef enum {
  * @var timezone Timezone configuration for session.
  * @var modality Execution modality setting.
  * @var modality_ctx Modality specific execution context.
+ * @var modality_lock Per-connection synchronization lock for thread-pool
+ * modality.
  * @var stmt_cache Statement LRU cache.
+ * @var active_hook_meta Active table metadata during lifecycle hook execution.
  * @var slow_query_threshold_ms Threshold in ms for slow query logging.
  * @var telemetry Telemetry metrics data.
  */
@@ -299,8 +331,12 @@ struct c_orm_db {
 
   c_orm_modality_t modality; /**< Execution modality setting */
   void *modality_ctx;        /**< Modality specific execution context */
+  /** @brief Per-connection synchronization lock for thread-pool modality. */
+  void *modality_lock;
 
   void *stmt_cache; /**< Phase 4: Statement LRU cache */
+  /** @brief Active table metadata during lifecycle hook execution. */
+  const c_orm_table_meta_t *active_hook_meta;
 
   /* Telemetry config */
   /** @brief Threshold in ms for slow query logging. */

@@ -164,7 +164,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_decimal_zero(unsigned char scale,
     return C_ORM_ERROR_NULL_POINTER;
   }
   if (scale > C_ORM_DECIMAL_MAX_DIGITS) {
-    LOG_DEBUG("c_orm_decimal_zero: scale %u > 38", (unsigned int)scale);
+    LOG_DEBUG("c_orm_decimal_zero: scale > 38");
     return C_ORM_ERROR_DECIMAL_OVERFLOW;
   }
   memset(out_dec, 0, sizeof(*out_dec));
@@ -512,14 +512,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_decimal_negate(const c_orm_decimal_t *dec,
 
 /**
  * @brief Compares absolute magnitudes of two validated decimals across
- * different scales.
+ * different scales, multiplying the result by `sign_mul`.
  * @param a First decimal.
  * @param b Second decimal.
- * @param out_cmp Output pointer receiving -1, 0, or 1.
+ * @param sign_mul Sign multiplier (`1` or `-1`).
+ * @param out_cmp Output pointer receiving `-1`, `0`, or `1`.
  * @return C_ORM_OK on success.
  */
 static c_orm_error_t dec_cmp_abs(const c_orm_decimal_t *a,
-                                 const c_orm_decimal_t *b, int *out_cmp) {
+                                 const c_orm_decimal_t *b, int sign_mul,
+                                 int *out_cmp) {
   int max_int = C_ORM_DECIMAL_MAX_DIGITS;
   int p;
   for (p = max_int; p >= -((int)C_ORM_DECIMAL_MAX_DIGITS); --p) {
@@ -530,7 +532,7 @@ static c_orm_error_t dec_cmp_abs(const c_orm_decimal_t *a,
     unsigned char db =
         (ib >= 0 && ib < C_ORM_DECIMAL_MAX_DIGITS) ? b->digits[ib] : 0;
     if (da != db) {
-      *out_cmp = (da < db) ? -1 : 1;
+      *out_cmp = ((da < db) ? -1 : 1) * sign_mul;
       return C_ORM_OK;
     }
   }
@@ -544,7 +546,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_decimal_cmp(const c_orm_decimal_t *a,
   c_orm_error_t rc;
   int za = 0;
   int zb = 0;
-  int abs_cmp = 0;
 
   if (!a || !b || !out_cmp) {
     return C_ORM_ERROR_NULL_POINTER;
@@ -569,13 +570,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_decimal_cmp(const c_orm_decimal_t *a,
     *out_cmp = 1;
     return C_ORM_OK;
   }
-  rc = dec_cmp_abs(a, b, &abs_cmp);
-  if (!za && a->sign) {
-    *out_cmp = -abs_cmp;
-  } else {
-    *out_cmp = abs_cmp;
-  }
-  return rc;
+  return dec_cmp_abs(a, b, (!za && a->sign) ? -1 : 1, out_cmp);
 }
 
 /**
@@ -748,20 +743,17 @@ C_ORM_EXPORT c_orm_error_t c_orm_decimal_mul(const c_orm_decimal_t *a,
  * @brief Compares two 40-digit little-endian base-10 arrays.
  * @param x First 40-digit little-endian array.
  * @param y Second 40-digit little-endian array.
- * @param out_cmp Output pointer receiving -1 if x < y, 0 if x == y, 1 if x > y.
- * @return C_ORM_OK on success.
+ * @return -1 if x < y, 0 if x == y, 1 if x > y.
  */
-static c_orm_error_t limb40_cmp(const unsigned char x[40],
-                                const unsigned char y[40], int *out_cmp) {
+static int dec_cmp_limb40(const unsigned char x[40],
+                          const unsigned char y[40]) {
   int i;
   for (i = 39; i >= 0; --i) {
     if (x[i] != y[i]) {
-      *out_cmp = (x[i] < y[i]) ? -1 : 1;
-      return C_ORM_OK;
+      return (x[i] < y[i]) ? -1 : 1;
     }
   }
-  *out_cmp = 0;
-  return C_ORM_OK;
+  return 0;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_decimal_div(const c_orm_decimal_t *a,
@@ -863,7 +855,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_decimal_div(const c_orm_decimal_t *a,
         carry = p / 10U;
       }
       prod[39] = (unsigned char)carry;
-      rc = limb40_cmp(rem, prod, &cmp);
+      cmp = dec_cmp_limb40(rem, prod);
       if (cmp >= 0) {
         int borrow = 0;
         qdigit = (unsigned char)d;
@@ -988,14 +980,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_decimal_from_odbc_numeric(
     res.digits[idx++] = (unsigned char)rem;
   }
 
-  {
-    c_orm_error_t nrc = dec_normalize(&res);
-    if (precision > res.precision) {
-      res.precision = precision;
-    }
-    *out_dec = res;
-    return nrc;
+  res.precision = (unsigned char)(idx > 0 ? idx : 1);
+  if (res.scale > res.precision) {
+    res.precision = res.scale;
   }
+  if (precision > res.precision) {
+    res.precision = precision;
+  }
+  if (idx == 0) {
+    res.sign = 0;
+  }
+  *out_dec = res;
+  return C_ORM_OK;
 }
 
 C_ORM_EXPORT c_orm_error_t
@@ -1099,8 +1095,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_decimal_from_comp3(
   } else if (sign_nib == 0x0BU || sign_nib == 0x0DU) {
     res.sign = 1;
   } else {
-    LOG_DEBUG("c_orm_decimal_from_comp3: invalid sign nybble 0x%x",
-              (unsigned int)sign_nib);
+    LOG_DEBUG("c_orm_decimal_from_comp3: invalid sign nybble");
     return C_ORM_ERROR_DECIMAL_SYNTAX;
   }
 
@@ -1110,8 +1105,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_decimal_from_comp3(
                           ? (unsigned char)((buf[b_idx] >> 4) & 0x0FU)
                           : (unsigned char)(buf[b_idx] & 0x0FU);
     if (d > 9U) {
-      LOG_DEBUG("c_orm_decimal_from_comp3: invalid BCD digit %u",
-                (unsigned int)d);
+      LOG_DEBUG("c_orm_decimal_from_comp3: invalid BCD digit");
       return C_ORM_ERROR_DECIMAL_SYNTAX;
     }
     if (nib_pos - 1U >= C_ORM_DECIMAL_MAX_DIGITS) {

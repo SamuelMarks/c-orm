@@ -13,86 +13,11 @@ extern "C" {
 
 /* clang-format off */
 #include "test_api_helpers.h"
-
 /* clang-format on */
 
 /**
  * @brief Forward declaration for test_api_find_all_generic_realloc.
  * @return GREATEST test result.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
-
-/**
- * @brief Executes test_api_find_all_generic_realloc.
  */
 static enum greatest_test_res test_api_find_all_generic_realloc(void);
 
@@ -134,7 +59,7 @@ TEST test_api_find_all_generic_realloc(void) {
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(20, out_cnt);
   ASSERT(out_arr != NULL);
-  free(out_arr);
+  c_orm_system_free(out_arr);
 
   PASS();
 }
@@ -198,7 +123,7 @@ TEST test_api_scatter_gather_realloc_and_err(void) {
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(20, out_cnt);
   ASSERT(out_arr != NULL);
-  free(out_arr);
+  c_orm_system_free(out_arr);
   out_arr = NULL;
 
   /* Error case: shards return error */
@@ -296,9 +221,10 @@ TEST test_api_identity_map_and_generic_deep(void) {
   /* 3. Generic CRUD query errors */
   {
     struct Users u;
+    char u_name[] = "test";
     memset(&u, 0, sizeof(u));
     u.id = 1;
-    u.username = "test";
+    u.username = u_name;
 
     /* insert_generic step failure */
     gvt.step = mock_always_step_fail;

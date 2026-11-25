@@ -53,17 +53,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_new(c_orm_arena_t **out_arena) {
 
   arena = NULL;
   rc = c_orm_system_malloc(sizeof(c_orm_arena_t), (void **)&arena);
-  if (rc != C_ORM_OK || !arena) {
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_arena_new: OOM");
-    rc = C_ORM_ERROR_UNKNOWN;
     return rc;
   }
 
   arena->head = NULL;
   *out_arena = arena;
-  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_arena_new: exit");
-  return rc;
+  return C_ORM_OK;
 }
 
 /**
@@ -72,7 +70,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_new(c_orm_arena_t **out_arena) {
  * @param arena The arena to allocate from.
  * @param size The number of bytes to allocate.
  * @param out_ptr Pointer to store the allocated memory address.
- * @return 0 on success, non-zero on failure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
                                              void **out_ptr) {
@@ -84,8 +82,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
 
   if (!arena || !out_ptr || size == 0) {
     LOG_DEBUG("c_orm_arena_alloc: invalid arguments");
-    rc = C_ORM_ERROR_UNKNOWN;
-    return rc;
+    return C_ORM_ERROR_UNKNOWN;
   }
 
   /* Simple alignment */
@@ -101,9 +98,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
     }
 
     rc = c_orm_system_malloc(alloc_size, (void **)&block);
-    if (rc != C_ORM_OK || !block) {
+    if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_arena_alloc: OOM");
-      rc = C_ORM_ERROR_UNKNOWN;
       return rc;
     }
 
@@ -114,9 +110,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
 
   *out_ptr = arena->head->data + arena->head->used;
   arena->head->used += size;
-  rc = C_ORM_OK;
   LOG_DEBUG("c_orm_arena_alloc: exit");
-  return rc;
+  return C_ORM_OK;
 }
 
 /**
@@ -125,7 +120,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_alloc(c_orm_arena_t *arena, size_t size,
  * @param arena The arena.
  * @param str String to duplicate.
  * @param out_copy Pointer to receive the duplicated string.
- * @return 0 on success, non-zero on failure.
+ * @return C_ORM_OK on success, or error code on failure.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_arena_strdup(c_orm_arena_t *arena,
                                               const char *str,
@@ -154,7 +149,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_arena_strdup(c_orm_arena_t *arena,
   rc = c_orm_arena_alloc(arena, len, (void **)&copy);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_arena_strdup: OOM");
-    return C_ORM_ERROR_MEMORY;
+    return rc;
   }
 
   memcpy(copy, str, len);

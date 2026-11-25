@@ -10,94 +10,19 @@ extern "C" {
 /* clang-format off */
 #include "c_orm_safe_crt.h"
 #include "c_orm_sql.h"
+#include "c_orm_api.h"
 #include "query_projection.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stdlib.h>
 #include <string.h>
-
 /* clang-format on */
 
 static int sql_oom_active = 0;
 static int sql_oom_countdown = -1;
 static int sql_realloc_oom_active = 0;
 static int sql_realloc_oom_countdown = -1;
-
-/**
- * @brief Mock malloc callback for OOM testing.
- * @param size Allocation size in bytes.
- * @return Pointer to allocated memory, or NULL on OOM.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
 
 /**
  * @brief Executes sql_mock_malloc.
@@ -109,15 +34,12 @@ static c_orm_error_t sql_mock_malloc(size_t size, void **out_ptr) {
   if (sql_oom_active) {
     if (sql_oom_countdown == 0) {
       sql_oom_countdown--;
-      if (out_ptr) {
-        *out_ptr = NULL;
-      }
+      *out_ptr = NULL;
       return C_ORM_ERROR_MEMORY;
     }
     sql_oom_countdown--;
   }
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /**
@@ -131,15 +53,12 @@ static c_orm_error_t sql_mock_realloc(void *ptr, size_t size, void **out_ptr) {
   if (sql_realloc_oom_active) {
     if (sql_realloc_oom_countdown == 0) {
       sql_realloc_oom_countdown--;
-      if (out_ptr) {
-        *out_ptr = NULL;
-      }
+      *out_ptr = NULL;
       return C_ORM_ERROR_MEMORY;
     }
     sql_realloc_oom_countdown--;
   }
-  *out_ptr = realloc(ptr, size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_realloc(ptr, size, out_ptr);
 }
 
 /**
@@ -148,7 +67,7 @@ static c_orm_error_t sql_mock_realloc(void *ptr, size_t size, void **out_ptr) {
  * @return C_ORM_OK on success.
  */
 static c_orm_error_t sql_mock_free(void *ptr) {
-  free(ptr);
+  c_orm_default_free(ptr);
   return C_ORM_OK;
 }
 
@@ -233,7 +152,7 @@ TEST test_sql_parser_basic(void) {
   ASSERT_EQ(4, table->n_columns);
 
   sql_table_C_ORM_FREE(table);
-  (void)c_orm_system_free(table);
+  c_orm_system_free(table);
   sql_token_list_free(list);
   PASS();
 }
@@ -314,7 +233,7 @@ TEST test_sql_parser_foreign_keys_defaults(void) {
   for (i = 0; i < n_tables; ++i) {
     sql_table_free(&tables[i]);
   }
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* Verify >10 tables dynamically grows out_tables without heap overflow */
@@ -326,7 +245,7 @@ TEST test_sql_parser_foreign_keys_defaults(void) {
   for (i = 0; i < n_tables; ++i) {
     sql_table_free(&tables[i]);
   }
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   PASS();
@@ -444,7 +363,7 @@ TEST test_sql_parser_step_failures(void) {
 
       if (rc == C_ORM_OK) {
         sql_table_C_ORM_FREE(table);
-        (void)c_orm_system_free(table);
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(table));
         table = NULL;
       }
       sql_token_list_free(list);
@@ -483,7 +402,7 @@ TEST test_sql_parser_constraints_capacity(void) {
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(table != NULL);
   sql_table_C_ORM_FREE(table);
-  (void)c_orm_system_free(table);
+  c_orm_system_free(table);
   table = NULL;
 
   /* Realloc failure during capacity expansion */
@@ -493,7 +412,7 @@ TEST test_sql_parser_constraints_capacity(void) {
     rc = sql_parse_table(list, &table, &err_info);
     if (rc == C_ORM_OK) {
       sql_table_C_ORM_FREE(table);
-      (void)c_orm_system_free(table);
+      c_orm_system_free(table);
       table = NULL;
     }
     sql_realloc_oom_active = 0;
@@ -524,7 +443,7 @@ TEST test_sql_parser_projection_and_returning(void) {
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(proj != NULL);
   cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-  (void)c_orm_system_free(proj);
+  c_orm_system_free(proj);
   proj = NULL;
 
   rc = sql_parse_returning(NULL, NULL, NULL);
@@ -534,7 +453,7 @@ TEST test_sql_parser_projection_and_returning(void) {
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT(proj != NULL);
   cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-  (void)c_orm_system_free(proj);
+  c_orm_system_free(proj);
   proj = NULL;
 
   /* OOM calls */
@@ -575,7 +494,7 @@ TEST test_sql_parser_projection_and_returning(void) {
     ASSERT_STR_EQ("total", cproj->fields[1].name);
     ASSERT_EQ(1, cproj->fields[1].is_aggregate);
     cdd_c_query_projection_free(cproj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
     sql_token_list_free(sel_list);
 
@@ -589,7 +508,7 @@ TEST test_sql_parser_projection_and_returning(void) {
     ASSERT_STR_EQ("id", cproj->fields[0].original_name);
     ASSERT_STR_EQ("uid", cproj->fields[0].name);
     cdd_c_query_projection_free(cproj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
     sql_token_list_free(ret_list);
 
@@ -599,7 +518,7 @@ TEST test_sql_parser_projection_and_returning(void) {
     ASSERT_EQ(SQL_TYPE_BLOB, blob_tables[0].columns[0].type);
     ASSERT_EQ(SQL_TYPE_BLOB, blob_tables[0].columns[1].type);
     sql_table_free(&blob_tables[0]);
-    (void)c_orm_system_free(blob_tables);
+    c_orm_system_free(blob_tables);
   }
 
   PASS();
@@ -638,7 +557,7 @@ TEST test_sql_lexer_and_cleanup_branches(void) {
   rc = sql_parse_table(empty_list, &tbl, NULL);
   ASSERT_EQ(C_ORM_OK, rc);
   sql_table_C_ORM_FREE(tbl);
-  (void)c_orm_system_free(tbl);
+  c_orm_system_free(tbl);
   tbl = NULL;
   sql_token_list_free(empty_list);
   empty_list = NULL;
@@ -646,8 +565,8 @@ TEST test_sql_lexer_and_cleanup_branches(void) {
   /* sql_token_list_free branches */
   sql_token_list_free(NULL);
 
-  empty_list =
-      (struct sql_token_list_t *)malloc(sizeof(struct sql_token_list_t));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(sizeof(struct sql_token_list_t),
+                                           (void **)&empty_list));
   memset(empty_list, 0, sizeof(*empty_list));
   sql_token_list_free(empty_list);
   empty_list = NULL;
@@ -657,12 +576,16 @@ TEST test_sql_lexer_and_cleanup_branches(void) {
   sql_table_C_ORM_FREE(NULL);
 
   memset(&empty_table, 0, sizeof(empty_table));
-  dummy_cols = (struct sql_column_t *)malloc(2 * sizeof(struct sql_column_t));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(2 * sizeof(struct sql_column_t),
+                                           (void **)&dummy_cols));
   memset(dummy_cols, 0, 2 * sizeof(struct sql_column_t));
-  dummy_cols[0].constraints =
-      (struct sql_constraint_t *)malloc(sizeof(struct sql_constraint_t));
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_default_malloc(sizeof(struct sql_constraint_t),
+                                 (void **)&dummy_cols[0].constraints));
   memset(dummy_cols[0].constraints, 0, sizeof(struct sql_constraint_t));
-  dummy_cols[0].constraints[0].columns = (char **)malloc(sizeof(char *));
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(
+                          sizeof(char *),
+                          (void **)&dummy_cols[0].constraints[0].columns));
   dummy_cols[0].constraints[0].columns[0] = NULL;
   dummy_cols[0].constraints[0].n_columns = 1;
   dummy_cols[0].n_constraints = 1;
@@ -686,14 +609,14 @@ TEST test_sql_lexer_and_cleanup_branches(void) {
   rc = parse_sql_ddl("NOT A VALID DDL STATEMENT;", &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* parse_sql_ddl with table failing parse */
   rc = parse_sql_ddl("CREATE TABLE t (invalid_syntax);", &tables, &n_tables);
   ASSERT_EQ(C_ORM_OK, rc);
   ASSERT_EQ(0, n_tables);
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* parse_sql_ddl with multiple tables */
@@ -704,7 +627,7 @@ TEST test_sql_lexer_and_cleanup_branches(void) {
   for (i = 0; i < n_tables; ++i) {
     sql_table_C_ORM_FREE(&tables[i]);
   }
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   tables = NULL;
 
   /* parse_sql_ddl OOM allocating out_tables */
@@ -712,7 +635,7 @@ TEST test_sql_lexer_and_cleanup_branches(void) {
   sql_oom_countdown = 1;
   ASSERT_EQ(C_ORM_OK, sql_mock_malloc(10, &tmp_p));
   ASSERT(tmp_p != NULL);
-  free(tmp_p);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_free(tmp_p));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_mock_malloc(10, &tmp_p));
   ASSERT_EQ(NULL, tmp_p);
 
@@ -781,7 +704,7 @@ TEST test_sql_parser_db2_and_full_branches(void) {
   ASSERT_EQ(C_ORM_OK, sql_parse_table(list, &table, &err_info));
   ASSERT(table != NULL);
   sql_table_free(table);
-  (void)c_orm_system_free(table);
+  c_orm_system_free(table);
   table = NULL;
   sql_token_list_free(list);
   list = NULL;
@@ -872,24 +795,25 @@ TEST test_sql_parser_db2_and_full_branches(void) {
     ASSERT_EQ(SQL_TYPE_DOUBLE, table->columns[18].type);
     ASSERT_EQ(SQL_TYPE_TIME, table->columns[19].type);
     sql_table_free(table);
-    (void)c_orm_system_free(table);
+    c_orm_system_free(table);
     table = NULL;
 
     /* Parser step-failure sweep over the entire Db2 DDL */
-    for (step = 0; step < 1500; ++step) {
+    for (step = 0;; ++step) {
       c_orm_parser_set_fail(step);
       rc = sql_parse_table(list, &table, &err_info);
       c_orm_parser_set_fail(-1);
       if (rc == C_ORM_OK) {
         sql_table_free(table);
-        (void)c_orm_system_free(table);
+        c_orm_system_free(table);
         table = NULL;
         break;
       }
+      ASSERT(step < 1500);
     }
 
     /* Malloc & Realloc OOM sweep over the entire Db2 DDL */
-    for (step = 0; step < 80; ++step) {
+    for (step = 0;; ++step) {
       sql_oom_active = 1;
       sql_oom_countdown = step;
       rc = sql_parse_table(list, &table, &err_info);
@@ -897,12 +821,13 @@ TEST test_sql_parser_db2_and_full_branches(void) {
       sql_oom_countdown = -1;
       if (rc == C_ORM_OK) {
         sql_table_free(table);
-        (void)c_orm_system_free(table);
+        c_orm_system_free(table);
         table = NULL;
         break;
       }
+      ASSERT(step < 200);
     }
-    for (step = 0; step < 50; ++step) {
+    for (step = 0;; ++step) {
       sql_realloc_oom_active = 1;
       sql_realloc_oom_countdown = step;
       rc = sql_parse_table(list, &table, &err_info);
@@ -910,10 +835,11 @@ TEST test_sql_parser_db2_and_full_branches(void) {
       sql_realloc_oom_countdown = -1;
       if (rc == C_ORM_OK) {
         sql_table_free(table);
-        (void)c_orm_system_free(table);
+        c_orm_system_free(table);
         table = NULL;
         break;
       }
+      ASSERT(step < 200);
     }
 
     sql_token_list_free(list);
@@ -957,7 +883,7 @@ TEST test_sql_parser_db2_and_full_branches(void) {
       rc = sql_parse_table(list, &table, &err_info);
       if (rc == C_ORM_OK) {
         sql_table_free(table);
-        (void)c_orm_system_free(table);
+        ASSERT_EQ(C_ORM_OK, c_orm_system_free(table));
         table = NULL;
       }
       sql_token_list_free(list);
@@ -984,11 +910,12 @@ TEST test_sql_parser_db2_and_full_branches(void) {
       sql_realloc_oom_countdown = -1;
       if (rc == C_ORM_ERROR_MEMORY) {
         saw_oom = 1;
-      } else if (rc == C_ORM_OK) {
+      } else {
+        ASSERT_EQ(C_ORM_OK, rc);
         for (i = 0; i < n_tables; ++i) {
           sql_table_free(&tables[i]);
         }
-        (void)c_orm_system_free(tables);
+        c_orm_system_free(tables);
       }
     }
     ASSERT_EQ(1, saw_oom);
@@ -1003,12 +930,12 @@ TEST test_sql_parser_db2_and_full_branches(void) {
     memset(&empty_tl, 0, sizeof(empty_tl));
     ASSERT_EQ(C_ORM_OK, sql_parse_select(&empty_tl, &proj, NULL));
     cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
 
     ASSERT_EQ(C_ORM_OK, sql_parse_returning(&empty_tl, &proj, NULL));
     cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
 
     /* >128 char unqualified & qualified identifier & alias */
@@ -1020,11 +947,11 @@ TEST test_sql_parser_db2_and_full_branches(void) {
     ASSERT_EQ(C_ORM_OK, sql_lex(az_span_create_from_str(long_q), &list));
     ASSERT_EQ(C_ORM_OK, sql_parse_select(list, &proj, &err_info));
     cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
 
     /* OOM on add_field in sql_parse_select */
-    for (step = 0; step < 8; ++step) {
+    for (step = 0;; ++step) {
       sql_oom_active = 1;
       sql_oom_countdown = step;
       rc = sql_parse_select(list, &proj, &err_info);
@@ -1032,12 +959,13 @@ TEST test_sql_parser_db2_and_full_branches(void) {
       sql_oom_countdown = -1;
       if (rc == C_ORM_OK) {
         cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-        (void)c_orm_system_free(proj);
+        c_orm_system_free(proj);
         proj = NULL;
         break;
       }
+      ASSERT(step < 50);
     }
-    for (step = 0; step < 4; ++step) {
+    for (step = 0;; ++step) {
       sql_realloc_oom_active = 1;
       sql_realloc_oom_countdown = step;
       rc = sql_parse_select(list, &proj, &err_info);
@@ -1045,10 +973,11 @@ TEST test_sql_parser_db2_and_full_branches(void) {
       sql_realloc_oom_countdown = -1;
       if (rc == C_ORM_OK) {
         cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-        (void)c_orm_system_free(proj);
+        c_orm_system_free(proj);
         proj = NULL;
         break;
       }
+      ASSERT(step < 50);
     }
     sql_token_list_free(list);
     list = NULL;
@@ -1060,7 +989,7 @@ TEST test_sql_parser_db2_and_full_branches(void) {
                           "UPDATE u SET a = CHARACTER RETURNING NULL, "
                           "SMALLINT, COALESCE(MAX(a), 0) AS m, t."),
                       &list));
-    for (step = 0; step < 8; ++step) {
+    for (step = 0;; ++step) {
       sql_oom_active = 1;
       sql_oom_countdown = step;
       rc = sql_parse_returning(list, &proj, &err_info);
@@ -1068,10 +997,11 @@ TEST test_sql_parser_db2_and_full_branches(void) {
       sql_oom_countdown = -1;
       if (rc == C_ORM_OK) {
         cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-        (void)c_orm_system_free(proj);
+        c_orm_system_free(proj);
         proj = NULL;
         break;
       }
+      ASSERT(step < 50);
     }
     sql_token_list_free(list);
     list = NULL;
@@ -1082,7 +1012,7 @@ TEST test_sql_parser_db2_and_full_branches(void) {
     list->size--;
     ASSERT_EQ(C_ORM_OK, sql_parse_select(list, &proj, NULL));
     cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
     sql_token_list_free(list);
     list = NULL;
@@ -1091,7 +1021,7 @@ TEST test_sql_parser_db2_and_full_branches(void) {
     list->size--;
     ASSERT_EQ(C_ORM_OK, sql_parse_select(list, &proj, NULL));
     cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
     sql_token_list_free(list);
     list = NULL;
@@ -1102,7 +1032,7 @@ TEST test_sql_parser_db2_and_full_branches(void) {
     list->size--;
     ASSERT_EQ(C_ORM_OK, sql_parse_select(list, &proj, NULL));
     cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
     sql_token_list_free(list);
     list = NULL;
@@ -1112,7 +1042,7 @@ TEST test_sql_parser_db2_and_full_branches(void) {
               sql_lex(az_span_create_from_str("SELECT col xx FROM u;"), &list));
     ASSERT_EQ(C_ORM_OK, sql_parse_select(list, &proj, NULL));
     cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
     sql_token_list_free(list);
     list = NULL;
@@ -1121,12 +1051,12 @@ TEST test_sql_parser_db2_and_full_branches(void) {
               sql_lex(az_span_create_from_str("SELECT col AS "), &list));
     ASSERT_EQ(C_ORM_OK, sql_parse_select(list, &proj, NULL));
     cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
     list->size--;
     ASSERT_EQ(C_ORM_OK, sql_parse_select(list, &proj, NULL));
     cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
     sql_token_list_free(list);
     list = NULL;
@@ -1136,12 +1066,204 @@ TEST test_sql_parser_db2_and_full_branches(void) {
               sql_lex(az_span_create_from_str("DELETE FROM u;"), &list));
     ASSERT_EQ(C_ORM_OK, sql_parse_select(list, &proj, NULL));
     cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
     ASSERT_EQ(C_ORM_OK, sql_parse_returning(list, &proj, NULL));
     cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
-    (void)c_orm_system_free(proj);
+    c_orm_system_free(proj);
     proj = NULL;
+    sql_token_list_free(list);
+    list = NULL;
+  }
+
+  PASS();
+}
+
+/**
+ * @brief Tests case-insensitive SQL keywords, line/block comments, backtick and
+ * bracket quoted identifiers, and table-level FK local column resolution.
+ * @return GREATEST test result.
+ */
+static enum greatest_test_res
+test_sql_case_comments_quotes_and_fk_column(void) {
+  static char c_mut_s0[] = "author_fk";
+  static char c_mut_s1[] = "syn";
+  static char c_mut_s2[] = "authors";
+  static char c_mut_s3[] = "aid";
+  static char c_mut_s4[] = "orgs";
+  static char c_mut_s5[] = "oid";
+  static char c_mut_s6[] = "teams";
+  static char c_mut_s7[] = "tid";
+
+  const char *ddl =
+      "-- leading comment\n"
+      "/* block * comment */ create table `posts` (\n"
+      "  `id` int, [user]]id] int default null, `slug` varchar(64),\n"
+      "  primary key (`id`),\n"
+      "  unique (`slug`),\n"
+      "  foreign key ([user]]id]) references `users`(`id`)\n"
+      "); -- trailing eof comment";
+  struct sql_table_t *tables = NULL;
+  size_t n_tables = 0;
+  c_orm_relation_meta_t *rels = NULL;
+  size_t n_rels = 0;
+  struct sql_token_list_t *list = NULL;
+  struct CddCQueryProjection *proj = NULL;
+  struct sql_parse_error_t perr;
+  az_span sp;
+  int cd;
+
+  ASSERT_EQ(C_ORM_OK, parse_sql_ddl(ddl, &tables, &n_tables));
+  ASSERT_EQ(1U, n_tables);
+  ASSERT_STR_EQ("posts", tables[0].name);
+  ASSERT_EQ(3U, tables[0].n_table_constraints);
+  ASSERT_STR_EQ("user]]id", tables[0].table_constraints[2].column_name);
+
+  ASSERT_EQ(C_ORM_OK, c_orm_build_relation_meta(&tables[0], &rels, &n_rels));
+  ASSERT_EQ(1U, n_rels);
+  ASSERT_STR_EQ("user]]id", rels[0].field_name);
+  ASSERT_STR_EQ("user]]id", rels[0].local_key);
+  ASSERT_STR_EQ("users", rels[0].target_table);
+  ASSERT_STR_EQ("id", rels[0].foreign_key);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(rels));
+
+  /* Synthetic table constraint branches in c_orm_build_relation_meta */
+  {
+    struct sql_table_t syn_tbl;
+    struct sql_constraint_t syn_tc[3];
+    char *col_arr[1];
+    col_arr[0] = c_mut_s0;
+    memset(&syn_tbl, 0, sizeof(syn_tbl));
+    memset(syn_tc, 0, sizeof(syn_tc));
+    syn_tbl.name = c_mut_s1;
+    syn_tbl.table_constraints = syn_tc;
+    syn_tbl.n_table_constraints = 3;
+
+    /* 1: column_name NULL, columns[0] populated */
+    syn_tc[0].type = SQL_CONSTRAINT_FOREIGN_KEY;
+    syn_tc[0].columns = col_arr;
+    syn_tc[0].n_columns = 1;
+    syn_tc[0].reference_table = c_mut_s2;
+    syn_tc[0].reference_column = c_mut_s3;
+
+    /* 2: column_name NULL, n_columns > 0 but columns NULL -> fallback */
+    syn_tc[1].type = SQL_CONSTRAINT_FOREIGN_KEY;
+    syn_tc[1].columns = NULL;
+    syn_tc[1].n_columns = 1;
+    syn_tc[1].reference_table = c_mut_s4;
+    syn_tc[1].reference_column = c_mut_s5;
+
+    /* 3: column_name NULL, n_columns == 0 -> fallback */
+    syn_tc[2].type = SQL_CONSTRAINT_FOREIGN_KEY;
+    syn_tc[2].reference_table = c_mut_s6;
+    syn_tc[2].reference_column = c_mut_s7;
+
+    rels = NULL;
+    n_rels = 0;
+    ASSERT_EQ(C_ORM_OK, c_orm_build_relation_meta(&syn_tbl, &rels, &n_rels));
+    ASSERT_EQ(3U, n_rels);
+    ASSERT_STR_EQ("author_fk", rels[0].local_key);
+    ASSERT_STR_EQ("oid", rels[1].local_key);
+    ASSERT_STR_EQ("tid", rels[2].local_key);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(rels));
+  }
+
+  ASSERT_EQ(C_ORM_OK, sql_table_free(&tables[0]));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(tables));
+
+  /* Case-insensitive select distinct ... as ... from & returning + comments */
+  sp = az_span_create_from_str(
+      "select distinct `a``b` as [c] from `t` /* unclosed comment *");
+  ASSERT_EQ(C_ORM_OK, sql_lex(sp, &list));
+  ASSERT_EQ(C_ORM_OK, sql_parse_select(list, &proj, &perr));
+  ASSERT_EQ(1U, ((cdd_c_query_projection_t *)proj)->n_fields);
+  ASSERT_STR_EQ("c", ((cdd_c_query_projection_t *)proj)->fields[0].name);
+  cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(proj));
+  ASSERT_EQ(C_ORM_OK, sql_token_list_free(list));
+
+  sp = az_span_create_from_str("insert into t values (1) returning id -");
+  ASSERT_EQ(C_ORM_OK, sql_lex(sp, &list));
+  ASSERT_EQ(C_ORM_ERROR_VALIDATION, sql_parse_table(list, NULL, NULL));
+  proj = NULL;
+  ASSERT_EQ(C_ORM_OK, sql_parse_returning(list, &proj, &perr));
+  cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(proj));
+  ASSERT_EQ(C_ORM_OK, sql_token_list_free(list));
+
+  sp = az_span_create_from_str("select 1 /");
+  ASSERT_EQ(C_ORM_OK, sql_lex(sp, &list));
+  ASSERT_EQ(C_ORM_OK, sql_token_list_free(list));
+
+  sp = az_span_create_from_str("select 1 - / `unclosed");
+  ASSERT_EQ(C_ORM_OK, sql_lex(sp, &list));
+  ASSERT_EQ(C_ORM_OK, sql_token_list_free(list));
+
+  /* Non-matching 4/6/8/9-len keywords in select/returning/ddl */
+  sp = az_span_create_from_str(
+      "select into, time, date, decfloat, references from t;");
+  ASSERT_EQ(C_ORM_OK, sql_lex(sp, &list));
+  proj = NULL;
+  ASSERT_EQ(C_ORM_OK, sql_parse_select(list, &proj, &perr));
+  cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(proj));
+  proj = NULL;
+  ASSERT_EQ(C_ORM_OK, sql_parse_returning(list, &proj, &perr));
+  cdd_c_query_projection_free((cdd_c_query_projection_t *)proj);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(proj));
+  ASSERT_EQ(C_ORM_OK, sql_token_list_free(list));
+
+  tables = NULL;
+  n_tables = 0;
+  ASSERT_EQ(
+      C_ORM_OK,
+      parse_sql_ddl(
+          "select 1; delete from t; create table x (id int default time);",
+          &tables, &n_tables));
+  for (cd = 0; cd < (int)n_tables; ++cd) {
+    ASSERT_EQ(C_ORM_OK, sql_table_free(&tables[cd]));
+  }
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(tables));
+
+  /* OOM during comment token push (initial realloc at token #0) */
+  sql_realloc_oom_active = 1;
+  sql_realloc_oom_countdown = 0;
+  list = NULL;
+  sp = az_span_create_from_str("--line");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_lex(sp, &list));
+
+  sql_realloc_oom_countdown = 0;
+  list = NULL;
+  sp = az_span_create_from_str("/*blk*/");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_lex(sp, &list));
+  sql_realloc_oom_active = 0;
+  sql_realloc_oom_countdown = -1;
+
+  /* Semicolon & unknown token push_token OOM + sql_column_partial_free with
+   * col->n_constraints > 0 */
+  sql_realloc_oom_active = 1;
+  sql_realloc_oom_countdown = 0;
+  list = NULL;
+  sp = az_span_create_from_str(";");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_lex(sp, &list));
+  sql_realloc_oom_active = 0;
+  sql_realloc_oom_countdown = -1;
+
+  sql_realloc_oom_active = 1;
+  sql_realloc_oom_countdown = 0;
+  list = NULL;
+  sp = az_span_create_from_str("~");
+  ASSERT_EQ(C_ORM_ERROR_MEMORY, sql_lex(sp, &list));
+  sql_realloc_oom_active = 0;
+  sql_realloc_oom_countdown = -1;
+
+  {
+    struct sql_table_t *t_bad = NULL;
+    list = NULL;
+    sp = az_span_create_from_str(
+        "CREATE TABLE t (id INT NOT NULL CONSTRAINT 123);");
+    ASSERT_EQ(C_ORM_OK, sql_lex(sp, &list));
+    ASSERT_NEQ(C_ORM_OK, sql_parse_table(list, &t_bad, &perr));
     sql_token_list_free(list);
     list = NULL;
   }
@@ -1180,6 +1302,7 @@ SUITE(sql_suite) {
   RUN_TEST(test_sql_parser_missing_keys);
   RUN_TEST(test_sql_parser_exhaustive_oom);
   RUN_TEST(test_sql_parser_db2_and_full_branches);
+  RUN_TEST(test_sql_case_comments_quotes_and_fk_column);
 
   c_orm_set_allocators(old_malloc, old_realloc, old_free);
 

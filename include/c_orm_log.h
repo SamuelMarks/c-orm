@@ -16,15 +16,6 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/**
- * @brief No-op logging helper for non-debug builds.
- *
- * @return C_ORM_OK unconditionally.
- */
-C_ORM_EXPORT c_orm_error_t c_orm_log_noop(void);
-
-#ifndef LOG_DEBUG
-#ifdef DEBUG
 #if (defined(__clang__) || defined(__GNUC__)) && !defined(__MINGW32__)
 __attribute__((__format__(__printf__, 1, 2)))
 #endif
@@ -33,25 +24,22 @@ __attribute__((__format__(__printf__, 1, 2)))
  *
  * @param fmt The format string.
  * @param ... The format arguments.
- * @return C_ORM_OK on success.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_VALIDATION if `fmt` is NULL.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_log_debug(const char *fmt, ...);
-#define LOG_DEBUG c_orm_log_debug
+
+#ifndef LOG_DEBUG
+#ifdef DEBUG
+#define LOG_DEBUG(msg)                                                         \
+  do {                                                                         \
+    if (c_orm_log_debug("%s", (msg)) != C_ORM_OK) {                            \
+    }                                                                          \
+  } while (0)
 #else
-#if (defined(__clang__) || defined(__GNUC__)) && !defined(__MINGW32__)
-__attribute__((__format__(__printf__, 1, 2)))
-#endif
-/**
- * @brief Logs a debug message to standard error (no-op in non-debug mode).
- *
- * @param fmt The format string.
- * @param ... The format arguments.
- * @return C_ORM_OK on success.
- */
-C_ORM_EXPORT c_orm_error_t
-c_orm_log_debug(const char *fmt, ...);
-#define LOG_DEBUG 1 ? c_orm_log_noop() : c_orm_log_debug
+#define LOG_DEBUG(msg)                                                         \
+  do {                                                                         \
+  } while (0)
 #endif /* DEBUG */
 #endif /* !LOG_DEBUG */
 

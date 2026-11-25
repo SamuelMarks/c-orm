@@ -19,80 +19,11 @@ extern "C" {
 #include <errno.h>
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <time.h>
 
 #include "test_abstract_struct_oom.h"
 /* clang-format on */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
 
 /**
  * @brief Executes test_abstract_struct_memory_layout.
@@ -116,7 +47,7 @@ TEST test_variant_type_safety(void) {
   v1.value.i_val = 42;
 
   v2.type = CDD_C_VARIANT_TYPE_STRING;
-  v2.value.s_val = (char *)malloc(5);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(5, (void **)&v2.value.s_val));
   C_ORM_STRCPY(v2.value.s_val, 5, "test");
 
   ASSERT_EQ(CDD_C_VARIANT_TYPE_INT, v1.type);
@@ -207,6 +138,8 @@ TEST test_abstract_struct_set_get(void) {
  * @return GREATEST test result.
  */
 TEST test_abstract_struct_json_roundtrip(void) {
+  static char c_mut_s0[] = "test_string";
+
   cdd_c_abstract_struct_t astruct_out, astruct_in;
   cdd_c_variant_t v_in, *v_out;
   char *json_str = NULL;
@@ -218,7 +151,7 @@ TEST test_abstract_struct_json_roundtrip(void) {
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct_out, "my_int", &v_in));
 
   v_in.type = CDD_C_VARIANT_TYPE_STRING;
-  v_in.value.s_val = (char *)"test_string";
+  v_in.value.s_val = c_mut_s0;
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct_out, "my_str", &v_in));
 
   v_in.type = CDD_C_VARIANT_TYPE_FLOAT;
@@ -240,7 +173,7 @@ TEST test_abstract_struct_json_roundtrip(void) {
 
   cdd_c_abstract_print(&astruct_in);
 
-  ASSERT_EQ(CDD_C_SUCCESS, json_free_serialized_string(json_str));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(json_str));
   ASSERT_EQ(0, cdd_c_abstract_struct_free(&astruct_out));
   ASSERT_EQ(0, cdd_c_abstract_struct_free(&astruct_in));
   PASS();
@@ -251,13 +184,16 @@ TEST test_abstract_struct_json_roundtrip(void) {
  * @return GREATEST test result.
  */
 TEST test_abstract_hydrate(void) {
+  static char c_mut_s1[] = "Hello, Generic World!";
+  static char c_mut_s2[] = "blob_data";
+
   cdd_c_abstract_struct_t astruct;
   cdd_c_column_meta_t cols[4];
   void *row_data[4];
   c_orm_int64_t mock_int = 42;
   double mock_float = 3.14159;
-  char *mock_str = (char *)"Hello, Generic World!";
-  char *mock_blob = (char *)"blob_data";
+  char *mock_str = c_mut_s1;
+  char *mock_blob = c_mut_s2;
   cdd_c_variant_t *out_val;
 
   cols[0].name = "id";
@@ -330,6 +266,8 @@ typedef struct MockSpecificRow2 {
  * @return GREATEST test result.
  */
 TEST test_abstract_struct_conversion2(void) {
+  static char c_mut_s3[] = "Dynamic String Content";
+
   cdd_c_abstract_struct_t astruct_in, astruct_out;
   mock_specific_row2_t specific_out, specific_in;
   cdd_c_variant_t v_in;
@@ -374,7 +312,7 @@ TEST test_abstract_struct_conversion2(void) {
   v_in.value.f_val = 3.14f;
   cdd_c_abstract_set(&astruct_in, "small_ratio", &v_in);
   v_in.type = CDD_C_VARIANT_TYPE_STRING;
-  v_in.value.s_val = (char *)"Dynamic String Content";
+  v_in.value.s_val = c_mut_s3;
   cdd_c_abstract_set(&astruct_in, "dyn_str", &v_in);
 
   /* Abstract to Specific */
@@ -393,7 +331,7 @@ TEST test_abstract_struct_conversion2(void) {
   ASSERT_EQ(0, cdd_c_specific_to_abstract(&astruct_out, &specific_in, &meta));
   ASSERT_EQ(3, astruct_out.count);
 
-  (void)c_orm_system_free(specific_out.dyn_str);
+  c_orm_system_free(specific_out.dyn_str);
   cdd_c_abstract_struct_free(&astruct_in);
   cdd_c_abstract_struct_free(&astruct_out);
   PASS();
@@ -404,6 +342,8 @@ TEST test_abstract_struct_conversion2(void) {
  * @return GREATEST test result.
  */
 TEST test_abstract_struct_conversion(void) {
+  static char c_mut_s4[] = "Hello";
+
   cdd_c_abstract_struct_t astruct_in, astruct_out;
   mock_specific_row_t specific_out, specific_in;
   cdd_c_variant_t v_in;
@@ -448,7 +388,7 @@ TEST test_abstract_struct_conversion(void) {
   v_in.value.f_val = 5.5;
   cdd_c_abstract_set(&astruct_in, "ratio", &v_in);
   v_in.type = CDD_C_VARIANT_TYPE_STRING;
-  v_in.value.s_val = (char *)"Hello";
+  v_in.value.s_val = c_mut_s4;
   cdd_c_abstract_set(&astruct_in, "greeting", &v_in);
 
   /* Abstract to Specific */
@@ -641,6 +581,10 @@ TEST test_mock_driver_abstract_struct_hydration(void) {
  * @return GREATEST test result.
  */
 TEST test_abstract_struct_array(void) {
+  static char c_mut_s5[] = "Alice";
+  static char c_mut_s6[] = "Bob";
+  static unsigned char c_mut_s7[] = "blob";
+
   cdd_c_abstract_struct_array_t arr;
   cdd_c_abstract_struct_t row1, row2, row3;
   cdd_c_variant_t val;
@@ -654,7 +598,7 @@ TEST test_abstract_struct_array(void) {
   val.value.i_val = 1;
   cdd_c_abstract_set(&row1, "id", &val);
   val.type = CDD_C_VARIANT_TYPE_STRING;
-  val.value.s_val = (char *)"Alice";
+  val.value.s_val = c_mut_s5;
   cdd_c_abstract_set(&row1, "name", &val);
   ASSERT_EQ(0, cdd_c_abstract_struct_array_append(&arr, &row1));
 
@@ -664,7 +608,7 @@ TEST test_abstract_struct_array(void) {
   val.value.i_val = 2;
   cdd_c_abstract_set(&row2, "id", &val);
   val.type = CDD_C_VARIANT_TYPE_STRING;
-  val.value.s_val = (char *)"Bob";
+  val.value.s_val = c_mut_s6;
   cdd_c_abstract_set(&row2, "name", &val);
   ASSERT_EQ(0, cdd_c_abstract_struct_array_append(&arr, &row2));
 
@@ -681,7 +625,7 @@ TEST test_abstract_struct_array(void) {
   val.type = 999;
   cdd_c_abstract_set(&row3, "unk", &val);
   val.type = CDD_C_VARIANT_TYPE_BLOB;
-  val.value.b_val.data = (unsigned char *)"blob";
+  val.value.b_val.data = c_mut_s7;
   val.value.b_val.size = 4;
   cdd_c_abstract_set(&row3, "data", &val);
   ASSERT_EQ(0, cdd_c_abstract_struct_array_append(&arr, &row3));
@@ -690,7 +634,7 @@ TEST test_abstract_struct_array(void) {
 
   ASSERT_EQ(0, cdd_c_abstract_struct_array_to_json(&arr, &json_out));
   ASSERT_NEQ(NULL, json_out);
-  ASSERT_EQ(CDD_C_SUCCESS, json_free_serialized_string(json_out));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(json_out));
 
   ASSERT_EQ(0, cdd_c_abstract_struct_array_free(&arr));
 
@@ -924,7 +868,7 @@ TEST test_abstract_struct_edge_types(void) {
   C_ORM_STRDUP("blobdata", (char **)&v.value.b_val.data);
   v.value.b_val.size = 8;
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct, "my_blob", &v));
-  (void)c_orm_system_free(v.value.b_val.data);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(v.value.b_val.data));
 
   /* NULL */
   v.type = CDD_C_VARIANT_TYPE_NULL;
@@ -938,7 +882,7 @@ TEST test_abstract_struct_edge_types(void) {
   ASSERT_EQ(0, cdd_c_abstract_struct_deep_copy(&astruct2, &astruct));
 
   ASSERT_EQ(0, cdd_c_abstract_struct_to_json(&astruct2, &json_out));
-  ASSERT_EQ(CDD_C_SUCCESS, json_free_serialized_string(json_out));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(json_out));
   cdd_c_abstract_print(&astruct2);
 
   cdd_c_abstract_struct_free(&astruct);
@@ -1010,6 +954,11 @@ TEST test_json_edge_cases(void) {
  * @return GREATEST test result.
  */
 TEST test_specific_edge_cases(void) {
+  static char c_mut_s8[] = "bad";
+  static char c_mut_s9[] = "bad";
+  static char c_mut_s10[] = "bad";
+  static char c_mut_s11[] = "bad";
+
   mock_specific_row_t specific_out;
   cdd_c_abstract_struct_t astruct_in;
   cdd_c_prop_meta_t p1, p2, p3;
@@ -1076,7 +1025,7 @@ TEST test_specific_edge_cases(void) {
     meta_single.num_props = 1;
     meta_single.props = &p_single;
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"bad";
+    v.value.s_val = c_mut_s8;
     cdd_c_abstract_struct_init(&astruct_in);
     cdd_c_abstract_set(&astruct_in, "id", &v);
     ASSERT_EQ(C_ORM_ERROR_VALIDATION,
@@ -1099,7 +1048,7 @@ TEST test_specific_edge_cases(void) {
     meta_single.num_props = 1;
     meta_single.props = &p_single;
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"bad";
+    v.value.s_val = c_mut_s9;
     cdd_c_abstract_struct_init(&astruct_in);
     cdd_c_abstract_set(&astruct_in, "ratio", &v);
     ASSERT_EQ(C_ORM_ERROR_VALIDATION,
@@ -1138,7 +1087,7 @@ TEST test_specific_edge_cases(void) {
     m.props = &p;
     cdd_c_abstract_struct_init(&astruct_in);
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"bad";
+    v.value.s_val = c_mut_s10;
     cdd_c_abstract_set(&astruct_in, "id64", &v);
     ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_abstract_to_specific(
                                           &specific_out, &astruct_in, &m, 1));
@@ -1160,7 +1109,7 @@ TEST test_specific_edge_cases(void) {
     m.props = &p;
     cdd_c_abstract_struct_init(&astruct_in);
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"bad";
+    v.value.s_val = c_mut_s11;
     cdd_c_abstract_set(&astruct_in, "dbl", &v);
     ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_abstract_to_specific(
                                           &specific_out, &astruct_in, &m, 1));
@@ -1310,6 +1259,9 @@ TEST test_hydrate_null(void) {
  * @return GREATEST test result.
  */
 TEST test_abstract_struct_allocation_limits(void) {
+  static unsigned char c_mut_s12[] = "fake";
+  static unsigned char c_mut_s13[] = "fake";
+
   cdd_c_abstract_struct_array_t arr;
   cdd_c_abstract_struct_t astruct1, astruct2;
   cdd_c_variant_t v;
@@ -1345,7 +1297,7 @@ TEST test_abstract_struct_allocation_limits(void) {
   v.value.i_val = 1;
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct1, "huge_blob", &v));
   astruct1.kvs[0].value.type = CDD_C_VARIANT_TYPE_BLOB;
-  astruct1.kvs[0].value.value.b_val.data = (unsigned char *)"fake";
+  astruct1.kvs[0].value.value.b_val.data = c_mut_s12;
   astruct1.kvs[0].value.value.b_val.size = (size_t)-1;
   ASSERT_EQ(C_ORM_ERROR_VALIDATION,
             (int)cdd_c_abstract_struct_deep_copy(&astruct2, &astruct1));
@@ -1364,7 +1316,7 @@ TEST test_abstract_struct_allocation_limits(void) {
   v.value.i_val = 1;
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct1, "null_blob", &v));
   astruct1.kvs[1].value.type = CDD_C_VARIANT_TYPE_BLOB;
-  astruct1.kvs[1].value.value.b_val.data = (unsigned char *)"fake";
+  astruct1.kvs[1].value.value.b_val.data = c_mut_s13;
   astruct1.kvs[1].value.value.b_val.size = 0;
 
   ASSERT_EQ(0, (int)cdd_c_abstract_struct_deep_copy(&astruct2, &astruct1));
@@ -1464,9 +1416,7 @@ static c_orm_sqlreturn_t C_ORM_SQL_API ASMock_DriverConnect(
   (void)out;
   (void)cap;
   (void)drv;
-  if (l2) {
-    *l2 = 0;
-  }
+  *l2 = 0;
   return C_ORM_SQL_SUCCESS;
 }
 
@@ -1605,7 +1555,8 @@ static c_orm_sqlreturn_t C_ORM_SQL_API ASMock_GetData(
   } else if (col == 9) {
     *(c_orm_sqlsmallint_t *)vp = 2;
     *ind = 2;
-  } else if (col == 18) {
+  } else {
+    ASSERT_EQ(18, (int)col);
     C_ORM_STRCPY((char *)vp, (size_t)bl, g_as_row == 1 ? "NO" : "YES");
     *ind = g_as_row == 1 ? 2 : 3;
   }
@@ -1770,10 +1721,21 @@ static c_orm_error_t as_mock_step(c_orm_query_t *q, int *out_has) {
  */
 static c_orm_error_t as_mock_get_str(c_orm_query_t *q, int idx,
                                      const char **out) {
+  static const int fail_col[4] = {-1, 0, 1, 4};
   (void)q;
-  if (g_as_fail_getters == 1 || (g_as_fail_getters == 2 && idx == 1) ||
-      (g_as_fail_getters == 3 && idx == 4)) {
+  if (g_as_fail_getters >= 1 && g_as_fail_getters <= 3 &&
+      idx == fail_col[g_as_fail_getters]) {
     return C_ORM_ERROR_SQL;
+  }
+  if (g_as_fail_getters == 6) {
+    if (idx == 0) {
+      *out = (g_as_row == 1) ? NULL : "COL2";
+    } else if (idx == 1) {
+      *out = (g_as_row == 2) ? NULL : "DECIMAL";
+    } else {
+      *out = NULL;
+    }
+    return C_ORM_OK;
   }
   if (idx == 0) {
     *out = (g_as_row == 1) ? "BAL" : "NOTE";
@@ -1794,7 +1756,7 @@ static c_orm_error_t as_mock_get_str(c_orm_query_t *q, int idx,
  */
 static c_orm_error_t as_mock_get_i32(c_orm_query_t *q, int idx, int32_t *out) {
   (void)q;
-  if (g_as_fail_getters) {
+  if (g_as_fail_getters == 4 || (g_as_fail_getters == 5 && idx == 3)) {
     return C_ORM_ERROR_SQL;
   }
   *out = (idx == 2) ? 9 : 2;
@@ -1820,6 +1782,11 @@ typedef struct MockDecStruct {
 /** @brief Covers DECIMAL variants and ODBC/Db2 schema inspection in
  * `src/abstract_struct.c`. */
 TEST test_abstract_decimal_odbc_db2_coverage(void) {
+  static char c_mut_s14[] = "x";
+  static char c_mut_s15[] = "hello";
+  static char c_mut_s16[] = "77.25";
+  static char c_mut_s17[] = "not_a_dec";
+
   cdd_c_abstract_struct_t as1;
   cdd_c_abstract_struct_t as2;
   cdd_c_abstract_struct_array_t arr;
@@ -1841,12 +1808,12 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
   /* 1. DECIMAL variant copy, print, to_json, array_to_json (valid & invalid) */
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_init(&as1));
   v.type = CDD_C_VARIANT_TYPE_DECIMAL;
-  (void)c_orm_decimal_from_str("12345.67", &v.value.d_val);
+  ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("12345.67", &v.value.d_val));
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&as1, "amount", &v));
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_deep_copy(&as2, &as1));
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_print(&as2));
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_to_json(&as2, &json));
-  free(json);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(json));
   json = NULL;
 
   /* Corrupt precision (>38) to exercise c_orm_decimal_to_str error branches */
@@ -1857,18 +1824,37 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_array_init(&arr, 2));
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_array_append(&arr, &as1));
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_array_to_json(&arr, &json));
-  free(json);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(json));
   json = NULL;
-  (void)json_set_allocation_functions(mock_parson_malloc, mock_parson_free);
+  ASSERT_EQ(JSONSuccess, json_set_allocation_functions(mock_parson_malloc,
+                                                       mock_parson_free));
+  for (step = 0; step < 10; step++) {
+    astruct_oom_countdown = step;
+    if (cdd_c_abstract_struct_to_json(&arr.items[0], &json) == C_ORM_OK) {
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(json));
+      json = NULL;
+    }
+  }
   for (step = 0; step < 15; step++) {
     astruct_oom_countdown = step;
     if (cdd_c_abstract_struct_array_to_json(&arr, &json) == C_ORM_OK) {
-      free(json);
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(json));
       json = NULL;
     }
   }
   astruct_oom_countdown = -1;
-  (void)json_set_allocation_functions(malloc, free);
+  ASSERT_EQ(JSONSuccess, json_set_allocation_functions(NULL, NULL));
+
+  /* cdd_c_realloc > 2147483647 size guard */
+  {
+    cdd_c_abstract_struct_array_t huge_arr;
+    memset(&huge_arr, 0, sizeof(huge_arr));
+    huge_arr.capacity =
+        ((size_t)1073741824U / sizeof(cdd_c_abstract_struct_t)) + 1U;
+    huge_arr.count = huge_arr.capacity;
+    ASSERT_EQ(C_ORM_ERROR_VALIDATION,
+              cdd_c_abstract_struct_array_append(&huge_arr, &as2));
+  }
   arr.items[0].kvs[0].value.value.d_val.precision = 99;
   ASSERT_EQ(C_ORM_ERROR_VALIDATION,
             cdd_c_abstract_struct_array_to_json(&arr, &json));
@@ -1880,7 +1866,7 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
     cdd_c_column_meta_t hcols[2];
     void *hrow[2];
     c_orm_decimal_t dval;
-    (void)c_orm_decimal_from_str("-99.95", &dval);
+    c_orm_decimal_from_str("-99.95", &dval);
     hcols[0].name = "dec_col";
     hcols[0].inferred_type = SQL_TYPE_NUMERIC;
     hcols[1].name = "df_col";
@@ -1892,16 +1878,18 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
   }
 
   {
-    c_orm_column_meta_t all_tcols[9];
-    c_orm_type_t all_types[9] = {
-        C_ORM_TYPE_FLOAT,     C_ORM_TYPE_DOUBLE, C_ORM_TYPE_DECIMAL,
-        C_ORM_TYPE_BOOL,      C_ORM_TYPE_BLOB,   C_ORM_TYPE_DATE,
-        C_ORM_TYPE_TIMESTAMP, C_ORM_TYPE_STRING, C_ORM_TYPE_DECFLOAT};
+    c_orm_column_meta_t all_tcols[11];
+    c_orm_type_t all_types[11] = {
+        C_ORM_TYPE_INT32,  C_ORM_TYPE_INT64,   C_ORM_TYPE_FLOAT,
+        C_ORM_TYPE_DOUBLE, C_ORM_TYPE_DECIMAL, C_ORM_TYPE_BOOL,
+        C_ORM_TYPE_BLOB,   C_ORM_TYPE_DATE,    C_ORM_TYPE_TIMESTAMP,
+        C_ORM_TYPE_STRING, C_ORM_TYPE_DECFLOAT};
     memset(all_tcols, 0, sizeof(all_tcols));
-    for (step = 0; step < 9; step++) {
+    for (step = 0; step < 11; step++) {
       all_tcols[step].name = "col";
       all_tcols[step].type = all_types[step];
     }
+    ASSERT_EQ(C_ORM_OK, c_orm_free_column_meta(NULL));
     ASSERT_EQ(C_ORM_ERROR_VALIDATION,
               c_orm_table_meta_to_column_meta(NULL, &out_cmeta, &out_nc));
     memset(&tmeta, 0, sizeof(tmeta));
@@ -1913,7 +1901,7 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
     ASSERT_EQ(C_ORM_OK,
               c_orm_table_meta_to_column_meta(&tmeta, &out_cmeta, &out_nc));
     tmeta.columns = all_tcols;
-    tmeta.num_columns = 9;
+    tmeta.num_columns = 11;
     old_malloc = c_orm_malloc;
     old_realloc = c_orm_realloc;
     c_orm_set_allocators(mock_malloc_astruct, old_realloc, c_orm_free);
@@ -1955,7 +1943,7 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
 
     ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_init(&as1));
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"x";
+    v.value.s_val = c_mut_s14;
     ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&as1, "fixed_s", &v));
     as1.kvs[0].value.value.s_val = NULL;
     ASSERT_NEQ(C_ORM_OK, cdd_c_abstract_to_specific(&s_out, &as1, &smeta, 0));
@@ -1963,7 +1951,7 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
 
     ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_init(&as1));
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"hello";
+    v.value.s_val = c_mut_s15;
     ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&as1, "heap_s", &v));
     old_malloc = c_orm_malloc;
     old_realloc = c_orm_realloc;
@@ -1985,7 +1973,7 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
   dmeta.num_props = 1;
   dmeta.props = &dprop;
 
-  (void)c_orm_decimal_from_str("42.50", &ds_in.price);
+  c_orm_decimal_from_str("42.50", &ds_in.price);
   ASSERT_EQ(C_ORM_OK, cdd_c_specific_to_abstract(&as1, &ds_in, &dmeta));
   memset(&ds_out, 0, sizeof(ds_out));
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_to_specific(&ds_out, &as1, &dmeta, 1));
@@ -1994,10 +1982,10 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
   /* abstract_to_specific DECIMAL from valid string, bad string, mismatch */
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_init(&as1));
   v.type = CDD_C_VARIANT_TYPE_STRING;
-  v.value.s_val = (char *)"77.25";
+  v.value.s_val = c_mut_s16;
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&as1, "price", &v));
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_to_specific(&ds_out, &as1, &dmeta, 1));
-  v.value.s_val = (char *)"not_a_dec";
+  v.value.s_val = c_mut_s17;
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_set(&as1, "price", &v));
   ASSERT_NEQ(C_ORM_OK, cdd_c_abstract_to_specific(&ds_out, &as1, &dmeta, 1));
   v.type = CDD_C_VARIANT_TYPE_INT;
@@ -2036,6 +2024,16 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
 
   ASSERT_EQ(C_ORM_OK, c_orm_odbc_connect_raw(&oapi, "DSN=x", "odbc", NULL, 0, 1,
                                              0, &odb));
+  {
+    c_orm_sqlsmallint_t dummy_cols = 0;
+    ASSERT_EQ(C_ORM_SQL_SUCCESS, oapi.SQLEndTran(0, NULL, 0));
+    ASSERT_EQ(C_ORM_SQL_SUCCESS, oapi.SQLPrepare(NULL, NULL, 0));
+    ASSERT_EQ(C_ORM_SQL_SUCCESS, oapi.SQLExecute(NULL));
+    ASSERT_EQ(C_ORM_SQL_SUCCESS,
+              oapi.SQLBindParameter(NULL, 1, 0, 0, 0, 0, 0, NULL, 0, NULL));
+    ASSERT_EQ(C_ORM_SQL_SUCCESS, oapi.SQLNumResultCols(NULL, &dummy_cols));
+    ASSERT_EQ(C_ORM_SQL_SUCCESS, oapi.SQLFreeStmt(NULL, 0));
+  }
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, cdd_c_inspect_schema_odbc(NULL, "T", &arr));
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, cdd_c_inspect_schema_odbc(odb, NULL, &arr));
   ASSERT_EQ(C_ORM_ERROR_VALIDATION, cdd_c_inspect_schema_odbc(odb, "T", NULL));
@@ -2054,16 +2052,17 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
   old_malloc = c_orm_malloc;
   old_realloc = c_orm_realloc;
   c_orm_set_allocators(mock_malloc_astruct, mock_realloc_astruct, c_orm_free);
-  for (step = 0; step < 30; step++) {
+  for (step = 0;; step++) {
     memset(&arr, 0, sizeof(arr));
     astruct_oom_countdown = step;
     if (cdd_c_inspect_schema_odbc(odb, "T", &arr) == C_ORM_OK) {
       astruct_oom_countdown = -1;
-      (void)cdd_c_abstract_struct_array_free(&arr);
+      cdd_c_abstract_struct_array_free(&arr);
       break;
     }
     astruct_oom_countdown = -1;
-    (void)cdd_c_abstract_struct_array_free(&arr);
+    cdd_c_abstract_struct_array_free(&arr);
+    ASSERT(step < 60);
   }
   c_orm_set_allocators(old_malloc, old_realloc, c_orm_free);
 
@@ -2121,28 +2120,33 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
   ASSERT_EQ(C_ORM_ERROR_SQL, cdd_c_inspect_schema_db2(&mock_db, "T", &arr));
   g_as_fail_finalize = 0;
 
-  /* Getter failures (cname/tname/nulls NULL), step error on row 2 (+fin err) */
+  /* Getter failures percolate C_ORM_ERROR_SQL; step error on row 2 (+fin err)
+   */
   g_as_db2_mode = 1;
   g_as_fail_getters = 1;
-  ASSERT_EQ(C_ORM_OK, cdd_c_inspect_schema_db2(&mock_db, "T", &arr));
-  ASSERT_EQ(0U, arr.count);
-  ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_array_free(&arr));
+  ASSERT_EQ(C_ORM_ERROR_SQL, cdd_c_inspect_schema_db2(&mock_db, "T", &arr));
+  g_as_fail_finalize = 1;
+  ASSERT_EQ(C_ORM_ERROR_SQL, cdd_c_inspect_schema_db2(&mock_db, "T", &arr));
+  g_as_fail_finalize = 0;
   g_as_fail_getters = 2;
-  ASSERT_EQ(C_ORM_OK, cdd_c_inspect_schema_db2(&mock_db, "T", &arr));
-  ASSERT_EQ(0U, arr.count);
-  ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_array_free(&arr));
+  ASSERT_EQ(C_ORM_ERROR_SQL, cdd_c_inspect_schema_db2(&mock_db, "T", &arr));
   g_as_fail_getters = 3;
+  ASSERT_EQ(C_ORM_ERROR_SQL, cdd_c_inspect_schema_db2(&mock_db, "T", &arr));
+  g_as_fail_getters = 4;
+  ASSERT_EQ(C_ORM_ERROR_SQL, cdd_c_inspect_schema_db2(&mock_db, "T", &arr));
+  g_as_fail_getters = 5;
+  ASSERT_EQ(C_ORM_ERROR_SQL, cdd_c_inspect_schema_db2(&mock_db, "T", &arr));
+  g_as_fail_getters = 6;
+  g_as_max_rows = 3;
   ASSERT_EQ(C_ORM_OK, cdd_c_inspect_schema_db2(&mock_db, "T", &arr));
-  ASSERT_EQ(2U, arr.count);
   ASSERT_EQ(C_ORM_OK, cdd_c_abstract_struct_array_free(&arr));
+  g_as_max_rows = 2;
   g_as_fail_getters = 0;
 
   g_as_fail_step_on_2 = 1;
   ASSERT_EQ(C_ORM_ERROR_STEP, cdd_c_inspect_schema_db2(&mock_db, "T", &arr));
-  (void)cdd_c_abstract_struct_array_free(&arr);
   g_as_fail_finalize = 1;
   ASSERT_EQ(C_ORM_ERROR_SQL, cdd_c_inspect_schema_db2(&mock_db, "T", &arr));
-  (void)cdd_c_abstract_struct_array_free(&arr);
   g_as_fail_finalize = 0;
   g_as_fail_step_on_2 = 0;
 
@@ -2150,24 +2154,25 @@ TEST test_abstract_decimal_odbc_db2_coverage(void) {
    * failing) */
   g_as_max_rows = 10;
   c_orm_set_allocators(mock_malloc_astruct, mock_realloc_astruct, c_orm_free);
-  for (step = 0; step < 120; step++) {
+  for (step = 0;; step++) {
     memset(&arr, 0, sizeof(arr));
     astruct_oom_countdown = step;
     if (cdd_c_inspect_schema_db2(&mock_db, "T", &arr) == C_ORM_OK) {
       astruct_oom_countdown = -1;
-      (void)cdd_c_abstract_struct_array_free(&arr);
+      cdd_c_abstract_struct_array_free(&arr);
       break;
     }
     astruct_oom_countdown = -1;
-    (void)cdd_c_abstract_struct_array_free(&arr);
+    cdd_c_abstract_struct_array_free(&arr);
+    ASSERT(step < 150);
   }
   g_as_fail_finalize = 1;
   for (step = 0; step < 120; step++) {
     memset(&arr, 0, sizeof(arr));
     astruct_oom_countdown = step;
-    (void)cdd_c_inspect_schema_db2(&mock_db, "T", &arr);
+    cdd_c_inspect_schema_db2(&mock_db, "T", &arr);
     astruct_oom_countdown = -1;
-    (void)cdd_c_abstract_struct_array_free(&arr);
+    cdd_c_abstract_struct_array_free(&arr);
   }
   g_as_fail_finalize = 0;
   g_as_max_rows = 2;

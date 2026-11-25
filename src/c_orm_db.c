@@ -34,9 +34,8 @@ c_orm_get_last_error_message(c_orm_db_t *db, const char **out_message) {
     LOG_DEBUG("c_orm_get_last_error_message: exit");
     return rc;
   }
-  rc = db->vtable->get_last_error(db, out_message);
   LOG_DEBUG("c_orm_get_last_error_message: exit");
-  return rc;
+  return db->vtable->get_last_error(db, out_message);
 }
 
 /**
@@ -70,9 +69,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_get_last_error_trace(c_orm_db_t *db,
     LOG_DEBUG("c_orm_get_last_error_trace: exit");
     return rc;
   }
-  rc = db->vtable->get_last_trace(db, out_trace);
   LOG_DEBUG("c_orm_get_last_error_trace: exit");
-  return rc;
+  return db->vtable->get_last_trace(db, out_trace);
 }
 
 /**

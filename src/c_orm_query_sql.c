@@ -153,17 +153,18 @@ static c_orm_error_t append_dialect_ident_csv(c_orm_string_builder_t *sb,
       item_len = (size_t)(e - s);
       rc = c_orm_system_malloc(item_len + 1, (void **)&item_buf);
       if (rc != C_ORM_OK) {
-        return C_ORM_ERROR_MEMORY;
+        return rc;
       }
       if (item_len > 0) {
         memcpy(item_buf, s, item_len);
       }
       item_buf[item_len] = '\0';
       rc = append_dialect_ident(sb, dialect, item_buf);
-      (void)c_orm_system_free(item_buf);
       if (rc != C_ORM_OK) {
+        c_orm_system_free(item_buf);
         return rc;
       }
+      c_orm_system_free(item_buf);
       if (*p == '\0') {
         break;
       }
@@ -179,6 +180,37 @@ static c_orm_error_t append_dialect_ident_csv(c_orm_string_builder_t *sb,
  * @param stmt Prepared statement handle.
  * @param index 1-based parameter index.
  * @param param AST parameter descriptor.
+ * @return C_ORM_OK on success, or driver bind error code.
+ */
+/**
+ * @brief Base-10 integer parse predicate wrapping `c_orm_strtoint64`.
+ * @param val Source string.
+ * @param endp Output pointer to first unconsumed char.
+ * @param out_v Output 64-bit integer.
+ * @return 1 if valid integer prefix, 0 otherwise.
+ */
+static int qsql_calc_parse_int64(const char *val, const char **endp,
+                                 int64_t *out_v) {
+  return (c_orm_strtoint64(val, endp, 10, out_v) == C_ORM_OK) ? 1 : 0;
+}
+
+/**
+ * @brief Decimal string parse predicate wrapping `c_orm_decimal_from_str`.
+ * @param val Source string.
+ * @param out_d Output decimal.
+ * @return 1 if valid decimal, 0 otherwise.
+ */
+static int qsql_calc_parse_decimal(const char *val, c_orm_decimal_t *out_d) {
+  return (c_orm_decimal_from_str(val, out_d) == C_ORM_OK) ? 1 : 0;
+}
+
+/**
+ * @brief Binds a single collected AST query parameter onto a prepared
+ * statement.
+ * @param db Database connection handle.
+ * @param stmt Prepared statement handle.
+ * @param index 1-based parameter index.
+ * @param param Collected query parameter descriptor.
  * @return C_ORM_OK on success, or driver bind error code.
  */
 static c_orm_error_t bind_ast_param(c_orm_db_t *db, c_orm_query_t *stmt,
@@ -223,14 +255,14 @@ static c_orm_error_t bind_ast_param(c_orm_db_t *db, c_orm_query_t *stmt,
     if (val[0] != '\0') {
       const char *endptr_c = NULL;
       int64_t iv = 0;
-      if (c_orm_strtoint64(val, &endptr_c, 10, &iv) == C_ORM_OK &&
-          *endptr_c == '\0' && db->vtable->bind_int64) {
+      if (qsql_calc_parse_int64(val, &endptr_c, &iv) && *endptr_c == '\0' &&
+          db->vtable->bind_int64) {
         return db->vtable->bind_int64(stmt, index, iv);
       }
       if (db->vtable->bind_decimal && strchr(val, 'e') == NULL &&
           strchr(val, 'E') == NULL) {
         c_orm_decimal_t parsed_dec;
-        if (c_orm_decimal_from_str(val, &parsed_dec) == C_ORM_OK) {
+        if (qsql_calc_parse_decimal(val, &parsed_dec)) {
           return db->vtable->bind_decimal(stmt, index, &parsed_dec);
         }
       }
@@ -263,23 +295,32 @@ c_orm_query_params_init(c_orm_query_params_t *params) {
 }
 
 /**
+ * @brief Internal infallible helper releasing query parameter array storage.
+ * @param params Non-NULL query parameters structure.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t qsql_params_free(c_orm_query_params_t *params) {
+  if (params->params) {
+    c_orm_system_free(params->params);
+  }
+  params->params = NULL;
+  params->count = 0;
+  params->capacity = 0;
+  return C_ORM_OK;
+}
+
+/**
  * @brief Cleans up query parameters.
  *
  * @param params The query parameters structure to clean up.
  */
 C_ORM_EXPORT c_orm_error_t
 c_orm_query_params_cleanup(c_orm_query_params_t *params) {
-  c_orm_error_t rc = C_ORM_OK;
   LOG_DEBUG("c_orm_query_params_cleanup: entry");
   if (!params)
     return C_ORM_ERROR_UNKNOWN;
-  if (params->params)
-    rc = c_orm_system_free(params->params);
-  params->params = NULL;
-  params->count = 0;
-  params->capacity = 0;
   LOG_DEBUG("c_orm_query_params_cleanup: exit");
-  return rc;
+  return qsql_params_free(params);
 }
 
 /**
@@ -310,15 +351,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_params_add(c_orm_query_params_t *params,
     if (params->params == NULL) {
       rc = c_orm_system_malloc(sizeof(c_orm_query_param_t) * new_cap,
                                (void **)&new_arr);
+      if (rc != C_ORM_OK) {
+        LOG_DEBUG("c_orm_query_params_add: OOM");
+        return rc;
+      }
     } else {
       rc = c_orm_system_realloc(params->params,
                                 sizeof(c_orm_query_param_t) * new_cap,
                                 (void **)&new_arr);
-    }
-    if (rc != C_ORM_OK) {
-      LOG_DEBUG("c_orm_query_params_add: OOM");
-      rc = C_ORM_ERROR_UNKNOWN;
-      return rc;
+      if (rc != C_ORM_OK) {
+        LOG_DEBUG("c_orm_query_params_add: OOM");
+        return rc;
+      }
     }
     params->params = new_arr;
     params->capacity = new_cap;
@@ -361,7 +405,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_params_add_decimal(
 }
 
 /**
- * @brief Renders an AST node into the string builder.
+ * @brief Renders an AST node to a string builder.
  *
  * @param node The AST node.
  * @param dialect The SQL dialect.
@@ -417,12 +461,16 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       if (lit->is_decimal) {
         rc = c_orm_query_params_add_decimal(params, &lit->decimal_val,
                                             lit->value);
+        if (rc != C_ORM_OK) {
+          LOG_DEBUG("render_node: OOM adding decimal literal");
+          return rc;
+        }
       } else {
         rc = c_orm_query_params_add(params, lit->value, lit->is_string);
-      }
-      if (rc != C_ORM_OK) {
-        LOG_DEBUG("render_node: OOM adding literal");
-        return rc;
+        if (rc != C_ORM_OK) {
+          LOG_DEBUG("render_node: OOM adding literal");
+          return rc;
+        }
       }
       rc = c_orm_append_placeholder(
           sb, dialect == C_ORM_DIALECT_POSTGRES ? 1 : 0, params->count);
@@ -518,7 +566,10 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       }
       if (dialect == C_ORM_DIALECT_POSTGRES) {
         char ph[32];
-        C_ORM_SPRINTF(ph, sizeof(ph), "$%u", (unsigned int)params->count);
+        rc = C_ORM_SPRINTF(ph, sizeof(ph), "$%u", (unsigned int)params->count);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
         APPEND(ph);
       } else {
         APPEND("?");
@@ -531,7 +582,10 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       }
       if (dialect == C_ORM_DIALECT_POSTGRES) {
         char ph[32];
-        C_ORM_SPRINTF(ph, sizeof(ph), "$%u", (unsigned int)params->count);
+        rc = C_ORM_SPRINTF(ph, sizeof(ph), "$%u", (unsigned int)params->count);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
         APPEND(ph);
       } else {
         APPEND("?");
@@ -562,7 +616,7 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
     }
     APPEND(subsql);
     APPEND(")");
-    (void)c_orm_system_free(subsql);
+    c_orm_system_free(subsql);
     break;
   }
   case C_ORM_AST_NODE_SUBQUERY: {
@@ -580,7 +634,7 @@ static c_orm_error_t render_node(c_orm_ast_node_t *node,
       APPEND(" AS ");
       APPEND(sq->alias);
     }
-    (void)c_orm_system_free(subsql);
+    c_orm_system_free(subsql);
     break;
   }
   case C_ORM_AST_NODE_WINDOW: {
@@ -663,9 +717,10 @@ c_orm_query_to_sql(c_orm_ast_query_t *q, c_orm_dialect_t dialect,
   }
 
   if (total_nodes > 64) {
-    if (c_orm_system_malloc(total_nodes * sizeof(c_orm_ast_node_t *),
-                            (void **)&heap_nodes) != C_ORM_OK) {
-      return C_ORM_ERROR_MEMORY;
+    rc = c_orm_system_malloc(total_nodes * sizeof(c_orm_ast_node_t *),
+                             (void **)&heap_nodes);
+    if (rc != C_ORM_OK) {
+      return rc;
     }
     ordered_nodes = heap_nodes;
   }
@@ -673,7 +728,7 @@ c_orm_query_to_sql(c_orm_ast_query_t *q, c_orm_dialect_t dialect,
   rc = c_orm_string_builder_init(&sb);
   if (rc != C_ORM_OK) {
     if (heap_nodes) {
-      (void)c_orm_system_free(heap_nodes);
+      c_orm_system_free(heap_nodes);
     }
     LOG_DEBUG("c_orm_query_to_sql: builder init failed");
     return rc;
@@ -859,11 +914,13 @@ c_orm_query_to_sql(c_orm_ast_query_t *q, c_orm_dialect_t dialect,
           goto fail_to_sql;
         }
         rc = c_orm_string_builder_append(sb, subsql);
-        (void)c_orm_system_free(subsql);
-        subsql = NULL;
         if (rc != C_ORM_OK) {
+          c_orm_system_free(subsql);
+          subsql = NULL;
           goto fail_to_sql;
         }
+        c_orm_system_free(subsql);
+        subsql = NULL;
         APPEND_SQL(")");
       }
     }
@@ -958,11 +1015,13 @@ c_orm_query_to_sql(c_orm_ast_query_t *q, c_orm_dialect_t dialect,
           goto fail_to_sql;
         }
         rc = c_orm_string_builder_append(sb, subsql);
-        (void)c_orm_system_free(subsql);
-        subsql = NULL;
         if (rc != C_ORM_OK) {
+          c_orm_system_free(subsql);
+          subsql = NULL;
           goto fail_to_sql;
         }
+        c_orm_system_free(subsql);
+        subsql = NULL;
       }
     }
 
@@ -1064,21 +1123,21 @@ c_orm_query_to_sql(c_orm_ast_query_t *q, c_orm_dialect_t dialect,
     }
     len = strlen(sql_str);
     *out_sql = NULL;
-    if (c_orm_system_malloc(len + 1, (void **)out_sql) != C_ORM_OK) {
+    rc = c_orm_system_malloc(len + 1, (void **)out_sql);
+    if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_query_to_sql: OOM sql out");
-      rc = C_ORM_ERROR_MEMORY;
       goto fail_to_sql;
     }
     rc = C_ORM_STRCPY(*out_sql, len + 1, sql_str);
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(*out_sql);
+      c_orm_system_free(*out_sql);
       *out_sql = NULL;
       goto fail_to_sql;
     }
   }
 
   if (heap_nodes) {
-    (void)c_orm_system_free(heap_nodes);
+    c_orm_system_free(heap_nodes);
   }
   rc = c_orm_string_builder_free(sb);
 
@@ -1087,14 +1146,14 @@ c_orm_query_to_sql(c_orm_ast_query_t *q, c_orm_dialect_t dialect,
 
 fail_to_sql:
   if (heap_nodes) {
-    (void)c_orm_system_free(heap_nodes);
+    c_orm_system_free(heap_nodes);
   }
-  (void)c_orm_string_builder_free(sb);
+  c_orm_string_builder_free(sb);
   return rc;
 }
 
 /**
- * @brief Executes a query without returning results.
+ * @brief Executes a query without fetching rows.
  *
  * @param db The database connection.
  * @param q The query to execute.
@@ -1107,17 +1166,19 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
   c_orm_stmt_t *stmt = NULL;
   c_orm_dialect_t dialect = C_ORM_DIALECT_SQLITE;
   c_orm_error_t err;
-  c_orm_error_t fin_rc = C_ORM_OK;
-  c_orm_error_t cln_rc;
   size_t i;
   int has_row;
 
   LOG_DEBUG("c_orm_query_execute: entry");
 
-  err = resolve_db_dialect(db, &dialect);
-  if (err != C_ORM_OK || !q) {
+  if (!q) {
     LOG_DEBUG("c_orm_query_execute: null argument");
     return C_ORM_ERROR_UNKNOWN;
+  }
+  err = resolve_db_dialect(db, &dialect);
+  if (err != C_ORM_OK) {
+    LOG_DEBUG("c_orm_query_execute: null db");
+    return err;
   }
 
   params.params = NULL;
@@ -1130,13 +1191,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
   }
 
   err = c_orm_prepare_cached(db, sql, &stmt);
-  (void)c_orm_system_free(sql);
-  sql = NULL;
   if (err != C_ORM_OK) {
+    c_orm_system_free(sql);
     stmt = NULL;
     LOG_DEBUG("c_orm_query_execute: prepare failed");
     goto cleanup_exec;
   }
+  c_orm_system_free(sql);
+  sql = NULL;
 
   for (i = 0; i < params.count; i++) {
     err = bind_ast_param(db, stmt, (int)(i + 1), &params.params[i]);
@@ -1147,20 +1209,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_execute(c_orm_db_t *db,
   }
 
   err = db->vtable->step(stmt, &has_row);
+  if (err != C_ORM_OK) {
+    goto cleanup_exec;
+  }
 
 cleanup_exec:
-  if (stmt) {
-    fin_rc = c_orm_finalize_cached(db, stmt);
-  }
-  cln_rc = c_orm_query_params_cleanup(&params);
-  if (err != C_ORM_OK) {
-    return err;
-  }
-  if (fin_rc != C_ORM_OK) {
-    return fin_rc;
-  }
   LOG_DEBUG("c_orm_query_execute: exit");
-  return cln_rc;
+  qsql_params_free(&params);
+  if (stmt) {
+    c_orm_error_t fin_rc = c_orm_finalize_cached(db, stmt);
+    if (fin_rc != C_ORM_OK) {
+      return err != C_ORM_OK ? err : fin_rc;
+    }
+  }
+  return err;
 }
 
 /**
@@ -1181,17 +1243,19 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
   c_orm_stmt_t *stmt = NULL;
   c_orm_dialect_t dialect = C_ORM_DIALECT_SQLITE;
   c_orm_error_t err;
-  c_orm_error_t fin_rc = C_ORM_OK;
-  c_orm_error_t cln_rc;
   size_t i;
   int has_row;
 
   LOG_DEBUG("c_orm_query_fetch_one: entry");
 
-  err = resolve_db_dialect(db, &dialect);
-  if (err != C_ORM_OK || !q || !meta || !out_struct) {
+  if (!q || !meta || !out_struct) {
     LOG_DEBUG("c_orm_query_fetch_one: null argument");
     return C_ORM_ERROR_UNKNOWN;
+  }
+  err = resolve_db_dialect(db, &dialect);
+  if (err != C_ORM_OK) {
+    LOG_DEBUG("c_orm_query_fetch_one: null db");
+    return err;
   }
 
   params.params = NULL;
@@ -1204,13 +1268,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
   }
 
   err = c_orm_prepare_cached(db, sql, &stmt);
-  (void)c_orm_system_free(sql);
-  sql = NULL;
   if (err != C_ORM_OK) {
+    c_orm_system_free(sql);
     stmt = NULL;
     LOG_DEBUG("c_orm_query_fetch_one: prepare failed");
     goto cleanup_one;
   }
+  c_orm_system_free(sql);
+  sql = NULL;
 
   for (i = 0; i < params.count; i++) {
     err = bind_ast_param(db, stmt, (int)(i + 1), &params.params[i]);
@@ -1230,21 +1295,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_one(c_orm_db_t *db,
   }
 
   err = c_orm_hydrate_row(db, stmt, meta, out_struct);
+  if (err != C_ORM_OK) {
+    goto cleanup_one;
+  }
 
 cleanup_one:
-  if (stmt) {
-    fin_rc = c_orm_finalize_cached(db, stmt);
-  }
-  cln_rc = c_orm_query_params_cleanup(&params);
-  if (err != C_ORM_OK) {
-    return err;
-  }
-  if (fin_rc != C_ORM_OK) {
-    return fin_rc;
-  }
-
   LOG_DEBUG("c_orm_query_fetch_one: exit");
-  return cln_rc;
+  qsql_params_free(&params);
+  if (stmt) {
+    c_orm_error_t fin_rc = c_orm_finalize_cached(db, stmt);
+    if (fin_rc != C_ORM_OK) {
+      return err != C_ORM_OK ? err : fin_rc;
+    }
+  }
+  return err;
 }
 
 /**
@@ -1265,16 +1329,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
   c_orm_stmt_t *stmt = NULL;
   c_orm_dialect_t dialect = C_ORM_DIALECT_SQLITE;
   c_orm_error_t err;
-  c_orm_error_t fin_rc = C_ORM_OK;
-  c_orm_error_t cln_rc;
   size_t i;
 
   LOG_DEBUG("c_orm_query_fetch_all: entry");
 
-  err = resolve_db_dialect(db, &dialect);
-  if (err != C_ORM_OK || !q || !meta || !out_array) {
+  if (!q || !meta || !out_array) {
     LOG_DEBUG("c_orm_query_fetch_all: null argument");
     return C_ORM_ERROR_UNKNOWN;
+  }
+  err = resolve_db_dialect(db, &dialect);
+  if (err != C_ORM_OK) {
+    LOG_DEBUG("c_orm_query_fetch_all: null db");
+    return err;
   }
 
   params.params = NULL;
@@ -1287,13 +1353,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
   }
 
   err = c_orm_prepare_cached(db, sql, &stmt);
-  (void)c_orm_system_free(sql);
-  sql = NULL;
   if (err != C_ORM_OK) {
+    c_orm_system_free(sql);
     stmt = NULL;
     LOG_DEBUG("c_orm_query_fetch_all: prepare failed");
     goto cleanup_all;
   }
+  c_orm_system_free(sql);
+  sql = NULL;
 
   for (i = 0; i < params.count; i++) {
     err = bind_ast_param(db, stmt, (int)(i + 1), &params.params[i]);
@@ -1304,18 +1371,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_query_fetch_all(c_orm_db_t *db,
   }
 
   err = c_orm_hydrate_all(db, stmt, meta, out_array);
+  if (err != C_ORM_OK) {
+    goto cleanup_all;
+  }
 
 cleanup_all:
-  if (stmt) {
-    fin_rc = c_orm_finalize_cached(db, stmt);
-  }
-  cln_rc = c_orm_query_params_cleanup(&params);
-  if (err != C_ORM_OK) {
-    return err;
-  }
-  if (fin_rc != C_ORM_OK) {
-    return fin_rc;
-  }
   LOG_DEBUG("c_orm_query_fetch_all: exit");
-  return cln_rc;
+  qsql_params_free(&params);
+  if (stmt) {
+    c_orm_error_t fin_rc = c_orm_finalize_cached(db, stmt);
+    if (fin_rc != C_ORM_OK) {
+      return err != C_ORM_OK ? err : fin_rc;
+    }
+  }
+  return err;
 }

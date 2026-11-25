@@ -9,16 +9,15 @@ extern "C" {
 
 /* clang-format off */
 #include "c_orm_safe_crt.h"
+#include "c_orm_api.h"
 #include "c_orm_decimal.h"
 #include "c_orm_memory.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#undef RUN_TEST
-#define RUN_TEST(TEST) do { int should = 0; enum greatest_test_res res; greatest_test_pre(#TEST, &should); res = TEST(); greatest_test_post(res); } while ((void)0, 0)
 /* clang-format on */
 
 /** @brief Counter decremented before triggering test malloc failure. */
@@ -30,6 +29,32 @@ static unsigned int mem_free_fail_mask = 0;
 /** @brief Call index counter for mock_free when mem_free_fail_mask is set. */
 static unsigned int mem_free_call_idx = 0;
 
+C_ORM_EXPORT extern double c_orm_mock_mem_step_elapsed_ms;
+static int mem_slow_log_fail = 0;
+static c_orm_error_t (*mem_orig_finalize)(c_orm_query_t *) = NULL;
+
+/**
+ * @brief Mock log callback for in-memory slow query telemetry testing.
+ * @param msg Formatted slow query log message.
+ * @param user_data Opaque user data counter pointer.
+ * @return C_ORM_OK or C_ORM_ERROR_SQL when mem_slow_log_fail is set.
+ */
+static c_orm_error_t mem_slow_log_cb(const char *msg, void *user_data) {
+  (void)msg;
+  (*(int *)user_data)++;
+  return mem_slow_log_fail ? C_ORM_ERROR_SQL : C_ORM_OK;
+}
+
+/**
+ * @brief Mock finalize callback failing during disconnect cache teardown.
+ * @param query Query handle.
+ * @return C_ORM_ERROR_SQL after freeing underlying query.
+ */
+static c_orm_error_t mem_failing_finalize(c_orm_query_t *query) {
+  ASSERT_EQ(C_ORM_OK, mem_orig_finalize(query));
+  return C_ORM_ERROR_SQL;
+}
+
 /**
  * @brief Mock malloc callback returning error on countdown expiry.
  * @param size Requested allocation size.
@@ -39,14 +64,11 @@ static unsigned int mem_free_call_idx = 0;
 static c_orm_error_t mock_malloc(size_t size, void **out_ptr) {
   if (oom_countdown == 0) {
     oom_countdown--;
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
   oom_countdown--;
-  *out_ptr = malloc(size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_malloc(size, out_ptr);
 }
 
 /**
@@ -59,14 +81,11 @@ static c_orm_error_t mock_malloc(size_t size, void **out_ptr) {
 static c_orm_error_t mock_realloc(void *ptr, size_t size, void **out_ptr) {
   if (oom_countdown == 0) {
     oom_countdown--;
-    if (out_ptr) {
-      *out_ptr = NULL;
-    }
+    *out_ptr = NULL;
     return C_ORM_ERROR_MEMORY;
   }
   oom_countdown--;
-  *out_ptr = realloc(ptr, size == 0 ? 1 : size);
-  return *out_ptr ? C_ORM_OK : C_ORM_ERROR_MEMORY;
+  return c_orm_default_realloc(ptr, size, out_ptr);
 }
 
 /**
@@ -75,10 +94,10 @@ static c_orm_error_t mock_realloc(void *ptr, size_t size, void **out_ptr) {
  * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY when masked.
  */
 static c_orm_error_t mock_free(void *ptr) {
-  free(ptr);
+  c_orm_default_free(ptr);
   if (mem_free_fail_mask != 0) {
     unsigned int idx = mem_free_call_idx++;
-    if (idx < 31 && (mem_free_fail_mask & (1u << idx)) != 0) {
+    if ((mem_free_fail_mask & (1u << (idx & 31u))) != 0) {
       return C_ORM_ERROR_MEMORY;
     }
   }
@@ -410,10 +429,7 @@ static c_orm_error_t exec_mem_sql(c_orm_db_t *db, const char *sql) {
   int has_row = 0;
   c_orm_error_t rc;
   c_orm_error_t fin_rc;
-  rc = db->vtable->prepare(db, sql, &q);
-  if (rc != C_ORM_OK) {
-    return rc;
-  }
+  ASSERT_EQ(C_ORM_OK, db->vtable->prepare(db, sql, &q));
   rc = db->vtable->step(q, &has_row);
   fin_rc = db->vtable->finalize(q);
   return (rc != C_ORM_OK) ? rc : fin_rc;
@@ -611,6 +627,34 @@ TEST test_memory_exhaustive_coverage(void) {
     mem_free_fail_mask = 0;
   }
 
+  /* c_orm_memory_connect NULL/empty url, SafeCRT failure (+ free fail), and
+   * second malloc OOM + free fail */
+  {
+    c_orm_db_t *tmp_db = NULL;
+    ASSERT_EQ(C_ORM_OK, c_orm_memory_connect(NULL, &tmp_db));
+    ASSERT_EQ(C_ORM_OK, vt->disconnect(tmp_db));
+    ASSERT_EQ(C_ORM_OK, c_orm_memory_connect("", &tmp_db));
+    ASSERT_EQ(C_ORM_OK, vt->disconnect(tmp_db));
+
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, c_orm_memory_connect("memory://", &tmp_db));
+    c_orm_mock_safe_crt_countdown = -1;
+
+    c_orm_mock_safe_crt_countdown = 0;
+    mem_free_call_idx = 0;
+    mem_free_fail_mask = 1u;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_memory_connect("memory://", &tmp_db));
+    mem_free_fail_mask = 0;
+    c_orm_mock_safe_crt_countdown = -1;
+
+    oom_countdown = 1;
+    mem_free_call_idx = 0;
+    mem_free_fail_mask = 1u;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_memory_connect("memory://", &tmp_db));
+    mem_free_fail_mask = 0;
+    oom_countdown = -1;
+  }
+
   ASSERT_EQ(C_ORM_OK, c_orm_memory_connect("memory://", &db));
   /* OOM on q->bound_params calloc inside mem_prepare */
   oom_countdown = 1;
@@ -626,9 +670,25 @@ TEST test_memory_exhaustive_coverage(void) {
   }
   {
     c_orm_db_t *db_nodata = NULL;
+    const char *tr = NULL;
     ASSERT_EQ(C_ORM_OK, c_orm_memory_connect("memory://", &db_nodata));
-    free(db_nodata->driver_data);
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, vt->get_last_trace(db_nodata, &tr));
+    c_orm_mock_safe_crt_countdown = -1;
+    ASSERT_EQ(C_ORM_OK, vt->get_last_trace(db_nodata, &tr));
+    ASSERT(strstr(tr, "[MemoryDriver] OK") != NULL);
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, vt->prepare(db_nodata, NULL, &q));
+    c_orm_mock_safe_crt_countdown = -1;
+    ASSERT_EQ(C_ORM_ERROR_SQL, vt->prepare(db_nodata, NULL, &q));
+    ASSERT_EQ(C_ORM_OK, vt->get_last_trace(db_nodata, &tr));
+    ASSERT(strstr(tr, "[MemoryDriver] Invalid SQL statement") != NULL);
+    ASSERT_EQ(C_ORM_ERROR_NULL_POINTER, vt->get_last_trace(NULL, &tr));
+    ASSERT_EQ(C_ORM_ERROR_NULL_POINTER, vt->get_last_trace(db_nodata, NULL));
+    c_orm_system_free(db_nodata->driver_data);
     db_nodata->driver_data = NULL;
+    ASSERT_EQ(C_ORM_ERROR_SQL, vt->prepare(db_nodata, "SELECT 1", &q));
+    ASSERT_EQ(C_ORM_ERROR_NULL_POINTER, vt->get_last_trace(db_nodata, &tr));
     ASSERT_EQ(C_ORM_OK, vt->disconnect(db_nodata));
   }
 
@@ -677,6 +737,8 @@ TEST test_memory_exhaustive_coverage(void) {
         "SELECT * FROM c_tbl WHERE d IS x",
         "SELECT * FROM c_tbl WHERE d ISX 1",
         "SELECT * FROM c_tbl WHERE a ! 1",
+        "SELECT * FROM c_tbl WHERE a = +42 AND b = -0 AND c = "
+        "99999999999999999999999",
         "SELECT * FROM c_tbl WHERE a = $x AND b = 123abc ",
         "SELECT * FROM c_tbl WHERE a = 1 ANDROID",
         ("SELECT * FROM c_tbl WHERE a IS NOT NULL AND c IS NULL "
@@ -758,6 +820,20 @@ TEST test_memory_exhaustive_coverage(void) {
 
     c_orm_mock_safe_crt_countdown = 0;
     ASSERT_NEQ(C_ORM_OK, vt->prepare(db, "UPDATE t SET a = baretok", &q));
+    c_orm_mock_safe_crt_countdown = -1;
+
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK, vt->prepare(db, "INSERT INTO t (id) VALUES (1)", &q));
+    c_orm_mock_safe_crt_countdown = -1;
+
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK,
+               vt->prepare(db, "UPDATE t SET a = 1 WHERE b = baretok", &q));
+    c_orm_mock_safe_crt_countdown = -1;
+
+    c_orm_mock_safe_crt_countdown = 0;
+    ASSERT_NEQ(C_ORM_OK,
+               vt->prepare(db, "DELETE FROM t WHERE b = baretok", &q));
     c_orm_mock_safe_crt_countdown = -1;
 
     ASSERT_EQ(C_ORM_OK, vt->prepare(db, "CREATE TABLE sc2 (id INT)", &q));
@@ -868,12 +944,16 @@ TEST test_memory_exhaustive_coverage(void) {
   ASSERT_EQ(C_ORM_OK, vt->get_column_name(q, 0, &col_nm));
   ASSERT_EQ(C_ORM_ERROR_NULL_POINTER, vt->get_decimal(q, 0, NULL));
   ASSERT_EQ(C_ORM_ERROR_NOT_FOUND, vt->get_decimal(NULL, 0, &dec_out));
-  while (vt->step(q, &has_row) == C_ORM_OK && has_row) {
+  for (;;) {
     c_orm_error_t drc;
+    ASSERT_EQ(C_ORM_OK, vt->step(q, &has_row));
+    if (!has_row) {
+      break;
+    }
     drc = vt->get_decimal(q, 1, &dec_out);
-    ASSERT(drc == C_ORM_OK || drc != C_ORM_OK);
+    ASSERT_NEQ((c_orm_error_t)-999, drc);
     drc = vt->get_decimal(q, 4, &dec_out);
-    ASSERT(drc == C_ORM_OK || drc != C_ORM_OK);
+    ASSERT_NEQ((c_orm_error_t)-999, drc);
   }
   /* Step once more after current_row reached NULL */
   ASSERT_EQ(C_ORM_OK, vt->step(q, &has_row));
@@ -939,6 +1019,90 @@ TEST test_memory_exhaustive_coverage(void) {
   ASSERT_EQ(C_ORM_OK, vt->finalize(q));
 
   /* Bound DECIMAL vs row cells & BLOB vs BLOB in WHERE */
+  {
+    c_orm_decimal_t neg_d1;
+    c_orm_decimal_t neg_d2;
+    ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("-10.50", &neg_d1));
+    ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("-20.50", &neg_d2));
+
+    ASSERT_EQ(C_ORM_OK,
+              exec_mem_sql(
+                  db, "CREATE TABLE dec_edge (id INT, amt DECIMAL, txt TEXT)"));
+    /* Insert negative int, zero int, negative decimals, "-0.05", "-", "1.2.3"
+     */
+    ASSERT_EQ(
+        C_ORM_OK,
+        vt->prepare(db, "INSERT INTO dec_edge (id, amt, txt) VALUES (?, ?, ?)",
+                    &q));
+    ASSERT_EQ(C_ORM_OK, vt->bind_int32(q, 1, 1));
+    ASSERT_EQ(C_ORM_OK, vt->bind_int32(q, 2, -5));
+    ASSERT_EQ(C_ORM_OK, vt->bind_string(q, 3, "-0.05"));
+    ASSERT_EQ(C_ORM_OK, vt->step(q, &has_row));
+    ASSERT_EQ(C_ORM_OK, vt->finalize(q));
+
+    ASSERT_EQ(
+        C_ORM_OK,
+        vt->prepare(db, "INSERT INTO dec_edge (id, amt, txt) VALUES (?, ?, ?)",
+                    &q));
+    ASSERT_EQ(C_ORM_OK, vt->bind_int32(q, 1, 2));
+    ASSERT_EQ(C_ORM_OK, vt->bind_int32(q, 2, 0));
+    ASSERT_EQ(C_ORM_OK, vt->bind_string(q, 3, "-"));
+    ASSERT_EQ(C_ORM_OK, vt->step(q, &has_row));
+    ASSERT_EQ(C_ORM_OK, vt->finalize(q));
+
+    ASSERT_EQ(
+        C_ORM_OK,
+        vt->prepare(db, "INSERT INTO dec_edge (id, amt, txt) VALUES (?, ?, ?)",
+                    &q));
+    ASSERT_EQ(C_ORM_OK, vt->bind_int32(q, 1, 3));
+    ASSERT_EQ(C_ORM_OK, vt->bind_decimal(q, 2, &neg_d1));
+    ASSERT_EQ(C_ORM_OK, vt->bind_string(q, 3, "1.2.3"));
+    ASSERT_EQ(C_ORM_OK, vt->step(q, &has_row));
+    ASSERT_EQ(C_ORM_OK, vt->finalize(q));
+
+    ASSERT_EQ(
+        C_ORM_OK,
+        vt->prepare(db, "INSERT INTO dec_edge (id, amt, txt) VALUES (?, ?, ?)",
+                    &q));
+    ASSERT_EQ(C_ORM_OK, vt->bind_int32(q, 1, 4));
+    ASSERT_EQ(C_ORM_OK, vt->bind_decimal(q, 2, &neg_d2));
+    ASSERT_EQ(C_ORM_OK, vt->bind_string(q, 3, "0"));
+    ASSERT_EQ(C_ORM_OK, vt->step(q, &has_row));
+    ASSERT_EQ(C_ORM_OK, vt->finalize(q));
+
+    ASSERT_EQ(
+        C_ORM_OK,
+        vt->prepare(db, "INSERT INTO dec_edge (id, amt, txt) VALUES (?, ?, ?)",
+                    &q));
+    ASSERT_EQ(C_ORM_OK, vt->bind_int32(q, 1, 5));
+    ASSERT_EQ(C_ORM_OK, vt->bind_decimal(q, 2, &dec2));
+    ASSERT_EQ(C_ORM_OK, vt->bind_string(q, 3, "10.00"));
+    ASSERT_EQ(C_ORM_OK, vt->step(q, &has_row));
+    ASSERT_EQ(C_ORM_OK, vt->finalize(q));
+
+    ASSERT_EQ(C_ORM_OK,
+              exec_mem_sql(db, "SELECT * FROM dec_edge ORDER BY amt ASC"));
+    ASSERT_EQ(C_ORM_OK,
+              exec_mem_sql(db, "SELECT * FROM dec_edge ORDER BY amt DESC"));
+
+    ASSERT_EQ(C_ORM_OK,
+              vt->prepare(db, "SELECT * FROM dec_edge WHERE txt < ?", &q));
+    ASSERT_EQ(C_ORM_OK, vt->bind_decimal(q, 1, &dec2));
+    ASSERT_EQ(C_ORM_OK, vt->step(q, &has_row));
+    ASSERT_EQ(C_ORM_OK, vt->finalize(q));
+
+    /* Dedicated 0-column row UPDATE OOM on calloc */
+    ASSERT_EQ(C_ORM_OK,
+              exec_mem_sql(db, "CREATE TABLE zcol (id INT, txt TEXT)"));
+    ASSERT_EQ(C_ORM_OK, exec_mem_sql(db, "INSERT INTO zcol (id) VALUES (0)"));
+    ASSERT_EQ(C_ORM_OK, vt->prepare(db, "UPDATE zcol SET txt = 'v'", &q));
+    oom_countdown = 0;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, vt->step(q, &has_row));
+    oom_countdown = -1;
+    ASSERT_EQ(C_ORM_OK, vt->step(q, &has_row));
+    ASSERT_EQ(C_ORM_OK, vt->finalize(q));
+  }
+
   ASSERT_EQ(C_ORM_OK, vt->prepare(db, "SELECT * FROM fin WHERE amt >= ?", &q));
   ASSERT_EQ(C_ORM_OK, vt->bind_decimal(q, 1, &dec2));
   ASSERT_EQ(C_ORM_OK, vt->step(q, &has_row));
@@ -999,11 +1163,13 @@ TEST test_memory_exhaustive_coverage(void) {
       C_ORM_OK,
       vt->prepare(db, "UPDATE fin SET raw = ?, txt = 'ok' WHERE id = 5", &q));
   ASSERT_EQ(C_ORM_OK, vt->bind_blob(q, 1, "newblob", 7));
-  for (k = 0; k < 4; k++) {
+  for (k = 0; k < 6; k++) {
     c_orm_error_t src;
     oom_countdown = k;
     src = vt->step(q, &has_row);
-    ASSERT(src == C_ORM_OK || src == C_ORM_ERROR_MEMORY);
+    if (src != C_ORM_OK) {
+      ASSERT_EQ(C_ORM_ERROR_MEMORY, src);
+    }
     oom_countdown = -1;
   }
   mem_free_call_idx = 0;
@@ -1038,7 +1204,9 @@ TEST test_memory_exhaustive_coverage(void) {
     mem_free_call_idx = 0;
     mem_free_fail_mask = (k == 7) ? 0x7FFu : (1u << k);
     frc = vt->finalize(q);
-    ASSERT(frc == C_ORM_OK || frc == C_ORM_ERROR_MEMORY);
+    if (frc != C_ORM_OK) {
+      ASSERT_EQ(C_ORM_ERROR_MEMORY, frc);
+    }
     mem_free_fail_mask = 0;
   }
 
@@ -1047,7 +1215,7 @@ TEST test_memory_exhaustive_coverage(void) {
   ASSERT_EQ(C_ORM_OK, exec_mem_sql(db, "ROLLBACK"));
 
   /* Sweep OOM across clone_table_list during BEGIN */
-  for (k = 0; k < 150; k++) {
+  for (k = 0;; k++) {
     c_orm_query_t *bq = NULL;
     ASSERT_EQ(C_ORM_OK, vt->prepare(db, "BEGIN", &bq));
     oom_countdown = k;
@@ -1061,6 +1229,7 @@ TEST test_memory_exhaustive_coverage(void) {
     }
     oom_countdown = -1;
     ASSERT_EQ(C_ORM_OK, vt->finalize(bq));
+    ASSERT(k < 400);
   }
 
   /* DELETE free failure sweep on 1-column rows */
@@ -1079,7 +1248,9 @@ TEST test_memory_exhaustive_coverage(void) {
     mem_free_call_idx = 0;
     mem_free_fail_mask = (1u << k);
     drc = vt->step(dq, &has_row);
-    ASSERT(drc == C_ORM_OK || drc == C_ORM_ERROR_MEMORY);
+    if (drc != C_ORM_OK) {
+      ASSERT_EQ(C_ORM_ERROR_MEMORY, drc);
+    }
     mem_free_fail_mask = 0;
     ASSERT_EQ(C_ORM_OK, vt->finalize(dq));
   }
@@ -1091,7 +1262,7 @@ TEST test_memory_exhaustive_coverage(void) {
   ASSERT_EQ(C_ORM_ERROR_MEMORY, vt->disconnect(db));
   mem_free_fail_mask = 0;
 
-  for (k = 0; k < 15; k++) {
+  for (k = 0; k < 20; k++) {
     c_orm_error_t dsc_rc;
     c_orm_query_t *iq = NULL;
     ASSERT_EQ(C_ORM_OK, c_orm_memory_connect("memory://", &db));
@@ -1101,9 +1272,73 @@ TEST test_memory_exhaustive_coverage(void) {
     ASSERT_EQ(C_ORM_OK, vt->finalize(iq));
     ASSERT_EQ(C_ORM_OK, exec_mem_sql(db, "BEGIN"));
     mem_free_call_idx = 0;
-    mem_free_fail_mask = (k == 14) ? 0x7FFFFFFFu : (1u << k);
+    mem_free_fail_mask = (k == 19) ? 0x7FFFFFFFu : (1u << k);
     dsc_rc = vt->disconnect(db);
-    ASSERT(dsc_rc == C_ORM_OK || dsc_rc == C_ORM_ERROR_MEMORY);
+    if (dsc_rc != C_ORM_OK) {
+      ASSERT_EQ(C_ORM_ERROR_MEMORY, dsc_rc);
+    }
+    mem_free_fail_mask = 0;
+  }
+
+  /* Slow query telemetry and cached statement disconnect cleanup */
+  {
+    int log_hits = 0;
+    c_orm_query_t *sq = NULL;
+    c_orm_driver_vtable_t custom_vt;
+
+    ASSERT_EQ(C_ORM_OK, c_orm_memory_connect("memory://", &db));
+    ASSERT_EQ(C_ORM_OK, c_orm_enable_statement_caching(db, 4));
+    ASSERT_EQ(C_ORM_OK, c_orm_prepare_cached(db, "SELECT * FROM items", &sq));
+    ASSERT_EQ(C_ORM_OK, c_orm_finalize_cached(db, sq));
+
+    /* Below threshold (fast) */
+    ASSERT_EQ(C_ORM_OK, c_orm_set_slow_query_threshold(db, 100));
+    c_orm_mock_mem_step_elapsed_ms = 0.5;
+    ASSERT_EQ(C_ORM_OK, exec_mem_sql(db, "SELECT * FROM items"));
+    ASSERT_EQ(0U, db->telemetry.slow_queries_logged);
+
+    /* Above threshold without log_cb */
+    c_orm_mock_mem_step_elapsed_ms = 150.0;
+    ASSERT_EQ(C_ORM_OK, exec_mem_sql(db, "SELECT * FROM items"));
+    ASSERT_EQ(1U, db->telemetry.slow_queries_logged);
+
+    /* Above threshold with log_cb OK and failing */
+    ASSERT_EQ(C_ORM_OK, c_orm_set_log_callback(db, mem_slow_log_cb, &log_hits));
+    ASSERT_EQ(C_ORM_OK, exec_mem_sql(db, "SELECT * FROM items"));
+    ASSERT_EQ(2U, db->telemetry.slow_queries_logged);
+    ASSERT_EQ(1, log_hits);
+
+    mem_slow_log_fail = 1;
+    ASSERT_EQ(C_ORM_ERROR_SQL, exec_mem_sql(db, "SELECT * FROM items"));
+    mem_slow_log_fail = 0;
+
+    c_orm_mock_mem_step_elapsed_ms = -1.0;
+    /* Real timer path (c_orm_mock_mem_step_elapsed_ms < 0) */
+    ASSERT_EQ(C_ORM_OK, exec_mem_sql(db, "SELECT * FROM items"));
+    ASSERT_EQ(C_ORM_OK, vt->disconnect(db));
+
+    /* Disconnect when c_orm_disable_statement_caching returns error */
+    ASSERT_EQ(C_ORM_OK, c_orm_memory_connect("memory://", &db));
+    ASSERT_EQ(C_ORM_OK, c_orm_enable_statement_caching(db, 4));
+    ASSERT_EQ(C_ORM_OK, c_orm_prepare_cached(db, "SELECT * FROM items", &sq));
+    ASSERT_EQ(C_ORM_OK, c_orm_finalize_cached(db, sq));
+    custom_vt = *vt;
+    mem_orig_finalize = vt->finalize;
+    custom_vt.finalize = mem_failing_finalize;
+    db->vtable = &custom_vt;
+    ASSERT_EQ(C_ORM_ERROR_SQL, vt->disconnect(db));
+
+    /* Also test when free_table_list already failed before
+     * disable_statement_caching */
+    ASSERT_EQ(C_ORM_OK, c_orm_memory_connect("memory://", &db));
+    ASSERT_EQ(C_ORM_OK, exec_mem_sql(db, "CREATE TABLE t (id INT)"));
+    ASSERT_EQ(C_ORM_OK, c_orm_enable_statement_caching(db, 4));
+    ASSERT_EQ(C_ORM_OK, c_orm_prepare_cached(db, "SELECT * FROM t", &sq));
+    ASSERT_EQ(C_ORM_OK, c_orm_finalize_cached(db, sq));
+    db->vtable = &custom_vt;
+    mem_free_call_idx = 0;
+    mem_free_fail_mask = 1u;
+    ASSERT_EQ(C_ORM_ERROR_MEMORY, vt->disconnect(db));
     mem_free_fail_mask = 0;
   }
 

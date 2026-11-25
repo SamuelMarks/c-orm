@@ -10,19 +10,10 @@
 #include "c_orm_ast.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
 /* clang-format on */
 
 /**
@@ -132,7 +123,7 @@ TEST test_c_orm_ast_to_sql(void) {
   ASSERT_STR_EQ("active", params.params[0].value);
   ASSERT_EQ_FMT(1, params.params[0].is_string, "%d");
 
-  (void)c_orm_system_free(sql);
+  c_orm_system_free(sql);
   c_orm_query_params_cleanup(&params);
   c_orm_query_free(q);
   PASS();
@@ -170,7 +161,7 @@ TEST test_c_orm_ast_to_sql_postgres(void) {
   ASSERT_STR_EQ("100", params.params[1].value);
   ASSERT_EQ_FMT(0, params.params[1].is_string, "%d");
 
-  (void)c_orm_system_free(sql);
+  c_orm_system_free(sql);
   c_orm_query_params_cleanup(&params);
   c_orm_query_free(q);
   PASS();
@@ -213,7 +204,7 @@ TEST test_c_orm_ast_depth_limit(void) {
   ASSERT_EQ_FMT(0, err, "%d");
 
   cdd_c_sql_parser_max_depth = old_depth;
-  (void)c_orm_system_free(sql);
+  c_orm_system_free(sql);
   c_orm_query_params_cleanup(&params);
   c_orm_query_free(q);
   PASS();
@@ -221,8 +212,8 @@ TEST test_c_orm_ast_depth_limit(void) {
 
 /**
  * @brief Tests multiple CTEs, >32 JOINs, multiple GROUP BY, chained UNIONs,
- * and multiple ORDER BY clauses via `c_orm_ast_query_new` /
- * `c_orm_ast_query_free`.
+ * and multiple ORDER BY clauses via `c_orm_query_new` /
+ * `c_orm_query_free`.
  * @return GREATEST test result.
  */
 TEST test_c_orm_ast_multi_clauses(void) {
@@ -236,11 +227,11 @@ TEST test_c_orm_ast_multi_clauses(void) {
   c_orm_query_params_t params;
   int j;
 
-  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_new(&q));
-  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_new(&cte1));
-  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_new(&cte2));
-  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_new(&u1));
-  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_new(&u2));
+  ASSERT_EQ(C_ORM_OK, c_orm_query_new(&q));
+  ASSERT_EQ(C_ORM_OK, c_orm_query_new(&cte1));
+  ASSERT_EQ(C_ORM_OK, c_orm_query_new(&cte2));
+  ASSERT_EQ(C_ORM_OK, c_orm_query_new(&u1));
+  ASSERT_EQ(C_ORM_OK, c_orm_query_new(&u2));
 
   cte1->select_(cte1, "1 AS a");
   cte2->select_(cte2, "2 AS b");
@@ -281,13 +272,13 @@ TEST test_c_orm_ast_multi_clauses(void) {
                 "guest_users") != NULL);
   ASSERT(strstr(sql, "ORDER BY u.id ASC, u.created_at DESC") != NULL);
 
-  (void)c_orm_system_free(sql);
+  c_orm_system_free(sql);
   c_orm_query_params_cleanup(&params);
-  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_free(u2));
-  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_free(u1));
-  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_free(cte2));
-  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_free(cte1));
-  ASSERT_EQ(C_ORM_OK, c_orm_ast_query_free(q));
+  ASSERT_EQ(C_ORM_OK, c_orm_query_free(u2));
+  ASSERT_EQ(C_ORM_OK, c_orm_query_free(u1));
+  ASSERT_EQ(C_ORM_OK, c_orm_query_free(cte2));
+  ASSERT_EQ(C_ORM_OK, c_orm_query_free(cte1));
+  ASSERT_EQ(C_ORM_OK, c_orm_query_free(q));
   PASS();
 }
 

@@ -14,83 +14,8 @@
 #include <string.h>
 
 #include "test_cdd_c_ir_oom.h"
+#include "test_assert_zero_branch.h"
 /* clang-format on */
-
-/**
- * @brief Tests basic CDD C IR initialization, table addition, projection, and
- * cleanup.
- * @return GREATEST test result.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
 
 /**
  * @brief Executes test_cdd_c_ir_basic.
@@ -181,11 +106,13 @@ TEST test_cdd_c_ir_projection(void) {
   cdd_c_ir_t ir;
   cdd_c_query_projection_t proj;
   c_orm_error_t rc;
+  char src_tbl[] = "test";
+  char tgt_name[] = "test_map";
 
   rc = cdd_c_query_projection_init(&proj);
   ASSERT_EQ(C_ORM_OK, rc);
-  proj.source_table = "test";
-  proj.mapping_meta.target_name = "test_map";
+  proj.source_table = src_tbl;
+  proj.mapping_meta.target_name = tgt_name;
 
   rc = cdd_c_ir_init(&ir);
   ASSERT_EQ(C_ORM_OK, rc);
@@ -258,18 +185,10 @@ TEST test_cdd_c_ir_parse_sql_failure(void) {
  * @param cdd_c_ir_suite Suite runner function name.
  */
 SUITE(cdd_c_ir_suite) {
-  static int recursed = 0;
   RUN_TEST(test_cdd_c_ir_basic);
   RUN_TEST(test_cdd_c_ir_parse_sql);
   RUN_TEST(test_cdd_c_ir_projection);
   RUN_TEST(test_cdd_c_ir_alloc);
   RUN_TEST(test_cdd_c_ir_parse_sql_failure);
   RUN_TEST(test_cdd_c_ir_oom);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    cdd_c_ir_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }

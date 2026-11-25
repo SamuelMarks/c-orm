@@ -23,77 +23,8 @@ extern "C" {
 #include <time.h>
 
 #include "test_abstract_struct_oom.h"
+#include "test_assert_zero_branch.h"
 /* clang-format on */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
 
 /**
  * @brief Executes test_abstract_struct_memory_layout.
@@ -117,7 +48,7 @@ TEST test_variant_type_safety(void) {
   v1.value.i_val = 42;
 
   v2.type = CDD_C_VARIANT_TYPE_STRING;
-  v2.value.s_val = (char *)malloc(5);
+  ASSERT_EQ(C_ORM_OK, c_orm_default_malloc(5, (void **)&v2.value.s_val));
   C_ORM_STRCPY(v2.value.s_val, 5, "test");
 
   ASSERT_EQ(CDD_C_VARIANT_TYPE_INT, v1.type);
@@ -208,6 +139,8 @@ TEST test_abstract_struct_set_get(void) {
  * @return GREATEST test result.
  */
 TEST test_abstract_struct_json_roundtrip(void) {
+  static char c_mut_s0[] = "test_string";
+
   cdd_c_abstract_struct_t astruct_out, astruct_in;
   cdd_c_variant_t v_in, *v_out;
   char *json_str = NULL;
@@ -219,7 +152,7 @@ TEST test_abstract_struct_json_roundtrip(void) {
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct_out, "my_int", &v_in));
 
   v_in.type = CDD_C_VARIANT_TYPE_STRING;
-  v_in.value.s_val = (char *)"test_string";
+  v_in.value.s_val = c_mut_s0;
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct_out, "my_str", &v_in));
 
   v_in.type = CDD_C_VARIANT_TYPE_FLOAT;
@@ -241,7 +174,7 @@ TEST test_abstract_struct_json_roundtrip(void) {
 
   cdd_c_abstract_print(&astruct_in);
 
-  ASSERT_EQ(CDD_C_SUCCESS, json_free_serialized_string(json_str));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(json_str));
   ASSERT_EQ(0, cdd_c_abstract_struct_free(&astruct_out));
   ASSERT_EQ(0, cdd_c_abstract_struct_free(&astruct_in));
   PASS();
@@ -252,13 +185,16 @@ TEST test_abstract_struct_json_roundtrip(void) {
  * @return GREATEST test result.
  */
 TEST test_abstract_hydrate(void) {
+  static char c_mut_s1[] = "Hello, Generic World!";
+  static char c_mut_s2[] = "blob_data";
+
   cdd_c_abstract_struct_t astruct;
   cdd_c_column_meta_t cols[4];
   void *row_data[4];
   c_orm_int64_t mock_int = 42;
   double mock_float = 3.14159;
-  char *mock_str = (char *)"Hello, Generic World!";
-  char *mock_blob = (char *)"blob_data";
+  char *mock_str = c_mut_s1;
+  char *mock_blob = c_mut_s2;
   cdd_c_variant_t *out_val;
 
   cols[0].name = "id";
@@ -331,6 +267,8 @@ typedef struct MockSpecificRow2 {
  * @return GREATEST test result.
  */
 TEST test_abstract_struct_conversion2(void) {
+  static char c_mut_s3[] = "Dynamic String Content";
+
   cdd_c_abstract_struct_t astruct_in, astruct_out;
   mock_specific_row2_t specific_out, specific_in;
   cdd_c_variant_t v_in;
@@ -375,7 +313,7 @@ TEST test_abstract_struct_conversion2(void) {
   v_in.value.f_val = 3.14f;
   cdd_c_abstract_set(&astruct_in, "small_ratio", &v_in);
   v_in.type = CDD_C_VARIANT_TYPE_STRING;
-  v_in.value.s_val = (char *)"Dynamic String Content";
+  v_in.value.s_val = c_mut_s3;
   cdd_c_abstract_set(&astruct_in, "dyn_str", &v_in);
 
   /* Abstract to Specific */
@@ -394,7 +332,7 @@ TEST test_abstract_struct_conversion2(void) {
   ASSERT_EQ(0, cdd_c_specific_to_abstract(&astruct_out, &specific_in, &meta));
   ASSERT_EQ(3, astruct_out.count);
 
-  (void)c_orm_system_free(specific_out.dyn_str);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(specific_out.dyn_str));
   cdd_c_abstract_struct_free(&astruct_in);
   cdd_c_abstract_struct_free(&astruct_out);
   PASS();
@@ -405,6 +343,8 @@ TEST test_abstract_struct_conversion2(void) {
  * @return GREATEST test result.
  */
 TEST test_abstract_struct_conversion(void) {
+  static char c_mut_s4[] = "Hello";
+
   cdd_c_abstract_struct_t astruct_in, astruct_out;
   mock_specific_row_t specific_out, specific_in;
   cdd_c_variant_t v_in;
@@ -449,7 +389,7 @@ TEST test_abstract_struct_conversion(void) {
   v_in.value.f_val = 5.5;
   cdd_c_abstract_set(&astruct_in, "ratio", &v_in);
   v_in.type = CDD_C_VARIANT_TYPE_STRING;
-  v_in.value.s_val = (char *)"Hello";
+  v_in.value.s_val = c_mut_s4;
   cdd_c_abstract_set(&astruct_in, "greeting", &v_in);
 
   /* Abstract to Specific */
@@ -642,6 +582,10 @@ TEST test_mock_driver_abstract_struct_hydration(void) {
  * @return GREATEST test result.
  */
 TEST test_abstract_struct_array(void) {
+  static char c_mut_s5[] = "Alice";
+  static char c_mut_s6[] = "Bob";
+  static unsigned char c_mut_s7[] = "blob";
+
   cdd_c_abstract_struct_array_t arr;
   cdd_c_abstract_struct_t row1, row2, row3;
   cdd_c_variant_t val;
@@ -655,7 +599,7 @@ TEST test_abstract_struct_array(void) {
   val.value.i_val = 1;
   cdd_c_abstract_set(&row1, "id", &val);
   val.type = CDD_C_VARIANT_TYPE_STRING;
-  val.value.s_val = (char *)"Alice";
+  val.value.s_val = c_mut_s5;
   cdd_c_abstract_set(&row1, "name", &val);
   ASSERT_EQ(0, cdd_c_abstract_struct_array_append(&arr, &row1));
 
@@ -665,7 +609,7 @@ TEST test_abstract_struct_array(void) {
   val.value.i_val = 2;
   cdd_c_abstract_set(&row2, "id", &val);
   val.type = CDD_C_VARIANT_TYPE_STRING;
-  val.value.s_val = (char *)"Bob";
+  val.value.s_val = c_mut_s6;
   cdd_c_abstract_set(&row2, "name", &val);
   ASSERT_EQ(0, cdd_c_abstract_struct_array_append(&arr, &row2));
 
@@ -682,7 +626,7 @@ TEST test_abstract_struct_array(void) {
   val.type = 999;
   cdd_c_abstract_set(&row3, "unk", &val);
   val.type = CDD_C_VARIANT_TYPE_BLOB;
-  val.value.b_val.data = (unsigned char *)"blob";
+  val.value.b_val.data = c_mut_s7;
   val.value.b_val.size = 4;
   cdd_c_abstract_set(&row3, "data", &val);
   ASSERT_EQ(0, cdd_c_abstract_struct_array_append(&arr, &row3));
@@ -691,7 +635,7 @@ TEST test_abstract_struct_array(void) {
 
   ASSERT_EQ(0, cdd_c_abstract_struct_array_to_json(&arr, &json_out));
   ASSERT_NEQ(NULL, json_out);
-  ASSERT_EQ(CDD_C_SUCCESS, json_free_serialized_string(json_out));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(json_out));
 
   ASSERT_EQ(0, cdd_c_abstract_struct_array_free(&arr));
 
@@ -925,7 +869,7 @@ TEST test_abstract_struct_edge_types(void) {
   C_ORM_STRDUP("blobdata", (char **)&v.value.b_val.data);
   v.value.b_val.size = 8;
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct, "my_blob", &v));
-  (void)c_orm_system_free(v.value.b_val.data);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(v.value.b_val.data));
 
   /* NULL */
   v.type = CDD_C_VARIANT_TYPE_NULL;
@@ -939,7 +883,7 @@ TEST test_abstract_struct_edge_types(void) {
   ASSERT_EQ(0, cdd_c_abstract_struct_deep_copy(&astruct2, &astruct));
 
   ASSERT_EQ(0, cdd_c_abstract_struct_to_json(&astruct2, &json_out));
-  ASSERT_EQ(CDD_C_SUCCESS, json_free_serialized_string(json_out));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(json_out));
   cdd_c_abstract_print(&astruct2);
 
   cdd_c_abstract_struct_free(&astruct);
@@ -1011,6 +955,11 @@ TEST test_json_edge_cases(void) {
  * @return GREATEST test result.
  */
 TEST test_specific_edge_cases(void) {
+  static char c_mut_s8[] = "bad";
+  static char c_mut_s9[] = "bad";
+  static char c_mut_s10[] = "bad";
+  static char c_mut_s11[] = "bad";
+
   mock_specific_row_t specific_out;
   cdd_c_abstract_struct_t astruct_in;
   cdd_c_prop_meta_t p1, p2, p3;
@@ -1077,7 +1026,7 @@ TEST test_specific_edge_cases(void) {
     meta_single.num_props = 1;
     meta_single.props = &p_single;
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"bad";
+    v.value.s_val = c_mut_s8;
     cdd_c_abstract_struct_init(&astruct_in);
     cdd_c_abstract_set(&astruct_in, "id", &v);
     ASSERT_EQ(C_ORM_ERROR_VALIDATION,
@@ -1100,7 +1049,7 @@ TEST test_specific_edge_cases(void) {
     meta_single.num_props = 1;
     meta_single.props = &p_single;
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"bad";
+    v.value.s_val = c_mut_s9;
     cdd_c_abstract_struct_init(&astruct_in);
     cdd_c_abstract_set(&astruct_in, "ratio", &v);
     ASSERT_EQ(C_ORM_ERROR_VALIDATION,
@@ -1139,7 +1088,7 @@ TEST test_specific_edge_cases(void) {
     m.props = &p;
     cdd_c_abstract_struct_init(&astruct_in);
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"bad";
+    v.value.s_val = c_mut_s10;
     cdd_c_abstract_set(&astruct_in, "id64", &v);
     ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_abstract_to_specific(
                                           &specific_out, &astruct_in, &m, 1));
@@ -1161,7 +1110,7 @@ TEST test_specific_edge_cases(void) {
     m.props = &p;
     cdd_c_abstract_struct_init(&astruct_in);
     v.type = CDD_C_VARIANT_TYPE_STRING;
-    v.value.s_val = (char *)"bad";
+    v.value.s_val = c_mut_s11;
     cdd_c_abstract_set(&astruct_in, "dbl", &v);
     ASSERT_EQ(C_ORM_ERROR_VALIDATION, (int)cdd_c_abstract_to_specific(
                                           &specific_out, &astruct_in, &m, 1));
@@ -1271,6 +1220,9 @@ TEST test_hydrate_null(void) {
  * @return GREATEST test result.
  */
 TEST test_abstract_struct_allocation_limits(void) {
+  static unsigned char c_mut_s12[] = "fake";
+  static unsigned char c_mut_s13[] = "fake";
+
   cdd_c_abstract_struct_array_t arr;
   cdd_c_abstract_struct_t astruct1, astruct2;
   cdd_c_variant_t v;
@@ -1306,7 +1258,7 @@ TEST test_abstract_struct_allocation_limits(void) {
   v.value.i_val = 1;
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct1, "huge_blob", &v));
   astruct1.kvs[0].value.type = CDD_C_VARIANT_TYPE_BLOB;
-  astruct1.kvs[0].value.value.b_val.data = (unsigned char *)"fake";
+  astruct1.kvs[0].value.value.b_val.data = c_mut_s12;
   astruct1.kvs[0].value.value.b_val.size = (size_t)-1;
   ASSERT_EQ(C_ORM_ERROR_VALIDATION,
             (int)cdd_c_abstract_struct_deep_copy(&astruct2, &astruct1));
@@ -1325,7 +1277,7 @@ TEST test_abstract_struct_allocation_limits(void) {
   v.value.i_val = 1;
   ASSERT_EQ(0, cdd_c_abstract_set(&astruct1, "null_blob", &v));
   astruct1.kvs[1].value.type = CDD_C_VARIANT_TYPE_BLOB;
-  astruct1.kvs[1].value.value.b_val.data = (unsigned char *)"fake";
+  astruct1.kvs[1].value.value.b_val.data = c_mut_s13;
   astruct1.kvs[1].value.value.b_val.size = 0;
 
   ASSERT_EQ(0, (int)cdd_c_abstract_struct_deep_copy(&astruct2, &astruct1));
@@ -1351,7 +1303,6 @@ TEST test_abstract_struct_allocation_limits(void) {
  * @param abstract_struct_suite Suite runner function name.
  */
 SUITE(abstract_struct_suite) {
-  static int recursed = 0;
   RUN_TEST(test_abstract_struct_memory_layout);
   RUN_TEST(test_variant_type_safety);
   RUN_TEST(test_abstract_struct_set_get);
@@ -1376,13 +1327,6 @@ SUITE(abstract_struct_suite) {
   RUN_TEST(test_hydrate_null);
   RUN_TEST(test_abstract_struct_allocation_limits);
   RUN_TEST(test_abstract_struct_oom_coverage);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    abstract_struct_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }
 
 #ifdef __cplusplus

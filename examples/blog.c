@@ -8,6 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_MSC_VER) && defined(_DEBUG)
+#include <crtdbg.h>
+#endif
 
 #include "c_orm_api.h"
 #include "c_orm_sqlite.h"
@@ -72,6 +75,8 @@ c_orm_error_t run_blog_ops(c_orm_db_t *db, int32_t find_id, int skip_create) {
   c_orm_error_t rc;
   BlogPost post;
   BlogPost fetched;
+  char title_buf[] = "Hello c-orm";
+  char content_buf[] = "This is a great new object-mapper for C89.";
 
   if (!db)
     return C_ORM_ERROR_MEMORY;
@@ -88,8 +93,8 @@ c_orm_error_t run_blog_ops(c_orm_db_t *db, int32_t find_id, int skip_create) {
 
   memset(&post, 0, sizeof(post));
   post.id = 1;
-  post.title = "Hello c-orm";
-  post.content = "This is a great new object-mapper for C89.";
+  post.title = title_buf;
+  post.content = content_buf;
   post.author_id = 99;
 
   rc = c_orm_insert(db, &BlogPost_meta, &post);
@@ -106,10 +111,17 @@ c_orm_error_t run_blog_ops(c_orm_db_t *db, int32_t find_id, int skip_create) {
     return rc;
   }
   printf("Fetched Post: %s -> %s\n", fetched.title, fetched.content);
-  free(fetched.title);
-  free(fetched.content);
+  c_orm_system_free(fetched.title);
+  return c_orm_system_free(fetched.content);
+}
 
-  return C_ORM_OK;
+/**
+ * @brief Disconnects `db` during error cleanup.
+ * @param db Database connection handle.
+ * @return C_ORM_OK on success, or driver disconnect error code.
+ */
+static c_orm_error_t blog_conn_cleanup_free(c_orm_db_t *db) {
+  return db->vtable->disconnect(db);
 }
 
 /**
@@ -135,9 +147,12 @@ c_orm_error_t run_blog_example(const char *db_path) {
   }
 
   rc = run_blog_ops(db, 1, 0);
-  db->vtable->disconnect(db);
+  if (rc != C_ORM_OK) {
+    blog_conn_cleanup_free(db);
+    return rc;
+  }
 
-  return rc;
+  return db->vtable->disconnect(db);
 }
 
 int main(void);
@@ -150,6 +165,21 @@ int main(void);
 int main(void) {
   c_orm_db_t *db = NULL;
   int failed = 0;
+
+#if defined(_MSC_VER) && defined(_DEBUG)
+  _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+#endif
+
+  remove("blog_err_example.db");
+  failed |= (run_blog_example("blog_err_example.db") != C_ORM_OK);
+  /* Second run against existing blog_posts table exercises ops error path */
+  failed |= (run_blog_example("blog_err_example.db") == C_ORM_OK);
+  remove("blog_err_example.db");
 
   failed |= (run_blog_example(":memory:") != C_ORM_OK);
   failed |= (run_blog_example(NULL) == C_ORM_OK);

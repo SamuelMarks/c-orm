@@ -47,9 +47,9 @@ c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
 
   sb = NULL;
   rc = c_orm_system_malloc(sizeof(c_orm_string_builder_t), (void **)&sb);
-  if (rc != C_ORM_OK || !sb) {
+  if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_string_builder_init: OOM");
-    return C_ORM_ERROR_MEMORY;
+    return rc;
   }
 
   sb->capacity = 1;
@@ -57,10 +57,10 @@ c_orm_string_builder_init(c_orm_string_builder_t **out_builder) {
   sb->valid = 1;
   sb->buffer = NULL;
   rc = c_orm_system_malloc(sb->capacity, (void **)&sb->buffer);
-  if (rc != C_ORM_OK || !sb->buffer) {
-    (void)c_orm_system_free(sb);
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(sb);
     LOG_DEBUG("c_orm_string_builder_init: OOM buffer");
-    return C_ORM_ERROR_MEMORY;
+    return rc;
   }
   sb->buffer[0] = '\0';
 
@@ -167,10 +167,9 @@ c_orm_string_builder_append(c_orm_string_builder_t *builder, const char *str) {
     new_buffer = NULL;
     rc = c_orm_system_realloc(builder->buffer, new_capacity,
                               (void **)&new_buffer);
-    if (rc != C_ORM_OK || !new_buffer) {
+    if (rc != C_ORM_OK) {
       LOG_DEBUG("c_orm_string_builder_append: OOM realloc");
       builder->valid = 0;
-      rc = C_ORM_ERROR_MEMORY;
       return rc;
     }
     builder->buffer = new_buffer;
@@ -210,7 +209,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_string_builder_get(
   }
 
 #ifdef C_ORM_TEST_ALLOCATOR
-  if (c_orm_mock_string_builder_get_fail) {
+  if (c_orm_mock_string_builder_get_fail > 1) {
+    c_orm_mock_string_builder_get_fail--;
+  } else if (c_orm_mock_string_builder_get_fail) {
     LOG_DEBUG("c_orm_string_builder_get: mock failure");
     rc = C_ORM_ERROR_MEMORY;
     return rc;
@@ -290,12 +291,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_quote_identifier(
   for (p = ident; *p; p++) {
     if (*p == quote_char) {
       rc = c_orm_string_builder_append(builder, escbuf);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
     } else {
       chbuf[0] = *p;
       rc = c_orm_string_builder_append(builder, chbuf);
-    }
-    if (rc != C_ORM_OK) {
-      return rc;
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
     }
   }
 
@@ -344,19 +348,23 @@ C_ORM_EXPORT c_orm_error_t c_orm_quote_qualified_identifier(
       size_t seg_len = (size_t)(p - seg_start);
       if (seg_len == 1 && seg_start[0] == '*' && *p == '\0') {
         rc = c_orm_string_builder_append(builder, "*");
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       } else {
         char *seg_buf = NULL;
         rc = c_orm_system_malloc(seg_len + 1, (void **)&seg_buf);
-        if (rc != C_ORM_OK || !seg_buf) {
-          return C_ORM_ERROR_MEMORY;
+        if (rc != C_ORM_OK) {
+          return rc;
         }
         memcpy(seg_buf, seg_start, seg_len);
         seg_buf[seg_len] = '\0';
         rc = c_orm_quote_identifier(builder, seg_buf, quote_char);
-        (void)c_orm_system_free(seg_buf);
-      }
-      if (rc != C_ORM_OK) {
-        return rc;
+        if (rc != C_ORM_OK) {
+          c_orm_system_free(seg_buf);
+          return rc;
+        }
+        c_orm_system_free(seg_buf);
       }
       if (*p == '\0') {
         break;
@@ -421,12 +429,15 @@ c_orm_append_string_literal(c_orm_string_builder_t *builder, const char *str) {
   for (p = str; *p != '\0'; ++p) {
     if (*p == '\'') {
       rc = c_orm_string_builder_append(builder, "''");
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
     } else {
       chbuf[0] = *p;
       rc = c_orm_string_builder_append(builder, chbuf);
-    }
-    if (rc != C_ORM_OK) {
-      return rc;
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
     }
   }
 

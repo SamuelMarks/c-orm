@@ -53,35 +53,29 @@ typedef struct cpy_wire_val {
   size_t bytes_len;
 } cpy_wire_val_t;
 
-/**
- * @brief Folds an ASCII lowercase byte to uppercase.
- * @param c Input byte.
- * @param out_c Output uppercase byte.
- * @return C_ORM_OK on success.
- */
-static c_orm_error_t wire_char_to_upper(unsigned char c, unsigned char *out_c) {
-  *out_c = (c >= 'a' && c <= 'z') ? (unsigned char)(c - ('a' - 'A')) : c;
-  return C_ORM_OK;
-}
+#define WIRE_TO_UPPER(c)                                                       \
+  (((c) >= 'a' && (c) <= 'z') ? (unsigned char)((c) - ('a' - 'A')) : (c))
+
+#define WIRE_IS_DECIMAL_ELEM(f)                                                \
+  (((f)->frac_digits > 0 || (f)->total_digits > 18 ||                          \
+    (f)->usage == C_ORM_COBOL_USAGE_COMP_3)                                    \
+       ? 1                                                                     \
+       : 0)
 
 /**
  * @brief Case-insensitive identifier match treating `-` and `_` identically.
- * @param a First identifier.
- * @param b Second identifier.
- * @param out_eq Output flag set to 1 if matched, else 0.
- * @return C_ORM_OK on success.
+ * @param a First identifier (may be NULL).
+ * @param b Second identifier (non-NULL).
+ * @return 1 if matched, else 0.
  */
-static c_orm_error_t wire_ident_eq(const char *a, const char *b, int *out_eq) {
+static int wire_calc_ident_eq(const char *a, const char *b) {
   size_t i = 0;
-  *out_eq = 0;
   if (!a) {
-    return C_ORM_OK;
+    return 0;
   }
   while (a[i] != '\0' && b[i] != '\0') {
-    unsigned char ca = 0;
-    unsigned char cb = 0;
-    wire_char_to_upper((unsigned char)a[i], &ca);
-    wire_char_to_upper((unsigned char)b[i], &cb);
+    unsigned char ca = WIRE_TO_UPPER((unsigned char)a[i]);
+    unsigned char cb = WIRE_TO_UPPER((unsigned char)b[i]);
     if (ca == '-') {
       ca = '_';
     }
@@ -89,43 +83,37 @@ static c_orm_error_t wire_ident_eq(const char *a, const char *b, int *out_eq) {
       cb = '_';
     }
     if (ca != cb) {
-      return C_ORM_OK;
+      return 0;
     }
     i++;
   }
-  if (a[i] == '\0' && b[i] == '\0') {
-    *out_eq = 1;
-  }
-  return C_ORM_OK;
+  return (a[i] == '\0' && b[i] == '\0') ? 1 : 0;
 }
 
 /**
  * @brief Locates a matching `c_orm_column_meta_t` in `meta` for COBOL field
  * `f`.
- * @param meta Table metadata (may be NULL).
+ * @param meta Table metadata.
  * @param f COBOL field node.
  * @param out_col Output matched column descriptor, or NULL if unmapped.
- * @return C_ORM_OK on success.
+ * @return 1 if matched, else 0.
  */
-static c_orm_error_t wire_find_col_meta(const c_orm_table_meta_t *meta,
-                                        const c_orm_cobol_field_t *f,
-                                        const c_orm_column_meta_t **out_col) {
+static int wire_calc_find_col_meta(const c_orm_table_meta_t *meta,
+                                   const c_orm_cobol_field_t *f,
+                                   const c_orm_column_meta_t **out_col) {
   size_t i;
   *out_col = NULL;
   if (!meta->columns) {
-    return C_ORM_OK;
+    return 0;
   }
   for (i = 0; i < meta->num_columns; ++i) {
-    int eq1 = 0;
-    int eq2 = 0;
-    wire_ident_eq(meta->columns[i].name, f->c_name, &eq1);
-    wire_ident_eq(meta->columns[i].name, f->cobol_name, &eq2);
-    if (eq1 || eq2) {
+    if (wire_calc_ident_eq(meta->columns[i].name, f->c_name) ||
+        wire_calc_ident_eq(meta->columns[i].name, f->cobol_name)) {
       *out_col = &meta->columns[i];
-      return C_ORM_OK;
+      return 1;
     }
   }
-  return C_ORM_OK;
+  return 0;
 }
 
 /**
@@ -134,28 +122,24 @@ static c_orm_error_t wire_find_col_meta(const c_orm_table_meta_t *meta,
  * @param abs_struct Abstract struct dictionary.
  * @param f COBOL field node.
  * @param out_var Output matched variant pointer, or NULL if absent.
- * @return C_ORM_OK on success.
+ * @return 1 if matched, else 0.
  */
-static c_orm_error_t
-wire_find_abs_val(const cdd_c_abstract_struct_t *abs_struct,
-                  const c_orm_cobol_field_t *f,
-                  const cdd_c_variant_t **out_var) {
+static int wire_calc_find_abs_val(const cdd_c_abstract_struct_t *abs_struct,
+                                  const c_orm_cobol_field_t *f,
+                                  const cdd_c_variant_t **out_var) {
   size_t i;
   *out_var = NULL;
   if (!abs_struct->kvs) {
-    return C_ORM_OK;
+    return 0;
   }
   for (i = 0; i < abs_struct->count; ++i) {
-    int eq1 = 0;
-    int eq2 = 0;
-    wire_ident_eq(abs_struct->kvs[i].key, f->c_name, &eq1);
-    wire_ident_eq(abs_struct->kvs[i].key, f->cobol_name, &eq2);
-    if (eq1 || eq2) {
+    if (wire_calc_ident_eq(abs_struct->kvs[i].key, f->c_name) ||
+        wire_calc_ident_eq(abs_struct->kvs[i].key, f->cobol_name)) {
       *out_var = &abs_struct->kvs[i].value;
-      return C_ORM_OK;
+      return 1;
     }
   }
-  return C_ORM_OK;
+  return 0;
 }
 
 /**
@@ -164,37 +148,27 @@ wire_find_abs_val(const cdd_c_abstract_struct_t *abs_struct,
  * @param f Subtree root field.
  * @param meta Optional C struct metadata.
  * @param abs_struct Optional abstract struct.
- * @param out_mapped Output flag set to 1 if any field in subtree is mapped.
- * @return C_ORM_OK on success.
+ * @return 1 if any field in subtree is mapped, else 0.
  */
-static c_orm_error_t wire_subtree_is_mapped(
-    const c_orm_cobol_field_t *f, const c_orm_table_meta_t *meta,
-    const cdd_c_abstract_struct_t *abs_struct, int *out_mapped) {
+static int
+wire_calc_subtree_is_mapped(const c_orm_cobol_field_t *f,
+                            const c_orm_table_meta_t *meta,
+                            const cdd_c_abstract_struct_t *abs_struct) {
   const c_orm_column_meta_t *col = NULL;
   const cdd_c_variant_t *var = NULL;
   size_t i;
-  *out_mapped = 0;
-  if (meta) {
-    wire_find_col_meta(meta, f, &col);
-    if (col) {
-      *out_mapped = 1;
-      return C_ORM_OK;
-    }
+  if (meta && wire_calc_find_col_meta(meta, f, &col)) {
+    return 1;
   }
-  if (abs_struct) {
-    wire_find_abs_val(abs_struct, f, &var);
-    if (var) {
-      *out_mapped = 1;
-      return C_ORM_OK;
-    }
+  if (abs_struct && wire_calc_find_abs_val(abs_struct, f, &var)) {
+    return 1;
   }
   for (i = 0; i < f->num_children; ++i) {
-    wire_subtree_is_mapped(&f->children[i], meta, abs_struct, out_mapped);
-    if (*out_mapped) {
-      return C_ORM_OK;
+    if (wire_calc_subtree_is_mapped(&f->children[i], meta, abs_struct)) {
+      return 1;
     }
   }
-  return C_ORM_OK;
+  return 0;
 }
 
 /**
@@ -203,11 +177,11 @@ static c_orm_error_t wire_subtree_is_mapped(
  * @param c_struct Source C struct pointer.
  * @param col Column metadata descriptor.
  * @param out_val Output populated neutral value.
- * @return C_ORM_OK on success, or error code on invalid decimal string.
+ * @return 1 on completion.
  */
-static c_orm_error_t wire_read_struct_col(const void *c_struct,
-                                          const c_orm_column_meta_t *col,
-                                          cpy_wire_val_t *out_val) {
+static int wire_calc_read_struct_col(const void *c_struct,
+                                     const c_orm_column_meta_t *col,
+                                     cpy_wire_val_t *out_val) {
   const unsigned char *ptr = (const unsigned char *)c_struct + col->offset;
   memset(out_val, 0, sizeof(*out_val));
 
@@ -217,7 +191,7 @@ static c_orm_error_t wire_read_struct_col(const void *c_struct,
       const int32_t *p = NULL;
       memcpy(&p, ptr, sizeof(p));
       if (!p) {
-        return C_ORM_OK;
+        return 1;
       }
       out_val->i64 = (c_orm_int64_t)(*p);
     } else {
@@ -226,14 +200,14 @@ static c_orm_error_t wire_read_struct_col(const void *c_struct,
       out_val->i64 = (c_orm_int64_t)v32;
     }
     out_val->tag = CPY_VAL_INT64;
-    return C_ORM_OK;
+    return 1;
 
   case C_ORM_TYPE_INT64:
     if (col->is_nullable) {
       const c_orm_int64_t *p = NULL;
       memcpy(&p, ptr, sizeof(p));
       if (!p) {
-        return C_ORM_OK;
+        return 1;
       }
       out_val->i64 = *p;
     } else {
@@ -242,28 +216,28 @@ static c_orm_error_t wire_read_struct_col(const void *c_struct,
       out_val->i64 = v64;
     }
     out_val->tag = CPY_VAL_INT64;
-    return C_ORM_OK;
+    return 1;
 
   case C_ORM_TYPE_BOOL:
     if (col->is_nullable) {
       const unsigned char *p = NULL;
       memcpy(&p, ptr, sizeof(p));
       if (!p) {
-        return C_ORM_OK;
+        return 1;
       }
       out_val->i64 = (*p != 0) ? 1 : 0;
     } else {
       out_val->i64 = (*ptr != 0) ? 1 : 0;
     }
     out_val->tag = CPY_VAL_INT64;
-    return C_ORM_OK;
+    return 1;
 
   case C_ORM_TYPE_FLOAT:
     if (col->is_nullable) {
       const float *p = NULL;
       memcpy(&p, ptr, sizeof(p));
       if (!p) {
-        return C_ORM_OK;
+        return 1;
       }
       out_val->dbl = (double)(*p);
     } else {
@@ -272,14 +246,14 @@ static c_orm_error_t wire_read_struct_col(const void *c_struct,
       out_val->dbl = (double)fv;
     }
     out_val->tag = CPY_VAL_DOUBLE;
-    return C_ORM_OK;
+    return 1;
 
   case C_ORM_TYPE_DOUBLE:
     if (col->is_nullable) {
       const double *p = NULL;
       memcpy(&p, ptr, sizeof(p));
       if (!p) {
-        return C_ORM_OK;
+        return 1;
       }
       out_val->dbl = *p;
     } else {
@@ -288,7 +262,7 @@ static c_orm_error_t wire_read_struct_col(const void *c_struct,
       out_val->dbl = dv;
     }
     out_val->tag = CPY_VAL_DOUBLE;
-    return C_ORM_OK;
+    return 1;
 
   case C_ORM_TYPE_DECIMAL:
   case C_ORM_TYPE_DECFLOAT:
@@ -296,27 +270,27 @@ static c_orm_error_t wire_read_struct_col(const void *c_struct,
       const c_orm_decimal_t *p = NULL;
       memcpy(&p, ptr, sizeof(p));
       if (!p) {
-        return C_ORM_OK;
+        return 1;
       }
       out_val->dec = *p;
     } else {
       memcpy(&out_val->dec, ptr, sizeof(out_val->dec));
     }
     out_val->tag = CPY_VAL_DECIMAL;
-    return C_ORM_OK;
+    return 1;
 
   case C_ORM_TYPE_CHAR_FIXED:
     if (col->fixed_length > 0) {
       out_val->str = (const char *)ptr;
       out_val->tag = CPY_VAL_STRING;
-      return C_ORM_OK;
+      return 1;
     }
     /* Fallthrough for pointer CHAR_FIXED */
     memcpy(&out_val->str, ptr, sizeof(out_val->str));
     if (out_val->str) {
       out_val->tag = CPY_VAL_STRING;
     }
-    return C_ORM_OK;
+    return 1;
 
   case C_ORM_TYPE_STRING:
   case C_ORM_TYPE_DATE:
@@ -328,14 +302,14 @@ static c_orm_error_t wire_read_struct_col(const void *c_struct,
     if (out_val->str) {
       out_val->tag = CPY_VAL_STRING;
     }
-    return C_ORM_OK;
+    return 1;
 
   case C_ORM_TYPE_BINARY_FIXED:
     if (col->fixed_length > 0) {
       out_val->bytes = ptr;
       out_val->bytes_len = col->fixed_length;
       out_val->tag = CPY_VAL_BYTES;
-      return C_ORM_OK;
+      return 1;
     }
     {
       c_orm_blob_t b;
@@ -346,7 +320,7 @@ static c_orm_error_t wire_read_struct_col(const void *c_struct,
         out_val->tag = CPY_VAL_BYTES;
       }
     }
-    return C_ORM_OK;
+    return 1;
 
   case C_ORM_TYPE_BLOB:
   case C_ORM_TYPE_VARBINARY: {
@@ -357,11 +331,11 @@ static c_orm_error_t wire_read_struct_col(const void *c_struct,
       out_val->bytes_len = b.size;
       out_val->tag = CPY_VAL_BYTES;
     }
-    return C_ORM_OK;
+    return 1;
   }
 
   default:
-    return C_ORM_OK;
+    return 1;
   }
 }
 
@@ -369,10 +343,10 @@ static c_orm_error_t wire_read_struct_col(const void *c_struct,
  * @brief Converts a `cdd_c_variant_t` into a neutral `cpy_wire_val_t`.
  * @param var Source variant.
  * @param out_val Output neutral value.
- * @return C_ORM_OK on success.
+ * @return 1 on completion.
  */
-static c_orm_error_t wire_read_variant(const cdd_c_variant_t *var,
-                                       cpy_wire_val_t *out_val) {
+static int wire_calc_read_variant(const cdd_c_variant_t *var,
+                                  cpy_wire_val_t *out_val) {
   memset(out_val, 0, sizeof(*out_val));
   switch (var->type) {
   case CDD_C_VARIANT_TYPE_INT:
@@ -403,7 +377,7 @@ static c_orm_error_t wire_read_variant(const cdd_c_variant_t *var,
   default:
     break;
   }
-  return C_ORM_OK;
+  return 1;
 }
 
 /**
@@ -419,26 +393,27 @@ static c_orm_error_t wire_val_to_decimal(const c_orm_cobol_field_t *f,
                                          c_orm_decimal_t *out_dec) {
   char buf[64];
   c_orm_error_t rc;
-  switch (val->tag) {
-  case CPY_VAL_DECIMAL:
+  if (val->tag == CPY_VAL_DECIMAL) {
     *out_dec = val->dec;
     return C_ORM_OK;
-  case CPY_VAL_INT64:
+  }
+  if (val->tag == CPY_VAL_INT64) {
     return c_orm_decimal_from_int64(val->i64, out_dec);
-  case CPY_VAL_DOUBLE:
+  }
+  if (val->tag == CPY_VAL_DOUBLE) {
     rc = C_ORM_SPRINTF(buf, sizeof(buf), "%.12g", val->dbl);
     if (rc != C_ORM_OK) {
       return rc;
     }
     return c_orm_decimal_from_str(buf, out_dec);
-  case CPY_VAL_STRING:
-    return c_orm_decimal_from_str(val->str, out_dec);
-  default:
-    if (f->value_kind == C_ORM_COBOL_VALUE_NUMERIC) {
-      return c_orm_decimal_from_str(f->default_value, out_dec);
-    }
-    return c_orm_decimal_zero(f->frac_digits, out_dec);
   }
+  if (val->tag == CPY_VAL_STRING) {
+    return c_orm_decimal_from_str(val->str, out_dec);
+  }
+  if (f->value_kind == C_ORM_COBOL_VALUE_NUMERIC) {
+    return c_orm_decimal_from_str(f->default_value, out_dec);
+  }
+  return c_orm_decimal_zero(f->frac_digits, out_dec);
 }
 
 /**
@@ -454,7 +429,6 @@ static c_orm_error_t wire_val_to_unscaled_int64(const c_orm_cobol_field_t *f,
                                                 c_orm_int64_t *out_i64) {
   c_orm_decimal_t dec;
   c_orm_decimal_t scaled;
-  unsigned char k;
   c_orm_error_t rc;
 
   if (f->frac_digits == 0 && val->tag == CPY_VAL_INT64) {
@@ -471,15 +445,7 @@ static c_orm_error_t wire_val_to_unscaled_int64(const c_orm_cobol_field_t *f,
     return rc;
   }
   /* Shift decimal point right by frac_digits (total_digits <= 18) */
-  if (scaled.scale > 0) {
-    c_orm_decimal_t ten;
-    c_orm_decimal_from_int64(10, &ten);
-    for (k = 0; k < f->frac_digits; ++k) {
-      c_orm_decimal_t next_d;
-      c_orm_decimal_mul(&scaled, &ten, 0, C_ORM_ROUND_TRUNCATE, &next_d);
-      scaled = next_d;
-    }
-  }
+  scaled.scale = 0;
   return c_orm_decimal_to_int64(&scaled, C_ORM_ROUND_TRUNCATE, out_i64);
 }
 
@@ -487,14 +453,12 @@ static c_orm_error_t wire_val_to_unscaled_int64(const c_orm_cobol_field_t *f,
  * @brief Determines whether host byte order differs from requested wire
  * endianness `big_endian_comp`.
  * @param big_endian_comp Non-zero when wire format is big-endian.
- * @param out_swap Output flag set to 1 when bytes must be reversed, else 0.
- * @return C_ORM_OK on success.
+ * @return 1 when bytes must be reversed, else 0.
  */
-static c_orm_error_t wire_need_byte_swap(int big_endian_comp, int *out_swap) {
+static int wire_calc_need_byte_swap(int big_endian_comp) {
   unsigned short probe = 0x0102U;
   const unsigned char *p = (const unsigned char *)&probe;
-  *out_swap = ((big_endian_comp != 0) != (p[0] == 0x01U)) ? 1 : 0;
-  return C_ORM_OK;
+  return ((big_endian_comp != 0) != (p[0] == 0x01U)) ? 1 : 0;
 }
 
 /**
@@ -565,7 +529,6 @@ static c_orm_error_t wire_encode_elementary(const c_orm_cobol_field_t *f,
 
   case C_ORM_COBOL_USAGE_COMP_1: {
     float fv = 0.0f;
-    int swap = 0;
     unsigned char raw4[4];
     if (val->tag == CPY_VAL_DOUBLE) {
       fv = (float)val->dbl;
@@ -573,25 +536,26 @@ static c_orm_error_t wire_encode_elementary(const c_orm_cobol_field_t *f,
       fv = (float)val->i64;
     } else if (val->tag == CPY_VAL_DECIMAL) {
       char sbuf[64];
-      c_orm_decimal_to_str(&val->dec, sbuf, sizeof(sbuf), NULL);
+      rc = c_orm_decimal_to_str(&val->dec, sbuf, sizeof(sbuf), NULL);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
       fv = (float)atof(sbuf);
     }
     memcpy(raw4, &fv, 4);
-    wire_need_byte_swap(big_endian_comp, &swap);
-    if (swap) {
+    if (wire_calc_need_byte_swap(big_endian_comp)) {
       dst[0] = raw4[3];
       dst[1] = raw4[2];
       dst[2] = raw4[1];
       dst[3] = raw4[0];
-    } else {
-      memcpy(dst, raw4, 4);
+      return C_ORM_OK;
     }
+    memcpy(dst, raw4, 4);
     return C_ORM_OK;
   }
 
   case C_ORM_COBOL_USAGE_COMP_2: {
     double dv = 0.0;
-    int swap = 0;
     unsigned char raw8[8];
     size_t k;
     if (val->tag == CPY_VAL_DOUBLE) {
@@ -600,18 +564,20 @@ static c_orm_error_t wire_encode_elementary(const c_orm_cobol_field_t *f,
       dv = (double)val->i64;
     } else if (val->tag == CPY_VAL_DECIMAL) {
       char sbuf[64];
-      c_orm_decimal_to_str(&val->dec, sbuf, sizeof(sbuf), NULL);
+      rc = c_orm_decimal_to_str(&val->dec, sbuf, sizeof(sbuf), NULL);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
       dv = atof(sbuf);
     }
     memcpy(raw8, &dv, 8);
-    wire_need_byte_swap(big_endian_comp, &swap);
-    if (swap) {
+    if (wire_calc_need_byte_swap(big_endian_comp)) {
       for (k = 0; k < 8; ++k) {
         dst[k] = raw8[7 - k];
       }
-    } else {
-      memcpy(dst, raw8, 8);
+      return C_ORM_OK;
     }
+    memcpy(dst, raw8, 8);
     return C_ORM_OK;
   }
 
@@ -633,18 +599,14 @@ static c_orm_error_t wire_encode_elementary(const c_orm_cobol_field_t *f,
     }
     rc = c_orm_utf8_to_utf16(s, strlen(s), big_endian_comp, u16, cap_units + 1,
                              &written_units);
-    if (rc == C_ORM_ERROR_OVERFLOW) {
-      (void)c_orm_system_free(u16);
-      return C_ORM_ERROR_TRUNCATION;
-    }
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(u16);
-      return rc;
+      c_orm_system_free(u16);
+      return (rc == C_ORM_ERROR_OVERFLOW) ? C_ORM_ERROR_TRUNCATION : rc;
     }
     if (written_units > 0) {
       memcpy(dst, u16, written_units * 2);
     }
-    (void)c_orm_system_free(u16);
+    c_orm_system_free(u16);
     for (k = written_units; k < cap_units; ++k) {
       dst[k * 2] = big_endian_comp ? 0x00U : 0x20U;
       dst[k * 2 + 1] = big_endian_comp ? 0x20U : 0x00U;
@@ -661,7 +623,10 @@ static c_orm_error_t wire_encode_elementary(const c_orm_cobol_field_t *f,
         return rc;
       }
       if (f->is_blank_when_zero) {
-        c_orm_decimal_is_zero(&dec, &is_z);
+        rc = c_orm_decimal_is_zero(&dec, &is_z);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
         if (is_z) {
           memset(dst, use_ebcdic ? 0x40 : 0x20, f->element_byte_size);
           return C_ORM_OK;
@@ -693,7 +658,10 @@ static c_orm_error_t wire_encode_elementary(const c_orm_cobol_field_t *f,
       if (val->tag == CPY_VAL_STRING) {
         s = val->str;
       } else if (val->tag == CPY_VAL_DECIMAL) {
-        c_orm_decimal_to_str(&val->dec, num_str, sizeof(num_str), NULL);
+        rc = c_orm_decimal_to_str(&val->dec, num_str, sizeof(num_str), NULL);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
         s = num_str;
       } else if (val->tag == CPY_VAL_INT64) {
         rc = C_ORM_SPRINTF(num_str, sizeof(num_str), C_ORM_INT64_FORMAT,
@@ -746,18 +714,14 @@ static c_orm_error_t wire_encode_dclgen_varchar(const c_orm_cobol_field_t *f,
     }
     rc = c_orm_utf8_to_utf16(s, strlen(s), big_endian_comp, u16,
                              f->dclgen_max_chars + 1, &units);
-    if (rc == C_ORM_ERROR_OVERFLOW) {
-      (void)c_orm_system_free(u16);
-      return C_ORM_ERROR_TRUNCATION;
-    }
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(u16);
-      return rc;
+      c_orm_system_free(u16);
+      return (rc == C_ORM_ERROR_OVERFLOW) ? C_ORM_ERROR_TRUNCATION : rc;
     }
     if (units > 0) {
       memcpy(txt_dst, u16, units * 2);
     }
-    (void)c_orm_system_free(u16);
+    c_orm_system_free(u16);
     for (k = units; k < f->dclgen_max_chars; ++k) {
       txt_dst[k * 2] = big_endian_comp ? 0x00U : 0x20U;
       txt_dst[k * 2 + 1] = big_endian_comp ? 0x20U : 0x00U;
@@ -773,32 +737,13 @@ static c_orm_error_t wire_encode_dclgen_varchar(const c_orm_cobol_field_t *f,
     memset(txt_dst, sp, txt_f->element_byte_size);
     rc = c_orm_utf8_to_ebcdic(cp, s, strlen(s), txt_dst,
                               txt_f->element_byte_size, &written);
-    if (rc == C_ORM_ERROR_OVERFLOW) {
-      return C_ORM_ERROR_TRUNCATION;
-    }
     if (rc != C_ORM_OK) {
-      return rc;
+      return (rc == C_ORM_ERROR_OVERFLOW) ? C_ORM_ERROR_TRUNCATION : rc;
     }
     return c_orm_int64_to_cobol_comp((c_orm_int64_t)written,
                                      len_f->element_byte_size, len_be, dst,
                                      len_f->element_byte_size);
   }
-}
-
-/**
- * @brief Checks if an elementary `OCCURS` item uses `c_orm_decimal_t` in
- * `c_orm_cobol_odo_array_t`.
- * @param f Elementary COBOL field.
- * @param out_is_dec Output flag set to 1 if element type is `c_orm_decimal_t`.
- * @return C_ORM_OK on success.
- */
-static c_orm_error_t wire_field_is_decimal_elem(const c_orm_cobol_field_t *f,
-                                                int *out_is_dec) {
-  *out_is_dec = (f->frac_digits > 0 || f->total_digits > 18 ||
-                 f->usage == C_ORM_COBOL_USAGE_COMP_3)
-                    ? 1
-                    : 0;
-  return C_ORM_OK;
 }
 
 /**
@@ -811,7 +756,8 @@ static c_orm_error_t wire_field_is_decimal_elem(const c_orm_cobol_field_t *f,
  * @param abs_struct Optional abstract struct pointer.
  * @param out_count Output validated occurrence count
  * (`min_occurs..max_occurs`).
- * @return C_ORM_OK on success, or C_ORM_ERROR_VALIDATION if ODO out of range.
+ * @return C_ORM_OK on success, or error code if ODO target missing, invalid, or
+ * out of range.
  */
 static c_orm_error_t wire_resolve_occurs_count(
     const c_orm_cobol_record_t *rec, const c_orm_cobol_field_t *f,
@@ -832,24 +778,25 @@ static c_orm_error_t wire_resolve_occurs_count(
   }
   rc = c_orm_copybook_find_field(rec, f->odo_field_name, &odo_f);
   if (rc != C_ORM_OK) {
-    return C_ORM_ERROR_VALIDATION;
+    return rc;
   }
   memset(&v, 0, sizeof(v));
   if (c_struct) {
     const c_orm_column_meta_t *col = NULL;
-    wire_find_col_meta(meta, odo_f, &col);
-    if (col) {
-      wire_read_struct_col(c_struct, col, &v);
+    if (wire_calc_find_col_meta(meta, odo_f, &col)) {
+      wire_calc_read_struct_col(c_struct, col, &v);
     }
   } else {
     const cdd_c_variant_t *var = NULL;
-    wire_find_abs_val(abs_struct, odo_f, &var);
-    if (var) {
-      wire_read_variant(var, &v);
+    if (wire_calc_find_abs_val(abs_struct, odo_f, &var)) {
+      wire_calc_read_variant(var, &v);
     }
   }
   rc = wire_val_to_unscaled_int64(odo_f, &v, &cnt);
-  if (rc != C_ORM_OK || cnt < (c_orm_int64_t)f->min_occurs ||
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+  if (cnt < (c_orm_int64_t)f->min_occurs ||
       cnt > (c_orm_int64_t)f->max_occurs) {
     return C_ORM_ERROR_VALIDATION;
   }
@@ -921,11 +868,9 @@ static c_orm_error_t wire_pack_fields_rec(
       continue;
     }
     if (f->redefines_target) {
-      int base_mapped = 0;
-      int redef_mapped = 0;
-      wire_subtree_is_mapped(f->redefines_target, meta, abs_struct,
-                             &base_mapped);
-      wire_subtree_is_mapped(f, meta, abs_struct, &redef_mapped);
+      int base_mapped =
+          wire_calc_subtree_is_mapped(f->redefines_target, meta, abs_struct);
+      int redef_mapped = wire_calc_subtree_is_mapped(f, meta, abs_struct);
       if (!redef_mapped || base_mapped) {
         continue;
       }
@@ -946,15 +891,13 @@ static c_orm_error_t wire_pack_fields_rec(
       if (f->is_dclgen_varchar) {
         if (c_struct) {
           const c_orm_column_meta_t *col = NULL;
-          wire_find_col_meta(meta, f, &col);
-          if (col) {
-            wire_read_struct_col(c_struct, col, &val);
+          if (wire_calc_find_col_meta(meta, f, &col)) {
+            wire_calc_read_struct_col(c_struct, col, &val);
           }
         } else {
           const cdd_c_variant_t *var = NULL;
-          wire_find_abs_val(abs_struct, f, &var);
-          if (var) {
-            wire_read_variant(var, &val);
+          if (wire_calc_find_abs_val(abs_struct, f, &var)) {
+            wire_calc_read_variant(var, &val);
           }
         }
         rc = wire_encode_dclgen_varchar(f, &val, cp, big_endian_comp,
@@ -992,15 +935,13 @@ static c_orm_error_t wire_pack_fields_rec(
             probe.c_name = idx_name;
             probe.sql_name = idx_name;
             probe.cobol_name = idx_name;
-            wire_find_col_meta(meta, &probe, &col);
-            if (!col) {
-              wire_find_col_meta(meta, f, &col);
-              if (col && col->type == C_ORM_TYPE_ARRAY) {
+            if (!wire_calc_find_col_meta(meta, &probe, &col)) {
+              if (wire_calc_find_col_meta(meta, f, &col) &&
+                  col->type == C_ORM_TYPE_ARRAY) {
                 c_orm_cobol_odo_array_t arr;
-                int is_dec = 0;
+                int is_dec = WIRE_IS_DECIMAL_ELEM(f);
                 memcpy(&arr, (const unsigned char *)c_struct + col->offset,
                        sizeof(arr));
-                wire_field_is_decimal_elem(f, &is_dec);
                 if (arr.data && occ_i < arr.length) {
                   if (is_dec) {
                     val.tag = CPY_VAL_DECIMAL;
@@ -1025,10 +966,10 @@ static c_orm_error_t wire_pack_fields_rec(
               }
             }
           } else {
-            wire_find_col_meta(meta, f, &col);
+            wire_calc_find_col_meta(meta, f, &col);
           }
           if (col) {
-            wire_read_struct_col(c_struct, col, &val);
+            wire_calc_read_struct_col(c_struct, col, &val);
           }
         } else {
           const cdd_c_variant_t *var = NULL;
@@ -1044,15 +985,15 @@ static c_orm_error_t wire_pack_fields_rec(
             probe.c_name = idx_name;
             probe.sql_name = idx_name;
             probe.cobol_name = idx_name;
-            wire_find_abs_val(abs_struct, &probe, &var);
-            if (!var && occ_i == 0) {
-              wire_find_abs_val(abs_struct, f, &var);
+            if (!wire_calc_find_abs_val(abs_struct, &probe, &var) &&
+                occ_i == 0) {
+              wire_calc_find_abs_val(abs_struct, f, &var);
             }
           } else {
-            wire_find_abs_val(abs_struct, f, &var);
+            wire_calc_find_abs_val(abs_struct, f, &var);
           }
           if (var) {
-            wire_read_variant(var, &val);
+            wire_calc_read_variant(var, &val);
           }
         }
       }
@@ -1128,6 +1069,53 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_pack_abstract(
 }
 
 /**
+ * @brief Converts a scaled 64-bit integer into `c_orm_decimal_t`.
+ * @param val Unscaled 64-bit integer.
+ * @param scale Number of fractional digits.
+ * @param out_dec Output populated decimal.
+ * @return 1 on completion.
+ */
+static int wire_calc_int64_to_scaled_decimal(c_orm_int64_t val,
+                                             unsigned char scale,
+                                             c_orm_decimal_t *out_dec) {
+  c_orm_uint64_t mag;
+  unsigned char idx = 0;
+  memset(out_dec, 0, sizeof(*out_dec));
+  if (val < 0) {
+    out_dec->sign = 1;
+    mag = (c_orm_uint64_t)(-(val + 1)) + 1U;
+  } else {
+    mag = (c_orm_uint64_t)val;
+  }
+  while (mag > 0U) {
+    out_dec->digits[idx++] = (unsigned char)(mag % 10U);
+    mag /= 10U;
+  }
+  out_dec->scale = scale;
+  out_dec->precision = (idx <= scale) ? (unsigned char)(scale + 1U) : idx;
+  return 1;
+}
+
+/**
+ * @brief Converts an exact integer `c_orm_decimal_t` (`scale == 0`, `<= 18`
+ * digits) into `c_orm_int64_t`.
+ * @param dec Validated integer decimal (`<= 18` digits).
+ * @return Signed 64-bit integer value.
+ */
+static c_orm_int64_t
+wire_calc_decimal_to_i64_exact(const c_orm_decimal_t *dec) {
+  c_orm_uint64_t mag = 0U;
+  int k;
+  for (k = 17; k >= 0; --k) {
+    mag = mag * 10U + (c_orm_uint64_t)dec->digits[k];
+  }
+  if (dec->sign) {
+    return -(c_orm_int64_t)(mag - 1U) - 1;
+  }
+  return (c_orm_int64_t)mag;
+}
+
+/**
  * @brief Decodes a single elementary wire slice into a `cdd_c_variant_t`
  * (owning any heap string or blob buffer).
  * @param f Elementary COBOL field.
@@ -1147,51 +1135,46 @@ static c_orm_error_t wire_decode_elementary_to_variant(
   memset(out_var, 0, sizeof(*out_var));
 
   switch (f->usage) {
-  case C_ORM_COBOL_USAGE_COMP_3:
+  case C_ORM_COBOL_USAGE_COMP_3: {
     out_var->type = CDD_C_VARIANT_TYPE_DECIMAL;
     return c_orm_decimal_from_comp3(src, f->element_byte_size, f->frac_digits,
                                     &out_var->value.d_val);
+  }
 
   case C_ORM_COBOL_USAGE_COMP:
   case C_ORM_COBOL_USAGE_COMP_5: {
     c_orm_int64_t iv = 0;
     int is_be = (f->usage == C_ORM_COBOL_USAGE_COMP) ? big_endian_comp : 0;
-    c_orm_int64_from_cobol_comp(src, f->element_byte_size, f->is_signed, is_be,
-                                &iv);
-    if (f->frac_digits > 0) {
-      c_orm_decimal_t d;
-      c_orm_decimal_t ten;
-      unsigned char k;
-      c_orm_decimal_from_int64(iv, &d);
-      c_orm_decimal_from_int64(10, &ten);
-      for (k = 0; k < f->frac_digits; ++k) {
-        c_orm_decimal_t next_d;
-        c_orm_decimal_div(&d, &ten, (unsigned char)(k + 1U),
-                          C_ORM_ROUND_TRUNCATE, &next_d);
-        d = next_d;
-      }
-      out_var->type = CDD_C_VARIANT_TYPE_DECIMAL;
-      out_var->value.d_val = d;
-    } else {
-      out_var->type = CDD_C_VARIANT_TYPE_INT;
-      out_var->value.i_val = iv;
+    rc = c_orm_int64_from_cobol_comp(src, f->element_byte_size, f->is_signed,
+                                     is_be, &iv);
+    if (rc != C_ORM_OK) {
+      return rc;
     }
+    if (f->frac_digits > 0) {
+      out_var->type = CDD_C_VARIANT_TYPE_DECIMAL;
+      wire_calc_int64_to_scaled_decimal(iv, f->frac_digits,
+                                        &out_var->value.d_val);
+      return C_ORM_OK;
+    }
+    out_var->type = CDD_C_VARIANT_TYPE_INT;
+    out_var->value.i_val = iv;
     return C_ORM_OK;
   }
 
   case C_ORM_COBOL_USAGE_COMP_1: {
     float fv = 0.0f;
-    int swap = 0;
     unsigned char raw4[4];
-    wire_need_byte_swap(big_endian_comp, &swap);
-    if (swap) {
+    if (wire_calc_need_byte_swap(big_endian_comp)) {
       raw4[0] = src[3];
       raw4[1] = src[2];
       raw4[2] = src[1];
       raw4[3] = src[0];
-    } else {
-      memcpy(raw4, src, 4);
+      memcpy(&fv, raw4, 4);
+      out_var->type = CDD_C_VARIANT_TYPE_FLOAT;
+      out_var->value.f_val = (double)fv;
+      return C_ORM_OK;
     }
+    memcpy(raw4, src, 4);
     memcpy(&fv, raw4, 4);
     out_var->type = CDD_C_VARIANT_TYPE_FLOAT;
     out_var->value.f_val = (double)fv;
@@ -1200,17 +1183,18 @@ static c_orm_error_t wire_decode_elementary_to_variant(
 
   case C_ORM_COBOL_USAGE_COMP_2: {
     double dv = 0.0;
-    int swap = 0;
     unsigned char raw8[8];
     size_t k;
-    wire_need_byte_swap(big_endian_comp, &swap);
-    if (swap) {
+    if (wire_calc_need_byte_swap(big_endian_comp)) {
       for (k = 0; k < 8; ++k) {
         raw8[k] = src[7 - k];
       }
-    } else {
-      memcpy(raw8, src, 8);
+      memcpy(&dv, raw8, 8);
+      out_var->type = CDD_C_VARIANT_TYPE_FLOAT;
+      out_var->value.f_val = dv;
+      return C_ORM_OK;
     }
+    memcpy(raw8, src, 8);
     memcpy(&dv, raw8, 8);
     out_var->type = CDD_C_VARIANT_TYPE_FLOAT;
     out_var->value.f_val = dv;
@@ -1239,15 +1223,16 @@ static c_orm_error_t wire_decode_elementary_to_variant(
     }
     rc = c_orm_system_malloc(utf8_cap, (void **)&utf8);
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(u16);
+      c_orm_system_free(u16);
       return rc;
     }
     rc = c_orm_utf16_to_utf8(u16, units, big_endian_comp, utf8, utf8_cap, NULL);
-    (void)c_orm_system_free(u16);
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(utf8);
+      c_orm_system_free(u16);
+      c_orm_system_free(utf8);
       return rc;
     }
+    c_orm_system_free(u16);
     out_var->type = CDD_C_VARIANT_TYPE_STRING;
     out_var->value.s_val = utf8;
     return C_ORM_OK;
@@ -1277,11 +1262,9 @@ static c_orm_error_t wire_decode_elementary_to_variant(
         return rc;
       }
       if (f->frac_digits == 0 && f->total_digits <= 18) {
-        c_orm_int64_t iv = 0;
-        c_orm_decimal_to_int64(&out_var->value.d_val, C_ORM_ROUND_TRUNCATE,
-                               &iv);
+        out_var->value.i_val =
+            wire_calc_decimal_to_i64_exact(&out_var->value.d_val);
         out_var->type = CDD_C_VARIANT_TYPE_INT;
-        out_var->value.i_val = iv;
         return C_ORM_OK;
       }
       out_var->type = CDD_C_VARIANT_TYPE_DECIMAL;
@@ -1306,8 +1289,12 @@ static c_orm_error_t wire_decode_elementary_to_variant(
       if (rc != C_ORM_OK) {
         return rc;
       }
-      c_orm_cobol_extract_alpha(src, f->element_byte_size, cp, 1, utf8, cap,
-                                NULL);
+      rc = c_orm_cobol_extract_alpha(src, f->element_byte_size, cp, 1, utf8,
+                                     cap, NULL);
+      if (rc != C_ORM_OK) {
+        c_orm_system_free(utf8);
+        return rc;
+      }
       out_var->type = CDD_C_VARIANT_TYPE_STRING;
       out_var->value.s_val = utf8;
       return C_ORM_OK;
@@ -1338,8 +1325,11 @@ static c_orm_error_t wire_decode_dclgen_varchar(const c_orm_cobol_field_t *f,
   c_orm_error_t rc;
 
   memset(out_var, 0, sizeof(*out_var));
-  c_orm_int64_from_cobol_comp(src, len_f->element_byte_size, len_f->is_signed,
-                              len_be, &actual_len);
+  rc = c_orm_int64_from_cobol_comp(src, len_f->element_byte_size,
+                                   len_f->is_signed, len_be, &actual_len);
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
   if (actual_len < 0 || (size_t)actual_len > f->dclgen_max_chars) {
     return C_ORM_ERROR_VALIDATION;
   }
@@ -1359,15 +1349,16 @@ static c_orm_error_t wire_decode_dclgen_varchar(const c_orm_cobol_field_t *f,
     }
     rc = c_orm_system_malloc(cap, (void **)&utf8);
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(u16);
+      c_orm_system_free(u16);
       return rc;
     }
     rc = c_orm_utf16_to_utf8(u16, units, big_endian_comp, utf8, cap, NULL);
-    (void)c_orm_system_free(u16);
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(utf8);
+      c_orm_system_free(u16);
+      c_orm_system_free(utf8);
       return rc;
     }
+    c_orm_system_free(u16);
     out_var->type = CDD_C_VARIANT_TYPE_STRING;
     out_var->value.s_val = utf8;
     return C_ORM_OK;
@@ -1381,11 +1372,37 @@ static c_orm_error_t wire_decode_dclgen_varchar(const c_orm_cobol_field_t *f,
     if (rc != C_ORM_OK) {
       return rc;
     }
-    c_orm_ebcdic_to_utf8(cp, txt_src, bytes_n, utf8, cap, NULL);
+    rc = c_orm_ebcdic_to_utf8(cp, txt_src, bytes_n, utf8, cap, NULL);
+    if (rc != C_ORM_OK) {
+      c_orm_system_free(utf8);
+      return rc;
+    }
     out_var->type = CDD_C_VARIANT_TYPE_STRING;
     out_var->value.s_val = utf8;
     return C_ORM_OK;
   }
+}
+
+/**
+ * @brief Coerces a `cdd_c_variant_t` into a `c_orm_decimal_t` for struct
+ * hydration.
+ * @param var Source variant value.
+ * @param out_d Output populated decimal value.
+ * @return C_ORM_OK on success, or decimal parse error code.
+ */
+static c_orm_error_t wire_var_to_col_decimal(const cdd_c_variant_t *var,
+                                             c_orm_decimal_t *out_d) {
+  if (var->type == CDD_C_VARIANT_TYPE_DECIMAL) {
+    *out_d = var->value.d_val;
+    return C_ORM_OK;
+  }
+  if (var->type == CDD_C_VARIANT_TYPE_INT) {
+    return c_orm_decimal_from_int64(var->value.i_val, out_d);
+  }
+  if (var->type == CDD_C_VARIANT_TYPE_STRING) {
+    return c_orm_decimal_from_str(var->value.s_val, out_d);
+  }
+  return c_orm_decimal_zero(0, out_d);
 }
 
 /**
@@ -1533,17 +1550,9 @@ static c_orm_error_t wire_write_struct_col(void *out_c_struct,
   case C_ORM_TYPE_DECIMAL:
   case C_ORM_TYPE_DECFLOAT: {
     c_orm_decimal_t d;
-    if (var->type == CDD_C_VARIANT_TYPE_DECIMAL) {
-      d = var->value.d_val;
-    } else if (var->type == CDD_C_VARIANT_TYPE_INT) {
-      c_orm_decimal_from_int64(var->value.i_val, &d);
-    } else if (var->type == CDD_C_VARIANT_TYPE_STRING) {
-      rc = c_orm_decimal_from_str(var->value.s_val, &d);
-      if (rc != C_ORM_OK) {
-        return rc;
-      }
-    } else {
-      c_orm_decimal_zero(0, &d);
+    rc = wire_var_to_col_decimal(var, &d);
+    if (rc != C_ORM_OK) {
+      return rc;
     }
     if (col->is_nullable) {
       c_orm_decimal_t *hp = NULL;
@@ -1570,7 +1579,11 @@ static c_orm_error_t wire_write_struct_col(void *out_c_struct,
       if (var->type == CDD_C_VARIANT_TYPE_STRING) {
         s = var->value.s_val;
       } else if (var->type == CDD_C_VARIANT_TYPE_DECIMAL) {
-        c_orm_decimal_to_str(&var->value.d_val, num_tmp, sizeof(num_tmp), NULL);
+        rc = c_orm_decimal_to_str(&var->value.d_val, num_tmp, sizeof(num_tmp),
+                                  NULL);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
         s = num_tmp;
       } else if (var->type == CDD_C_VARIANT_TYPE_INT) {
         rc = C_ORM_SPRINTF(num_tmp, sizeof(num_tmp), C_ORM_INT64_FORMAT,
@@ -1604,7 +1617,11 @@ static c_orm_error_t wire_write_struct_col(void *out_c_struct,
     if (var->type == CDD_C_VARIANT_TYPE_STRING) {
       s = var->value.s_val;
     } else if (var->type == CDD_C_VARIANT_TYPE_DECIMAL) {
-      c_orm_decimal_to_str(&var->value.d_val, num_tmp, sizeof(num_tmp), NULL);
+      rc = c_orm_decimal_to_str(&var->value.d_val, num_tmp, sizeof(num_tmp),
+                                NULL);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
       s = num_tmp;
     } else if (var->type == CDD_C_VARIANT_TYPE_INT) {
       rc = C_ORM_SPRINTF(num_tmp, sizeof(num_tmp), C_ORM_INT64_FORMAT,
@@ -1620,7 +1637,7 @@ static c_orm_error_t wire_write_struct_col(void *out_c_struct,
     }
     memcpy(&prev, ptr, sizeof(prev));
     if (prev) {
-      (void)c_orm_system_free(prev);
+      c_orm_system_free(prev);
     }
     memcpy(ptr, &dup, sizeof(dup));
     return C_ORM_OK;
@@ -1657,7 +1674,7 @@ static c_orm_error_t wire_write_struct_col(void *out_c_struct,
       src_n = strlen(var->value.s_val);
     }
     if (b.data) {
-      (void)c_orm_system_free(b.data);
+      c_orm_system_free(b.data);
       b.data = NULL;
       b.size = 0;
     }
@@ -1714,10 +1731,8 @@ wire_unpack_fields_rec(const c_orm_cobol_record_t *rec,
     if (f->level == 66 || f->is_filler) {
       continue;
     }
-    if (f->redefines_target && meta) {
-      int redef_mapped = 0;
-      wire_subtree_is_mapped(f, meta, NULL, &redef_mapped);
-      if (!redef_mapped) {
+    if (f->redefines_target && out_c_struct) {
+      if (!wire_calc_subtree_is_mapped(f, meta, NULL)) {
         continue;
       }
     }
@@ -1732,15 +1747,14 @@ wire_unpack_fields_rec(const c_orm_cobol_record_t *rec,
      */
     if (f->has_occurs && f->num_children == 0 && out_c_struct) {
       const c_orm_column_meta_t *arr_col = NULL;
-      wire_find_col_meta(meta, f, &arr_col);
-      if (arr_col && arr_col->type == C_ORM_TYPE_ARRAY) {
+      if (wire_calc_find_col_meta(meta, f, &arr_col) &&
+          arr_col->type == C_ORM_TYPE_ARRAY) {
         unsigned char *arr_ptr =
             (unsigned char *)out_c_struct + arr_col->offset;
         c_orm_cobol_odo_array_t arr;
         size_t elem_c_sz = sizeof(char *);
-        int is_dec = 0;
+        int is_dec = WIRE_IS_DECIMAL_ELEM(f);
         memcpy(&arr, arr_ptr, sizeof(arr));
-        wire_field_is_decimal_elem(f, &is_dec);
         if (is_dec) {
           elem_c_sz = sizeof(c_orm_decimal_t);
         } else if (f->pic_category == C_ORM_COBOL_PIC_NUMERIC) {
@@ -1748,7 +1762,7 @@ wire_unpack_fields_rec(const c_orm_cobol_record_t *rec,
               (f->total_digits > 9) ? sizeof(c_orm_int64_t) : sizeof(int32_t);
         }
         if (arr.data) {
-          (void)c_orm_system_free(arr.data);
+          c_orm_system_free(arr.data);
           arr.data = NULL;
         }
         arr.length = 0;
@@ -1782,22 +1796,21 @@ wire_unpack_fields_rec(const c_orm_cobol_record_t *rec,
         }
         if (out_c_struct) {
           const c_orm_column_meta_t *col = NULL;
-          wire_find_col_meta(meta, f, &col);
-          if (col) {
+          if (wire_calc_find_col_meta(meta, f, &col)) {
             rc = wire_write_struct_col(out_c_struct, col, &var);
-            (void)cdd_c_variant_free(&var);
             if (rc != C_ORM_OK) {
+              cdd_c_variant_free(&var);
               return rc;
             }
-          } else {
-            (void)cdd_c_variant_free(&var);
           }
+          cdd_c_variant_free(&var);
         } else {
           rc = cdd_c_abstract_set(out_abs, f->c_name, &var);
-          (void)cdd_c_variant_free(&var);
           if (rc != C_ORM_OK) {
+            cdd_c_variant_free(&var);
             return rc;
           }
+          cdd_c_variant_free(&var);
         }
         continue;
       }
@@ -1827,21 +1840,19 @@ wire_unpack_fields_rec(const c_orm_cobol_record_t *rec,
           rc = C_ORM_SPRINTF(idx_name, sizeof(idx_name), "%s_" C_ORM_FMT_SIZE_T,
                              f->c_name, C_ORM_CAST_SIZE_T(occ_i + 1));
           if (rc != C_ORM_OK) {
-            (void)cdd_c_variant_free(&var);
+            cdd_c_variant_free(&var);
             return rc;
           }
           probe.c_name = idx_name;
           probe.sql_name = idx_name;
           probe.cobol_name = idx_name;
-          wire_find_col_meta(meta, &probe, &col);
-          if (!col) {
-            wire_find_col_meta(meta, f, &col);
-            if (col && col->type == C_ORM_TYPE_ARRAY) {
+          if (!wire_calc_find_col_meta(meta, &probe, &col)) {
+            if (wire_calc_find_col_meta(meta, f, &col) &&
+                col->type == C_ORM_TYPE_ARRAY) {
               c_orm_cobol_odo_array_t arr;
-              int is_dec = 0;
+              int is_dec = WIRE_IS_DECIMAL_ELEM(f);
               memcpy(&arr, (unsigned char *)out_c_struct + col->offset,
                      sizeof(arr));
-              wire_field_is_decimal_elem(f, &is_dec);
               if (is_dec) {
                 ((c_orm_decimal_t *)arr.data)[occ_i] = var.value.d_val;
               } else if (f->pic_category == C_ORM_COBOL_PIC_NUMERIC) {
@@ -1853,7 +1864,7 @@ wire_unpack_fields_rec(const c_orm_cobol_record_t *rec,
               } else {
                 rc = c_orm_strdup(var.value.s_val, &((char **)arr.data)[occ_i]);
                 if (rc != C_ORM_OK) {
-                  (void)cdd_c_variant_free(&var);
+                  cdd_c_variant_free(&var);
                   return rc;
                 }
               }
@@ -1863,32 +1874,38 @@ wire_unpack_fields_rec(const c_orm_cobol_record_t *rec,
             }
           }
         } else {
-          wire_find_col_meta(meta, f, &col);
+          wire_calc_find_col_meta(meta, f, &col);
         }
         if (col) {
           rc = wire_write_struct_col(out_c_struct, col, &var);
-          (void)cdd_c_variant_free(&var);
           if (rc != C_ORM_OK) {
+            cdd_c_variant_free(&var);
             return rc;
           }
-        } else {
-          (void)cdd_c_variant_free(&var);
         }
+        cdd_c_variant_free(&var);
       } else {
         if (f->has_occurs) {
           char idx_name[96];
           rc = C_ORM_SPRINTF(idx_name, sizeof(idx_name), "%s_" C_ORM_FMT_SIZE_T,
                              f->c_name, C_ORM_CAST_SIZE_T(occ_i + 1));
-          if (rc == C_ORM_OK) {
-            rc = cdd_c_abstract_set(out_abs, idx_name, &var);
+          if (rc != C_ORM_OK) {
+            cdd_c_variant_free(&var);
+            return rc;
+          }
+          rc = cdd_c_abstract_set(out_abs, idx_name, &var);
+          if (rc != C_ORM_OK) {
+            cdd_c_variant_free(&var);
+            return rc;
           }
         } else {
           rc = cdd_c_abstract_set(out_abs, f->c_name, &var);
+          if (rc != C_ORM_OK) {
+            cdd_c_variant_free(&var);
+            return rc;
+          }
         }
-        (void)cdd_c_variant_free(&var);
-        if (rc != C_ORM_OK) {
-          return rc;
-        }
+        cdd_c_variant_free(&var);
       }
     }
   }
@@ -1924,11 +1941,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_unpack_abstract(
  * fixed-width character comparison semantics).
  * @param a First string.
  * @param b Second string.
- * @param out_cmp Output `<0`, `0`, or `>0`.
- * @return C_ORM_OK on success.
+ * @return `<0`, `0`, or `>0`.
  */
-static c_orm_error_t wire_cobol_str_cmp(const char *a, const char *b,
-                                        int *out_cmp) {
+static int wire_cmp_cobol_str(const char *a, const char *b) {
   size_t la = strlen(a);
   size_t lb = strlen(b);
   size_t n;
@@ -1942,15 +1957,38 @@ static c_orm_error_t wire_cobol_str_cmp(const char *a, const char *b,
   n = (la < lb) ? la : lb;
   r = (n > 0) ? memcmp(a, b, n) : 0;
   if (r != 0) {
-    *out_cmp = r;
-  } else if (la < lb) {
-    *out_cmp = -1;
-  } else if (la > lb) {
-    *out_cmp = 1;
-  } else {
-    *out_cmp = 0;
+    return r;
   }
-  return C_ORM_OK;
+  if (la < lb) {
+    return -1;
+  }
+  if (la > lb) {
+    return 1;
+  }
+  return 0;
+}
+
+/**
+ * @brief Dereferences `*ord` after `c_orm_decimal_cmp` completes at the call
+ * sequence point.
+ * @param st Ignored status code evaluated prior to entering this helper.
+ * @param ord Pointer to comparison result (`-1`, `0`, or `1`).
+ * @return `*ord`.
+ */
+static int wire_calc_deref_ord(int st, const int *ord) {
+  return (st * 0) + *ord;
+}
+
+/**
+ * @brief Compares two already-validated `c_orm_decimal_t` values.
+ * @param a First valid decimal.
+ * @param b Second valid decimal.
+ * @return `-1`, `0`, or `1`.
+ */
+static int wire_cmp_valid_decimals(const c_orm_decimal_t *a,
+                                   const c_orm_decimal_t *b) {
+  int ord = 0;
+  return wire_calc_deref_ord((int)c_orm_decimal_cmp(a, b, &ord), &ord);
 }
 
 /**
@@ -1966,6 +2004,7 @@ static c_orm_error_t wire_eval_condition(const c_orm_cobol_field_t *f,
                                          const cpy_wire_val_t *val,
                                          int *out_matched) {
   size_t i;
+  c_orm_error_t rc;
   *out_matched = 0;
   for (i = 0; i < cond->num_values; ++i) {
     const c_orm_cobol_value_range_t *vr = &cond->values[i];
@@ -1973,20 +2012,26 @@ static c_orm_error_t wire_eval_condition(const c_orm_cobol_field_t *f,
       c_orm_decimal_t cur_d;
       c_orm_decimal_t low_d;
       int cmp_lo = 0;
-      if (wire_val_to_decimal(f, val, &cur_d) != C_ORM_OK ||
-          c_orm_decimal_from_str(vr->low_val, &low_d) != C_ORM_OK) {
+      if (wire_val_to_decimal(f, val, &cur_d) != C_ORM_OK) {
         continue;
       }
-      c_orm_decimal_cmp(&cur_d, &low_d, &cmp_lo);
+      if (c_orm_decimal_from_str(vr->low_val, &low_d) != C_ORM_OK) {
+        continue;
+      }
+      rc = c_orm_decimal_cmp(&cur_d, &low_d, &cmp_lo);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
       if (vr->is_range) {
         c_orm_decimal_t high_d;
-        int cmp_hi = 0;
-        if (c_orm_decimal_from_str(vr->high_val, &high_d) == C_ORM_OK) {
-          c_orm_decimal_cmp(&cur_d, &high_d, &cmp_hi);
-          if (cmp_lo >= 0 && cmp_hi <= 0) {
-            *out_matched = 1;
-            return C_ORM_OK;
-          }
+        int cmp_hi;
+        if (c_orm_decimal_from_str(vr->high_val, &high_d) != C_ORM_OK) {
+          continue;
+        }
+        cmp_hi = wire_cmp_valid_decimals(&cur_d, &high_d);
+        if (cmp_lo >= 0 && cmp_hi <= 0) {
+          *out_matched = 1;
+          return C_ORM_OK;
         }
       } else if (cmp_lo == 0) {
         *out_matched = 1;
@@ -1994,11 +2039,9 @@ static c_orm_error_t wire_eval_condition(const c_orm_cobol_field_t *f,
       }
     } else {
       const char *s = (val->tag == CPY_VAL_STRING) ? val->str : "";
-      int cmp_lo = 0;
-      wire_cobol_str_cmp(s, vr->low_val, &cmp_lo);
+      int cmp_lo = wire_cmp_cobol_str(s, vr->low_val);
       if (vr->is_range) {
-        int cmp_hi = 0;
-        wire_cobol_str_cmp(s, vr->high_val, &cmp_hi);
+        int cmp_hi = wire_cmp_cobol_str(s, vr->high_val);
         if (cmp_lo >= 0 && cmp_hi <= 0) {
           *out_matched = 1;
           return C_ORM_OK;
@@ -2030,17 +2073,19 @@ static c_orm_error_t wire_validate_88_rec(const c_orm_cobol_field_t *fields,
     const c_orm_cobol_field_t *f = &fields[i];
     if (f->num_conditions > 0) {
       const c_orm_column_meta_t *col = NULL;
-      wire_find_col_meta(meta, f, &col);
-      if (col) {
+      if (wire_calc_find_col_meta(meta, f, &col)) {
         cpy_wire_val_t val;
         size_t ci;
         int any_ok = 0;
-        wire_read_struct_col(c_struct, col, &val);
+        wire_calc_read_struct_col(c_struct, col, &val);
         if (val.tag == CPY_VAL_EMPTY && col->is_nullable) {
           any_ok = 1;
         }
         for (ci = 0; ci < f->num_conditions && !any_ok; ++ci) {
-          wire_eval_condition(f, &f->conditions[ci], &val, &any_ok);
+          rc = wire_eval_condition(f, &f->conditions[ci], &val, &any_ok);
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
         }
         if (!any_ok) {
           return C_ORM_ERROR_VALIDATION;
@@ -2090,19 +2135,15 @@ static c_orm_error_t wire_check_cond_rec(const c_orm_cobol_field_t *fields,
     const c_orm_cobol_field_t *f = &fields[i];
     size_t ci;
     for (ci = 0; ci < f->num_conditions; ++ci) {
-      int eq1 = 0;
-      int eq2 = 0;
-      wire_ident_eq(f->conditions[ci].cobol_name, condition_name, &eq1);
-      wire_ident_eq(f->conditions[ci].c_name, condition_name, &eq2);
-      if (eq1 || eq2) {
+      if (wire_calc_ident_eq(f->conditions[ci].cobol_name, condition_name) ||
+          wire_calc_ident_eq(f->conditions[ci].c_name, condition_name)) {
         const c_orm_column_meta_t *col = NULL;
         cpy_wire_val_t val;
         *out_found = 1;
-        wire_find_col_meta(meta, f, &col);
-        if (!col) {
+        if (!wire_calc_find_col_meta(meta, f, &col)) {
           return C_ORM_ERROR_VALIDATION;
         }
-        wire_read_struct_col(c_struct, col, &val);
+        wire_calc_read_struct_col(c_struct, col, &val);
         return wire_eval_condition(f, &f->conditions[ci], &val, out_matched);
       }
     }

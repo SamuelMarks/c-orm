@@ -14,25 +14,22 @@
 #include "c_orm_log.h"
 #include "c_orm_codegen.h"
 #include "c_orm_copybook.h"
+#include "c_orm_sql.h"
 #include "c_orm_string_builder.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#if defined(_MSC_VER)
-static void my_invalid_parameter_handler(const wchar_t* expression, const wchar_t* function, const wchar_t* file, unsigned int line, size_t pReserved) {
-    (void)expression; (void)function; (void)file; (void)line; (void)pReserved;
-}
-#endif
+#include <time.h>
 
 #if defined(_WIN32) || defined(_WIN64)
 extern __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
 extern __declspec(dllimport) void *__stdcall GetModuleHandleA(const char *);
-extern __declspec(dllimport) void *__stdcall GetProcAddress(void *, const char *);
+extern __declspec(dllimport) void *__stdcall GetProcAddress(void *,
+                                                            const char *);
 #include <direct.h>
 #define MKDIR(path) _mkdir(path)
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && defined(_DEBUG)
 #include <crtdbg.h>
 #endif
 #else
@@ -42,9 +39,9 @@ extern __declspec(dllimport) void *__stdcall GetProcAddress(void *, const char *
 /* clang-format on */
 
 /**
- * @brief Prints the usage information.
+ * @brief Prints the usage information and returns unknown command status.
  * @param prog The program name.
- * @return C_ORM_OK on success.
+ * @return C_ORM_ERROR_UNKNOWN.
  */
 static c_orm_error_t print_usage(const char *prog) {
   LOG_DEBUG("print_usage: entry");
@@ -76,7 +73,7 @@ static c_orm_error_t print_usage(const char *prog) {
   printf("  --dclgen                  Emit IBM Db2 EXEC SQL DECLARE + 49-level "
          "DCLGEN\n");
   LOG_DEBUG("print_usage: exit");
-  return C_ORM_OK;
+  return C_ORM_ERROR_UNKNOWN;
 }
 
 /**
@@ -139,12 +136,12 @@ static c_orm_error_t cli_parse_sql_dialect(const char *dial_str,
  * @brief Frees duplicated `--replacing` buffer strings.
  * @param rep_bufs Array of allocated strings.
  * @param num_reps Number of active entries.
- * @return C_ORM_OK on completion.
+ * @return C_ORM_OK.
  */
-static c_orm_error_t cli_free_replace_pairs(char **rep_bufs, size_t num_reps) {
+static c_orm_error_t cli_replace_pairs_free(char **rep_bufs, size_t num_reps) {
   size_t ri;
   for (ri = 0; ri < num_reps; ++ri) {
-    (void)c_orm_system_free(rep_bufs[ri]);
+    c_orm_system_free(rep_bufs[ri]);
   }
   return C_ORM_OK;
 }
@@ -175,7 +172,7 @@ static c_orm_error_t cli_add_replace_pair(const char *spec,
   }
   eq_pos = strchr(dup, '=');
   if (!eq_pos || eq_pos == dup) {
-    (void)c_orm_system_free(dup);
+    c_orm_system_free(dup);
     return C_ORM_ERROR_VALIDATION;
   }
   *eq_pos = '\0';
@@ -199,14 +196,239 @@ static c_orm_error_t log_cb(const char *msg) {
 }
 
 /**
- * @brief Connects to a database driver dispatched by connection URL scheme.
- * @param db_str Connection URL (postgres://, mysql://, memory://, sqlite://, or
- * file path).
- * @param out_db Output pointer receiving connected database handle.
- * @return C_ORM_OK on success, or driver connection error code.
+ * @brief Checks if `table_name` (and optionally `col_name`) already exists in
+ * any `CREATE TABLE` DDL across `migs`.
+ * @param migs Loaded migration array (may be NULL).
+ * @param migs_count Number of loaded migrations.
+ * @param table_name Target table name.
+ * @param col_name Column name to search, or NULL to test table existence.
+ * @param out_found Output flag set to 1 if found, 0 otherwise.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on OOM.
  */
-static c_orm_error_t cli_connect_url(const char *db_str, c_orm_db_t **out_db) {
-  return c_orm_connect_url(db_str, out_db);
+static c_orm_error_t cli_check_col_in_migrations(const c_orm_migration_t *migs,
+                                                 size_t migs_count,
+                                                 const char *table_name,
+                                                 const char *col_name,
+                                                 int *out_found) {
+  size_t m;
+  c_orm_error_t rc;
+  *out_found = 0;
+  for (m = 0; m < migs_count; ++m) {
+    struct sql_table_t *tables = NULL;
+    size_t n_tables = 0;
+    size_t t;
+    if (!migs[m].up_sql) {
+      continue;
+    }
+    rc = parse_sql_ddl(migs[m].up_sql, &tables, &n_tables);
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
+    for (t = 0; t < n_tables; ++t) {
+      if (strcmp(tables[t].name, table_name) == 0) {
+        size_t c;
+        if (!col_name) {
+          size_t k;
+          for (k = 0; k < n_tables; ++k) {
+            sql_table_free(&tables[k]);
+          }
+          c_orm_system_free(tables);
+          *out_found = 1;
+          return C_ORM_OK;
+        }
+        for (c = 0; c < tables[t].n_columns; ++c) {
+          if (strcmp(tables[t].columns[c].name, col_name) == 0) {
+            size_t k;
+            for (k = 0; k < n_tables; ++k) {
+              sql_table_free(&tables[k]);
+            }
+            c_orm_system_free(tables);
+            *out_found = 1;
+            return C_ORM_OK;
+          }
+        }
+      }
+    }
+    for (t = 0; t < n_tables; ++t) {
+      sql_table_free(&tables[t]);
+    }
+    c_orm_system_free(tables);
+  }
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Disconnects `db` during cleanup.
+ * @param db Database connection handle.
+ * @return C_ORM_OK on success, or driver disconnect error code.
+ */
+static c_orm_error_t cli_conn_cleanup_free(c_orm_db_t *db) {
+  return db->vtable->disconnect(db);
+}
+
+/**
+ * @brief Releases an inspected table schema during cleanup.
+ * @param schema Table schema metadata pointer.
+ * @return C_ORM_OK on success, or error code.
+ */
+static c_orm_error_t cli_schema_cleanup_free(cdd_c_meta_t *schema) {
+  return c_orm_migration_free_table_schema(schema);
+}
+
+/**
+ * @brief Releases a loaded migration array during cleanup.
+ * @param migs Migration array pointer.
+ * @param count Number of elements in `migs`.
+ * @return C_ORM_OK on success, or error code.
+ */
+static c_orm_error_t cli_migs_cleanup_free(c_orm_migration_t *migs,
+                                           size_t count) {
+  return c_orm_migration_free_array(migs, count);
+}
+
+/**
+ * @brief Introspects `table_name` on `db_str`, diffs against existing SQL
+ * migrations in `dir_path`, and writes `.up.sql` and `.down.sql` files.
+ * @param db_str Database connection URL.
+ * @param dir_path Target migrations directory.
+ * @param table_name Table name to introspect.
+ * @return C_ORM_OK on success, or error code.
+ */
+static c_orm_error_t cli_generate_migration(const char *db_str,
+                                            const char *dir_path,
+                                            const char *table_name) {
+  c_orm_db_t *db = NULL;
+  cdd_c_meta_t *schema = NULL;
+  c_orm_migration_t *migs = NULL;
+  size_t migs_count = 0;
+  char up_file[512];
+  char down_file[512];
+  char ts_buf[32];
+  unsigned long now_val;
+  char rev[24];
+  size_t rlen = 0;
+  size_t tlen = 0;
+  FILE *fp_up = NULL;
+  FILE *fp_down = NULL;
+  size_t i;
+  int has_existing_table = 0;
+  c_orm_error_t rc;
+
+  if (!table_name || !table_name[0]) {
+    printf("Error: 'generate' requires a table name.\n");
+    return C_ORM_ERROR_VALIDATION;
+  }
+  if (!db_str) {
+    printf("Error: Database connection string required (--db or C_ORM_DB_URL "
+           "env)\n");
+    return C_ORM_ERROR_UNKNOWN;
+  }
+
+  rc = c_orm_connect_url(db_str, &db);
+  if (rc != C_ORM_OK) {
+    printf("Error connecting to database.\n");
+    return rc;
+  }
+
+  rc = c_orm_migration_fetch_table_schema(db, table_name, &schema);
+  if (rc != C_ORM_OK) {
+    cli_conn_cleanup_free(db);
+    return rc;
+  }
+  cli_conn_cleanup_free(db);
+
+  if (schema->num_props == 0) {
+    cli_schema_cleanup_free(schema);
+    return C_ORM_ERROR_NOT_FOUND;
+  }
+
+  rc = c_orm_migration_load_dir(dir_path, &migs, &migs_count);
+  if (rc != C_ORM_OK) {
+    if (rc == C_ORM_ERROR_MEMORY) {
+      cli_schema_cleanup_free(schema);
+      return rc;
+    }
+    migs = NULL;
+    migs_count = 0;
+  }
+
+  if (migs_count > 0) {
+    rc = cli_check_col_in_migrations(migs, migs_count, table_name, NULL,
+                                     &has_existing_table);
+    if (rc != C_ORM_OK) {
+      goto gen_cleanup;
+    }
+  }
+
+  MKDIR(dir_path);
+
+  now_val = (unsigned long)time(NULL);
+  do {
+    rev[rlen++] = (char)('0' + (now_val % 10UL));
+    now_val /= 10UL;
+  } while (now_val > 0UL);
+  while (rlen > 0U) {
+    ts_buf[tlen++] = rev[--rlen];
+  }
+  ts_buf[tlen] = '\0';
+
+  rc = C_ORM_SPRINTF(up_file, sizeof(up_file), "%s/%s_auto_%s.up.sql", dir_path,
+                     ts_buf, table_name);
+  if (rc != C_ORM_OK) {
+    goto gen_cleanup;
+  }
+  rc = C_ORM_SPRINTF(down_file, sizeof(down_file), "%s/%s_auto_%s.down.sql",
+                     dir_path, ts_buf, table_name);
+  if (rc != C_ORM_OK) {
+    goto gen_cleanup;
+  }
+
+  rc = C_ORM_FOPEN(&fp_up, up_file, "wb");
+  if (rc != C_ORM_OK) {
+    goto gen_cleanup;
+  }
+  rc = C_ORM_FOPEN(&fp_down, down_file, "wb");
+  if (rc != C_ORM_OK) {
+    fclose(fp_up);
+    goto gen_cleanup;
+  }
+
+  if (has_existing_table) {
+    for (i = 0; i < schema->num_props; ++i) {
+      int has_col = 0;
+      rc = cli_check_col_in_migrations(migs, migs_count, table_name,
+                                       schema->props[i].name, &has_col);
+      if (rc != C_ORM_OK) {
+        fclose(fp_up);
+        fclose(fp_down);
+        goto gen_cleanup;
+      }
+      if (!has_col) {
+        fprintf(fp_up, "ALTER TABLE %s ADD COLUMN %s %s;\n", table_name,
+                schema->props[i].name, schema->props[i].type);
+        fprintf(fp_down, "ALTER TABLE %s DROP COLUMN %s;\n", table_name,
+                schema->props[i].name);
+      }
+    }
+  } else {
+    fprintf(fp_up, "CREATE TABLE %s (\n", table_name);
+    for (i = 0; i < schema->num_props; ++i) {
+      fprintf(fp_up, "  %s %s%s\n", schema->props[i].name,
+              schema->props[i].type, i + 1 < schema->num_props ? "," : "");
+    }
+    fprintf(fp_up, ");\n");
+    fprintf(fp_down, "DROP TABLE %s;\n", table_name);
+  }
+
+  fclose(fp_up);
+  fclose(fp_down);
+  printf("Generated %s and %s\n", up_file, down_file);
+  rc = C_ORM_OK;
+
+gen_cleanup:;
+  cli_migs_cleanup_free(migs, migs_count);
+  cli_schema_cleanup_free(schema);
+  return rc;
 }
 
 /**
@@ -241,26 +463,25 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
   { SetErrorMode(0x0001 | 0x0002 | 0x8000); }
 #endif
 
-#if defined(_MSC_VER)
-  _set_invalid_parameter_handler(my_invalid_parameter_handler);
-#if defined(_DEBUG)
+#if defined(_MSC_VER) && defined(_DEBUG)
   if (!GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {
     _CrtSetReportMode(_CRT_ASSERT, 0);
   }
 #endif
-#endif
   LOG_DEBUG("c_orm_cli_run: entry");
 
-  C_ORM_GETENV(db_str_buf, sizeof(db_str_buf), "C_ORM_DB_URL");
+  db_str_buf[0] = '\0';
+  rc = C_ORM_GETENV(db_str_buf, sizeof(db_str_buf), "C_ORM_DB_URL");
+  if (rc != C_ORM_OK) {
+    goto cleanup;
+  }
   if (db_str_buf[0] != '\0') {
     db_str = db_str_buf;
   }
 
   if (argc < 2) {
-    print_usage(argv[0]);
-    rc = C_ORM_ERROR_UNKNOWN;
     LOG_DEBUG("c_orm_cli_run: missing command");
-    goto cleanup;
+    return print_usage(argv[0]);
   }
 
   command = argv[1];
@@ -329,9 +550,10 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
     printf("Created %s\n", down_file);
 
   } else if (strcmp(command, "generate") == 0) {
-    printf("Error: Schema diff auto-generation is not implemented.\n");
-    rc = C_ORM_ERROR_NOT_IMPLEMENTED;
-    goto cleanup;
+    rc = cli_generate_migration(db_str, dir_path, arg_name);
+    if (rc != C_ORM_OK) {
+      goto cleanup;
+    }
   } else if (strcmp(command, "sql2c") == 0) {
     if (argc < 4) {
       printf("Error: 'sql2c' requires <schema.sql> and <out_dir>.\n");
@@ -361,18 +583,18 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
       if (strcmp(argv[opt_i], "--format") == 0 && opt_i + 1 < argc) {
         rc = cli_parse_cobol_format(argv[++opt_i], &cpy_fmt);
         if (rc != C_ORM_OK) {
-          cli_free_replace_pairs(rep_bufs, num_reps);
+          cli_replace_pairs_free(rep_bufs, num_reps);
           goto cleanup;
         }
       } else if (strcmp(argv[opt_i], "--replacing") == 0 && opt_i + 1 < argc) {
         rc =
             cli_add_replace_pair(argv[++opt_i], rep_pairs, rep_bufs, &num_reps);
         if (rc != C_ORM_OK) {
-          cli_free_replace_pairs(rep_bufs, num_reps);
+          cli_replace_pairs_free(rep_bufs, num_reps);
           goto cleanup;
         }
       } else {
-        cli_free_replace_pairs(rep_bufs, num_reps);
+        cli_replace_pairs_free(rep_bufs, num_reps);
         rc = C_ORM_ERROR_VALIDATION;
         goto cleanup;
       }
@@ -380,18 +602,20 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
 
     rc = c_orm_copybook_parse_file(
         argv[2], cpy_fmt, num_reps > 0 ? rep_pairs : NULL, num_reps, &rec);
-    cli_free_replace_pairs(rep_bufs, num_reps);
     if (rc != C_ORM_OK) {
+      cli_replace_pairs_free(rep_bufs, num_reps);
       printf("Failed to parse COBOL Copybook (rc=%d).\n", (int)rc);
       goto cleanup;
     }
-    (void)MKDIR(argv[3]);
+    cli_replace_pairs_free(rep_bufs, num_reps);
+    MKDIR(argv[3]);
     rc = c_orm_copybook_generate_c_files(rec, argv[3]);
-    (void)c_orm_copybook_record_free(rec);
     if (rc != C_ORM_OK) {
+      c_orm_copybook_record_free(rec);
       printf("Failed to generate C89 files from Copybook (rc=%d).\n", (int)rc);
       goto cleanup;
     }
+    c_orm_copybook_record_free(rec);
     printf("COBOL Copybook C89 code generation successful.\n");
   } else if (strcmp(command, "cpy2sql") == 0) {
     c_orm_cobol_format_t cpy_fmt = C_ORM_COBOL_FORMAT_AUTO;
@@ -413,24 +637,24 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
       if (strcmp(argv[opt_i], "--dialect") == 0 && opt_i + 1 < argc) {
         rc = cli_parse_sql_dialect(argv[++opt_i], &sql_dial);
         if (rc != C_ORM_OK) {
-          cli_free_replace_pairs(rep_bufs, num_reps);
+          cli_replace_pairs_free(rep_bufs, num_reps);
           goto cleanup;
         }
       } else if (strcmp(argv[opt_i], "--format") == 0 && opt_i + 1 < argc) {
         rc = cli_parse_cobol_format(argv[++opt_i], &cpy_fmt);
         if (rc != C_ORM_OK) {
-          cli_free_replace_pairs(rep_bufs, num_reps);
+          cli_replace_pairs_free(rep_bufs, num_reps);
           goto cleanup;
         }
       } else if (strcmp(argv[opt_i], "--replacing") == 0 && opt_i + 1 < argc) {
         rc =
             cli_add_replace_pair(argv[++opt_i], rep_pairs, rep_bufs, &num_reps);
         if (rc != C_ORM_OK) {
-          cli_free_replace_pairs(rep_bufs, num_reps);
+          cli_replace_pairs_free(rep_bufs, num_reps);
           goto cleanup;
         }
       } else {
-        cli_free_replace_pairs(rep_bufs, num_reps);
+        cli_replace_pairs_free(rep_bufs, num_reps);
         rc = C_ORM_ERROR_VALIDATION;
         goto cleanup;
       }
@@ -438,25 +662,27 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
 
     rc = c_orm_copybook_parse_file(
         argv[2], cpy_fmt, num_reps > 0 ? rep_pairs : NULL, num_reps, &rec);
-    cli_free_replace_pairs(rep_bufs, num_reps);
     if (rc != C_ORM_OK) {
+      cli_replace_pairs_free(rep_bufs, num_reps);
       printf("Failed to parse COBOL Copybook (rc=%d).\n", (int)rc);
       goto cleanup;
     }
+    cli_replace_pairs_free(rep_bufs, num_reps);
     rc = c_orm_copybook_emit_sql_ddl(rec, sql_dial, &sql_out);
-    (void)c_orm_copybook_record_free(rec);
     if (rc != C_ORM_OK) {
+      c_orm_copybook_record_free(rec);
       goto cleanup;
     }
+    c_orm_copybook_record_free(rec);
     rc = C_ORM_FOPEN(&fp, argv[3], "wb");
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(sql_out);
+      c_orm_system_free(sql_out);
       rc = C_ORM_ERROR_IO;
       goto cleanup;
     }
     fputs(sql_out, fp);
     fclose(fp);
-    (void)c_orm_system_free(sql_out);
+    c_orm_system_free(sql_out);
     printf("COBOL Copybook SQL DDL generation successful.\n");
   } else if (strcmp(command, "sql2cpy") == 0) {
     c_orm_cobol_format_t cpy_fmt = C_ORM_COBOL_FORMAT_FIXED;
@@ -475,7 +701,10 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
         emit_dclgen = 1;
       } else if (strcmp(argv[opt_i], "--format") == 0 && opt_i + 1 < argc) {
         rc = cli_parse_cobol_format(argv[++opt_i], &cpy_fmt);
-        if (rc != C_ORM_OK || cpy_fmt == C_ORM_COBOL_FORMAT_AUTO) {
+        if (rc != C_ORM_OK) {
+          goto cleanup;
+        }
+        if (cpy_fmt == C_ORM_COBOL_FORMAT_AUTO) {
           rc = C_ORM_ERROR_VALIDATION;
           goto cleanup;
         }
@@ -504,34 +733,39 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
         chunk[got] = '\0';
         rc = c_orm_string_builder_append(sb, chunk);
         if (rc != C_ORM_OK) {
-          (void)c_orm_string_builder_free(sb);
+          c_orm_string_builder_free(sb);
           fclose(fp);
           goto cleanup;
         }
       }
       fclose(fp);
       fp = NULL;
-      c_orm_string_builder_get(sb, &sql_text);
+      rc = c_orm_string_builder_get(sb, &sql_text);
+      if (rc != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        goto cleanup;
+      }
       rc = c_orm_sql_to_copybook_emit(sql_text, cpy_fmt, emit_dclgen, &cpy_out);
-      (void)c_orm_string_builder_free(sb);
-    }
-    if (rc != C_ORM_OK) {
-      printf("Failed to generate COBOL Copybook from SQL (rc=%d).\n", (int)rc);
-      goto cleanup;
+      if (rc != C_ORM_OK) {
+        c_orm_string_builder_free(sb);
+        printf("Failed to generate COBOL Copybook from SQL (rc=%d).\n",
+               (int)rc);
+        goto cleanup;
+      }
+      c_orm_string_builder_free(sb);
     }
     rc = C_ORM_FOPEN(&fp, argv[3], "wb");
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(cpy_out);
+      c_orm_system_free(cpy_out);
       rc = C_ORM_ERROR_IO;
       goto cleanup;
     }
     fputs(cpy_out, fp);
     fclose(fp);
-    (void)c_orm_system_free(cpy_out);
+    c_orm_system_free(cpy_out);
     printf("SQL to COBOL Copybook generation successful.\n");
   } else if (strcmp(command, "migrate") == 0) {
     c_orm_db_t *db = NULL;
-    c_orm_error_t err;
     c_orm_migration_options_t opts;
     c_orm_migration_t *migs = NULL;
     size_t migs_count = 0;
@@ -543,31 +777,38 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
       goto cleanup;
     }
 
-    err = cli_connect_url(db_str, &db);
-    if (err != C_ORM_OK) {
+    rc = c_orm_connect_url(db_str, &db);
+    if (rc != C_ORM_OK) {
       printf("Error connecting to database.\n");
-      rc = C_ORM_ERROR_UNKNOWN;
       goto cleanup;
     }
 
     memset(&opts, 0, sizeof(opts));
     opts.log_cb = log_cb;
 
-    err = c_orm_migration_load_dir(dir_path, &migs, &migs_count);
-    if (err == C_ORM_OK && migs_count > 0) {
+    rc = c_orm_migration_load_dir(dir_path, &migs, &migs_count);
+    if (rc != C_ORM_OK) {
+      if (rc == C_ORM_ERROR_MEMORY) {
+        cli_conn_cleanup_free(db);
+        goto cleanup;
+      }
+      migs = NULL;
+      migs_count = 0;
+    }
+    if (migs_count > 0) {
       rc = c_orm_migrate_all(db, migs, migs_count, &opts);
-      c_orm_migration_free_array(migs, migs_count);
+      if (rc != C_ORM_OK) {
+        cli_migs_cleanup_free(migs, migs_count);
+        cli_conn_cleanup_free(db);
+        goto cleanup;
+      }
+      cli_migs_cleanup_free(migs, migs_count);
     } else {
       printf("No pending migrations found in %s\n", dir_path);
     }
-
-    db->vtable->disconnect(db);
-    if (rc != C_ORM_OK) {
-      goto cleanup;
-    }
+    return db->vtable->disconnect(db);
   } else if (strcmp(command, "rollback") == 0) {
     c_orm_db_t *db = NULL;
-    c_orm_error_t err;
     c_orm_migration_options_t opts;
     c_orm_migration_t *migs = NULL;
     size_t migs_count = 0;
@@ -587,37 +828,40 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
       }
     }
 
-    err = cli_connect_url(db_str, &db);
-    if (err != C_ORM_OK) {
+    rc = c_orm_connect_url(db_str, &db);
+    if (rc != C_ORM_OK) {
       printf("Error connecting to database.\n");
-      rc = err;
       goto cleanup;
     }
 
     memset(&opts, 0, sizeof(opts));
     opts.log_cb = log_cb;
 
-    err = c_orm_migration_load_dir(dir_path, &migs, &migs_count);
-    if (err == C_ORM_OK && migs_count > 0) {
-      err = c_orm_migrate_rollback(db, migs, migs_count, steps, &opts);
-      if (err != C_ORM_OK) {
-        printf("Rollback failed.\n");
-        rc = err;
-      } else {
-        printf("Rollback completed.\n");
+    rc = c_orm_migration_load_dir(dir_path, &migs, &migs_count);
+    if (rc != C_ORM_OK) {
+      if (rc == C_ORM_ERROR_MEMORY) {
+        cli_conn_cleanup_free(db);
+        goto cleanup;
       }
-      c_orm_migration_free_array(migs, migs_count);
+      migs = NULL;
+      migs_count = 0;
+    }
+    if (migs_count > 0) {
+      rc = c_orm_migrate_rollback(db, migs, migs_count, steps, &opts);
+      if (rc != C_ORM_OK) {
+        printf("Rollback failed.\n");
+        cli_migs_cleanup_free(migs, migs_count);
+        cli_conn_cleanup_free(db);
+        goto cleanup;
+      }
+      printf("Rollback completed.\n");
+      cli_migs_cleanup_free(migs, migs_count);
     } else {
       printf("No migrations found in %s to rollback.\n", dir_path);
     }
-
-    db->vtable->disconnect(db);
-    if (rc != C_ORM_OK) {
-      goto cleanup;
-    }
+    return db->vtable->disconnect(db);
   } else if (strcmp(command, "status") == 0) {
     c_orm_db_t *db = NULL;
-    c_orm_error_t err;
     c_orm_migration_t *applied = NULL;
     size_t count = 0;
     size_t j;
@@ -629,39 +873,33 @@ c_orm_error_t c_orm_cli_run(int argc, char **argv) {
       goto cleanup;
     }
 
-    err = cli_connect_url(db_str, &db);
-    if (err != C_ORM_OK) {
+    rc = c_orm_connect_url(db_str, &db);
+    if (rc != C_ORM_OK) {
       printf("Error connecting to database.\n");
-      rc = C_ORM_ERROR_UNKNOWN;
       goto cleanup;
     }
 
-    err = c_orm_migration_init_table(db);
-    if (err != C_ORM_OK) {
-      db->vtable->disconnect(db);
-      rc = err;
+    rc = c_orm_migration_init_table(db);
+    if (rc != C_ORM_OK) {
+      cli_conn_cleanup_free(db);
       goto cleanup;
     }
 
-    err = c_orm_migration_get_applied(db, &applied, &count);
-    if (err == C_ORM_OK) {
-      printf("Applied Migrations (%d):\n", (int)count);
-      for (j = 0; j < count; j++) {
-        printf("  [%s] %s\n", applied[j].version, applied[j].name);
-      }
-      c_orm_migration_free_array(applied, count);
-    } else {
+    rc = c_orm_migration_get_applied(db, &applied, &count);
+    if (rc != C_ORM_OK) {
       printf("Failed to fetch migration status or no migrations applied.\n");
-      db->vtable->disconnect(db);
-      rc = C_ORM_ERROR_UNKNOWN;
+      cli_conn_cleanup_free(db);
       goto cleanup;
     }
-    db->vtable->disconnect(db);
+    printf("Applied Migrations (%d):\n", (int)count);
+    for (j = 0; j < count; j++) {
+      printf("  [%s] %s\n", applied[j].version, applied[j].name);
+    }
+    cli_migs_cleanup_free(applied, count);
+    return db->vtable->disconnect(db);
   } else {
     printf("Unknown command: %s\n", command);
-    print_usage(argv[0]);
-    rc = C_ORM_ERROR_UNKNOWN;
-    goto cleanup;
+    return print_usage(argv[0]);
   }
 
   rc = C_ORM_OK;
@@ -677,5 +915,15 @@ cleanup:
  * @param argv The argument values.
  * @return 0 on success, non-zero error code on failure.
  */
-int main(int argc, char **argv) { return (int)c_orm_cli_run(argc, argv); }
+int main(int argc, char **argv) {
+#if defined(_MSC_VER) && defined(_DEBUG)
+  _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+#endif
+  return (int)c_orm_cli_run(argc, argv);
+}
 #endif

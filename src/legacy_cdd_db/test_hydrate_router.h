@@ -19,7 +19,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include "test_assert_zero_branch.h"
 /* clang-format on */
 
 /**
@@ -78,13 +78,13 @@ TEST test_hydrate_router_init_free(void) {
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, cdd_c_hydrate_router_free(NULL));
 
   ASSERT_EQ((c_orm_error_t)0, cdd_c_hydrate_router_init(&router));
-  ASSERT_EQ((c_orm_error_t)0, router.count);
-  ASSERT_EQ((c_orm_error_t)0, router.capacity);
+  ASSERT_EQ((size_t)0, router.count);
+  ASSERT_EQ((size_t)0, router.capacity);
   ASSERT_EQ(NULL, router.routes);
 
   ASSERT_EQ((c_orm_error_t)0, cdd_c_hydrate_router_free(&router));
-  ASSERT_EQ((c_orm_error_t)0, router.count);
-  ASSERT_EQ((c_orm_error_t)0, router.capacity);
+  ASSERT_EQ((size_t)0, router.count);
+  ASSERT_EQ((size_t)0, router.capacity);
   ASSERT_EQ(NULL, router.routes);
 
   PASS();
@@ -223,11 +223,13 @@ TEST test_hydrate_router_register_oom(void) {
   memset(&m1, 0, sizeof(m1));
   ASSERT_EQ(0, cdd_c_hydrate_router_init(&router));
 
-  (void)c_orm_set_allocators(c_orm_malloc, mock_realloc_hydrate, c_orm_free);
-  ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+  ASSERT_EQ(C_ORM_OK, c_orm_set_allocators(c_orm_malloc, mock_realloc_hydrate,
+                                           c_orm_free));
+  ASSERT_EQ(C_ORM_ERROR_MEMORY,
             cdd_c_hydrate_router_register(&router, 1, &m1, mock_hydrator));
 
-  (void)c_orm_set_allocators(c_orm_malloc, orig_realloc, c_orm_free);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(c_orm_malloc, orig_realloc, c_orm_free));
   cdd_c_hydrate_router_free(&router);
   PASS();
 }
@@ -294,20 +296,12 @@ TEST test_hydrate_router_set_error_fail(void) {
  * @param hydrate_router_suite Suite runner function name.
  */
 SUITE(hydrate_router_suite) {
-  static int recursed = 0;
   RUN_TEST(test_mock_hydrator_null);
   RUN_TEST(test_hydrate_router_init_free);
   RUN_TEST(test_hydrate_router_registration);
   RUN_TEST(test_hydrate_router_dispatch);
   RUN_TEST(test_hydrate_router_register_oom);
   RUN_TEST(test_hydrate_router_set_error_fail);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    hydrate_router_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }
 
 #ifdef __cplusplus

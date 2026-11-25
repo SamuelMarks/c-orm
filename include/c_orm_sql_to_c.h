@@ -191,6 +191,21 @@ C_ORM_EXPORT c_orm_error_t sql_to_c_projection_dirty_bitmask_emit(
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_union_struct_emit(
     FILE *fp, const cdd_c_query_projection_t *projs, size_t n_projs,
     const char *struct_name);
+
+/**
+ * @brief Emit deep-free function implementation for a SQL UNION projection
+ * struct.
+ *
+ * @param[in,out] fp File pointer to write to.
+ * @param[in] projs Array of branch query projections.
+ * @param[in] n_projs Number of branch query projections.
+ * @param[in] struct_name Name of the union struct.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
+C_ORM_EXPORT c_orm_error_t sql_to_c_projection_union_free_emit(
+    FILE *fp, const cdd_c_query_projection_t *projs, size_t n_projs,
+    const char *struct_name);
+
 /**
  * @brief Emit polymorphic struct combining explicit projection fields with a
  * dynamic abstract property dictionary.
@@ -201,6 +216,18 @@ C_ORM_EXPORT c_orm_error_t sql_to_c_projection_union_struct_emit(
  * @return C_ORM_OK on success, or an error code on failure.
  */
 C_ORM_EXPORT c_orm_error_t sql_to_c_projection_polymorphic_struct_emit(
+    FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name);
+
+/**
+ * @brief Emit deep-free function implementation for a polymorphic projection
+ * struct (freeing both explicit fields and `extra_properties`).
+ *
+ * @param[in,out] fp File pointer to write to.
+ * @param[in] proj Query projection definition.
+ * @param[in] struct_name Name of the polymorphic struct.
+ * @return C_ORM_OK on success, or an error code on failure.
+ */
+C_ORM_EXPORT c_orm_error_t sql_to_c_projection_polymorphic_free_emit(
     FILE *fp, const cdd_c_query_projection_t *proj, const char *struct_name);
 
 #ifdef __cplusplus

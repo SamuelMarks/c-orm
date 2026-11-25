@@ -1,7 +1,7 @@
 /**
  * @file Models.h
  * @defgroup e2e_pregen Pre-generated E2E Models
- * @brief Pre-generated C models and arrays for end-to-end testing.
+ * @brief Generated C models and arrays.
  */
 
 #ifndef MODELS_H
@@ -9,6 +9,7 @@
 
 /* clang-format off */
 #include "c_orm_meta.h"
+#include "c_orm_decimal.h"
 #if defined(_MSC_VER)
 # if _MSC_VER < 1600
 typedef signed __int8 int8_t;
@@ -60,11 +61,6 @@ typedef unsigned char bool;
 extern "C" {
 #endif /* __cplusplus */
 
-/**
- * @file users.h
- * @brief Auto-generated C structs for SQL table users.
- */
-
 #ifndef C_ORM_MODEL_USERS_H
 #define C_ORM_MODEL_USERS_H
 
@@ -72,19 +68,19 @@ extern "C" {
  * @brief Represents a single row of the users table.
  */
 struct Users {
-  /** @brief User ID primary key. */
+  /** @brief Column id of table users. */
   int32_t id;
-  /** @brief User's unique username. */
+  /** @brief Column username of table users. */
   char *username;
-  /** @brief User's email address. */
+  /** @brief Column email of table users. */
   char *email;
-  /** @brief User's age (nullable). */
+  /** @brief Column age of table users (nullable). */
   int32_t *age; /**< Nullable */
-  /** @brief User's numeric score (nullable). */
+  /** @brief Column score of table users (nullable). */
   float *score; /**< Nullable */
-  /** @brief Flag indicating if the user is active (nullable). */
+  /** @brief Column is_active of table users (nullable). */
   bool *is_active; /**< Nullable */
-  /** @brief Timestamp string when the user was created. */
+  /** @brief Column created_at of table users. */
   char *created_at;
 };
 
@@ -92,11 +88,11 @@ struct Users {
  * @brief A collection of Users rows.
  */
 struct Users_Array {
-  /** @brief Pointer to array of Users structs. */
+  /** @brief Pointer to allocated Users row array. */
   struct Users *data;
-  /** @brief Current count of elements in array. */
+  /** @brief Number of populated elements. */
   size_t length;
-  /** @brief Allocated element capacity of array. */
+  /** @brief Allocated element capacity. */
   size_t capacity;
 };
 
@@ -104,7 +100,7 @@ struct Users_Array {
  * @brief Initialize a Users_Array.
  * @param arr Array to init.
  * @param initial_capacity Initial capacity.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Users_Array_init(struct Users_Array *arr,
                                size_t initial_capacity);
@@ -112,14 +108,14 @@ c_orm_error_t Users_Array_init(struct Users_Array *arr,
 /**
  * @brief Free resources inside a single Users struct.
  * @param item Pointer to struct.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Users_free(struct Users *item);
 
 /**
  * @brief Free resources of a Users_Array.
  * @param arr Pointer to array.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Users_Array_free(struct Users_Array *arr);
 
@@ -127,7 +123,7 @@ c_orm_error_t Users_Array_free(struct Users_Array *arr);
  * @brief Deep copy a Users row.
  * @param src Source struct.
  * @param dest Destination struct.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Users_deepcopy(const struct Users *src, struct Users *dest);
 
@@ -135,7 +131,7 @@ c_orm_error_t Users_deepcopy(const struct Users *src, struct Users *dest);
  * @brief Deep copy a Users_Array.
  * @param src Source array.
  * @param dest Destination array.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Users_Array_deepcopy(const struct Users_Array *src,
                                    struct Users_Array *dest);
@@ -143,10 +139,6 @@ c_orm_error_t Users_Array_deepcopy(const struct Users_Array *src,
 extern const c_orm_table_meta_t Users_meta;
 
 #endif /* C_ORM_MODEL_USERS_H */
-/**
- * @file posts.h
- * @brief Auto-generated C structs for SQL table posts.
- */
 
 #ifndef C_ORM_MODEL_POSTS_H
 #define C_ORM_MODEL_POSTS_H
@@ -155,17 +147,17 @@ extern const c_orm_table_meta_t Users_meta;
  * @brief Represents a single row of the posts table.
  */
 struct Posts {
-  /** @brief Post ID primary key. */
+  /** @brief Column id of table posts. */
   int32_t id;
-  /** @brief Foreign key ID to user row. */
+  /** @brief Column user_id of table posts. */
   int32_t user_id;
-  /** @brief Post title string. */
+  /** @brief Column title of table posts. */
   char *title;
-  /** @brief Post content string. */
+  /** @brief Column content of table posts. */
   char *content;
-  /** @brief Post view count (nullable). */
+  /** @brief Column views of table posts (nullable). */
   int64_t *views; /**< Nullable */
-  /** @brief Published date string. */
+  /** @brief Column published_date of table posts. */
   char *published_date;
 };
 
@@ -173,11 +165,11 @@ struct Posts {
  * @brief A collection of Posts rows.
  */
 struct Posts_Array {
-  /** @brief Pointer to array of Posts structs. */
+  /** @brief Pointer to allocated Posts row array. */
   struct Posts *data;
-  /** @brief Current count of elements in array. */
+  /** @brief Number of populated elements. */
   size_t length;
-  /** @brief Allocated element capacity of array. */
+  /** @brief Allocated element capacity. */
   size_t capacity;
 };
 
@@ -185,7 +177,7 @@ struct Posts_Array {
  * @brief Initialize a Posts_Array.
  * @param arr Array to init.
  * @param initial_capacity Initial capacity.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Posts_Array_init(struct Posts_Array *arr,
                                size_t initial_capacity);
@@ -193,14 +185,14 @@ c_orm_error_t Posts_Array_init(struct Posts_Array *arr,
 /**
  * @brief Free resources inside a single Posts struct.
  * @param item Pointer to struct.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Posts_free(struct Posts *item);
 
 /**
  * @brief Free resources of a Posts_Array.
  * @param arr Pointer to array.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Posts_Array_free(struct Posts_Array *arr);
 
@@ -208,7 +200,7 @@ c_orm_error_t Posts_Array_free(struct Posts_Array *arr);
  * @brief Deep copy a Posts row.
  * @param src Source struct.
  * @param dest Destination struct.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Posts_deepcopy(const struct Posts *src, struct Posts *dest);
 
@@ -216,7 +208,7 @@ c_orm_error_t Posts_deepcopy(const struct Posts *src, struct Posts *dest);
  * @brief Deep copy a Posts_Array.
  * @param src Source array.
  * @param dest Destination array.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Posts_Array_deepcopy(const struct Posts_Array *src,
                                    struct Posts_Array *dest);
@@ -224,10 +216,6 @@ c_orm_error_t Posts_Array_deepcopy(const struct Posts_Array *src,
 extern const c_orm_table_meta_t Posts_meta;
 
 #endif /* C_ORM_MODEL_POSTS_H */
-/**
- * @file oauth2_tokens.h
- * @brief Auto-generated C structs for SQL table oauth2_tokens.
- */
 
 #ifndef C_ORM_MODEL_OAUTH2_TOKENS_H
 #define C_ORM_MODEL_OAUTH2_TOKENS_H
@@ -236,15 +224,15 @@ extern const c_orm_table_meta_t Posts_meta;
  * @brief Represents a single row of the oauth2_tokens table.
  */
 struct Oauth2_tokens {
-  /** @brief OAuth2 access token string. */
+  /** @brief Column access_token of table oauth2_tokens. */
   char *access_token;
-  /** @brief OAuth2 refresh token string. */
+  /** @brief Column refresh_token of table oauth2_tokens. */
   char *refresh_token;
-  /** @brief OAuth2 token type string. */
+  /** @brief Column token_type of table oauth2_tokens. */
   char *token_type;
-  /** @brief Token expiration in seconds (nullable). */
+  /** @brief Column expires_in of table oauth2_tokens (nullable). */
   int32_t *expires_in; /**< Nullable */
-  /** @brief Timestamp when token was created (nullable). */
+  /** @brief Column created_at of table oauth2_tokens (nullable). */
   int64_t *created_at; /**< Nullable */
 };
 
@@ -252,11 +240,11 @@ struct Oauth2_tokens {
  * @brief A collection of Oauth2_tokens rows.
  */
 struct Oauth2_tokens_Array {
-  /** @brief Pointer to array of Oauth2_tokens structs. */
+  /** @brief Pointer to allocated Oauth2_tokens row array. */
   struct Oauth2_tokens *data;
-  /** @brief Current count of elements in array. */
+  /** @brief Number of populated elements. */
   size_t length;
-  /** @brief Allocated element capacity of array. */
+  /** @brief Allocated element capacity. */
   size_t capacity;
 };
 
@@ -264,7 +252,7 @@ struct Oauth2_tokens_Array {
  * @brief Initialize a Oauth2_tokens_Array.
  * @param arr Array to init.
  * @param initial_capacity Initial capacity.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Oauth2_tokens_Array_init(struct Oauth2_tokens_Array *arr,
                                        size_t initial_capacity);
@@ -272,14 +260,14 @@ c_orm_error_t Oauth2_tokens_Array_init(struct Oauth2_tokens_Array *arr,
 /**
  * @brief Free resources inside a single Oauth2_tokens struct.
  * @param item Pointer to struct.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Oauth2_tokens_free(struct Oauth2_tokens *item);
 
 /**
  * @brief Free resources of a Oauth2_tokens_Array.
  * @param arr Pointer to array.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Oauth2_tokens_Array_free(struct Oauth2_tokens_Array *arr);
 
@@ -287,7 +275,7 @@ c_orm_error_t Oauth2_tokens_Array_free(struct Oauth2_tokens_Array *arr);
  * @brief Deep copy a Oauth2_tokens row.
  * @param src Source struct.
  * @param dest Destination struct.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t Oauth2_tokens_deepcopy(const struct Oauth2_tokens *src,
                                      struct Oauth2_tokens *dest);
@@ -296,7 +284,7 @@ c_orm_error_t Oauth2_tokens_deepcopy(const struct Oauth2_tokens *src,
  * @brief Deep copy a Oauth2_tokens_Array.
  * @param src Source array.
  * @param dest Destination array.
- * @return 0 on success.
+ * @return C_ORM_OK on success.
  */
 c_orm_error_t
 Oauth2_tokens_Array_deepcopy(const struct Oauth2_tokens_Array *src,
@@ -310,4 +298,4 @@ extern const c_orm_table_meta_t Oauth2_tokens_meta;
 }
 #endif /* __cplusplus */
 
-#endif
+#endif /* MODELS_H */

@@ -15,26 +15,10 @@ extern "C" {
 #include "c_orm_api.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions++; if (!((cond) != 0)) { fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions++; if (strcmp((exp), (got)) != 0) { fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__, (exp), (got)); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { greatest_info.assertions++; if (!((exp) != (got))) { fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST) do { int should = 0; enum greatest_test_res res; greatest_test_pre(#TEST, &should); res = TEST(); greatest_test_post(res); } while((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res) do { do { enum greatest_test_res _rc = (res); greatest_info.assertions++; if (_rc != GREATEST_TEST_RES_PASS) { return _rc; } } while ((void)0, 0); } while ((void)0, 0)
-
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
 /* clang-format on */
 
 /**
@@ -339,6 +323,9 @@ TEST test_c_orm_sqlite_operations_errors(void) {
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, vtable->get_last_error(NULL, &str));
   ASSERT_EQ(C_ORM_OK, vtable->get_last_trace(db, NULL));
   ASSERT_EQ(C_ORM_OK, vtable->get_last_trace(db, &str));
+  ASSERT_EQ(C_ORM_OK, vtable->get_last_trace(NULL, &str));
+  ASSERT_EQ(C_ORM_ERROR_SQL, vtable->prepare(db, "INVALID SQL SYNTAX", &query));
+  ASSERT_EQ(C_ORM_OK, vtable->get_last_trace(db, &str));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, vtable->get_last_insert_rowid(db, NULL));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, vtable->get_last_insert_rowid(NULL, &i64));
 
@@ -346,6 +333,7 @@ TEST test_c_orm_sqlite_operations_errors(void) {
   {
     void *orig_driver_data = db->driver_data;
     db->driver_data = NULL;
+    ASSERT_EQ(C_ORM_OK, vtable->get_last_trace(db, &str));
     ASSERT_EQ(C_ORM_ERROR_MEMORY, vtable->get_last_insert_rowid(db, &i64));
     db->driver_data = orig_driver_data;
   }
@@ -524,14 +512,14 @@ static unsigned int sqlite_free_call_idx = 0;
  * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY when masked.
  */
 static c_orm_error_t sqlite_test_free(void *ptr) {
-  free(ptr);
+  c_orm_error_t rc = c_orm_default_free(ptr);
   if (sqlite_free_fail_mask != 0) {
     unsigned int idx = sqlite_free_call_idx++;
-    if (idx < 31 && (sqlite_free_fail_mask & (1u << idx)) != 0) {
+    if ((sqlite_free_fail_mask & (1u << idx)) != 0) {
       return C_ORM_ERROR_MEMORY;
     }
   }
-  return C_ORM_OK;
+  return rc;
 }
 
 /** @brief Countdown for failing_log_cb. */

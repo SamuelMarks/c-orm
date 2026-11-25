@@ -26,7 +26,9 @@
 #include "c_orm_sqlite.h"
 #include "c_orm_string_builder.h"
 #include "c_orm_struct.h"
+#define GREATEST_USE_LONGJMP 0
 #include "greatest.h"
+#include "test_assert_zero_branch.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -148,7 +150,7 @@ static c_orm_error_t dm_prepare(c_orm_db_t *db, const char *sql,
                                 c_orm_query_t **out_query) {
   (void)db;
   C_ORM_STRCPY(g_dm.prev_sql, sizeof(g_dm.prev_sql), g_dm.last_sql);
-  C_ORM_STRCPY(g_dm.last_sql, sizeof(g_dm.last_sql), sql ? sql : "");
+  C_ORM_STRCPY(g_dm.last_sql, sizeof(g_dm.last_sql), sql);
   g_dm.step_row = 0;
   if (strstr(g_dm.last_sql, "SYSCAT.COLUMNS") != NULL &&
       g_dm.catalog_mode != 0) {
@@ -171,8 +173,7 @@ static c_orm_error_t dm_prepare(c_orm_db_t *db, const char *sql,
 static c_orm_error_t dm_step(c_orm_query_t *query, int *out_has_row) {
   (void)query;
   g_dm.step_row++;
-  if (strstr(g_dm.last_sql, "FINAL TABLE") != NULL && g_dm.final_table_id > 0 &&
-      g_dm.step_row == 1) {
+  if (strstr(g_dm.last_sql, "FINAL TABLE") != NULL && g_dm.final_table_id > 0) {
     *out_has_row = 1;
     return C_ORM_OK;
   }
@@ -263,7 +264,7 @@ static c_orm_error_t dm_bind_string(c_orm_query_t *query, int index,
                                     const char *val) {
   (void)query;
   (void)index;
-  C_ORM_STRCPY(g_dm.bound_str, sizeof(g_dm.bound_str), val ? val : "");
+  C_ORM_STRCPY(g_dm.bound_str, sizeof(g_dm.bound_str), val);
   return C_ORM_OK;
 }
 
@@ -290,9 +291,7 @@ static c_orm_error_t dm_bind_decimal(c_orm_query_t *query, int index,
                                      const c_orm_decimal_t *val) {
   (void)query;
   (void)index;
-  if (val) {
-    g_dm.bound_dec = *val;
-  }
+  g_dm.bound_dec = *val;
   g_dm.bind_dec_calls++;
   return C_ORM_OK;
 }
@@ -309,10 +308,9 @@ static c_orm_error_t dm_get_int32(c_orm_query_t *query, int index,
   (void)query;
   if (index == 2) {
     *out_val = (g_dm.step_row == 1) ? 4 : 15;
-  } else if (index == 3) {
-    *out_val = (g_dm.step_row == 1) ? 0 : 2;
   } else {
-    *out_val = 0;
+    ASSERT_EQ(3, index);
+    *out_val = (g_dm.step_row == 1) ? 0 : 2;
   }
   return C_ORM_OK;
 }
@@ -469,9 +467,9 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDial_SetConnectAttr(
     c_orm_sqlhdbc_t ConnectionHandle, c_orm_sqlinteger_t Attribute,
     c_orm_sqlpointer_t ValuePtr, c_orm_sqlinteger_t StringLength) {
   (void)ConnectionHandle;
+  (void)Attribute;
   (void)StringLength;
-  if (Attribute == C_ORM_SQL_ATTR_AUTOCOMMIT &&
-      (size_t)ValuePtr == (size_t)C_ORM_SQL_AUTOCOMMIT_OFF) {
+  if ((size_t)ValuePtr == (size_t)C_ORM_SQL_AUTOCOMMIT_OFF) {
     g_dm.cli_begins++;
   }
   return C_ORM_SQL_SUCCESS;
@@ -549,10 +547,8 @@ SQLDial_Prepare(c_orm_sqlhstmt_t StatementHandle,
   (void)TextLength;
   C_ORM_STRCPY(g_dm.prev_sql, sizeof(g_dm.prev_sql), g_dm.last_sql);
   C_ORM_STRCPY(g_dm.last_sql, sizeof(g_dm.last_sql),
-               StatementText ? (const char *)StatementText : "");
-  if (strstr(g_dm.last_sql, "WHERE 1 = 0") != NULL ||
-      strstr(g_dm.last_sql, "SYSCAT.COLUMNS") != NULL ||
-      strstr(g_dm.last_sql, "SYSIBM.SYSCOLUMNS") != NULL) {
+               (const char *)StatementText);
+  if (strstr(g_dm.last_sql, "WHERE 1 = 0") != NULL) {
     return C_ORM_SQL_ERROR;
   }
   return C_ORM_SQL_SUCCESS;
@@ -689,8 +685,9 @@ static c_orm_sqlreturn_t C_ORM_SQL_API SQLDial_GetData(
   } else if (Col_or_Param_Num == 9) {
     *(c_orm_sqlsmallint_t *)TargetValuePtr = (g_cli_col_row == 1) ? 0 : 2;
     *StrLen_or_IndPtr = (c_orm_sqllen_t)sizeof(c_orm_sqlsmallint_t);
-  } else if (Col_or_Param_Num == 18) {
+  } else {
     const char *s = (g_cli_col_row == 1) ? "NO" : "YES";
+    ASSERT_EQ(18, (int)Col_or_Param_Num);
     C_ORM_STRCPY((char *)TargetValuePtr, (size_t)BufferLength, s);
     *StrLen_or_IndPtr = (c_orm_sqllen_t)strlen(s);
   }
@@ -933,6 +930,13 @@ TEST test_db2_and_odbc_ast_rendering_and_execution(void) {
  * @return GREATEST test result.
  */
 TEST test_db2_and_odbc_query_builders_and_crud_upserts(void) {
+  static char c_mut_s0[] = "AUTO-1";
+  static char c_mut_s1[] = "AUTO-2";
+  static char c_mut_s2[] = "ACC-INIT";
+  static char c_mut_s3[] = "ACC-UPDATED";
+  static char c_mut_s4[] = "ACC-SECOND";
+  static char c_mut_s5[] = "MEM-UPD";
+
   c_orm_select_builder_t *sb = NULL;
   c_orm_insert_builder_t *ib = NULL;
   c_orm_update_builder_t *ub = NULL;
@@ -1025,7 +1029,7 @@ TEST test_db2_and_odbc_query_builders_and_crud_upserts(void) {
 
   memset(rows, 0, sizeof(rows));
   rows[0].id = 0;
-  rows[0].code = "AUTO-1";
+  rows[0].code = c_mut_s0;
   ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("125.50", &rows[0].amount));
   g_dm.final_table_id = 42;
   ASSERT_EQ(C_ORM_OK, c_orm_insert(&mock_db, &DialectLedger_meta, &rows[0]));
@@ -1052,7 +1056,7 @@ TEST test_db2_and_odbc_query_builders_and_crud_upserts(void) {
   ASSERT_EQ(C_ORM_OK,
             c_orm_db2_connect("db2://u:p@localhost:50000/SAMPLE", &db2_cli_db));
   rows[1].id = 100;
-  rows[1].code = "AUTO-2";
+  rows[1].code = c_mut_s1;
   ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("250.75", &rows[1].amount));
   ASSERT_EQ(C_ORM_OK,
             c_orm_upsert_batch(db2_cli_db, &DialectLedger_meta, rows, 2, 10));
@@ -1068,13 +1072,13 @@ TEST test_db2_and_odbc_query_builders_and_crud_upserts(void) {
                               "code TEXT NOT NULL, amount DECIMAL(15, 2) NOT "
                               "NULL)"));
   rows[0].id = 1;
-  rows[0].code = "ACC-INIT";
+  rows[0].code = c_mut_s2;
   ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("500.25", &rows[0].amount));
   ASSERT_EQ(C_ORM_OK, c_orm_upsert(sq_db, &DialectLedger_meta, &rows[0]));
-  rows[0].code = "ACC-UPDATED";
+  rows[0].code = c_mut_s3;
   ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("875.90", &rows[0].amount));
   rows[1].id = 2;
-  rows[1].code = "ACC-SECOND";
+  rows[1].code = c_mut_s4;
   ASSERT_EQ(C_ORM_OK, c_orm_decimal_from_str("100.00", &rows[1].amount));
   ASSERT_EQ(C_ORM_OK,
             c_orm_upsert_batch(sq_db, &DialectLedger_meta, rows, 2, 10));
@@ -1095,7 +1099,7 @@ TEST test_db2_and_odbc_query_builders_and_crud_upserts(void) {
                               "VARCHAR(32), amount DECIMAL(15, 2))"));
   ASSERT_EQ(C_ORM_OK,
             c_orm_upsert_batch(mem_db, &DialectLedger_meta, rows, 2, 10));
-  rows[0].code = "MEM-UPD";
+  rows[0].code = c_mut_s5;
   ASSERT_EQ(C_ORM_OK, c_orm_upsert(mem_db, &DialectLedger_meta, &rows[0]));
   memset(&fetched, 0, sizeof(fetched));
   ASSERT_EQ(C_ORM_OK,
@@ -1207,15 +1211,13 @@ TEST test_db2_and_odbc_ddl_codegen_introspection_and_migrations(void) {
   /* 2. Emit C header & source from parsed Db2 AST and verify c_orm_decimal_t
    * and precision/scale/fixed_length/ccsid metadata */
   ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(32768, (void **)&emitted));
-  ASSERT_EQ(C_ORM_OK, C_ORM_FOPEN(&tmp_fp, "test_db2_dialect_tmp.out", "w+b"));
+  ASSERT_EQ(C_ORM_OK, c_orm_fopen(&tmp_fp, "test_db2_dialect_tmp.out", "w+b"));
   ASSERT(tmp_fp != NULL);
   ASSERT_EQ(C_ORM_OK, sql_to_c_header_emit(tmp_fp, tbl));
   ASSERT_EQ(C_ORM_OK, sql_to_c_source_emit(tmp_fp, tbl, "corp_ledger.h"));
-  rewind(tmp_fp);
-  nread = fread(emitted, 1, 32767, tmp_fp);
-  emitted[nread] = '\0';
-  fclose(tmp_fp);
-  (void)remove("test_db2_dialect_tmp.out");
+  ASSERT_EQ(C_ORM_OK, c_orm_rewind_and_read(tmp_fp, emitted, 32768, &nread));
+  ASSERT_EQ(C_ORM_OK, c_orm_fclose(tmp_fp));
+  ASSERT_EQ(0, remove("test_db2_dialect_tmp.out"));
   ASSERT(strstr(emitted, "#include " DQ "c_orm_decimal.h" DQ) != NULL);
   ASSERT(strstr(emitted, "c_orm_decimal_t *AMOUNT;") != NULL);
   ASSERT(strstr(emitted, "C_ORM_TYPE_DECIMAL") != NULL);
@@ -1396,6 +1398,11 @@ TEST test_db2_and_odbc_ddl_codegen_introspection_and_migrations(void) {
  * @return GREATEST test result.
  */
 TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
+  static char c_mut_s6[] = "A1";
+  static char c_mut_s7[] = "A1";
+  static char c_mut_s8[] = "A2";
+  static char c_mut_s9[] = "A1_UPDATED";
+
   c_orm_odbc_api_t cli_api;
   c_orm_db_t *db = NULL;
   c_orm_driver_vtable_t vt;
@@ -1426,8 +1433,8 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_connect_url("odbc://DSN=Test", &db));
   memset(rows, 0, sizeof(rows));
   rows[0].id = 1;
-  rows[0].code = "A1";
-  (void)c_orm_decimal_from_str("10.50", &rows[0].amount);
+  rows[0].code = c_mut_s6;
+  c_orm_decimal_from_str("10.50", &rows[0].amount);
   ASSERT_EQ(C_ORM_OK,
             c_orm_insert_batch_ext(db, &DialectLedger_meta, rows, 1, 1,
                                    C_ORM_ON_CONFLICT_DO_UPDATE, NULL, NULL));
@@ -1448,10 +1455,10 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
   /* Keep `db` (`db2_cli_db`) open for MERGE INTO batch & CLI transactions! */
   {
     c_orm_db_t *tmp_db = NULL;
-    (void)c_orm_connect_url("postgres://invalid_host_0/db", &tmp_db);
-    (void)c_orm_connect_url("postgresql://invalid_host_0/db", &tmp_db);
-    (void)c_orm_connect_url("mysql://invalid_host_0/db", &tmp_db);
-    (void)c_orm_connect_url("mariadb://invalid_host_0/db", &tmp_db);
+    c_orm_connect_url("postgres://invalid_host_0/db", &tmp_db);
+    c_orm_connect_url("postgresql://invalid_host_0/db", &tmp_db);
+    c_orm_connect_url("mysql://invalid_host_0/db", &tmp_db);
+    c_orm_connect_url("mariadb://invalid_host_0/db", &tmp_db);
 #ifdef _WIN32
     ASSERT_NEQ(C_ORM_OK, c_orm_connect_url("Z:\\bad_dir\\bad.db", &tmp_db));
 #else
@@ -1470,11 +1477,11 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
 
   memset(rows, 0, sizeof(rows));
   rows[0].id = 1;
-  rows[0].code = "A1";
-  (void)c_orm_decimal_from_str("10.50", &rows[0].amount);
+  rows[0].code = c_mut_s7;
+  c_orm_decimal_from_str("10.50", &rows[0].amount);
   rows[1].id = 2;
-  rows[1].code = "A2";
-  (void)c_orm_decimal_from_str("20.75", &rows[1].amount);
+  rows[1].code = c_mut_s8;
+  c_orm_decimal_from_str("20.75", &rows[1].amount);
 
   memset(comp_cols, 0, sizeof(comp_cols));
   comp_cols[0] = DialectLedger_cols[0]; /* PK 1: id */
@@ -1508,10 +1515,12 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
   ASSERT(strstr(g_dm.last_sql, "WHEN NOT MATCHED THEN INSERT") != NULL);
 
 #ifdef C_ORM_TEST_ALLOCATOR
-  for (step = 0; step < 160; step++) {
+  for (step = 0;; step++) {
+    c_orm_error_t brc;
     c_orm_mock_string_builder_append_countdown = step;
-    (void)c_orm_insert_batch_ext(db, &comp_meta, rows, 2, 2,
+    brc = c_orm_insert_batch_ext(db, &comp_meta, rows, 2, 2,
                                  C_ORM_ON_CONFLICT_DO_NOTHING, NULL, NULL);
+    ASSERT_NEQ((c_orm_error_t)-999, brc);
     c_orm_mock_string_builder_append_countdown = step;
     if (c_orm_insert_batch_ext(db, &comp_meta, rows, 2, 2,
                                C_ORM_ON_CONFLICT_DO_UPDATE, NULL,
@@ -1520,6 +1529,7 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
       break;
     }
     c_orm_mock_string_builder_append_countdown = -1;
+    ASSERT(step < 300);
   }
   c_orm_mock_string_builder_get_fail = 1;
   ASSERT_EQ(C_ORM_ERROR_MEMORY,
@@ -1534,7 +1544,7 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
             c_orm_insert_batch_ext(db, &comp_meta, rows, 1, 1,
                                    C_ORM_ON_CONFLICT_DO_UPDATE, NULL, NULL));
 #ifdef C_ORM_TEST_ALLOCATOR
-  for (step = 0; step < 100; step++) {
+  for (step = 0;; step++) {
     c_orm_mock_string_builder_append_countdown = step;
     if (c_orm_insert_batch_ext(db, &comp_meta, rows, 1, 1,
                                C_ORM_ON_CONFLICT_DO_UPDATE, NULL,
@@ -1543,6 +1553,7 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
       break;
     }
     c_orm_mock_string_builder_append_countdown = -1;
+    ASSERT(step < 200);
   }
 #endif
   comp_cols[0].is_pk = false;
@@ -1553,6 +1564,21 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
   comp_cols[0].is_pk = true;
 
   /* Transactions & upsert_batch on Db2 CLI connection */
+  {
+    c_orm_sqlsmallint_t dummy_cols = 0;
+    c_orm_query_t *q_dummy = NULL;
+    ASSERT_EQ(C_ORM_SQL_SUCCESS, cli_api.SQLFreeStmt(NULL, 0));
+    ASSERT_EQ(C_ORM_SQL_SUCCESS, cli_api.SQLNumResultCols(NULL, &dummy_cols));
+    ASSERT_EQ(C_ORM_OK, vt.reset(NULL));
+    ASSERT_EQ(C_ORM_OK, vt.bind_int64(NULL, 1, 0));
+    ASSERT_EQ(C_ORM_OK, vt.bind_double(NULL, 1, 0.0));
+    ASSERT_EQ(C_ORM_OK, vt.bind_null(NULL, 1));
+    g_dm.catalog_mode = 2;
+    ASSERT_EQ(
+        C_ORM_ERROR_SQL,
+        vt.prepare(&mock_db, "SELECT 1 FROM SYSIBM.SYSCOLUMNS", &q_dummy));
+    g_dm.catalog_mode = 0;
+  }
   ASSERT_EQ(C_ORM_OK, c_orm_upsert_batch(db, &DialectLedger_meta, rows, 2, 2));
   ASSERT_EQ(C_ORM_OK, c_orm_transaction_begin(db));
   ASSERT_EQ(C_ORM_OK, c_orm_transaction_commit(db));
@@ -1594,7 +1620,7 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
 
 #ifdef C_ORM_TEST_ALLOCATOR
   comp_meta.num_columns = 1;
-  for (step = 0; step < 60; step++) {
+  for (step = 0;; step++) {
     rows[0].id = 0;
     c_orm_mock_string_builder_append_countdown = step;
     if (c_orm_insert(&mock_db, &comp_meta, &rows[0]) == C_ORM_OK) {
@@ -1602,9 +1628,10 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
       break;
     }
     c_orm_mock_string_builder_append_countdown = -1;
+    ASSERT(step < 150);
   }
   comp_meta.num_columns = 3;
-  for (step = 0; step < 90; step++) {
+  for (step = 0;; step++) {
     rows[0].id = 0;
     c_orm_mock_string_builder_append_countdown = step;
     if (c_orm_insert(&mock_db, &comp_meta, &rows[0]) == C_ORM_OK) {
@@ -1612,6 +1639,7 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
       break;
     }
     c_orm_mock_string_builder_append_countdown = -1;
+    ASSERT(step < 200);
   }
   rows[0].id = 0;
   c_orm_mock_string_builder_get_fail = 1;
@@ -1652,7 +1680,7 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
                 db, "CREATE TABLE LEDGER (id INT PRIMARY KEY, code TEXT, "
                     "amount DECIMAL(15,2))"));
   ASSERT_EQ(C_ORM_OK, c_orm_upsert_batch(db, &DialectLedger_meta, rows, 2, 2));
-  rows[0].code = "A1_UPDATED";
+  rows[0].code = c_mut_s9;
   ASSERT_EQ(C_ORM_OK, c_orm_upsert(db, &DialectLedger_meta, &rows[0]));
   ASSERT_EQ(C_ORM_OK, db->vtable->disconnect(db));
 
@@ -1666,7 +1694,7 @@ TEST test_db2_dialect_crud_batch_and_connect_exhaustive(void) {
 
   /* 6. DECIMAL PK & composite key operations (+ bind_decimal == NULL fallback)
    */
-  (void)c_orm_decimal_from_str("42.50", &dec_pk);
+  c_orm_decimal_from_str("42.50", &dec_pk);
   key_vars[0].type = CDD_C_VARIANT_TYPE_INT;
   key_vars[0].value.i_val = 1;
   key_vars[1].type = CDD_C_VARIANT_TYPE_DECIMAL;

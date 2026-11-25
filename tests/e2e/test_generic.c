@@ -13,90 +13,16 @@ extern "C" {
 #include "c_orm_sqlite.h"
 #define GREATEST_USE_LONGJMP 0
 #include <greatest.h>
+#include "test_assert_zero_branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 /* clang-format on */
 
 /**
  * @brief Tests generic CRUD operations, table metadata, and shard
  * scatter-gather.
  * @return GREATEST test result.
- */
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt)                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got)                                                    \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) == (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond)                                                           \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((cond) != 0)) {                                                      \
-      fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);        \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got)                                                \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (strcmp((exp), (got)) != 0) {                                           \
-      fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__,  \
-              (exp), (got));                                                   \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got)                                                   \
-  do {                                                                         \
-    greatest_info.assertions++;                                                \
-    if (!((exp) != (got))) {                                                   \
-      fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp,    \
-              #got);                                                           \
-      return GREATEST_TEST_RES_FAIL;                                           \
-    }                                                                          \
-  } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST)                                                         \
-  do {                                                                         \
-    int should = 0;                                                            \
-    enum greatest_test_res res;                                                \
-    greatest_test_pre(#TEST, &should);                                         \
-    res = TEST();                                                              \
-    greatest_test_post(res);                                                   \
-  } while ((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res)                                                        \
-  do {                                                                         \
-    do {                                                                       \
-      enum greatest_test_res _rc = (res);                                      \
-      greatest_info.assertions++;                                              \
-      if (_rc != GREATEST_TEST_RES_PASS) {                                     \
-        return _rc;                                                            \
-      }                                                                        \
-    } while ((void)0, 0);                                                      \
-  } while ((void)0, 0)
-
-/**
- * @brief Executes test_c_orm_generic_crud.
  */
 TEST test_c_orm_generic_crud(void) {
   struct Users u;
@@ -108,6 +34,9 @@ TEST test_c_orm_generic_crud(void) {
   c_orm_error_t err;
   c_orm_db_t *test_db;
   bool active;
+  char s_user[] = "generic_user";
+  char s_email[] = "gen@example.com";
+  char s_created[] = "2026-03-30 01:00:00";
 
   arr = NULL;
   count = 0;
@@ -131,10 +60,10 @@ TEST test_c_orm_generic_crud(void) {
 
   memset(&u, 0, sizeof(u));
   u.id = 1;
-  u.username = "generic_user";
-  u.email = "gen@example.com";
+  u.username = s_user;
+  u.email = s_email;
   u.is_active = &active;
-  u.created_at = "2026-03-30 01:00:00";
+  u.created_at = s_created;
 
   err = c_orm_insert_generic(test_db, &Users_meta, &u);
   ASSERT_EQ(C_ORM_OK, err);
@@ -145,12 +74,12 @@ TEST test_c_orm_generic_crud(void) {
   memset(&out_u, 0, sizeof(out_u));
   err = c_orm_get_generic(test_db, &Users_meta, 1, &out_u);
   ASSERT_EQ(C_ORM_OK, err);
-  (void)c_orm_system_free(out_u.username);
-  (void)c_orm_system_free(out_u.email);
-  (void)c_orm_system_free(out_u.age);
-  (void)c_orm_system_free(out_u.score);
-  (void)c_orm_system_free(out_u.is_active);
-  (void)c_orm_system_free(out_u.created_at);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_u.username));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_u.email));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_u.age));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_u.score));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_u.is_active));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_u.created_at));
 
   err = c_orm_find_all_generic(test_db, &Users_meta, &arr, &count);
   ASSERT_EQ(C_ORM_OK, err);
@@ -158,14 +87,14 @@ TEST test_c_orm_generic_crud(void) {
 
   users_arr = (struct Users *)arr;
   for (i = 0; i < count; i++) {
-    (void)c_orm_system_free(users_arr[i].username);
-    (void)c_orm_system_free(users_arr[i].email);
-    (void)c_orm_system_free(users_arr[i].age);
-    (void)c_orm_system_free(users_arr[i].score);
-    (void)c_orm_system_free(users_arr[i].is_active);
-    (void)c_orm_system_free(users_arr[i].created_at);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(users_arr[i].username));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(users_arr[i].email));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(users_arr[i].age));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(users_arr[i].score));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(users_arr[i].is_active));
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(users_arr[i].created_at));
   }
-  (void)c_orm_system_free(arr);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(arr));
 
   /* Get generic string */
   err = c_orm_execute_raw(
@@ -203,7 +132,7 @@ TEST test_c_orm_generic_crud(void) {
     my_struct.val = 0;
     err = c_orm_get_generic_string(test_db, &bad_meta, "my_id", &my_struct);
     ASSERT_EQ(C_ORM_OK, err);
-    (void)c_orm_system_free(my_struct.id);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(my_struct.id));
 
     err =
         c_orm_get_generic_string(test_db, &bad_meta, "missing_id", &my_struct);
@@ -257,7 +186,7 @@ TEST test_c_orm_generic_crud(void) {
     count = 99;
     ASSERT_EQ(C_ORM_OK, c_orm_find_all_generic(test_db, &gm_err, &arr, &count));
     ASSERT_EQ(0, count);
-    (void)c_orm_system_free(arr);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(arr));
 
     /* Scatter gather generic with populated and NULL shards */
     ASSERT_EQ(C_ORM_OK, c_orm_shard_manager_init(2, &sm));
@@ -268,18 +197,18 @@ TEST test_c_orm_generic_crud(void) {
     ASSERT(sg_count > 0);
     sg_users = (struct Users *)sg_arr;
     for (j = 0; j < sg_count; j++) {
-      (void)c_orm_system_free(sg_users[j].username);
-      (void)c_orm_system_free(sg_users[j].email);
-      (void)c_orm_system_free(sg_users[j].age);
-      (void)c_orm_system_free(sg_users[j].score);
-      (void)c_orm_system_free(sg_users[j].is_active);
-      (void)c_orm_system_free(sg_users[j].created_at);
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(sg_users[j].username));
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(sg_users[j].email));
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(sg_users[j].age));
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(sg_users[j].score));
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(sg_users[j].is_active));
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(sg_users[j].created_at));
     }
-    (void)c_orm_system_free(sg_arr);
-    c_orm_shard_manager_free(sm);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(sg_arr));
+    ASSERT_EQ(C_ORM_OK, c_orm_shard_manager_free(sm));
   }
 
-  test_db->vtable->disconnect(test_db);
+  ASSERT_EQ(C_ORM_OK, test_db->vtable->disconnect(test_db));
   PASS();
 }
 
@@ -296,7 +225,7 @@ TEST test_c_orm_telemetry(void) {
   err = c_orm_sqlite_connect(":memory:", &test_db);
   ASSERT_EQ(C_ORM_OK, err);
 
-  c_orm_set_slow_query_threshold(test_db, 1); /* Log everything over 1ms */
+  ASSERT_EQ(C_ORM_OK, c_orm_set_slow_query_threshold(test_db, 1));
 
   err = c_orm_execute_raw(
       test_db,
@@ -312,7 +241,7 @@ TEST test_c_orm_telemetry(void) {
   err = c_orm_get_telemetry(test_db, &telemetry);
   ASSERT_EQ(C_ORM_OK, err);
 
-  test_db->vtable->disconnect(test_db);
+  ASSERT_EQ(C_ORM_OK, test_db->vtable->disconnect(test_db));
   PASS();
 }
 
@@ -325,9 +254,7 @@ TEST test_c_orm_telemetry(void) {
  */
 static c_orm_error_t mock_fail_malloc(size_t sz, void **out_ptr) {
   (void)sz;
-  if (out_ptr) {
-    *out_ptr = NULL;
-  }
+  *out_ptr = NULL;
   return C_ORM_ERROR_MEMORY;
 }
 
@@ -360,18 +287,20 @@ TEST test_c_orm_alloc(void) {
   ASSERT_EQ(C_ORM_OK, c_orm_realloc(blk, 0, &blk));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_realloc(blk, 16, NULL));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_realloc(blk, (size_t)-1, &blk));
-  (void)c_orm_system_free(blk);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(blk));
   blk = NULL;
   ASSERT_EQ(C_ORM_ERROR_OVERFLOW, c_orm_system_calloc((size_t)-1, 2, &blk));
   ASSERT_EQ(C_ORM_OK, c_orm_system_calloc(0, 16, &blk));
-  (void)c_orm_system_free(blk);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(blk));
 
-  c_orm_set_allocators(mock_fail_malloc, c_orm_realloc, c_orm_free);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(mock_fail_malloc, c_orm_realloc, c_orm_free));
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_strdup("abc", &dup));
   ASSERT_EQ(NULL, dup);
   ASSERT_EQ(C_ORM_ERROR_MEMORY, c_orm_system_calloc(4, 4, &blk));
   ASSERT_EQ(C_ORM_OK, c_orm_reset_allocators());
-  c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free);
+  ASSERT_EQ(C_ORM_OK,
+            c_orm_set_allocators(old_malloc, c_orm_realloc, c_orm_free));
 
   PASS();
 }
@@ -397,18 +326,10 @@ TEST test_cdd_c_compat_log(void) {
  * @param generic_suite Suite runner function name.
  */
 SUITE(generic_suite) {
-  static int recursed = 0;
   RUN_TEST(test_c_orm_generic_crud);
   RUN_TEST(test_c_orm_telemetry);
   RUN_TEST(test_c_orm_alloc);
   RUN_TEST(test_cdd_c_compat_log);
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    generic_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
 }
 
 #ifdef __cplusplus

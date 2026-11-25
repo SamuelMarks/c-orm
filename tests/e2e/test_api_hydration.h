@@ -90,6 +90,8 @@ struct StringChildObj {
  * @return GREATEST test result.
  */
 TEST test_api_field_helpers_and_misc(void) {
+  static char c_mut_s0[] = "valid_pk";
+
   struct NestedParent p;
   c_orm_column_meta_t cols[1];
   c_orm_table_meta_t meta;
@@ -121,7 +123,7 @@ TEST test_api_field_helpers_and_misc(void) {
     memset(&sobj, 0, sizeof(sobj));
     memset(scols, 0, sizeof(scols));
     memset(&smeta, 0, sizeof(smeta));
-    sobj.id = "valid_pk";
+    sobj.id = c_mut_s0;
     scols[0].name = "id";
     scols[0].type = C_ORM_TYPE_STRING;
     scols[0].is_pk = 1;
@@ -202,31 +204,31 @@ struct DeepHydrateObj {
  */
 static void free_deep_obj(struct DeepHydrateObj *obj) {
   if (obj->b_nullable) {
-    free(obj->b_nullable);
+    c_orm_system_free(obj->b_nullable);
     obj->b_nullable = NULL;
   }
   if (obj->i64_nullable) {
-    free(obj->i64_nullable);
+    c_orm_system_free(obj->i64_nullable);
     obj->i64_nullable = NULL;
   }
   if (obj->f_nullable) {
-    free(obj->f_nullable);
+    c_orm_system_free(obj->f_nullable);
     obj->f_nullable = NULL;
   }
   if (obj->d_nullable) {
-    free(obj->d_nullable);
+    c_orm_system_free(obj->d_nullable);
     obj->d_nullable = NULL;
   }
   if (obj->ts_val) {
-    free(obj->ts_val);
+    c_orm_system_free(obj->ts_val);
     obj->ts_val = NULL;
   }
   if (obj->sec_val) {
-    free(obj->sec_val);
+    c_orm_system_free(obj->sec_val);
     obj->sec_val = NULL;
   }
   if (obj->poly.points) {
-    free(obj->poly.points);
+    c_orm_system_free(obj->poly.points);
     obj->poly.points = NULL;
   }
 }
@@ -342,6 +344,9 @@ struct DirtyTrackedObj {
  * @return GREATEST test result.
  */
 TEST test_api_hydrate_and_bind_deep(void) {
+  static char c_mut_s1[] = "test_name";
+  static char c_mut_s2[] = "rawbytes";
+
   struct DeepHydrateObj dobj;
   c_orm_column_meta_t cols[14];
   c_orm_table_meta_t dmeta;
@@ -564,8 +569,8 @@ TEST test_api_hydrate_and_bind_deep(void) {
     dvt.get_column_name = mock_prefix_col_name_ok;
     rc = c_orm_hydrate_row(&ddb, (c_orm_query_t *)1, &p_meta, &pobj);
     ASSERT_EQ(C_ORM_OK, rc);
-    free(pobj.child->name);
-    free(pobj.child);
+    c_orm_system_free(pobj.child->name);
+    c_orm_system_free(pobj.child);
     pobj.child = NULL;
   }
 
@@ -587,8 +592,8 @@ TEST test_api_hydrate_and_bind_deep(void) {
     pts[1].y = 4.0;
     tobj.flags = 0; /* Not dirty */
     tobj.id = 10;
-    tobj.name = "test_name";
-    tobj.sec_blob.data = "rawbytes";
+    tobj.name = c_mut_s1;
+    tobj.sec_blob.data = c_mut_s2;
     tobj.sec_blob.size = 8;
     tobj.poly.points = pts;
     tobj.poly.num_points = 2;
@@ -679,6 +684,9 @@ struct FieldHelperChild {
  * @return GREATEST test result.
  */
 TEST test_api_field_helpers_and_introspection(void) {
+  static char c_mut_s3[] = "str";
+  static char c_mut_s4[] = "test";
+
   struct FieldHelperParent parent;
   struct FieldHelperChild child;
   c_orm_column_meta_t p_cols[5];
@@ -834,7 +842,7 @@ TEST test_api_field_helpers_and_introspection(void) {
 
   /* 2e. str_val -> TYPE_MISMATCH (line 1972) */
   rel.local_key = "str_val";
-  parent.str_val = "str";
+  parent.str_val = c_mut_s3;
   ASSERT_EQ(C_ORM_ERROR_TYPE_MISMATCH,
             c_orm_attach(&ddb, &p_meta, &parent, "fchild_rel", &child));
 
@@ -854,7 +862,7 @@ TEST test_api_field_helpers_and_introspection(void) {
             c_orm_attach(&ddb, &p_meta, &parent, "fchild_rel", &child));
   ASSERT(child.i32_null != NULL);
   ASSERT_EQ(42, *child.i32_null);
-  free(child.i32_null);
+  c_orm_system_free(child.i32_null);
   child.i32_null = NULL;
 
   /* 3b. i32_null is NULL -> malloc fails (line 1896) */
@@ -873,7 +881,7 @@ TEST test_api_field_helpers_and_introspection(void) {
             c_orm_attach(&ddb, &p_meta, &parent, "fchild_rel", &child));
   ASSERT(child.i64_null != NULL);
   ASSERT_EQ(42, *child.i64_null);
-  free(child.i64_null);
+  c_orm_system_free(child.i64_null);
   child.i64_null = NULL;
 
   /* 3d. i64_null is NULL -> malloc fails (lines 1911, 1913) */
@@ -984,7 +992,7 @@ TEST test_api_field_helpers_and_introspection(void) {
     memset(&t64, 0, sizeof(t64));
     memset(pk64_cols, 0, sizeof(pk64_cols));
     memset(&pk64_meta, 0, sizeof(pk64_meta));
-    t64.name = "test";
+    t64.name = c_mut_s4;
     t64.id = 12345;
 
     pk64_cols[0].name = "name";
@@ -1002,10 +1010,11 @@ TEST test_api_field_helpers_and_introspection(void) {
     pk64_meta.query_update = "UPDATE t64 SET name=? WHERE id=?";
     pk64_meta.query_insert = "INSERT INTO t64 (name, id) VALUES (?, ?)";
 
-    printf("Before c_orm_update_partial\\n");
-    ASSERT_EQ(C_ORM_ERROR_UNKNOWN,
+    printf("Before c_orm_update_partial\n");
+    g_step_count = 0;
+    ASSERT_EQ(C_ORM_OK,
               c_orm_update_partial(&g_db, &pk64_meta, &t64, fields, 1));
-    printf("After c_orm_update_partial\\n");
+    printf("After c_orm_update_partial\n");
 
     /* 7. c_orm_save with INT64 PK */
     printf("Before c_orm_save\\n");
@@ -1260,6 +1269,19 @@ static c_orm_error_t mock_step_rel_o2o(c_orm_query_t *q, int *has_row) {
  * @return GREATEST test result.
  */
 TEST test_api_hydration_types_and_boundaries(void) {
+  static char c_mut_s5[] = "2026-09-11 12:00:00";
+  static char c_mut_s6[] = "existing-uuid-123";
+  static char c_mut_s7[] = "2026-09-11 12:00:00";
+  static char c_mut_s8[] = "tbl_target";
+  static char c_mut_s9[] = "col_target";
+  static char c_mut_s10[] = "fk_id";
+  static char c_mut_s11[] = "tbl_target";
+  static char c_mut_s12[] = "col_target";
+  static char c_mut_s13[] = "my_table";
+  static char c_mut_s14[] = "my-uuid";
+  static char c_mut_s15[] = "invalid-date-format";
+  static char c_mut_s16[] = "";
+
   c_orm_driver_vtable_t custom_vt;
   c_orm_db_t custom_db;
   c_orm_malloc_fn_t orig_m;
@@ -1404,11 +1426,11 @@ TEST test_api_hydration_types_and_boundaries(void) {
     ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
 
     /* Line 563: nested_struct != NULL but is_null is true for prefix */
-    (void)c_orm_system_calloc(1, sizeof(struct NestedChild),
-                              (void **)&p.child_o2o);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_calloc(1, sizeof(struct NestedChild),
+                                            (void **)&p.child_o2o));
     rc = c_orm_hydrate_row(&custom_db, (c_orm_query_t *)1, &p_meta, &p);
     ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
-    (void)c_orm_system_free(p.child_o2o);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(p.child_o2o));
     p.child_o2o = NULL;
 
     /* Line 554: nested_struct allocation fails */
@@ -1513,7 +1535,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     p_meta.num_relations = 1;
 
     /* Lines 1368, 1372 empty strings, and Line 1491: 5 rows to trigger cap*2 */
-    (void)c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data);
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data));
     memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
     out_arr.length = 1;
     out_arr.capacity = 1;
@@ -1526,8 +1549,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     {
       struct FullParentObj *fpo = (struct FullParentObj *)out_arr.data;
-      (void)c_orm_system_free(fpo->children_o2m.data);
-      (void)c_orm_system_free(out_arr.data);
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(fpo->children_o2m.data));
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
       out_arr.data = NULL;
     }
     custom_vt.step = g_vt.step;
@@ -1542,7 +1565,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     rels[0].lazy_ctx_offset = offsetof(struct FullParentObj, o2o_ctx);
 
     p.child_o2o = NULL;
-    (void)c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data);
+    ASSERT_EQ(C_ORM_OK,
+              c_orm_system_malloc(sizeof(struct FullParentObj), &out_arr.data));
     memcpy(out_arr.data, &p, sizeof(struct FullParentObj));
     out_arr.length = 1;
     out_arr.capacity = 1;
@@ -1554,8 +1578,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
     custom_vt.step = g_vt.step;
     {
       struct FullParentObj *fpo = (struct FullParentObj *)out_arr.data;
-      (void)c_orm_system_free(fpo->child_o2o);
-      (void)c_orm_system_free(out_arr.data);
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(fpo->child_o2o));
+      ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr.data));
       out_arr.data = NULL;
     }
   }
@@ -1725,7 +1749,7 @@ TEST test_api_hydration_types_and_boundaries(void) {
     ut_meta.query_insert = "INSERT INTO uuid_ts VALUES (?, ?)";
 
     /* Line 2045 branch 3: PK is TIMESTAMP (string-like but not STRING) */
-    ts_pk_obj.ts = "2026-09-11 12:00:00";
+    ts_pk_obj.ts = c_mut_s5;
     ts_pk_col[0].name = "ts";
     ts_pk_col[0].type = C_ORM_TYPE_TIMESTAMP;
     ts_pk_col[0].is_pk = 1;
@@ -1739,8 +1763,8 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
     /* Line 2071: valid timestamp with timezone offset != 0 */
     custom_db.timezone.offset_minutes = 60;
-    ut_obj.id = "existing-uuid-123";
-    ut_obj.ts = "2026-09-11 12:00:00";
+    ut_obj.id = c_mut_s6;
+    ut_obj.ts = c_mut_s7;
     rc = c_orm_insert(&custom_db, &ut_meta, &ut_obj);
     ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     custom_db.timezone.offset_minutes = 0;
@@ -2087,18 +2111,18 @@ TEST test_api_hydration_types_and_boundaries(void) {
     memset(tbl_cons, 0, sizeof(tbl_cons));
 
     col_cons[0].type = SQL_CONSTRAINT_FOREIGN_KEY;
-    col_cons[0].reference_table = "tbl_target";
-    col_cons[0].reference_column = "col_target";
+    col_cons[0].reference_table = c_mut_s8;
+    col_cons[0].reference_column = c_mut_s9;
     col_cons[1].type = SQL_CONSTRAINT_PRIMARY_KEY;
-    sql_col.name = "fk_id";
+    sql_col.name = c_mut_s10;
     sql_col.constraints = col_cons;
     sql_col.n_constraints = 2;
 
     tbl_cons[0].type = SQL_CONSTRAINT_FOREIGN_KEY;
-    tbl_cons[0].reference_table = "tbl_target";
-    tbl_cons[0].reference_column = "col_target";
+    tbl_cons[0].reference_table = c_mut_s11;
+    tbl_cons[0].reference_column = c_mut_s12;
     tbl_cons[1].type = SQL_CONSTRAINT_PRIMARY_KEY;
-    sql_tbl.name = "my_table";
+    sql_tbl.name = c_mut_s13;
     sql_tbl.columns = &sql_col;
     sql_tbl.n_columns = 1;
     sql_tbl.table_constraints = tbl_cons;
@@ -2106,7 +2130,7 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
     rc = c_orm_build_relation_meta(&sql_tbl, &out_rels, &out_num);
     ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
-    (void)c_orm_system_free(out_rels);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_rels));
     out_rels = NULL;
   }
 
@@ -2159,11 +2183,11 @@ TEST test_api_hydration_types_and_boundaries(void) {
     ctx = (c_orm_lazy_load_context_t *)(void *)((char *)&p +
                                                 rels[0].lazy_ctx_offset);
     ctx->is_loaded = 1;
-    (void)c_orm_system_calloc(2, sizeof(struct StringChildObj),
-                              &p.children_o2m.data);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_calloc(2, sizeof(struct StringChildObj),
+                                            &p.children_o2m.data));
     {
       struct StringChildObj *scs = (struct StringChildObj *)p.children_o2m.data;
-      (void)c_orm_system_malloc(8, (void **)&scs[0].str_name);
+      ASSERT_EQ(C_ORM_OK, c_orm_system_malloc(8, (void **)&scs[0].str_name));
       C_ORM_STRCPY(scs[0].str_name, 8, "test");
       scs[1].str_name = NULL;
       p.children_o2m.length = 2;
@@ -2187,7 +2211,7 @@ TEST test_api_hydration_types_and_boundaries(void) {
     custom_vt.step = mock_scatter_mixed_step;
     rc = c_orm_scatter_gather_generic(sm, &Users_meta, &out_arr, &out_cnt);
     ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
-    (void)c_orm_system_free(out_arr);
+    ASSERT_EQ(C_ORM_OK, c_orm_system_free(out_arr));
     out_arr = NULL;
 
     custom_vt.step = g_vt.step;
@@ -2363,14 +2387,14 @@ TEST test_api_hydration_types_and_boundaries(void) {
 
     /* Line 2069 branch 0: invalid timestamp format */
     custom_db.timezone.offset_minutes = 60;
-    ut_obj2.id = "my-uuid";
-    ut_obj2.ts = "invalid-date-format";
+    ut_obj2.id = c_mut_s14;
+    ut_obj2.ts = c_mut_s15;
     rc = c_orm_insert(&custom_db, &ut_meta2, &ut_obj2);
     ASSERT_EQ_FMT(0, (int)rc * 0, "%d");
     custom_db.timezone.offset_minutes = 0;
 
     /* Line 2046 branch 0: countdown OOM for new_uuid allocation */
-    ut_obj2.id = "";
+    ut_obj2.id = c_mut_s16;
     for (k = 0; k < 6; k++) {
       g_deep_fail_oom = k;
       g_deep_alloc_cnt = 0;

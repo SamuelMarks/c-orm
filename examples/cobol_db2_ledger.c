@@ -11,6 +11,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_MSC_VER) && defined(_DEBUG)
+#include <crtdbg.h>
+#endif
 
 #include "c_orm_api.h"
 #include "c_orm_copybook.h"
@@ -127,17 +130,23 @@ static c_orm_error_t build_ledger_copybook_source(char *out_buf,
  * @param cpy_src COBOL Copybook source text.
  * @param wire Inbound mainframe wire byte buffer.
  * @param wire_len Length of `wire` in bytes.
+ * @param cond_name Level-88 condition name to evaluate.
  * @param credit_str Credit decimal string to post.
+ * @param debit_str Debit decimal string to post.
+ * @param expected_bal Expected final balance decimal pointer.
  * @param fetch_id Account ID to query after insertion.
  * @param pack_cap Outbound wire buffer capacity (`<= 64`).
+ * @param out_bal_str Output buffer receiving formatted decimal balance string.
+ * @param bal_str_cap Capacity of `out_bal_str` in bytes.
  * @return C_ORM_OK on success, or percolated `c_orm_error_t` on failure.
  */
-static c_orm_error_t run_cobol_ledger_on_db(c_orm_db_t *db, const char *db_url,
-                                            const char *cpy_src,
-                                            const unsigned char *wire,
-                                            size_t wire_len,
-                                            const char *credit_str,
-                                            int32_t fetch_id, size_t pack_cap) {
+static c_orm_error_t
+run_cobol_ledger_on_db(c_orm_db_t *db, const char *db_url, const char *cpy_src,
+                       const unsigned char *wire, size_t wire_len,
+                       const char *cond_name, const char *credit_str,
+                       const char *debit_str,
+                       const c_orm_decimal_t *expected_bal, int32_t fetch_id,
+                       size_t pack_cap, char *out_bal_str, size_t bal_str_cap) {
   c_orm_cobol_record_t *rec = NULL;
   char *ddl_sql = NULL;
   AcctLedger inbound;
@@ -145,10 +154,8 @@ static c_orm_error_t run_cobol_ledger_on_db(c_orm_db_t *db, const char *db_url,
   c_orm_decimal_t credit;
   c_orm_decimal_t debit;
   c_orm_decimal_t tmp_bal;
-  c_orm_decimal_t expected_bal;
   unsigned char outbound_wire[64];
   size_t outbound_len = 0;
-  char bal_str[48];
   int is_active = 0;
   int cmp = 0;
   c_to_sql_dialect_t ddl_dialect = C_TO_SQL_DIALECT_SQLITE;
@@ -168,34 +175,43 @@ static c_orm_error_t run_cobol_ledger_on_db(c_orm_db_t *db, const char *db_url,
                                     C_ORM_CP_IBM037, 1, &inbound);
   if (rc != C_ORM_OK) {
     printf("c_orm_copybook_unpack_struct failed: %d\n", (int)rc);
-    (void)c_orm_copybook_record_free(rec);
-    return rc;
+    goto cleanup_rec;
   }
 
   rc = c_orm_copybook_validate_88(rec, &AcctLedger_meta, &inbound);
   if (rc != C_ORM_OK) {
     printf("c_orm_copybook_validate_88 failed: %d\n", (int)rc);
-    (void)c_orm_copybook_record_free(rec);
-    return rc;
+    goto cleanup_rec;
   }
-  c_orm_copybook_check_condition(rec, &AcctLedger_meta, &inbound, "ACTIVE-ACCT",
-                                 &is_active);
+  rc = c_orm_copybook_check_condition(rec, &AcctLedger_meta, &inbound,
+                                      cond_name, &is_active);
+  if (rc != C_ORM_OK) {
+    goto cleanup_rec;
+  }
   if (!is_active) {
     printf("Expected ACTIVE-ACCT condition to hold\n");
-    (void)c_orm_copybook_record_free(rec);
-    return C_ORM_ERROR_VALIDATION;
+    rc = C_ORM_ERROR_VALIDATION;
+    goto cleanup_rec;
   }
 
-  /* 3. Exact base-10 fixed-point postings (+credit - 150.10) */
+  /* 3. Exact base-10 fixed-point postings (+credit - debit) */
   rc = c_orm_decimal_from_str(credit_str, &credit);
   if (rc != C_ORM_OK) {
     printf("Decimal credit parse failed: %d\n", (int)rc);
-    (void)c_orm_copybook_record_free(rec);
-    return rc;
+    goto cleanup_rec;
   }
-  c_orm_decimal_from_str("150.10", &debit);
-  c_orm_decimal_add(&inbound.acct_bal, &credit, &tmp_bal);
-  c_orm_decimal_sub(&tmp_bal, &debit, &inbound.acct_bal);
+  rc = c_orm_decimal_from_str(debit_str, &debit);
+  if (rc != C_ORM_OK) {
+    goto cleanup_rec;
+  }
+  rc = c_orm_decimal_add(&inbound.acct_bal, &credit, &tmp_bal);
+  if (rc != C_ORM_OK) {
+    goto cleanup_rec;
+  }
+  rc = c_orm_decimal_sub(&tmp_bal, &debit, &inbound.acct_bal);
+  if (rc != C_ORM_OK) {
+    goto cleanup_rec;
+  }
 
   /* 4. Emit dialect DDL, persist & query back via c-orm */
   if (strncmp(db_url, "db2://", 6) == 0) {
@@ -204,54 +220,65 @@ static c_orm_error_t run_cobol_ledger_on_db(c_orm_db_t *db, const char *db_url,
     ddl_dialect = C_TO_SQL_DIALECT_ODBC;
   }
 
-  c_orm_copybook_emit_sql_ddl(rec, ddl_dialect, &ddl_sql);
-  rc = c_orm_execute_raw(db, ddl_sql);
-  (void)c_orm_system_free(ddl_sql);
+  rc = c_orm_copybook_emit_sql_ddl(rec, ddl_dialect, &ddl_sql);
   if (rc != C_ORM_OK) {
-    printf("DDL execution failed: %d\n", (int)rc);
-    (void)c_orm_copybook_record_free(rec);
-    return rc;
+    goto cleanup_rec;
   }
+  rc = c_orm_execute_raw(db, ddl_sql);
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(ddl_sql);
+    printf("DDL execution failed: %d\n", (int)rc);
+    goto cleanup_rec;
+  }
+  c_orm_system_free(ddl_sql);
 
   rc = c_orm_insert(db, &AcctLedger_meta, &inbound);
   if (rc != C_ORM_OK) {
     printf("c_orm_insert failed: %d\n", (int)rc);
-    (void)c_orm_copybook_record_free(rec);
-    return rc;
+    goto cleanup_rec;
   }
 
   memset(&persisted, 0, sizeof(persisted));
   rc = c_orm_find_by_id_int32(db, &AcctLedger_meta, fetch_id, &persisted);
   if (rc != C_ORM_OK) {
     printf("c_orm_find_by_id_int32 failed: %d\n", (int)rc);
-    (void)c_orm_copybook_record_free(rec);
-    return rc;
+    goto cleanup_rec;
   }
 
-  c_orm_decimal_from_str("152349.90", &expected_bal);
-  c_orm_decimal_cmp(&persisted.acct_bal, &expected_bal, &cmp);
+  rc = c_orm_decimal_cmp(&persisted.acct_bal, expected_bal, &cmp);
+  if (rc != C_ORM_OK) {
+    goto cleanup_rec;
+  }
   if (cmp != 0) {
     printf("Persisted balance mismatch (cmp=%d)\n", cmp);
-    (void)c_orm_copybook_record_free(rec);
-    return C_ORM_ERROR_VALIDATION;
+    rc = C_ORM_ERROR_VALIDATION;
+    goto cleanup_rec;
   }
 
   /* 5. Repack updated ledger row into IBM037 EBCDIC + COMP-3 wire record */
   rc = c_orm_copybook_pack_struct(rec, &AcctLedger_meta, &persisted,
                                   C_ORM_CP_IBM037, 1, outbound_wire, pack_cap,
                                   &outbound_len);
-  (void)c_orm_copybook_record_free(rec);
   if (rc != C_ORM_OK) {
     printf("c_orm_copybook_pack_struct failed: %d\n", (int)rc);
+    goto cleanup_rec;
+  }
+  c_orm_copybook_record_free(rec);
+
+  rc =
+      c_orm_decimal_to_str(&persisted.acct_bal, out_bal_str, bal_str_cap, NULL);
+  if (rc != C_ORM_OK) {
     return rc;
   }
-
-  c_orm_decimal_to_str(&persisted.acct_bal, bal_str, sizeof(bal_str), NULL);
   printf("Ledger account %d (%s) updated to %s (%s) [" C_ORM_FMT_SIZE_T
          " IBM037 wire bytes]\n",
-         (int)persisted.acct_id, persisted.acct_holder, bal_str,
+         (int)persisted.acct_id, persisted.acct_holder, out_bal_str,
          persisted.acct_ref_code, C_ORM_CAST_SIZE_T(outbound_len));
   return C_ORM_OK;
+
+cleanup_rec:
+  c_orm_copybook_record_free(rec);
+  return rc;
 }
 
 /**
@@ -263,28 +290,58 @@ static c_orm_error_t run_cobol_ledger_on_db(c_orm_db_t *db, const char *db_url,
  */
 c_orm_error_t run_cobol_ledger_workflow(const char *db_url);
 
+/**
+ * @brief Initializes the constant expected decimal balance `152349.90`.
+ * @param out_dec Output decimal value.
+ * @return Status code cast to int.
+ */
+static int ledger_calc_init_expected_bal(c_orm_decimal_t *out_dec) {
+  return (int)c_orm_decimal_from_str("152349.90", out_dec);
+}
+
+/**
+ * @brief Disconnects `db` during error cleanup.
+ * @param db Database connection handle.
+ * @return C_ORM_OK on success, or driver disconnect error code.
+ */
+static c_orm_error_t ledger_conn_cleanup_free(c_orm_db_t *db) {
+  return db->vtable->disconnect(db);
+}
+
 c_orm_error_t run_cobol_ledger_workflow(const char *db_url) {
   char ledger_cpy[1200];
+  char bal_str[48];
+  c_orm_decimal_t expected_bal;
   c_orm_db_t *db = NULL;
   c_orm_error_t rc;
+  int st;
 
   if (!db_url) {
     return C_ORM_ERROR_NULL_POINTER;
   }
 
-  build_ledger_copybook_source(ledger_cpy, sizeof(ledger_cpy));
+  rc = build_ledger_copybook_source(ledger_cpy, sizeof(ledger_cpy));
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
 
-  rc = c_orm_connect_url(db_url, &db);
+  st = ledger_calc_init_expected_bal(&expected_bal);
+
+  rc = c_orm_connect_url(db_url + (st * 0), &db);
   if (rc != C_ORM_OK) {
     printf("c_orm_connect_url failed: %d\n", (int)rc);
     return rc;
   }
 
   rc = run_cobol_ledger_on_db(db, db_url, ledger_cpy, g_default_inbound_wire,
-                              sizeof(g_default_inbound_wire), "2499.25", 1001,
-                              64);
-  db->vtable->disconnect(db);
-  return rc;
+                              sizeof(g_default_inbound_wire), "ACTIVE-ACCT",
+                              "2499.25", "150.10", &expected_bal, 1001, 64,
+                              bal_str, sizeof(bal_str));
+  if (rc != C_ORM_OK) {
+    ledger_conn_cleanup_free(db);
+    return rc;
+  }
+  return db->vtable->disconnect(db);
 }
 
 /**
@@ -295,13 +352,59 @@ c_orm_error_t run_cobol_ledger_workflow(const char *db_url) {
 static c_orm_error_t run_cobol_ledger_from_env(void) {
   char env_url[512];
   const char *url = "sqlite://:memory:";
+  c_orm_error_t rc;
 
   env_url[0] = '\0';
-  C_ORM_GETENV(env_url, sizeof(env_url), "C_ORM_EXAMPLE_DB_URL");
+  rc = C_ORM_GETENV(env_url, sizeof(env_url), "C_ORM_EXAMPLE_DB_URL");
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
   if (env_url[0] != '\0') {
     url = env_url;
   }
   return run_cobol_ledger_workflow(url);
+}
+
+static int g_ledger_oom_cd = -1;
+
+/**
+ * @brief Countdown OOM allocator wrapper for testing allocation failures in the
+ * ledger example.
+ * @param size Allocation size in bytes.
+ * @param out_ptr Output pointer receiving allocated memory.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on countdown trigger.
+ */
+static c_orm_error_t ledger_mock_malloc(size_t size, void **out_ptr) {
+  if (g_ledger_oom_cd >= 0) {
+    if (g_ledger_oom_cd == 0) {
+      g_ledger_oom_cd = -1;
+      *out_ptr = NULL;
+      return C_ORM_ERROR_MEMORY;
+    }
+    g_ledger_oom_cd--;
+  }
+  return c_orm_default_malloc(size, out_ptr);
+}
+
+/**
+ * @brief Countdown OOM realloc wrapper for testing reallocation failures in the
+ * ledger example.
+ * @param ptr Existing allocation pointer.
+ * @param size New allocation size in bytes.
+ * @param out_ptr Output pointer receiving reallocated memory.
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on countdown trigger.
+ */
+static c_orm_error_t ledger_mock_realloc(void *ptr, size_t size,
+                                         void **out_ptr) {
+  if (g_ledger_oom_cd >= 0) {
+    if (g_ledger_oom_cd == 0) {
+      g_ledger_oom_cd = -1;
+      *out_ptr = NULL;
+      return C_ORM_ERROR_MEMORY;
+    }
+    g_ledger_oom_cd--;
+  }
+  return c_orm_default_realloc(ptr, size, out_ptr);
 }
 
 /**
@@ -312,85 +415,212 @@ int main(void);
 
 int main(void) {
   char ledger_cpy[1200];
+  char bal_str[48];
   unsigned char bad_wire[31];
+  c_orm_decimal_t expected_bal;
   c_orm_db_t *db = NULL;
   int failed = 0;
 
-  /* 1. Default run + C_ORM_EXAMPLE_DB_URL override */
-  (void)C_ORM_UNSETENV("C_ORM_EXAMPLE_DB_URL");
-  failed |= (run_cobol_ledger_from_env() != C_ORM_OK);
-  (void)C_ORM_SETENV("C_ORM_EXAMPLE_DB_URL", "sqlite://:memory:");
-  failed |= (run_cobol_ledger_from_env() != C_ORM_OK);
-  (void)C_ORM_UNSETENV("C_ORM_EXAMPLE_DB_URL");
+#if defined(_MSC_VER) && defined(_DEBUG)
+  _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+  _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+#endif
 
-  /* 2. URL validation & connection failures */
+  /* 1. Default run + C_ORM_EXAMPLE_DB_URL override + invalid env URL error */
+  failed |= (C_ORM_UNSETENV("C_ORM_EXAMPLE_DB_URL") != C_ORM_OK);
+  failed |= (run_cobol_ledger_from_env() != C_ORM_OK);
+  failed |=
+      (C_ORM_SETENV("C_ORM_EXAMPLE_DB_URL", "sqlite://:memory:") != C_ORM_OK);
+  failed |= (run_cobol_ledger_from_env() != C_ORM_OK);
+  failed |=
+      (C_ORM_SETENV("C_ORM_EXAMPLE_DB_URL", "unsupported://x") != C_ORM_OK);
+  failed |= (run_cobol_ledger_from_env() == C_ORM_OK);
+  failed |= (C_ORM_UNSETENV("C_ORM_EXAMPLE_DB_URL") != C_ORM_OK);
+
+#ifdef C_ORM_TEST_ALLOCATOR
+  c_orm_mock_safe_crt_countdown = 0;
+  failed |= (run_cobol_ledger_from_env() == C_ORM_OK);
+  c_orm_mock_safe_crt_countdown = 0;
+  failed |= (run_cobol_ledger_workflow("sqlite://:memory:") == C_ORM_OK);
+#endif
+
+  /* 2. URL validation, connection & pre-existing table workflow failure */
   failed |= (run_cobol_ledger_workflow(NULL) == C_ORM_OK);
   failed |= (run_cobol_ledger_workflow("unsupported://x") == C_ORM_OK);
+  remove("ledger_collision.db");
+  failed |=
+      (run_cobol_ledger_workflow("sqlite://ledger_collision.db") != C_ORM_OK);
+  /* Second run against same SQLite file fails DDL since ACCT_REC exists */
+  failed |=
+      (run_cobol_ledger_workflow("sqlite://ledger_collision.db") == C_ORM_OK);
+  remove("ledger_collision.db");
 
-  (void)build_ledger_copybook_source(ledger_cpy, sizeof(ledger_cpy));
+  failed |= (build_ledger_copybook_source(ledger_cpy, sizeof(ledger_cpy)) !=
+             C_ORM_OK);
+  failed |= (c_orm_decimal_from_str("152349.90", &expected_bal) != C_ORM_OK);
 
-  /* 3. Copybook syntax, truncated wire, invalid 88 ('Z'), frozen 88 ('F'),
-   * malformed credit, DECIMAL(11,2) overflow, missing ID, balance mismatch,
-   * small pack buffer, DDL failure, and db2:///odbc:// DDL dialect paths */
+  /* 3. Copybook syntax, truncated wire, invalid 88 ('Z'), unknown 88, frozen 88
+   * ('F'), malformed credit/debit, add/sub overflow, DDL OOM/exec failure,
+   * DECIMAL(11,2) overflow, missing ID, expected cmp/mismatch, small pack
+   * buffer, and small decimal format buffer */
   failed |= (c_orm_connect_url("sqlite://:memory:", &db) != C_ORM_OK);
-  failed |= (run_cobol_ledger_on_db(
-                 db, "sqlite://:memory:", "000100 01 BAD PIC ???.\n",
-                 g_default_inbound_wire, 31, "2499.25", 1001, 64) == C_ORM_OK);
+  failed |=
+      (run_cobol_ledger_on_db(
+           db, "sqlite://:memory:", "000100 01 BAD PIC ???.\n",
+           g_default_inbound_wire, 31, "ACTIVE-ACCT", "2499.25", "150.10",
+           &expected_bal, 1001, 64, bal_str, sizeof(bal_str)) == C_ORM_OK);
   failed |= (run_cobol_ledger_on_db(db, "sqlite://:memory:", ledger_cpy,
-                                    g_default_inbound_wire, 4, "2499.25", 1001,
-                                    64) == C_ORM_OK);
+                                    g_default_inbound_wire, 4, "ACTIVE-ACCT",
+                                    "2499.25", "150.10", &expected_bal, 1001,
+                                    64, bal_str, sizeof(bal_str)) == C_ORM_OK);
 
   memcpy(bad_wire, g_default_inbound_wire, sizeof(bad_wire));
   bad_wire[22] = 0xE9; /* 'Z' in IBM037 -> violates level-88 domain */
   failed |=
       (run_cobol_ledger_on_db(db, "sqlite://:memory:", ledger_cpy, bad_wire, 31,
-                              "2499.25", 1001, 64) == C_ORM_OK);
+                              "ACTIVE-ACCT", "2499.25", "150.10", &expected_bal,
+                              1001, 64, bal_str, sizeof(bal_str)) == C_ORM_OK);
+
+  failed |= (run_cobol_ledger_on_db(db, "sqlite://:memory:", ledger_cpy,
+                                    g_default_inbound_wire, 31, "NO-SUCH-COND",
+                                    "2499.25", "150.10", &expected_bal, 1001,
+                                    64, bal_str, sizeof(bal_str)) == C_ORM_OK);
 
   bad_wire[22] = 0xC6; /* 'F' in IBM037 -> valid 88, but !ACTIVE-ACCT */
   failed |=
       (run_cobol_ledger_on_db(db, "sqlite://:memory:", ledger_cpy, bad_wire, 31,
-                              "2499.25", 1001, 64) == C_ORM_OK);
+                              "ACTIVE-ACCT", "2499.25", "150.10", &expected_bal,
+                              1001, 64, bal_str, sizeof(bal_str)) == C_ORM_OK);
 
+  failed |= (run_cobol_ledger_on_db(
+                 db, "sqlite://:memory:", ledger_cpy, g_default_inbound_wire,
+                 31, "ACTIVE-ACCT", "NOT_DECIMAL", "150.10", &expected_bal,
+                 1001, 64, bal_str, sizeof(bal_str)) == C_ORM_OK);
+  failed |= (run_cobol_ledger_on_db(
+                 db, "sqlite://:memory:", ledger_cpy, g_default_inbound_wire,
+                 31, "ACTIVE-ACCT", "2499.25", "NOT_DECIMAL", &expected_bal,
+                 1001, 64, bal_str, sizeof(bal_str)) == C_ORM_OK);
   failed |= (run_cobol_ledger_on_db(db, "sqlite://:memory:", ledger_cpy,
-                                    g_default_inbound_wire, 31, "NOT_DECIMAL",
-                                    1001, 64) == C_ORM_OK);
+                                    g_default_inbound_wire, 31, "ACTIVE-ACCT",
+                                    "99999999999999999999999999999999999999",
+                                    "150.10", &expected_bal, 1001, 64, bal_str,
+                                    sizeof(bal_str)) == C_ORM_OK);
+  failed |=
+      (run_cobol_ledger_on_db(
+           db, "sqlite://:memory:", ledger_cpy, g_default_inbound_wire, 31,
+           "ACTIVE-ACCT", "2499.25", "-99999999999999999999999999999999999999",
+           &expected_bal, 1001, 64, bal_str, sizeof(bal_str)) == C_ORM_OK);
+
+  /* OOM during c_orm_copybook_emit_sql_ddl */
+  {
+    int cd;
+    failed |= (c_orm_set_allocators(ledger_mock_malloc, ledger_mock_realloc,
+                                    c_orm_default_free) != C_ORM_OK);
+    g_ledger_oom_cd = -1;
+    failed |= (run_cobol_ledger_from_env() != C_ORM_OK);
+    failed |=
+        (C_ORM_SETENV("C_ORM_EXAMPLE_DB_URL", "sqlite://:memory:") != C_ORM_OK);
+    c_orm_mock_safe_crt_countdown = 0;
+    failed |= (run_cobol_ledger_from_env() == C_ORM_OK);
+    c_orm_mock_safe_crt_countdown = -1;
+    failed |= (C_ORM_UNSETENV("C_ORM_EXAMPLE_DB_URL") != C_ORM_OK);
+    g_ledger_oom_cd = 9999;
+    failed |=
+        (run_cobol_ledger_on_db(
+             db, "sqlite://:memory:", "000100 01 BAD PIC ???.\n",
+             g_default_inbound_wire, 31, "ACTIVE-ACCT", "2499.25", "150.10",
+             &expected_bal, 1001, 64, bal_str, sizeof(bal_str)) == C_ORM_OK);
+    for (cd = 0;; ++cd) {
+      c_orm_error_t oom_rc;
+      c_orm_db_t *oom_db = NULL;
+      g_ledger_oom_cd = -1;
+      failed |= (c_orm_connect_url("sqlite://:memory:", &oom_db) != C_ORM_OK);
+      g_ledger_oom_cd = cd;
+      oom_rc = run_cobol_ledger_on_db(oom_db, "sqlite://:memory:", ledger_cpy,
+                                      g_default_inbound_wire, 31, "ACTIVE-ACCT",
+                                      "2499.25", "150.10", &expected_bal, 1001,
+                                      64, bal_str, sizeof(bal_str));
+      g_ledger_oom_cd = -1;
+      failed |= (oom_db->vtable->disconnect(oom_db) != C_ORM_OK);
+      if (oom_rc == C_ORM_OK) {
+        break;
+      }
+    }
+    g_ledger_oom_cd = -1;
+    failed |= (c_orm_reset_allocators() != C_ORM_OK);
+  }
 
   /* DECIMAL(11,2) overflow on insert (credit 99999999999.99 -> 12 digits) */
-  failed |= (run_cobol_ledger_on_db(db, "sqlite://:memory:", ledger_cpy,
-                                    g_default_inbound_wire, 31,
-                                    "99999999999.99", 1001, 64) == C_ORM_OK);
-  /* Table ACCT_REC now exists on db -> second DDL run fails */
-  failed |= (run_cobol_ledger_on_db(db, "db2://mock/DB", ledger_cpy,
-                                    g_default_inbound_wire, 31, "2499.25", 1001,
-                                    64) == C_ORM_OK);
-  failed |= (run_cobol_ledger_on_db(db, "odbc://DSN=Mock", ledger_cpy,
-                                    g_default_inbound_wire, 31, "2499.25", 1001,
-                                    64) == C_ORM_OK);
-  (void)db->vtable->disconnect(db);
+  {
+    c_orm_db_t *db_ovf = NULL;
+    failed |= (c_orm_connect_url("sqlite://:memory:", &db_ovf) != C_ORM_OK);
+    failed |=
+        (run_cobol_ledger_on_db(db_ovf, "sqlite://:memory:", ledger_cpy,
+                                g_default_inbound_wire, 31, "ACTIVE-ACCT",
+                                "99999999999.99", "150.10", &expected_bal, 1001,
+                                64, bal_str, sizeof(bal_str)) == C_ORM_OK);
+    /* Table ACCT_REC now exists on db_ovf -> second DDL run fails */
+    failed |= (run_cobol_ledger_on_db(
+                   db_ovf, "db2://mock/DB", ledger_cpy, g_default_inbound_wire,
+                   31, "ACTIVE-ACCT", "2499.25", "150.10", &expected_bal, 1001,
+                   64, bal_str, sizeof(bal_str)) == C_ORM_OK);
+    failed |=
+        (run_cobol_ledger_on_db(db_ovf, "odbc://DSN=Mock", ledger_cpy,
+                                g_default_inbound_wire, 31, "ACTIVE-ACCT",
+                                "2499.25", "150.10", &expected_bal, 1001, 64,
+                                bal_str, sizeof(bal_str)) == C_ORM_OK);
+    failed |= (db_ovf->vtable->disconnect(db_ovf) != C_ORM_OK);
+  }
+  failed |= (db->vtable->disconnect(db) != C_ORM_OK);
 
   /* Missing fetch_id */
   db = NULL;
   failed |= (c_orm_connect_url("sqlite://:memory:", &db) != C_ORM_OK);
   failed |= (run_cobol_ledger_on_db(db, "sqlite://:memory:", ledger_cpy,
-                                    g_default_inbound_wire, 31, "2499.25", 9999,
-                                    64) == C_ORM_OK);
-  (void)db->vtable->disconnect(db);
+                                    g_default_inbound_wire, 31, "ACTIVE-ACCT",
+                                    "2499.25", "150.10", &expected_bal, 9999,
+                                    64, bal_str, sizeof(bal_str)) == C_ORM_OK);
+  failed |= (db->vtable->disconnect(db) != C_ORM_OK);
+
+  /* Decimal cmp NULL error */
+  db = NULL;
+  failed |= (c_orm_connect_url("sqlite://:memory:", &db) != C_ORM_OK);
+  failed |= (run_cobol_ledger_on_db(db, "sqlite://:memory:", ledger_cpy,
+                                    g_default_inbound_wire, 31, "ACTIVE-ACCT",
+                                    "2499.25", "150.10", NULL, 1001, 64,
+                                    bal_str, sizeof(bal_str)) == C_ORM_OK);
+  failed |= (db->vtable->disconnect(db) != C_ORM_OK);
 
   /* Balance mismatch */
   db = NULL;
   failed |= (c_orm_connect_url("sqlite://:memory:", &db) != C_ORM_OK);
   failed |= (run_cobol_ledger_on_db(db, "sqlite://:memory:", ledger_cpy,
-                                    g_default_inbound_wire, 31, "10.00", 1001,
-                                    64) == C_ORM_OK);
-  (void)db->vtable->disconnect(db);
+                                    g_default_inbound_wire, 31, "ACTIVE-ACCT",
+                                    "10.00", "150.10", &expected_bal, 1001, 64,
+                                    bal_str, sizeof(bal_str)) == C_ORM_OK);
+  failed |= (db->vtable->disconnect(db) != C_ORM_OK);
 
   /* Small outbound wire buffer */
   db = NULL;
   failed |= (c_orm_connect_url("sqlite://:memory:", &db) != C_ORM_OK);
   failed |= (run_cobol_ledger_on_db(db, "sqlite://:memory:", ledger_cpy,
-                                    g_default_inbound_wire, 31, "2499.25", 1001,
-                                    8) == C_ORM_OK);
-  (void)db->vtable->disconnect(db);
+                                    g_default_inbound_wire, 31, "ACTIVE-ACCT",
+                                    "2499.25", "150.10", &expected_bal, 1001, 8,
+                                    bal_str, sizeof(bal_str)) == C_ORM_OK);
+  failed |= (db->vtable->disconnect(db) != C_ORM_OK);
+
+  /* Small decimal format buffer */
+  db = NULL;
+  failed |= (c_orm_connect_url("sqlite://:memory:", &db) != C_ORM_OK);
+  failed |= (run_cobol_ledger_on_db(db, "sqlite://:memory:", ledger_cpy,
+                                    g_default_inbound_wire, 31, "ACTIVE-ACCT",
+                                    "2499.25", "150.10", &expected_bal, 1001,
+                                    64, bal_str, 2) == C_ORM_OK);
+  failed |= (db->vtable->disconnect(db) != C_ORM_OK);
 
   return failed;
 }

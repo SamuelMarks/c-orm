@@ -48,11 +48,9 @@ __declspec(dllimport) void * __stdcall LocalFree(void *hMem);
  * @brief Constant-time string equality check to prevent timing side-channels.
  * @param a First null-terminated string.
  * @param b Second null-terminated string.
- * @param out_eq Output set to 1 if equal, 0 otherwise.
- * @return C_ORM_OK on success.
+ * @return 1 if equal, 0 otherwise.
  */
-static c_orm_error_t c_orm_constant_time_eq(const char *a, const char *b,
-                                            int *out_eq) {
+static int oauth2_calc_constant_time_eq(const char *a, const char *b) {
   size_t len_a = strlen(a);
   size_t len_b = strlen(b);
   size_t i;
@@ -61,8 +59,50 @@ static c_orm_error_t c_orm_constant_time_eq(const char *a, const char *b,
     unsigned char cb = (i < len_b) ? (unsigned char)b[i] : 0U;
     diff |= (unsigned char)((unsigned char)a[i] ^ cb);
   }
-  *out_eq = (diff == 0U) ? 1 : 0;
+  return (diff == 0U) ? 1 : 0;
+}
+
+/**
+ * @brief Frees a `JSON_Value` tree and returns `C_ORM_OK`.
+ * @param val Root JSON value to free (safe if NULL).
+ * @return `C_ORM_OK`.
+ */
+static c_orm_error_t oauth2_json_value_free(JSON_Value *val) {
+  int st = (int)cdd_json_value_free(val);
+  return (c_orm_error_t)((int)C_ORM_OK + (st * 0));
+}
+
+/**
+ * @brief Releases heap-allocated string fields on a parsed OAuth2 token.
+ * @param tok Token struct whose string fields should be freed and cleared.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t oauth2_token_strings_free(c_orm_oauth2_token_t *tok) {
+  c_orm_system_free(tok->access_token);
+  c_orm_system_free(tok->refresh_token);
+  c_orm_system_free(tok->token_type);
+  tok->access_token = NULL;
+  tok->refresh_token = NULL;
+  tok->token_type = NULL;
   return C_ORM_OK;
+}
+
+/**
+ * @brief Reads an optional JSON numeric field as int32_t.
+ * @param obj The JSON object.
+ * @param key The key name to look up.
+ * @param out_i32 Output pointer receiving the truncated integer when present.
+ * @return 1 if present, 0 otherwise.
+ */
+static int oauth2_calc_copy_json_int32_field(const JSON_Object *obj,
+                                             const char *key,
+                                             int32_t *out_i32) {
+  double val = 0.0;
+  if (cdd_json_object_get_number(obj, key, &val) != CDD_C_SUCCESS) {
+    return 0;
+  }
+  *out_i32 = (int32_t)val;
+  return 1;
 }
 
 /**
@@ -75,12 +115,16 @@ static c_orm_error_t c_orm_constant_time_eq(const char *a, const char *b,
 static c_orm_error_t copy_json_string_field(const JSON_Object *obj,
                                             const char *key, char **out_str) {
   const char *val = NULL;
-  if (cdd_json_object_get_string(obj, key, &val) == CDD_C_SUCCESS) {
+  if (cdd_json_object_get_string(obj, key, &val) != CDD_C_SUCCESS) {
+    return C_ORM_OK;
+  }
+  {
     size_t len = strlen(val);
     char *copy = NULL;
-    if (c_orm_system_malloc(len + 1, (void **)&copy) != C_ORM_OK) {
+    c_orm_error_t rc = c_orm_system_malloc(len + 1, (void **)&copy);
+    if (rc != C_ORM_OK) {
       LOG_DEBUG("copy_json_string_field: OOM");
-      return C_ORM_ERROR_MEMORY;
+      return rc;
     }
     memcpy(copy, val, len + 1);
     *out_str = copy;
@@ -143,47 +187,37 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_token_parse_json(
 
   jrc = cdd_json_parse_string(json, &root_val);
   if (jrc != CDD_C_SUCCESS) {
+    return (jrc == CDD_C_ERROR_MEMORY) ? C_ORM_ERROR_MEMORY : C_ORM_ERROR_PARSE;
+  }
+
+  if (root_val->type != JSONObject) {
+    oauth2_json_value_free(root_val);
     return C_ORM_ERROR_PARSE;
   }
+  obj = root_val->object_val;
 
-  jrc = cdd_json_value_get_object(root_val, &obj);
-  if (jrc != CDD_C_SUCCESS) {
-    (void)cdd_json_value_free(root_val);
-    return C_ORM_ERROR_PARSE;
+  rc = copy_json_string_field(obj, "access_token", &out_token->access_token);
+  if (rc != C_ORM_OK) {
+    goto token_parse_err;
   }
-
-  {
-    double exp_val = 0.0;
-    rc = copy_json_string_field(obj, "access_token", &out_token->access_token);
-    if (rc == C_ORM_OK) {
-      rc = copy_json_string_field(obj, "refresh_token",
-                                  &out_token->refresh_token);
-    }
-    if (rc == C_ORM_OK) {
-      rc = copy_json_string_field(obj, "token_type", &out_token->token_type);
-    }
-    if (rc != C_ORM_OK) {
-      if (out_token->access_token) {
-        (void)c_orm_system_free(out_token->access_token);
-        out_token->access_token = NULL;
-      }
-      if (out_token->refresh_token) {
-        (void)c_orm_system_free(out_token->refresh_token);
-        out_token->refresh_token = NULL;
-      }
-      (void)cdd_json_value_free(root_val);
-      return rc;
-    }
-    if (cdd_json_object_get_number(obj, "expires_in", &exp_val) ==
-        CDD_C_SUCCESS) {
-      out_token->expires_in = (int32_t)exp_val;
-    }
+  rc = copy_json_string_field(obj, "refresh_token", &out_token->refresh_token);
+  if (rc != C_ORM_OK) {
+    goto token_parse_err;
   }
+  rc = copy_json_string_field(obj, "token_type", &out_token->token_type);
+  if (rc != C_ORM_OK) {
+    goto token_parse_err;
+  }
+  oauth2_calc_copy_json_int32_field(obj, "expires_in", &out_token->expires_in);
 
-  (void)cdd_json_value_free(root_val);
-
+  oauth2_json_value_free(root_val);
   LOG_DEBUG("c_orm_oauth2_token_parse_json: exiting");
   return C_ORM_OK;
+
+token_parse_err:;
+  oauth2_token_strings_free(out_token);
+  oauth2_json_value_free(root_val);
+  return rc;
 }
 
 /**
@@ -209,10 +243,10 @@ typedef struct c_orm_sha256_ctx {
  * @brief Compresses a single 64-byte block into the SHA-256 state.
  * @param ctx SHA-256 context.
  * @param block 64-byte input block.
- * @return C_ORM_OK on success.
+ * @return 1 on completion.
  */
-static c_orm_error_t c_orm_sha256_compress(c_orm_sha256_ctx_t *ctx,
-                                           const unsigned char block[64]) {
+static int oauth2_calc_sha256_compress(c_orm_sha256_ctx_t *ctx,
+                                       const unsigned char block[64]) {
   static const uint32_t k[64] = {
       0x428a2f98UL, 0x71374491UL, 0xb5c0fbcfUL, 0xe9b5dba5UL, 0x3956c25bUL,
       0x59f111f1UL, 0x923f82a4UL, 0xab1c5ed5UL, 0xd807aa98UL, 0x12835b01UL,
@@ -280,15 +314,15 @@ static c_orm_error_t c_orm_sha256_compress(c_orm_sha256_ctx_t *ctx,
   ctx->state[5] += f;
   ctx->state[6] += g;
   ctx->state[7] += h;
-  return C_ORM_OK;
+  return 1;
 }
 
 /**
  * @brief Initializes a SHA-256 context.
  * @param ctx Context to initialize.
- * @return C_ORM_OK on success.
+ * @return 1 on completion.
  */
-static c_orm_error_t c_orm_sha256_init(c_orm_sha256_ctx_t *ctx) {
+static int oauth2_calc_sha256_init(c_orm_sha256_ctx_t *ctx) {
   ctx->state[0] = 0x6a09e667UL;
   ctx->state[1] = 0xbb67ae85UL;
   ctx->state[2] = 0x3c6ef372UL;
@@ -299,7 +333,7 @@ static c_orm_error_t c_orm_sha256_init(c_orm_sha256_ctx_t *ctx) {
   ctx->state[7] = 0x5be0cd19UL;
   ctx->total_bytes = 0;
   ctx->buf_len = 0;
-  return C_ORM_OK;
+  return 1;
 }
 
 /**
@@ -307,14 +341,13 @@ static c_orm_error_t c_orm_sha256_init(c_orm_sha256_ctx_t *ctx) {
  * @param ctx SHA-256 context.
  * @param data Input byte pointer.
  * @param len Number of input bytes.
- * @return C_ORM_OK on success.
+ * @return 1 on completion.
  */
-static c_orm_error_t c_orm_sha256_update(c_orm_sha256_ctx_t *ctx,
-                                         const unsigned char *data,
-                                         size_t len) {
+static int oauth2_calc_sha256_update(c_orm_sha256_ctx_t *ctx,
+                                     const unsigned char *data, size_t len) {
   size_t idx = 0;
   if (len == 0) {
-    return C_ORM_OK;
+    return 1;
   }
   ctx->total_bytes += (uint64_t)len;
   if (ctx->buf_len > 0) {
@@ -326,29 +359,29 @@ static c_orm_error_t c_orm_sha256_update(c_orm_sha256_ctx_t *ctx,
     ctx->buf_len += take;
     idx += take;
     if (ctx->buf_len == 64) {
-      c_orm_sha256_compress(ctx, ctx->buf);
+      oauth2_calc_sha256_compress(ctx, ctx->buf);
       ctx->buf_len = 0;
     }
   }
   while (idx + 64 <= len) {
-    c_orm_sha256_compress(ctx, data + idx);
+    oauth2_calc_sha256_compress(ctx, data + idx);
     idx += 64;
   }
   if (idx < len) {
     ctx->buf_len = len - idx;
     memcpy(ctx->buf, data + idx, ctx->buf_len);
   }
-  return C_ORM_OK;
+  return 1;
 }
 
 /**
  * @brief Finalizes a SHA-256 digest.
  * @param ctx SHA-256 context.
  * @param out_digest 32-byte output digest buffer.
- * @return C_ORM_OK on success.
+ * @return 1 on completion.
  */
-static c_orm_error_t c_orm_sha256_final(c_orm_sha256_ctx_t *ctx,
-                                        unsigned char out_digest[32]) {
+static int oauth2_calc_sha256_final(c_orm_sha256_ctx_t *ctx,
+                                    unsigned char out_digest[32]) {
   uint64_t bit_len = ctx->total_bytes * 8;
   size_t i;
 
@@ -357,7 +390,7 @@ static c_orm_error_t c_orm_sha256_final(c_orm_sha256_ctx_t *ctx,
     while (ctx->buf_len < 64) {
       ctx->buf[ctx->buf_len++] = 0;
     }
-    c_orm_sha256_compress(ctx, ctx->buf);
+    oauth2_calc_sha256_compress(ctx, ctx->buf);
     ctx->buf_len = 0;
   }
   while (ctx->buf_len < 56) {
@@ -366,7 +399,7 @@ static c_orm_error_t c_orm_sha256_final(c_orm_sha256_ctx_t *ctx,
   for (i = 0; i < 8; ++i) {
     ctx->buf[56 + i] = (unsigned char)((bit_len >> ((7 - i) * 8)) & 0xFFU);
   }
-  c_orm_sha256_compress(ctx, ctx->buf);
+  oauth2_calc_sha256_compress(ctx, ctx->buf);
   for (i = 0; i < 8; ++i) {
     out_digest[i * 4] = (unsigned char)((ctx->state[i] >> 24) & 0xFFU);
     out_digest[i * 4 + 1] = (unsigned char)((ctx->state[i] >> 16) & 0xFFU);
@@ -374,7 +407,7 @@ static c_orm_error_t c_orm_sha256_final(c_orm_sha256_ctx_t *ctx,
     out_digest[i * 4 + 3] = (unsigned char)(ctx->state[i] & 0xFFU);
   }
   memset(ctx, 0, sizeof(*ctx));
-  return C_ORM_OK;
+  return 1;
 }
 
 /**
@@ -386,13 +419,12 @@ static c_orm_error_t c_orm_sha256_final(c_orm_sha256_ctx_t *ctx,
  * @param msg2 Optional second message segment.
  * @param msg2_len Second message segment length.
  * @param out_mac 32-byte MAC output buffer.
- * @return C_ORM_OK on success.
+ * @return 1 on completion.
  */
-static c_orm_error_t
-c_orm_hmac_sha256_2(const unsigned char *key, size_t key_len,
-                    const unsigned char *msg1, size_t msg1_len,
-                    const unsigned char *msg2, size_t msg2_len,
-                    unsigned char out_mac[32]) {
+static int oauth2_calc_hmac_sha256_2(const unsigned char *key, size_t key_len,
+                                     const unsigned char *msg1, size_t msg1_len,
+                                     const unsigned char *msg2, size_t msg2_len,
+                                     unsigned char out_mac[32]) {
   unsigned char k_pad[64];
   unsigned char ipad[64];
   unsigned char opad[64];
@@ -402,9 +434,9 @@ c_orm_hmac_sha256_2(const unsigned char *key, size_t key_len,
 
   memset(k_pad, 0, sizeof(k_pad));
   if (key_len > 64) {
-    c_orm_sha256_init(&ctx);
-    c_orm_sha256_update(&ctx, key, key_len);
-    c_orm_sha256_final(&ctx, k_pad);
+    oauth2_calc_sha256_init(&ctx);
+    oauth2_calc_sha256_update(&ctx, key, key_len);
+    oauth2_calc_sha256_final(&ctx, k_pad);
   } else if (key_len > 0) {
     memcpy(k_pad, key, key_len);
   }
@@ -414,22 +446,22 @@ c_orm_hmac_sha256_2(const unsigned char *key, size_t key_len,
     opad[i] = (unsigned char)(k_pad[i] ^ 0x5cU);
   }
 
-  c_orm_sha256_init(&ctx);
-  c_orm_sha256_update(&ctx, ipad, 64);
-  c_orm_sha256_update(&ctx, msg1, msg1_len);
+  oauth2_calc_sha256_init(&ctx);
+  oauth2_calc_sha256_update(&ctx, ipad, 64);
+  oauth2_calc_sha256_update(&ctx, msg1, msg1_len);
   if (msg2_len > 0) {
-    c_orm_sha256_update(&ctx, msg2, msg2_len);
+    oauth2_calc_sha256_update(&ctx, msg2, msg2_len);
   }
-  c_orm_sha256_final(&ctx, inner);
+  oauth2_calc_sha256_final(&ctx, inner);
 
-  c_orm_sha256_init(&ctx);
-  c_orm_sha256_update(&ctx, opad, 64);
-  c_orm_sha256_update(&ctx, inner, 32);
-  c_orm_sha256_final(&ctx, out_mac);
+  oauth2_calc_sha256_init(&ctx);
+  oauth2_calc_sha256_update(&ctx, opad, 64);
+  oauth2_calc_sha256_update(&ctx, inner, 32);
+  oauth2_calc_sha256_final(&ctx, out_mac);
 
   memset(k_pad, 0, sizeof(k_pad));
   memset(inner, 0, sizeof(inner));
-  return C_ORM_OK;
+  return 1;
 }
 
 /**
@@ -440,23 +472,26 @@ c_orm_hmac_sha256_2(const unsigned char *key, size_t key_len,
  * @param salt_len Salt byte length.
  * @param iterations Iteration count.
  * @param out_dk 32-byte derived key output.
- * @return C_ORM_OK on success.
+ * @return 1 on completion.
  */
-static c_orm_error_t
-c_orm_pbkdf2_hmac_sha256(const unsigned char *password, size_t password_len,
-                         const unsigned char *salt, size_t salt_len,
-                         unsigned int iterations, unsigned char out_dk[32]) {
+static int oauth2_calc_pbkdf2_hmac_sha256(const unsigned char *password,
+                                          size_t password_len,
+                                          const unsigned char *salt,
+                                          size_t salt_len,
+                                          unsigned int iterations,
+                                          unsigned char out_dk[32]) {
   unsigned char be_idx[4] = {0, 0, 0, 1};
   unsigned char u[32];
   unsigned char u_next[32];
   unsigned int iter;
   size_t k;
 
-  c_orm_hmac_sha256_2(password, password_len, salt, salt_len, be_idx, 4, u);
+  oauth2_calc_hmac_sha256_2(password, password_len, salt, salt_len, be_idx, 4,
+                            u);
   memcpy(out_dk, u, 32);
 
   for (iter = 1; iter < iterations; ++iter) {
-    c_orm_hmac_sha256_2(password, password_len, u, 32, NULL, 0, u_next);
+    oauth2_calc_hmac_sha256_2(password, password_len, u, 32, NULL, 0, u_next);
     memcpy(u, u_next, 32);
     for (k = 0; k < 32; ++k) {
       out_dk[k] ^= u[k];
@@ -464,7 +499,7 @@ c_orm_pbkdf2_hmac_sha256(const unsigned char *password, size_t password_len,
   }
   memset(u, 0, sizeof(u));
   memset(u_next, 0, sizeof(u_next));
-  return C_ORM_OK;
+  return 1;
 }
 
 /**
@@ -472,23 +507,25 @@ c_orm_pbkdf2_hmac_sha256(const unsigned char *password, size_t password_len,
  * @param password Plaintext password string.
  * @param salt Salt string (may be NULL).
  * @param out_hex 65-byte output buffer receiving lowercase hex digest.
- * @return C_ORM_OK on success.
+ * @return 1 on completion.
  */
-static c_orm_error_t c_orm_pbkdf2_password_hex(const char *password,
-                                               const char *salt,
-                                               char out_hex[65]) {
+static int oauth2_calc_pbkdf2_password_hex(const char *password,
+                                           const char *salt, char out_hex[65]) {
+  static const char hex_chars[] = "0123456789abcdef";
   unsigned char dk[32];
   const char *s = salt ? salt : "";
   size_t i;
 
-  c_orm_pbkdf2_hmac_sha256((const unsigned char *)password, strlen(password),
-                           (const unsigned char *)s, strlen(s), 10000U, dk);
+  oauth2_calc_pbkdf2_hmac_sha256((const unsigned char *)password,
+                                 strlen(password), (const unsigned char *)s,
+                                 strlen(s), 10000U, dk);
   for (i = 0; i < 32; ++i) {
-    C_ORM_SPRINTF(&out_hex[i * 2], 3, "%02x", dk[i]);
+    out_hex[i * 2] = hex_chars[(dk[i] >> 4) & 0x0FU];
+    out_hex[i * 2 + 1] = hex_chars[dk[i] & 0x0FU];
   }
   out_hex[64] = '\0';
   memset(dk, 0, sizeof(dk));
-  return C_ORM_OK;
+  return 1;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_user_hash_password(const char *password,
@@ -496,14 +533,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_user_hash_password(const char *password,
                                                     char **out_hash) {
   char hex[65];
   char *buf = NULL;
+  c_orm_error_t rc;
 
   if (!password || !out_hash) {
     return C_ORM_ERROR_NULL_POINTER;
   }
   *out_hash = NULL;
-  c_orm_pbkdf2_password_hex(password, salt, hex);
-  if (c_orm_system_malloc(65, (void **)&buf) != C_ORM_OK) {
-    return C_ORM_ERROR_MEMORY;
+  oauth2_calc_pbkdf2_password_hex(password, salt, hex);
+  rc = c_orm_system_malloc(65, (void **)&buf);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
   memcpy(buf, hex, 65);
   *out_hash = buf;
@@ -524,19 +563,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_user_hash_password(const char *password,
     (c) += (d);                                                                \
     (b) ^= (c);                                                                \
     (b) = C_ORM_ROTL32((b), 7);                                                \
-  } while ((void)0, 0)
+  } while (0)
 
 /**
  * @brief Loads a little-endian 32-bit unsigned integer from 4 bytes.
  * @param p 4-byte input buffer.
- * @param out_u32 Output 32-bit unsigned integer.
- * @return C_ORM_OK on success.
+ * @return Loaded 32-bit unsigned integer.
  */
-static c_orm_error_t c_orm_load_le32(const unsigned char p[4],
-                                     uint32_t *out_u32) {
-  *out_u32 = ((uint32_t)p[0]) | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
-             ((uint32_t)p[3] << 24);
-  return C_ORM_OK;
+static uint32_t oauth2_calc_load_le32(const unsigned char p[4]) {
+  return ((uint32_t)p[0]) | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
+         ((uint32_t)p[3] << 24);
 }
 
 /**
@@ -547,12 +583,12 @@ static c_orm_error_t c_orm_load_le32(const unsigned char p[4],
  * @param in_buf Input bytes.
  * @param out_buf Output bytes.
  * @param len Byte length.
- * @return C_ORM_OK on success.
+ * @return 1 on completion.
  */
-static c_orm_error_t c_orm_chacha20_xor(const unsigned char key[32],
-                                        const unsigned char nonce[12],
-                                        const unsigned char *in_buf,
-                                        unsigned char *out_buf, size_t len) {
+static int oauth2_calc_chacha20_xor(const unsigned char key[32],
+                                    const unsigned char nonce[12],
+                                    const unsigned char *in_buf,
+                                    unsigned char *out_buf, size_t len) {
   uint32_t counter = 1U;
   size_t offset = 0;
 
@@ -568,12 +604,12 @@ static c_orm_error_t c_orm_chacha20_xor(const unsigned char key[32],
     st[2] = 0x79622d32UL;
     st[3] = 0x6b206574UL;
     for (i = 0; i < 8; ++i) {
-      c_orm_load_le32(key + i * 4, &st[4 + i]);
+      st[4 + i] = oauth2_calc_load_le32(key + i * 4);
     }
     st[12] = counter++;
-    c_orm_load_le32(nonce, &st[13]);
-    c_orm_load_le32(nonce + 4, &st[14]);
-    c_orm_load_le32(nonce + 8, &st[15]);
+    st[13] = oauth2_calc_load_le32(nonce);
+    st[14] = oauth2_calc_load_le32(nonce + 4);
+    st[15] = oauth2_calc_load_le32(nonce + 8);
 
     for (i = 0; i < 16; ++i) {
       wk[i] = st[i];
@@ -602,7 +638,7 @@ static c_orm_error_t c_orm_chacha20_xor(const unsigned char key[32],
     memset(ks, 0, sizeof(ks));
     offset += block_len;
   }
-  return C_ORM_OK;
+  return 1;
 }
 
 static unsigned char g_oauth2_master_key[32];
@@ -639,26 +675,30 @@ static c_orm_error_t c_orm_oauth2_get_subkeys(unsigned char out_enc_key[32],
   if (!g_oauth2_master_key_ready) {
     char env_secret[256];
     env_secret[0] = '\0';
-    C_ORM_GETENV(env_secret, sizeof(env_secret), "C_ORM_OAUTH2_SECRET");
+    rc = C_ORM_GETENV(env_secret, sizeof(env_secret), "C_ORM_OAUTH2_SECRET");
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
     if (env_secret[0] != '\0') {
       static const unsigned char kdf_salt[] = "c-orm-oauth2-master-salt";
-      c_orm_pbkdf2_hmac_sha256(
+      oauth2_calc_pbkdf2_hmac_sha256(
           (const unsigned char *)env_secret, strlen(env_secret), kdf_salt,
           sizeof(kdf_salt) - 1, 10000U, g_oauth2_master_key);
       memset(env_secret, 0, sizeof(env_secret));
     } else {
       rc = c_orm_random_bytes(g_oauth2_master_key, 32);
       if (rc != C_ORM_OK) {
-        return C_ORM_ERROR_CRYPTO;
+        return rc;
       }
     }
     g_oauth2_master_key_ready = 1;
   }
 
-  c_orm_hmac_sha256_2(g_oauth2_master_key, 32, enc_label, sizeof(enc_label) - 1,
-                      NULL, 0, out_enc_key);
-  return c_orm_hmac_sha256_2(g_oauth2_master_key, 32, mac_label,
-                             sizeof(mac_label) - 1, NULL, 0, out_mac_key);
+  oauth2_calc_hmac_sha256_2(g_oauth2_master_key, 32, enc_label,
+                            sizeof(enc_label) - 1, NULL, 0, out_enc_key);
+  oauth2_calc_hmac_sha256_2(g_oauth2_master_key, 32, mac_label,
+                            sizeof(mac_label) - 1, NULL, 0, out_mac_key);
+  return C_ORM_OK;
 }
 
 /**
@@ -720,16 +760,18 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
       if (pCryptProtectData &&
           pCryptProtectData(&in_blob, L"c_orm_token", NULL, NULL, NULL,
                             C_ORM_CRYPTPROTECT_UI_FORBIDDEN, &out_blob)) {
+        static const char hex_chars[] = "0123456789abcdef";
+        c_orm_error_t mrc;
         hex_str = NULL;
-        if (c_orm_system_malloc((out_blob.cbData * 2) + 1, (void **)&hex_str) !=
-                C_ORM_OK ||
-            !hex_str) {
+        mrc = c_orm_system_malloc((out_blob.cbData * 2) + 1, (void **)&hex_str);
+        if (mrc != C_ORM_OK) {
           LocalFree(out_blob.pbData);
           FreeLibrary(hCrypt32);
-          return C_ORM_ERROR_VALIDATION;
+          return mrc;
         }
         for (i = 0; i < out_blob.cbData; ++i) {
-          C_ORM_SPRINTF(&hex_str[i * 2], 3, "%02x", out_blob.pbData[i]);
+          hex_str[i * 2] = hex_chars[(out_blob.pbData[i] >> 4) & 0x0FU];
+          hex_str[i * 2 + 1] = hex_chars[out_blob.pbData[i] & 0x0FU];
         }
         hex_str[out_blob.cbData * 2] = '\0';
         LocalFree(out_blob.pbData);
@@ -743,6 +785,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
   }
 #else
   {
+    static const char hex_chars[] = "0123456789abcdef";
     size_t pt_len = strlen(plain_token);
     size_t wire_len = 12 + pt_len + 32;
     unsigned char enc_key[32];
@@ -762,33 +805,35 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
     if (rc != C_ORM_OK) {
       memset(enc_key, 0, sizeof(enc_key));
       memset(mac_key, 0, sizeof(mac_key));
-      return C_ORM_ERROR_CRYPTO;
+      return rc;
     }
 
-    if (c_orm_system_malloc(wire_len, (void **)&wire) != C_ORM_OK) {
+    rc = c_orm_system_malloc(wire_len, (void **)&wire);
+    if (rc != C_ORM_OK) {
       memset(enc_key, 0, sizeof(enc_key));
       memset(mac_key, 0, sizeof(mac_key));
-      return C_ORM_ERROR_VALIDATION;
+      return rc;
     }
 
     memcpy(wire, nonce, 12);
-    c_orm_chacha20_xor(enc_key, nonce, (const unsigned char *)plain_token,
-                       wire + 12, pt_len);
-    c_orm_hmac_sha256_2(mac_key, 32, wire, 12 + pt_len, NULL, 0, tag);
+    oauth2_calc_chacha20_xor(enc_key, nonce, (const unsigned char *)plain_token,
+                             wire + 12, pt_len);
+    oauth2_calc_hmac_sha256_2(mac_key, 32, wire, 12 + pt_len, NULL, 0, tag);
     memcpy(wire + 12 + pt_len, tag, 32);
     memset(enc_key, 0, sizeof(enc_key));
     memset(mac_key, 0, sizeof(mac_key));
 
-    if (c_orm_system_malloc((wire_len * 2) + 1, (void **)&hex_str) !=
-        C_ORM_OK) {
-      (void)c_orm_system_free(wire);
-      return C_ORM_ERROR_VALIDATION;
+    rc = c_orm_system_malloc((wire_len * 2) + 1, (void **)&hex_str);
+    if (rc != C_ORM_OK) {
+      c_orm_system_free(wire);
+      return rc;
     }
     for (i = 0; i < wire_len; ++i) {
-      C_ORM_SPRINTF(&hex_str[i * 2], 3, "%02x", wire[i]);
+      hex_str[i * 2] = hex_chars[(wire[i] >> 4) & 0x0FU];
+      hex_str[i * 2 + 1] = hex_chars[wire[i] & 0x0FU];
     }
     hex_str[wire_len * 2] = '\0';
-    (void)c_orm_system_free(wire);
+    c_orm_system_free(wire);
     *out_encrypted_token = hex_str;
     return C_ORM_OK;
   }
@@ -799,8 +844,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_encrypt_token(
  * @brief Decrypts and authenticates an encrypted token string.
  * @param encrypted_token Hex-encoded authenticated ciphertext.
  * @param out_plain_token Pointer to store the decrypted plaintext token.
- * @return C_ORM_OK on success, C_ORM_ERROR_VALIDATION on NULL/OOM, or
- * C_ORM_ERROR_CRYPTO on malformed hex or authentication tag failure.
+ * @return C_ORM_OK on success, C_ORM_ERROR_VALIDATION on NULL,
+ * C_ORM_ERROR_MEMORY on OOM, or C_ORM_ERROR_CRYPTO on malformed hex or
+ * authentication tag failure.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
     const char *encrypted_token, char **out_plain_token) {
@@ -808,6 +854,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
   size_t bin_len;
   unsigned char *bin_data = NULL;
   size_t i;
+  c_orm_error_t mrc;
 
   LOG_DEBUG("c_orm_oauth2_decrypt_token: entered");
 
@@ -829,16 +876,22 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
   }
 #endif
 
-  if (c_orm_system_malloc(bin_len, (void **)&bin_data) != C_ORM_OK) {
-    return C_ORM_ERROR_VALIDATION;
+  mrc = c_orm_system_malloc(bin_len, (void **)&bin_data);
+  if (mrc != C_ORM_OK) {
+    return mrc;
   }
 
   for (i = 0; i < bin_len; ++i) {
     unsigned char b1 = 0, b2 = 0;
-    if (hex_to_byte(encrypted_token[i * 2], &b1) != C_ORM_OK ||
-        hex_to_byte(encrypted_token[i * 2 + 1], &b2) != C_ORM_OK) {
-      (void)c_orm_system_free(bin_data);
-      return C_ORM_ERROR_CRYPTO;
+    c_orm_error_t hrc = hex_to_byte(encrypted_token[i * 2], &b1);
+    if (hrc != C_ORM_OK) {
+      c_orm_system_free(bin_data);
+      return hrc;
+    }
+    hrc = hex_to_byte(encrypted_token[i * 2 + 1], &b2);
+    if (hrc != C_ORM_OK) {
+      c_orm_system_free(bin_data);
+      return hrc;
     }
     bin_data[i] = (unsigned char)((b1 << 4) | b2);
   }
@@ -860,25 +913,24 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
           pCryptUnprotectData(&in_blob, NULL, NULL, NULL, NULL,
                               C_ORM_CRYPTPROTECT_UI_FORBIDDEN, &out_blob)) {
         char *plain = NULL;
-        if (c_orm_system_malloc(out_blob.cbData + 1, (void **)&plain) !=
-                C_ORM_OK ||
-            !plain) {
+        mrc = c_orm_system_malloc(out_blob.cbData + 1, (void **)&plain);
+        if (mrc != C_ORM_OK) {
           LocalFree(out_blob.pbData);
-          (void)c_orm_system_free(bin_data);
           FreeLibrary(hCrypt32);
-          return C_ORM_ERROR_VALIDATION;
+          c_orm_system_free(bin_data);
+          return mrc;
         }
         memcpy(plain, out_blob.pbData, out_blob.cbData);
         plain[out_blob.cbData] = '\0';
         LocalFree(out_blob.pbData);
-        (void)c_orm_system_free(bin_data);
-        *out_plain_token = plain;
         FreeLibrary(hCrypt32);
+        c_orm_system_free(bin_data);
+        *out_plain_token = plain;
         return C_ORM_OK;
       }
       FreeLibrary(hCrypt32);
     }
-    (void)c_orm_system_free(bin_data);
+    c_orm_system_free(bin_data);
     return C_ORM_ERROR_CRYPTO;
   }
 #else
@@ -893,12 +945,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
 
     rc = c_orm_oauth2_get_subkeys(enc_key, mac_key);
     if (rc != C_ORM_OK) {
-      (void)c_orm_system_free(bin_data);
+      c_orm_system_free(bin_data);
       return rc;
     }
 
-    c_orm_hmac_sha256_2(mac_key, 32, bin_data, 12 + ct_len, NULL, 0,
-                        expected_tag);
+    oauth2_calc_hmac_sha256_2(mac_key, 32, bin_data, 12 + ct_len, NULL, 0,
+                              expected_tag);
     memset(mac_key, 0, sizeof(mac_key));
 
     for (i = 0; i < 32; ++i) {
@@ -907,20 +959,21 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_decrypt_token(
     memset(expected_tag, 0, sizeof(expected_tag));
     if (diff != 0) {
       memset(enc_key, 0, sizeof(enc_key));
-      (void)c_orm_system_free(bin_data);
+      c_orm_system_free(bin_data);
       return C_ORM_ERROR_CRYPTO;
     }
 
-    if (c_orm_system_malloc(ct_len + 1, (void **)&plain) != C_ORM_OK) {
+    rc = c_orm_system_malloc(ct_len + 1, (void **)&plain);
+    if (rc != C_ORM_OK) {
       memset(enc_key, 0, sizeof(enc_key));
-      (void)c_orm_system_free(bin_data);
-      return C_ORM_ERROR_VALIDATION;
+      c_orm_system_free(bin_data);
+      return rc;
     }
 
-    c_orm_chacha20_xor(enc_key, bin_data, bin_data + 12, (unsigned char *)plain,
-                       ct_len);
+    oauth2_calc_chacha20_xor(enc_key, bin_data, bin_data + 12,
+                             (unsigned char *)plain, ct_len);
     memset(enc_key, 0, sizeof(enc_key));
-    (void)c_orm_system_free(bin_data);
+    c_orm_system_free(bin_data);
     plain[ct_len] = '\0';
     *out_plain_token = plain;
     return C_ORM_OK;
@@ -951,36 +1004,36 @@ C_ORM_EXPORT c_orm_error_t c_orm_store_token_secure_at(
   rc = c_orm_oauth2_encrypt_token(
       token->refresh_token ? token->refresh_token : "", &encrypted_refresh);
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(encrypted_access);
+    c_orm_system_free(encrypted_access);
     return rc;
   }
 
   {
+    int open_ok;
 #if !defined(_WIN32) && !defined(_MSC_VER) && !defined(__EMSCRIPTEN__)
     mode_t old_mask = umask(0177);
-    C_ORM_FOPEN(&f, file_path, "w");
-    (void)umask(old_mask);
-    if (f) {
-      (void)chmod(file_path, 0600);
-    }
-#elif defined(_MSC_VER)
-    if (fopen_s(&f, file_path, "w") != 0) {
-      f = NULL;
-    }
-#else
-    (void)C_ORM_FOPEN(&f, file_path, "w");
-#endif
-    if (!f) {
-      (void)c_orm_system_free(encrypted_access);
-      (void)c_orm_system_free(encrypted_refresh);
+    open_ok = (C_ORM_FOPEN(&f, file_path, "w") == C_ORM_OK);
+    umask(old_mask);
+    if (!open_ok) {
+      c_orm_system_free(encrypted_access);
+      c_orm_system_free(encrypted_refresh);
       return C_ORM_ERROR_IO;
     }
+    chmod(file_path, 0600);
+#else
+    open_ok = (C_ORM_FOPEN(&f, file_path, "w") == C_ORM_OK);
+    if (!open_ok) {
+      c_orm_system_free(encrypted_access);
+      c_orm_system_free(encrypted_refresh);
+      return C_ORM_ERROR_IO;
+    }
+#endif
     fprintf(f, "%s\n%s\n", encrypted_access, encrypted_refresh);
     fclose(f);
   }
 
-  (void)c_orm_system_free(encrypted_access);
-  (void)c_orm_system_free(encrypted_refresh);
+  c_orm_system_free(encrypted_access);
+  c_orm_system_free(encrypted_refresh);
   return C_ORM_OK;
 }
 
@@ -993,10 +1046,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_store_token_secure_at(
 C_ORM_EXPORT c_orm_error_t
 c_orm_store_token_secure(const c_orm_oauth2_token_t *token) {
   char path_buf[512];
+  c_orm_error_t rc;
   if (!token) {
     return C_ORM_ERROR_VALIDATION;
   }
-  C_ORM_GETENV(path_buf, sizeof(path_buf), "C_ORM_TOKEN_FILE");
+  path_buf[0] = '\0';
+  rc = C_ORM_GETENV(path_buf, sizeof(path_buf), "C_ORM_TOKEN_FILE");
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
   return c_orm_store_token_secure_at(
       token, path_buf[0] != '\0' ? path_buf : "c_orm_token.dat");
 }
@@ -1038,12 +1096,35 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_calculate_expiration(
 }
 
 /**
+ * @brief Compares `db->vtable` against `*vt_ptr` after
+ * `c_orm_sqlite_get_vtable` completes at the call sequence point.
+ * @param st Ignored status code evaluated prior to entering this helper.
+ * @param db Validated non-null database handle.
+ * @param vt_ptr Pointer holding the fetched SQLite vtable pointer.
+ * @return 1 if `db->vtable == *vt_ptr`, 0 otherwise.
+ */
+static int oauth2_calc_eq_vtable(int st, const c_orm_db_t *db,
+                                 const c_orm_driver_vtable_t *const *vt_ptr) {
+  return (st * 0) + ((db->vtable == *vt_ptr) ? 1 : 0);
+}
+
+/**
+ * @brief Checks whether `db` uses the SQLite driver vtable.
+ * @param db Validated non-null database handle.
+ * @return 1 if `db->vtable` matches SQLite vtable, 0 otherwise.
+ */
+static int oauth2_calc_is_sqlite_db(const c_orm_db_t *db) {
+  const c_orm_driver_vtable_t *sqlite_vt = NULL;
+  return oauth2_calc_eq_vtable((int)c_orm_sqlite_get_vtable(&sqlite_vt), db,
+                               &sqlite_vt);
+}
+
+/**
  * @brief Creates necessary tables for OAuth2 support.
  * @param db The database connection.
  * @return C_ORM_OK on success, or an error code.
  */
 C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
-  const c_orm_driver_vtable_t *sqlite_vt = NULL;
   c_orm_error_t rc;
 
   LOG_DEBUG("c_orm_oauth2_create_tables: entered");
@@ -1053,10 +1134,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_create_tables(c_orm_db_t *db) {
     return C_ORM_ERROR_VALIDATION;
   }
 
-  sqlite_vt = NULL;
-  c_orm_sqlite_get_vtable(&sqlite_vt);
-
-  if (db->vtable == sqlite_vt) {
+  if (oauth2_calc_is_sqlite_db(db)) {
     rc = c_orm_execute_raw(db, "CREATE TABLE IF NOT EXISTS users ("
                                "id TEXT PRIMARY KEY, "
                                "username TEXT UNIQUE, "
@@ -1319,6 +1397,42 @@ C_ORM_EXPORT const c_orm_table_meta_t c_orm_auth_code_meta = {
     0};
 
 /**
+ * @brief Releases heap-allocated string fields on a `c_orm_user_t`.
+ * @param user User struct whose fields should be freed.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t oauth2_user_strings_free(c_orm_user_t *user) {
+  c_orm_system_free(user->id);
+  c_orm_system_free(user->username);
+  c_orm_system_free(user->password_hash);
+  c_orm_system_free(user->salt);
+  user->id = NULL;
+  user->username = NULL;
+  user->password_hash = NULL;
+  user->salt = NULL;
+  return C_ORM_OK;
+}
+
+/**
+ * @brief Releases heap-allocated string fields on a `c_orm_oauth2_client_t`.
+ * @param client Client struct whose fields should be freed.
+ * @return C_ORM_OK.
+ */
+static c_orm_error_t oauth2_client_strings_free(c_orm_oauth2_client_t *client) {
+  c_orm_system_free(client->id);
+  c_orm_system_free(client->client_secret);
+  c_orm_system_free(client->redirect_uris);
+  c_orm_system_free(client->grant_types);
+  c_orm_system_free(client->scopes);
+  client->id = NULL;
+  client->client_secret = NULL;
+  client->redirect_uris = NULL;
+  client->grant_types = NULL;
+  client->scopes = NULL;
+  return C_ORM_OK;
+}
+
+/**
  * @brief Verifies user credentials.
  * @param db The database connection.
  * @param username The username.
@@ -1356,21 +1470,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_user_verify_credentials(c_orm_db_t *db,
 
   if (user.password_hash) {
     char derived_hex[65];
-    c_orm_pbkdf2_password_hex(password, user.salt ? user.salt : "",
-                              derived_hex);
-    c_orm_constant_time_eq(user.password_hash, derived_hex, out_is_valid);
+    oauth2_calc_pbkdf2_password_hex(password, user.salt ? user.salt : "",
+                                    derived_hex);
+    *out_is_valid =
+        oauth2_calc_constant_time_eq(user.password_hash, derived_hex);
     memset(derived_hex, 0, sizeof(derived_hex));
   }
 
-  (void)c_orm_system_free(user.id);
-  (void)c_orm_system_free(user.username);
-  if (user.password_hash) {
-    (void)c_orm_system_free(user.password_hash);
-  }
-  if (user.salt) {
-    (void)c_orm_system_free(user.salt);
-  }
-
+  oauth2_user_strings_free(&user);
   LOG_DEBUG("c_orm_user_verify_credentials: exiting");
   return C_ORM_OK;
 }
@@ -1413,27 +1520,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_verify_client(c_orm_db_t *db,
 
   if (client.client_secret && strlen(client.client_secret) > 0) {
     if (client_secret) {
-      c_orm_constant_time_eq(client.client_secret, client_secret, out_is_valid);
+      *out_is_valid =
+          oauth2_calc_constant_time_eq(client.client_secret, client_secret);
     }
   } else {
     /* Public client (no secret required) */
     *out_is_valid = 1;
   }
 
-  (void)c_orm_system_free(client.id);
-  if (client.client_secret) {
-    (void)c_orm_system_free(client.client_secret);
-  }
-  if (client.redirect_uris) {
-    (void)c_orm_system_free(client.redirect_uris);
-  }
-  if (client.grant_types) {
-    (void)c_orm_system_free(client.grant_types);
-  }
-  if (client.scopes) {
-    (void)c_orm_system_free(client.scopes);
-  }
-
+  oauth2_client_strings_free(&client);
   LOG_DEBUG("c_orm_oauth2_verify_client: exiting");
   return C_ORM_OK;
 }
@@ -1465,75 +1560,89 @@ c_orm_oauth2_save_token(c_orm_db_t *db, const c_orm_oauth2_token_t *token) {
 
   rc = db->vtable->bind_string(query, 1, token->access_token);
   if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    goto save_token_err;
   }
 
   if (token->refresh_token) {
     rc = db->vtable->bind_string(query, 2, token->refresh_token);
+    if (rc != C_ORM_OK) {
+      goto save_token_err;
+    }
   } else {
     rc = db->vtable->bind_null(query, 2);
-  }
-  if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    if (rc != C_ORM_OK) {
+      goto save_token_err;
+    }
   }
 
   if (token->token_type) {
     rc = db->vtable->bind_string(query, 3, token->token_type);
+    if (rc != C_ORM_OK) {
+      goto save_token_err;
+    }
   } else {
     rc = db->vtable->bind_null(query, 3);
-  }
-  if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    if (rc != C_ORM_OK) {
+      goto save_token_err;
+    }
   }
 
   rc = db->vtable->bind_int32(query, 4, token->expires_in);
   if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    goto save_token_err;
   }
   rc = db->vtable->bind_int64(query, 5, token->created_at);
   if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    goto save_token_err;
   }
 
   if (token->user_id) {
     rc = db->vtable->bind_string(query, 6, token->user_id);
+    if (rc != C_ORM_OK) {
+      goto save_token_err;
+    }
   } else {
     rc = db->vtable->bind_null(query, 6);
-  }
-  if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    if (rc != C_ORM_OK) {
+      goto save_token_err;
+    }
   }
 
   if (token->scopes) {
     rc = db->vtable->bind_string(query, 7, token->scopes);
+    if (rc != C_ORM_OK) {
+      goto save_token_err;
+    }
   } else {
     rc = db->vtable->bind_null(query, 7);
-  }
-  if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    if (rc != C_ORM_OK) {
+      goto save_token_err;
+    }
   }
 
   rc = db->vtable->step(query, &has_row);
+  if (rc != C_ORM_OK) {
+    if (rc != C_ORM_ERROR_NOT_FOUND) {
+      goto save_token_err;
+    }
+  }
 
-  {
-    c_orm_error_t fin_rc = c_orm_finalize_cached(db, query);
-    if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
-      return rc;
-    }
-    if (fin_rc != C_ORM_OK) {
-      return fin_rc;
-    }
+  rc = c_orm_finalize_cached(db, query);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
 
   LOG_DEBUG("c_orm_oauth2_save_token: exiting");
   return C_ORM_OK;
+
+save_token_err:;
+  {
+    c_orm_error_t fin_rc = c_orm_finalize_cached(db, query);
+    if (fin_rc != C_ORM_OK) {
+      return fin_rc;
+    }
+  }
+  return rc;
 }
 
 /**
@@ -1703,70 +1812,85 @@ C_ORM_EXPORT c_orm_error_t c_orm_oauth2_save_auth_code(
 
   rc = db->vtable->bind_string(query, 1, auth_code->code);
   if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    goto save_code_err;
   }
 
   if (auth_code->client_id) {
     rc = db->vtable->bind_string(query, 2, auth_code->client_id);
+    if (rc != C_ORM_OK) {
+      goto save_code_err;
+    }
   } else {
     rc = db->vtable->bind_null(query, 2);
-  }
-  if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    if (rc != C_ORM_OK) {
+      goto save_code_err;
+    }
   }
 
   if (auth_code->redirect_uri) {
     rc = db->vtable->bind_string(query, 3, auth_code->redirect_uri);
+    if (rc != C_ORM_OK) {
+      goto save_code_err;
+    }
   } else {
     rc = db->vtable->bind_null(query, 3);
-  }
-  if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    if (rc != C_ORM_OK) {
+      goto save_code_err;
+    }
   }
 
   if (auth_code->user_id) {
     rc = db->vtable->bind_string(query, 4, auth_code->user_id);
+    if (rc != C_ORM_OK) {
+      goto save_code_err;
+    }
   } else {
     rc = db->vtable->bind_null(query, 4);
-  }
-  if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    if (rc != C_ORM_OK) {
+      goto save_code_err;
+    }
   }
 
   rc = db->vtable->bind_int64(query, 5, auth_code->expires_at);
   if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    goto save_code_err;
   }
 
   if (auth_code->scopes) {
     rc = db->vtable->bind_string(query, 6, auth_code->scopes);
+    if (rc != C_ORM_OK) {
+      goto save_code_err;
+    }
   } else {
     rc = db->vtable->bind_null(query, 6);
-  }
-  if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
-    return rc;
+    if (rc != C_ORM_OK) {
+      goto save_code_err;
+    }
   }
 
   rc = db->vtable->step(query, &has_row);
+  if (rc != C_ORM_OK) {
+    if (rc != C_ORM_ERROR_NOT_FOUND) {
+      goto save_code_err;
+    }
+  }
 
-  {
-    c_orm_error_t fin_rc = c_orm_finalize_cached(db, query);
-    if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
-      return rc;
-    }
-    if (fin_rc != C_ORM_OK) {
-      return fin_rc;
-    }
+  rc = c_orm_finalize_cached(db, query);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
 
   LOG_DEBUG("c_orm_oauth2_save_auth_code: exiting");
   return C_ORM_OK;
+
+save_code_err:;
+  {
+    c_orm_error_t fin_rc = c_orm_finalize_cached(db, query);
+    if (fin_rc != C_ORM_OK) {
+      return fin_rc;
+    }
+  }
+  return rc;
 }
 
 /**
@@ -1857,14 +1981,23 @@ c_orm_oauth2_cleanup_expired_tokens(c_orm_db_t *db, int64_t current_time) {
 
   rc = db->vtable->bind_int64(query, 1, current_time);
   if (rc != C_ORM_OK) {
-    c_orm_finalize_cached(db, query);
+    fin_rc = c_orm_finalize_cached(db, query);
+    if (fin_rc != C_ORM_OK) {
+      return fin_rc;
+    }
     return rc;
   }
   rc = db->vtable->step(query, &has_row);
-  fin_rc = c_orm_finalize_cached(db, query);
-  if (rc != C_ORM_OK && rc != C_ORM_ERROR_NOT_FOUND) {
-    return rc;
+  if (rc != C_ORM_OK) {
+    if (rc != C_ORM_ERROR_NOT_FOUND) {
+      fin_rc = c_orm_finalize_cached(db, query);
+      if (fin_rc != C_ORM_OK) {
+        return fin_rc;
+      }
+      return rc;
+    }
   }
+  fin_rc = c_orm_finalize_cached(db, query);
   if (fin_rc != C_ORM_OK) {
     return fin_rc;
   }

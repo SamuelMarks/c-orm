@@ -39,6 +39,22 @@ C_ORM_EXPORT c_orm_error_t c_orm_random_bytes(unsigned char *out_bytes,
     return C_ORM_ERROR_NULL_POINTER;
   }
 #if defined(_WIN32) || defined(_WIN64)
+#ifdef C_ORM_TEST_ALLOCATOR
+  if (c_orm_mock_urandom_path) {
+    FILE *fp = NULL;
+    size_t nread;
+
+    if (C_ORM_FOPEN(&fp, c_orm_mock_urandom_path, "rb") != C_ORM_OK) {
+      return C_ORM_ERROR_CRYPTO;
+    }
+    nread = fread(out_bytes, 1, len, fp);
+    fclose(fp);
+    if (nread != len) {
+      return C_ORM_ERROR_CRYPTO;
+    }
+    return C_ORM_OK;
+  }
+#endif
   if (!SystemFunction036(out_bytes, (unsigned long)len)) {
     return C_ORM_ERROR_CRYPTO;
   }
@@ -48,21 +64,19 @@ C_ORM_EXPORT c_orm_error_t c_orm_random_bytes(unsigned char *out_bytes,
     FILE *fp = NULL;
     size_t nread;
     const char *rng_path = "/dev/urandom";
-    c_orm_error_t rc;
 
 #ifdef C_ORM_TEST_ALLOCATOR
     if (c_orm_mock_urandom_path) {
       rng_path = c_orm_mock_urandom_path;
     }
 #endif
-    rc = C_ORM_FOPEN(&fp, rng_path, "rb");
-    if (rc != C_ORM_OK) {
-      return C_ORM_ERROR_IO;
+    if (C_ORM_FOPEN(&fp, rng_path, "rb") != C_ORM_OK) {
+      return C_ORM_ERROR_CRYPTO;
     }
     nread = fread(out_bytes, 1, len, fp);
     fclose(fp);
     if (nread != len) {
-      return C_ORM_ERROR_IO;
+      return C_ORM_ERROR_CRYPTO;
     }
     return C_ORM_OK;
   }
@@ -70,15 +84,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_random_bytes(unsigned char *out_bytes,
 }
 
 /**
- * @brief Fills a 16-byte buffer with cryptographically secure random bytes.
- * @param out_bytes 16-byte output buffer.
- * @return C_ORM_OK on success, or C_ORM_ERROR_IO / C_ORM_ERROR_CRYPTO on
- * failure.
+ * @brief Generates a random RFC 4122 version 4 UUID string.
+ * @param out_uuid 37-byte destination character buffer (`8-4-4-4-12` + NUL).
+ * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY / C_ORM_ERROR_UNKNOWN.
  */
-static c_orm_error_t c_orm_fill_random_16(unsigned char out_bytes[16]) {
-  return c_orm_random_bytes(out_bytes, 16);
-}
-
 C_ORM_EXPORT c_orm_error_t c_orm_uuid_v4(char out_uuid[37]) {
   static const char hex_digits[] = "0123456789abcdef";
   c_orm_error_t rc;
@@ -94,7 +103,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_uuid_v4(char out_uuid[37]) {
     return rc;
   }
 
-  rc = c_orm_fill_random_16(bytes);
+  rc = c_orm_random_bytes(bytes, 16);
   if (rc != C_ORM_OK) {
     LOG_DEBUG("c_orm_uuid_v4: CSPRNG failure");
     return rc;
@@ -114,6 +123,6 @@ C_ORM_EXPORT c_orm_error_t c_orm_uuid_v4(char out_uuid[37]) {
   }
   out_uuid[out_pos] = '\0';
 
-  LOG_DEBUG("c_orm_uuid_v4: exit with C_ORM_OK. uuid=%s", out_uuid);
+  LOG_DEBUG("c_orm_uuid_v4: exit with C_ORM_OK");
   return C_ORM_OK;
 }

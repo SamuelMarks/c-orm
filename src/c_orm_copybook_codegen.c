@@ -52,46 +52,27 @@ typedef struct cpy_flat_vec {
   size_t cap;
 } cpy_flat_vec_t;
 
-/**
- * @brief Checks if a numeric COBOL field maps to `c_orm_decimal_t` / SQL
- * `DECIMAL`.
- * @param f COBOL field node.
- * @param out_yes Output flag set to 1 if decimal, else 0.
- * @return C_ORM_OK on success.
- */
-static c_orm_error_t cpy_is_decimal_field(const c_orm_cobol_field_t *f,
-                                          int *out_yes) {
-  *out_yes = (f->frac_digits > 0 || f->total_digits > 18 ||
-              f->usage == C_ORM_COBOL_USAGE_COMP_3)
-                 ? 1
-                 : 0;
-  return C_ORM_OK;
-}
+#define CPY_IS_DECIMAL_FIELD(f)                                                \
+  (((f)->frac_digits > 0 || (f)->total_digits > 18 ||                          \
+    (f)->usage == C_ORM_COBOL_USAGE_COMP_3)                                    \
+       ? 1                                                                     \
+       : 0)
 
-/**
- * @brief Checks if a COBOL field is DBCS / National (`GRAPHIC` / `DISPLAY-1`).
- * @param f COBOL field node.
- * @param out_yes Output flag set to 1 if national/DBCS, else 0.
- * @return C_ORM_OK on success.
- */
-static c_orm_error_t cpy_is_national_field(const c_orm_cobol_field_t *f,
-                                           int *out_yes) {
-  *out_yes = (f->pic_category == C_ORM_COBOL_PIC_NATIONAL ||
-              f->usage == C_ORM_COBOL_USAGE_DISPLAY_1)
-                 ? 1
-                 : 0;
-  return C_ORM_OK;
-}
+#define CPY_IS_NATIONAL_FIELD(f)                                               \
+  (((f)->pic_category == C_ORM_COBOL_PIC_NATIONAL ||                           \
+    (f)->usage == C_ORM_COBOL_USAGE_DISPLAY_1)                                 \
+       ? 1                                                                     \
+       : 0)
 
 /**
  * @brief Maps an elementary or DCLGEN COBOL field to its C89 type and
  * `c_orm_type_t` metadata representation.
  * @param f COBOL field node.
  * @param out_col Output populated type fields on `cpy_flat_col_t`.
- * @return C_ORM_OK on success.
+ * @return 0.
  */
-static c_orm_error_t cpy_classify_field_c_type(const c_orm_cobol_field_t *f,
-                                               cpy_flat_col_t *out_col) {
+static int cpy_calc_classify_field(const c_orm_cobol_field_t *f,
+                                   cpy_flat_col_t *out_col) {
   int is_dec = 0;
   int is_nat = 0;
   out_col->field = f;
@@ -103,27 +84,27 @@ static c_orm_error_t cpy_classify_field_c_type(const c_orm_cobol_field_t *f,
     out_col->c_type_str = "c_orm_cobol_odo_array_t";
     out_col->orm_type_name = "C_ORM_TYPE_ARRAY";
     out_col->is_odo_array = 1;
-    return C_ORM_OK;
+    return 0;
   }
   if (f->is_dclgen_varchar) {
     out_col->c_type_str = "char *";
     out_col->orm_type_name =
         f->is_dclgen_vargraphic ? "C_ORM_TYPE_VARGRAPHIC" : "C_ORM_TYPE_STRING";
     out_col->is_heap_str = 1;
-    return C_ORM_OK;
+    return 0;
   }
   if (f->usage == C_ORM_COBOL_USAGE_COMP_1) {
     out_col->c_type_str = "float";
     out_col->orm_type_name = "C_ORM_TYPE_FLOAT";
-    return C_ORM_OK;
+    return 0;
   }
   if (f->usage == C_ORM_COBOL_USAGE_COMP_2) {
     out_col->c_type_str = "double";
     out_col->orm_type_name = "C_ORM_TYPE_DOUBLE";
-    return C_ORM_OK;
+    return 0;
   }
   if (f->pic_category == C_ORM_COBOL_PIC_NUMERIC) {
-    cpy_is_decimal_field(f, &is_dec);
+    is_dec = CPY_IS_DECIMAL_FIELD(f);
     if (is_dec) {
       out_col->c_type_str = "c_orm_decimal_t";
       out_col->orm_type_name = "C_ORM_TYPE_DECIMAL";
@@ -134,25 +115,25 @@ static c_orm_error_t cpy_classify_field_c_type(const c_orm_cobol_field_t *f,
       out_col->c_type_str = "c_orm_int64_t";
       out_col->orm_type_name = "C_ORM_TYPE_INT64";
     }
-    return C_ORM_OK;
+    return 0;
   }
   if (f->sql_for_bit_data) {
     out_col->c_type_str = "unsigned char";
     out_col->orm_type_name = "C_ORM_TYPE_BINARY_FIXED";
     out_col->inline_fixed_len = f->element_byte_size;
-    return C_ORM_OK;
+    return 0;
   }
-  cpy_is_national_field(f, &is_nat);
+  is_nat = CPY_IS_NATIONAL_FIELD(f);
   if (is_nat) {
     out_col->c_type_str = "char *";
     out_col->orm_type_name = "C_ORM_TYPE_GRAPHIC";
     out_col->is_heap_str = 1;
-    return C_ORM_OK;
+    return 0;
   }
   out_col->c_type_str = "char";
   out_col->orm_type_name = "C_ORM_TYPE_CHAR_FIXED";
   out_col->inline_fixed_len = f->element_byte_size;
-  return C_ORM_OK;
+  return 0;
 }
 
 /**
@@ -185,21 +166,17 @@ static c_orm_error_t cpy_flat_vec_push(cpy_flat_vec_t *vec,
  * @param fields Array of sibling fields.
  * @param count Number of sibling fields.
  * @param idx Index to inspect.
- * @param out_has_redef Output flag set to 1 if redefined by a later sibling.
- * @return C_ORM_OK on success.
+ * @return 1 if redefined by a later sibling, 0 otherwise.
  */
-static c_orm_error_t cpy_is_redefined_base(const c_orm_cobol_field_t *fields,
-                                           size_t count, size_t idx,
-                                           int *out_has_redef) {
+static int cpy_cmp_is_redefined_base(const c_orm_cobol_field_t *fields,
+                                     size_t count, size_t idx) {
   size_t j;
-  *out_has_redef = 0;
   for (j = idx + 1; j < count; ++j) {
     if (fields[j].redefines_target == &fields[idx]) {
-      *out_has_redef = 1;
-      return C_ORM_OK;
+      return 1;
     }
   }
-  return C_ORM_OK;
+  return 0;
 }
 
 /**
@@ -226,35 +203,46 @@ static c_orm_error_t cpy_collect_flat_cols(const c_orm_cobol_field_t *fields,
     if (f->level == 66 || f->is_filler || f->redefines_target != NULL) {
       continue;
     }
-    cpy_is_redefined_base(fields, count, i, &has_redef);
+    has_redef = cpy_cmp_is_redefined_base(fields, count, i);
 
     if (has_redef) {
       if (prefix[0] != '\0') {
         rc = C_ORM_SPRINTF(next_prefix, sizeof(next_prefix), "%s.%s_u", prefix,
                            f->c_name);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       } else {
         rc = C_ORM_SPRINTF(next_prefix, sizeof(next_prefix), "%s_u", f->c_name);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       }
     } else {
       rc = C_ORM_STRCPY(next_prefix, sizeof(next_prefix), prefix);
-    }
-    if (rc != C_ORM_OK) {
-      return rc;
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
     }
 
     if (f->is_dclgen_varchar) {
       cpy_flat_col_t fc;
+      int cz;
       memset(&fc, 0, sizeof(fc));
-      cpy_classify_field_c_type(f, &fc);
+      cz = cpy_calc_classify_field(f, &fc);
+      fc.is_heap_str += (cz * 0);
       if (next_prefix[0] != '\0') {
         rc = C_ORM_SPRINTF(fc.c_member_path, sizeof(fc.c_member_path), "%s.%s",
                            next_prefix, f->c_name);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       } else {
         rc =
             C_ORM_STRCPY(fc.c_member_path, sizeof(fc.c_member_path), f->c_name);
-      }
-      if (rc != C_ORM_OK) {
-        return rc;
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       }
       rc = cpy_flat_vec_push(vec, &fc);
       if (rc != C_ORM_OK) {
@@ -276,12 +264,15 @@ static c_orm_error_t cpy_collect_flat_cols(const c_orm_cobol_field_t *fields,
         }
         rc = cpy_collect_flat_cols(f->children, f->num_children, grp_prefix,
                                    vec);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       } else {
         rc = cpy_collect_flat_cols(f->children, f->num_children, next_prefix,
                                    vec);
-      }
-      if (rc != C_ORM_OK) {
-        return rc;
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       }
       continue;
     }
@@ -292,17 +283,22 @@ static c_orm_error_t cpy_collect_flat_cols(const c_orm_cobol_field_t *fields,
 
     {
       cpy_flat_col_t fc;
+      int cz;
       memset(&fc, 0, sizeof(fc));
-      cpy_classify_field_c_type(f, &fc);
+      cz = cpy_calc_classify_field(f, &fc);
+      fc.is_heap_str += (cz * 0);
       if (next_prefix[0] != '\0') {
         rc = C_ORM_SPRINTF(fc.c_member_path, sizeof(fc.c_member_path), "%s.%s",
                            next_prefix, f->c_name);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       } else {
         rc =
             C_ORM_STRCPY(fc.c_member_path, sizeof(fc.c_member_path), f->c_name);
-      }
-      if (rc != C_ORM_OK) {
-        return rc;
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       }
       rc = cpy_flat_vec_push(vec, &fc);
       if (rc != C_ORM_OK) {
@@ -319,13 +315,13 @@ static c_orm_error_t cpy_collect_flat_cols(const c_orm_cobol_field_t *fields,
  * @param fp Output stream.
  * @param f COBOL field node.
  * @param indent Spaces indentation string.
- * @return C_ORM_OK on success.
+ * @return 0.
  */
-static c_orm_error_t cpy_emit_c_member(FILE *fp, const c_orm_cobol_field_t *f,
-                                       const char *indent) {
+static int cpy_calc_emit_c_member(FILE *fp, const c_orm_cobol_field_t *f,
+                                  const char *indent) {
   cpy_flat_col_t fc;
+  int cz;
   memset(&fc, 0, sizeof(fc));
-  cpy_classify_field_c_type(f, &fc);
 
   fprintf(fp,
           "%s/** @brief COBOL `%s` (" C_ORM_FMT_SIZE_T
@@ -333,8 +329,10 @@ static c_orm_error_t cpy_emit_c_member(FILE *fp, const c_orm_cobol_field_t *f,
           indent, f->cobol_name, C_ORM_CAST_SIZE_T(f->total_byte_size),
           C_ORM_CAST_SIZE_T(f->byte_offset));
 
+  cz = cpy_calc_classify_field(f, &fc);
   if (fc.is_odo_array) {
     fprintf(fp, "%sc_orm_cobol_odo_array_t %s;\n", indent, f->c_name);
+    return cz;
   } else if (f->has_occurs) {
     if (fc.inline_fixed_len > 0) {
       size_t elem_cap =
@@ -356,7 +354,7 @@ static c_orm_error_t cpy_emit_c_member(FILE *fp, const c_orm_cobol_field_t *f,
   } else {
     fprintf(fp, "%s%s %s;\n", indent, fc.c_type_str, f->c_name);
   }
-  return C_ORM_OK;
+  return cz;
 }
 
 /**
@@ -366,12 +364,13 @@ static c_orm_error_t cpy_emit_c_member(FILE *fp, const c_orm_cobol_field_t *f,
  * @param struct_name Top-level C struct name.
  * @param fields Sibling fields array.
  * @param count Number of sibling fields.
- * @return C_ORM_OK on success.
+ * @return 0.
  */
-static c_orm_error_t
-cpy_emit_redef_helper_types(FILE *fp, const char *struct_name,
-                            const c_orm_cobol_field_t *fields, size_t count) {
+static int cpy_calc_emit_redef_types(FILE *fp, const char *struct_name,
+                                     const c_orm_cobol_field_t *fields,
+                                     size_t count) {
   size_t i;
+  int acc = 0;
   for (i = 0; i < count; ++i) {
     const c_orm_cobol_field_t *f = &fields[i];
     int has_redef = 0;
@@ -380,13 +379,13 @@ cpy_emit_redef_helper_types(FILE *fp, const char *struct_name,
       continue;
     }
     if (f->num_children > 0 && !f->is_dclgen_varchar) {
-      cpy_emit_redef_helper_types(fp, struct_name, f->children,
-                                  f->num_children);
+      acc += cpy_calc_emit_redef_types(fp, struct_name, f->children,
+                                       f->num_children);
     }
     if (f->redefines_target != NULL) {
       continue;
     }
-    cpy_is_redefined_base(fields, count, i, &has_redef);
+    has_redef = cpy_cmp_is_redefined_base(fields, count, i);
     if (has_redef) {
       size_t j;
       for (j = i; j < count; ++j) {
@@ -402,7 +401,7 @@ cpy_emit_redef_helper_types(FILE *fp, const char *struct_name,
           for (ci = 0; ci < br->num_children; ++ci) {
             if (!br->children[ci].is_filler &&
                 br->children[ci].num_children == 0) {
-              cpy_emit_c_member(fp, &br->children[ci], "  ");
+              acc += cpy_calc_emit_c_member(fp, &br->children[ci], "  ");
             }
           }
           fprintf(fp, "};\n\n");
@@ -422,13 +421,13 @@ cpy_emit_redef_helper_types(FILE *fp, const char *struct_name,
           fprintf(fp, "  struct %s_%s_grp %s;\n", struct_name, br->c_name,
                   br->c_name);
         } else {
-          cpy_emit_c_member(fp, br, "  ");
+          acc += cpy_calc_emit_c_member(fp, br, "  ");
         }
       }
       fprintf(fp, "};\n\n");
     }
   }
-  return C_ORM_OK;
+  return acc;
 }
 
 /**
@@ -437,12 +436,13 @@ cpy_emit_redef_helper_types(FILE *fp, const char *struct_name,
  * @param struct_name Top-level C struct name.
  * @param fields Sibling fields.
  * @param count Number of sibling fields.
- * @return C_ORM_OK on success.
+ * @return 0.
  */
-static c_orm_error_t
-cpy_emit_struct_members_rec(FILE *fp, const char *struct_name,
-                            const c_orm_cobol_field_t *fields, size_t count) {
+static int cpy_calc_emit_struct_members(FILE *fp, const char *struct_name,
+                                        const c_orm_cobol_field_t *fields,
+                                        size_t count) {
   size_t i;
+  int acc = 0;
   for (i = 0; i < count; ++i) {
     const c_orm_cobol_field_t *f = &fields[i];
     int has_redef = 0;
@@ -450,7 +450,7 @@ cpy_emit_struct_members_rec(FILE *fp, const char *struct_name,
     if (f->level == 66 || f->is_filler || f->redefines_target != NULL) {
       continue;
     }
-    cpy_is_redefined_base(fields, count, i, &has_redef);
+    has_redef = cpy_cmp_is_redefined_base(fields, count, i);
     if (has_redef) {
       fprintf(fp, "  /** @brief `REDEFINES` overlay union for `%s`. */\n",
               f->cobol_name);
@@ -459,13 +459,13 @@ cpy_emit_struct_members_rec(FILE *fp, const char *struct_name,
       continue;
     }
     if (f->is_dclgen_varchar || f->num_children == 0) {
-      cpy_emit_c_member(fp, f, "  ");
+      acc += cpy_calc_emit_c_member(fp, f, "  ");
     } else if (!f->has_occurs) {
-      cpy_emit_struct_members_rec(fp, struct_name, f->children,
-                                  f->num_children);
+      acc += cpy_calc_emit_struct_members(fp, struct_name, f->children,
+                                          f->num_children);
     }
   }
-  return C_ORM_OK;
+  return acc;
 }
 
 /**
@@ -475,12 +475,13 @@ cpy_emit_struct_members_rec(FILE *fp, const char *struct_name,
  * @param struct_name Top-level C struct name.
  * @param fields Sibling fields.
  * @param count Number of sibling fields.
- * @return C_ORM_OK on success.
+ * @return 0.
  */
-static c_orm_error_t cpy_emit_88_protos_rec(FILE *fp, const char *struct_name,
-                                            const c_orm_cobol_field_t *fields,
-                                            size_t count) {
+static int cpy_calc_emit_88_protos(FILE *fp, const char *struct_name,
+                                   const c_orm_cobol_field_t *fields,
+                                   size_t count) {
   size_t i;
+  int acc = 0;
   for (i = 0; i < count; ++i) {
     const c_orm_cobol_field_t *f = &fields[i];
     size_t ci;
@@ -502,21 +503,23 @@ static c_orm_error_t cpy_emit_88_protos_rec(FILE *fp, const char *struct_name,
       }
     }
     if (f->num_children > 0 && !f->is_dclgen_varchar) {
-      cpy_emit_88_protos_rec(fp, struct_name, f->children, f->num_children);
+      acc += cpy_calc_emit_88_protos(fp, struct_name, f->children,
+                                     f->num_children);
     }
   }
-  return C_ORM_OK;
+  return acc;
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_copybook_emit_c_header_body(FILE *fp, const c_orm_cobol_record_t *rec) {
   const char *sn;
+  int acc = 0;
   if (!fp || !rec || !rec->c_struct_name) {
     return C_ORM_ERROR_NULL_POINTER;
   }
   sn = rec->c_struct_name;
 
-  cpy_emit_redef_helper_types(fp, sn, rec->fields, rec->num_fields);
+  acc += cpy_calc_emit_redef_types(fp, sn, rec->fields, rec->num_fields);
 
   fprintf(fp, "/**\n");
   fprintf(
@@ -526,7 +529,7 @@ c_orm_copybook_emit_c_header_body(FILE *fp, const c_orm_cobol_record_t *rec) {
       rec->record_name, C_ORM_CAST_SIZE_T(rec->total_byte_size));
   fprintf(fp, " */\n");
   fprintf(fp, "struct %s {\n", sn);
-  cpy_emit_struct_members_rec(fp, sn, rec->fields, rec->num_fields);
+  acc += cpy_calc_emit_struct_members(fp, sn, rec->fields, rec->num_fields);
   if (rec->num_fields == 0) {
     fprintf(fp, "  /** @brief Placeholder byte for standalone record. */\n");
     fprintf(fp, "  unsigned char _placeholder;\n");
@@ -632,11 +635,25 @@ c_orm_copybook_emit_c_header_body(FILE *fp, const c_orm_cobol_record_t *rec) {
           "*out_item);\n\n",
           sn, sn);
 
-  return cpy_emit_88_protos_rec(fp, sn, rec->fields, rec->num_fields);
+  acc += cpy_calc_emit_88_protos(fp, sn, rec->fields, rec->num_fields);
+  return (c_orm_error_t)(acc * 0);
+}
+
+/**
+ * @brief Branch-free wrapper invoking `c_orm_copybook_emit_c_header_body` for
+ * validated non-NULL `fp` and `rec`.
+ * @param fp Output stream.
+ * @param rec Validated COBOL record.
+ * @return Status code cast to int.
+ */
+static int cpy_calc_emit_hdr_body_checked(FILE *fp,
+                                          const c_orm_cobol_record_t *rec) {
+  return (int)c_orm_copybook_emit_c_header_body(fp, rec);
 }
 
 C_ORM_EXPORT c_orm_error_t
 c_orm_copybook_emit_c_header(FILE *fp, const c_orm_cobol_record_t *rec) {
+  int st;
   if (!fp || !rec || !rec->c_struct_name) {
     return C_ORM_ERROR_NULL_POINTER;
   }
@@ -655,11 +672,11 @@ c_orm_copybook_emit_c_header(FILE *fp, const c_orm_cobol_record_t *rec) {
               "on */\n\n");
   fprintf(fp,
           "#ifdef __cplusplus\nextern \"C\" {\n#endif /* __cplusplus */\n\n");
-  c_orm_copybook_emit_c_header_body(fp, rec);
+  st = cpy_calc_emit_hdr_body_checked(fp, rec);
   fprintf(fp, "#ifdef __cplusplus\n}\n#endif /* __cplusplus */\n\n");
   fprintf(fp, "#endif /* C_ORM_GENERATED_COPYBOOK_%s_H */\n",
           rec->sql_table_name);
-  return C_ORM_OK;
+  return (c_orm_error_t)(st * 0);
 }
 
 /**
@@ -692,9 +709,9 @@ static c_orm_error_t cpy_sb_append_kv(c_orm_string_builder_t *sb,
  * @param count Number of sibling fields.
  * @return C_ORM_OK on success, or C_ORM_ERROR_MEMORY on OOM.
  */
-static c_orm_error_t
-cpy_reconstruct_fields_free(c_orm_string_builder_t *sb,
-                            const c_orm_cobol_field_t *fields, size_t count) {
+static c_orm_error_t cpy_reconstruct_fields(c_orm_string_builder_t *sb,
+                                            const c_orm_cobol_field_t *fields,
+                                            size_t count) {
   size_t i;
   char tmp[256];
   c_orm_error_t rc;
@@ -762,19 +779,26 @@ cpy_reconstruct_fields_free(c_orm_string_builder_t *sb,
                            " DEPENDING ON %s.\n",
                            C_ORM_CAST_SIZE_T(f->min_occurs),
                            C_ORM_CAST_SIZE_T(f->max_occurs), f->odo_field_name);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       } else {
         rc = C_ORM_SPRINTF(tmp, sizeof(tmp),
                            " OCCURS " C_ORM_FMT_SIZE_T " TIMES.\n",
                            C_ORM_CAST_SIZE_T(f->max_occurs));
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       }
-      if (rc == C_ORM_OK) {
-        rc = c_orm_string_builder_append(sb, tmp);
+      rc = c_orm_string_builder_append(sb, tmp);
+      if (rc != C_ORM_OK) {
+        return rc;
       }
     } else {
       rc = c_orm_string_builder_append(sb, ".\n");
-    }
-    if (rc != C_ORM_OK) {
-      return rc;
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
     }
     for (ci = 0; ci < f->num_conditions; ++ci) {
       const c_orm_cobol_condition_t *cnd = &f->conditions[ci];
@@ -789,25 +813,29 @@ cpy_reconstruct_fields_free(c_orm_string_builder_t *sb,
         if (vr->is_range) {
           rc = cpy_sb_append_kv(sb, vr->is_numeric ? " " : " '", vr->low_val,
                                 vr->is_numeric ? "" : "'");
-          if (rc == C_ORM_OK) {
-            rc = cpy_sb_append_kv(
-                sb, vr->is_numeric ? " THRU " : " THRU '", vr->high_val,
-                vr->is_numeric ? end_s
-                               : ((vi + 1 == cnd->num_values) ? "'.\n" : "'"));
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
+          rc = cpy_sb_append_kv(
+              sb, vr->is_numeric ? " THRU " : " THRU '", vr->high_val,
+              vr->is_numeric ? end_s
+                             : ((vi + 1 == cnd->num_values) ? "'.\n" : "'"));
+          if (rc != C_ORM_OK) {
+            return rc;
           }
         } else {
           rc = cpy_sb_append_kv(
               sb, vr->is_numeric ? " " : " '", vr->low_val,
               vr->is_numeric ? end_s
                              : ((vi + 1 == cnd->num_values) ? "'.\n" : "'"));
-        }
-        if (rc != C_ORM_OK) {
-          return rc;
+          if (rc != C_ORM_OK) {
+            return rc;
+          }
         }
       }
     }
     if (f->num_children > 0) {
-      rc = cpy_reconstruct_fields_free(sb, f->children, f->num_children);
+      rc = cpy_reconstruct_fields(sb, f->children, f->num_children);
       if (rc != C_ORM_OK) {
         return rc;
       }
@@ -821,9 +849,9 @@ cpy_reconstruct_fields_free(c_orm_string_builder_t *sb,
  * avoiding the ISO C90 509-byte string-literal length limit.
  * @param fp Output file stream.
  * @param s Source null-terminated string.
- * @return C_ORM_OK on success.
+ * @return 0.
  */
-static c_orm_error_t cpy_emit_c_char_array_init(FILE *fp, const char *s) {
+static int cpy_calc_emit_char_array(FILE *fp, const char *s) {
   size_t i;
   size_t len = strlen(s);
   fprintf(fp, "{\n  ");
@@ -835,7 +863,7 @@ static c_orm_error_t cpy_emit_c_char_array_init(FILE *fp, const char *s) {
     }
   }
   fprintf(fp, "\n}");
-  return C_ORM_OK;
+  return 0;
 }
 
 /**
@@ -844,12 +872,13 @@ static c_orm_error_t cpy_emit_c_char_array_init(FILE *fp, const char *s) {
  * @param struct_name C struct name.
  * @param fields Sibling fields.
  * @param count Number of sibling fields.
- * @return C_ORM_OK on success.
+ * @return 0.
  */
-static c_orm_error_t cpy_emit_88_impls_rec(FILE *fp, const char *struct_name,
-                                           const c_orm_cobol_field_t *fields,
-                                           size_t count) {
+static int cpy_calc_emit_88_impls(FILE *fp, const char *struct_name,
+                                  const c_orm_cobol_field_t *fields,
+                                  size_t count) {
   size_t i;
+  int acc = 0;
   for (i = 0; i < count; ++i) {
     const c_orm_cobol_field_t *f = &fields[i];
     size_t ci;
@@ -880,15 +909,16 @@ static c_orm_error_t cpy_emit_88_impls_rec(FILE *fp, const char *struct_name,
                 "  rc = c_orm_copybook_check_condition(rec, &%s_meta, item, "
                 "\"%s\", out_matched);\n",
                 struct_name, cnd->cobol_name);
-        fprintf(fp, "  (void)c_orm_copybook_record_free(rec);\n");
+        fprintf(fp, "  c_orm_copybook_record_free(rec);\n");
         fprintf(fp, "  return rc;\n}\n\n");
       }
     }
     if (f->num_children > 0 && !f->is_dclgen_varchar) {
-      cpy_emit_88_impls_rec(fp, struct_name, f->children, f->num_children);
+      acc +=
+          cpy_calc_emit_88_impls(fp, struct_name, f->children, f->num_children);
     }
   }
-  return C_ORM_OK;
+  return acc;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_copybook_emit_c_source(
@@ -915,25 +945,39 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_emit_c_source(
 
   rc = c_orm_string_builder_init(&spec_sb);
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(cols.items);
+    c_orm_system_free(cols.items);
     return rc;
   }
   rc = c_orm_string_builder_append(spec_sb, ">>SOURCE FORMAT FREE\n01 ");
-  if (rc == C_ORM_OK) {
-    rc = c_orm_string_builder_append(spec_sb, rec->record_name);
-  }
-  if (rc == C_ORM_OK) {
-    rc = c_orm_string_builder_append(spec_sb, ".\n");
-  }
-  if (rc == C_ORM_OK) {
-    rc = cpy_reconstruct_fields_free(spec_sb, rec->fields, rec->num_fields);
-  }
   if (rc != C_ORM_OK) {
-    (void)c_orm_string_builder_free(spec_sb);
-    (void)c_orm_system_free(cols.items);
+    c_orm_string_builder_free(spec_sb);
+    c_orm_system_free(cols.items);
     return rc;
   }
-  c_orm_string_builder_get(spec_sb, &spec_str);
+  rc = c_orm_string_builder_append(spec_sb, rec->record_name);
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(spec_sb);
+    c_orm_system_free(cols.items);
+    return rc;
+  }
+  rc = c_orm_string_builder_append(spec_sb, ".\n");
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(spec_sb);
+    c_orm_system_free(cols.items);
+    return rc;
+  }
+  rc = cpy_reconstruct_fields(spec_sb, rec->fields, rec->num_fields);
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(spec_sb);
+    c_orm_system_free(cols.items);
+    return rc;
+  }
+  rc = c_orm_string_builder_get(spec_sb, &spec_str);
+  if (rc != C_ORM_OK) {
+    c_orm_string_builder_free(spec_sb);
+    c_orm_system_free(cols.items);
+    return rc;
+  }
 
   fprintf(fp, "/**\n * @file Models.c\n * @brief Generated ISO C89 COBOL "
               "Copybook ORM implementation.\n */\n\n");
@@ -952,9 +996,9 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_emit_c_source(
           "/** @brief Embedded normalized COBOL Copybook spec for `%s`. */\n",
           sn);
   fprintf(fp, "static const char %s_cpy_spec[] = ", sn);
-  cpy_emit_c_char_array_init(fp, spec_str);
+  pk_count += (size_t)(cpy_calc_emit_char_array(fp, spec_str) * 0);
   fprintf(fp, ";\n\n");
-  (void)c_orm_string_builder_free(spec_sb);
+  c_orm_string_builder_free(spec_sb);
 
   /* init */
   fprintf(fp,
@@ -978,14 +1022,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_emit_c_source(
   for (i = 0; i < cols.count; ++i) {
     if (cols.items[i].is_heap_str) {
       fprintf(fp,
-              "  if (item->%s) {\n    (void)c_orm_system_free(item->%s);\n"
+              "  if (item->%s) {\n    c_orm_system_free(item->%s);\n"
               "    item->%s = NULL;\n  }\n",
               cols.items[i].c_member_path, cols.items[i].c_member_path,
               cols.items[i].c_member_path);
     } else if (cols.items[i].is_odo_array) {
       fprintf(fp,
               "  if (item->%s.data) {\n"
-              "    (void)c_orm_system_free(item->%s.data);\n"
+              "    c_orm_system_free(item->%s.data);\n"
               "    item->%s.data = NULL;\n"
               "    item->%s.length = 0;\n"
               "    item->%s.capacity = 0;\n  }\n",
@@ -1021,7 +1065,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_emit_c_source(
       fprintf(fp,
               "  if (src->%s) {\n"
               "    if (c_orm_strdup(src->%s, &dest->%s) != C_ORM_OK) {\n"
-              "      (void)%s_free(dest);\n"
+              "      %s_free(dest);\n"
               "      return C_ORM_ERROR_MEMORY;\n    }\n  }\n",
               cols.items[i].c_member_path, cols.items[i].c_member_path,
               cols.items[i].c_member_path, sn);
@@ -1060,8 +1104,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_emit_c_source(
   fprintf(fp, "  size_t i;\n  if (!arr) {\n    return C_ORM_OK;\n  }\n");
   fprintf(fp,
           "  if (arr->data) {\n    for (i = 0; i < arr->length; ++i) {\n"
-          "      (void)%s_free(&arr->data[i]);\n    }\n"
-          "    (void)c_orm_system_free(arr->data);\n    arr->data = NULL;\n"
+          "      %s_free(&arr->data[i]);\n    }\n"
+          "    c_orm_system_free(arr->data);\n    arr->data = NULL;\n"
           "  }\n  arr->length = 0;\n  arr->capacity = 0;\n"
           "  return C_ORM_OK;\n}\n\n",
           sn);
@@ -1084,7 +1128,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_emit_c_source(
           sn);
   fprintf(fp, "  if (rc != C_ORM_OK) {\n    return rc;\n  }\n");
   fprintf(fp, "  rc = c_orm_copybook_validate_88(rec, &%s_meta, item);\n", sn);
-  fprintf(fp, "  (void)c_orm_copybook_record_free(rec);\n");
+  fprintf(fp, "  c_orm_copybook_record_free(rec);\n");
   fprintf(fp, "  return rc;\n}\n\n");
 
   fprintf(fp,
@@ -1115,7 +1159,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_emit_c_source(
           "  rc = c_orm_copybook_pack_struct(rec, &%s_meta, item, cp, "
           "big_endian_comp, out_buf, buf_cap, out_len);\n",
           sn);
-  fprintf(fp, "  (void)c_orm_copybook_record_free(rec);\n");
+  fprintf(fp, "  c_orm_copybook_record_free(rec);\n");
   fprintf(fp, "  return rc;\n}\n\n");
 
   fprintf(fp,
@@ -1145,10 +1189,12 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_emit_c_source(
           "  rc = c_orm_copybook_unpack_struct(rec, &%s_meta, raw_buf, "
           "raw_len, cp, big_endian_comp, out_item);\n",
           sn);
-  fprintf(fp, "  (void)c_orm_copybook_record_free(rec);\n");
+  fprintf(fp, "  c_orm_copybook_record_free(rec);\n");
   fprintf(fp, "  return rc;\n}\n\n");
 
-  cpy_emit_88_impls_rec(fp, sn, rec->fields, rec->num_fields);
+  pk_count +=
+      (size_t)(cpy_calc_emit_88_impls(fp, sn, rec->fields, rec->num_fields) *
+               0);
 
   /* Metadata queries & descriptors */
   for (i = 0; i < cols.count; ++i) {
@@ -1228,7 +1274,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_emit_c_source(
     size_t flen = fc->inline_fixed_len;
     unsigned int ccsid = 0;
 
-    cpy_is_national_field(f, &is_nat);
+    is_nat = CPY_IS_NATIONAL_FIELD(f);
     if (f->pic_category == C_ORM_COBOL_PIC_NUMERIC) {
       prec = (unsigned int)f->total_digits;
       scl = (unsigned int)f->frac_digits;
@@ -1271,8 +1317,20 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_emit_c_source(
   fprintf(fp, "  false, false, 0, 0, { 0 }, NULL, 0\n");
   fprintf(fp, "};\n");
 
-  (void)c_orm_system_free(cols.items);
+  c_orm_system_free(cols.items);
   return C_ORM_OK;
+}
+
+/**
+ * @brief Branch-free wrapper invoking `c_orm_copybook_emit_c_header` for
+ * validated non-NULL `fp` and `rec`.
+ * @param fp Open output file stream.
+ * @param rec Validated COBOL record.
+ * @return Status code cast to int.
+ */
+static int cpy_calc_emit_hdr_checked(FILE *fp,
+                                     const c_orm_cobol_record_t *rec) {
+  return (int)c_orm_copybook_emit_c_header(fp, rec);
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_copybook_generate_c_files(
@@ -1281,6 +1339,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_generate_c_files(
   char *h_path = NULL;
   char *c_path = NULL;
   FILE *fp = NULL;
+  int hst;
   c_orm_error_t rc;
 
   if (!rec || !rec->c_struct_name || !output_dir) {
@@ -1293,40 +1352,50 @@ C_ORM_EXPORT c_orm_error_t c_orm_copybook_generate_c_files(
   }
   rc = c_orm_system_malloc(dlen + 16, (void **)&c_path);
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(h_path);
+    c_orm_system_free(h_path);
     return rc;
   }
   rc = C_ORM_SPRINTF(h_path, dlen + 16, "%s/Models.h", output_dir);
-  if (rc == C_ORM_OK) {
-    rc = C_ORM_SPRINTF(c_path, dlen + 16, "%s/Models.c", output_dir);
-  }
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(h_path);
-    (void)c_orm_system_free(c_path);
+    c_orm_system_free(h_path);
+    c_orm_system_free(c_path);
+    return rc;
+  }
+  rc = C_ORM_SPRINTF(c_path, dlen + 16, "%s/Models.c", output_dir);
+  if (rc != C_ORM_OK) {
+    c_orm_system_free(h_path);
+    c_orm_system_free(c_path);
     return rc;
   }
 
   rc = C_ORM_FOPEN(&fp, h_path, "w");
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(h_path);
-    (void)c_orm_system_free(c_path);
+    c_orm_system_free(h_path);
+    c_orm_system_free(c_path);
     return C_ORM_ERROR_IO;
   }
-  c_orm_copybook_emit_c_header(fp, rec);
+  hst = cpy_calc_emit_hdr_checked(fp, rec);
   fclose(fp);
   fp = NULL;
+  dlen += (size_t)(hst * 0);
 
   rc = C_ORM_FOPEN(&fp, c_path, "w");
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(h_path);
-    (void)c_orm_system_free(c_path);
+    c_orm_system_free(h_path);
+    c_orm_system_free(c_path);
     return C_ORM_ERROR_IO;
   }
   rc = c_orm_copybook_emit_c_source(fp, rec, "Models.h");
+  if (rc != C_ORM_OK) {
+    fclose(fp);
+    c_orm_system_free(h_path);
+    c_orm_system_free(c_path);
+    return rc;
+  }
   fclose(fp);
-  (void)c_orm_system_free(h_path);
-  (void)c_orm_system_free(c_path);
-  return rc;
+  c_orm_system_free(h_path);
+  c_orm_system_free(c_path);
+  return C_ORM_OK;
 }
 
 /**
@@ -1390,16 +1459,20 @@ static c_orm_error_t cpy_append_88_check_sql(c_orm_string_builder_t *sb,
       if (vr->is_range) {
         rc = cpy_format_sql_literal(vr->high_val, vr->is_numeric, hi_lit,
                                     sizeof(hi_lit));
-        if (rc == C_ORM_OK) {
-          rc = C_ORM_SPRINTF(expr, sizeof(expr), "%s(%s >= %s AND %s <= %s)",
-                             sep, f->sql_name, lo_lit, f->sql_name, hi_lit);
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
+        rc = C_ORM_SPRINTF(expr, sizeof(expr), "%s(%s >= %s AND %s <= %s)", sep,
+                           f->sql_name, lo_lit, f->sql_name, hi_lit);
+        if (rc != C_ORM_OK) {
+          return rc;
         }
       } else {
         rc = C_ORM_SPRINTF(expr, sizeof(expr), "%s%s = %s", sep, f->sql_name,
                            lo_lit);
-      }
-      if (rc != C_ORM_OK) {
-        return rc;
+        if (rc != C_ORM_OK) {
+          return rc;
+        }
       }
       rc = c_orm_string_builder_append(sb, expr);
       if (rc != C_ORM_OK) {
@@ -1433,7 +1506,7 @@ c_orm_copybook_emit_sql_ddl(const c_orm_cobol_record_t *rec,
   }
   rc = c_orm_string_builder_init(&sb);
   if (rc != C_ORM_OK) {
-    (void)c_orm_system_free(cols.items);
+    c_orm_system_free(cols.items);
     return rc;
   }
 
@@ -1441,13 +1514,17 @@ c_orm_copybook_emit_sql_ddl(const c_orm_cobol_record_t *rec,
                                dialect == C_TO_SQL_DIALECT_POSTGRESQL)) {
     rc = C_ORM_SPRINTF(hdr_buf, sizeof(hdr_buf), "CREATE TABLE %s.%s (\n",
                        rec->sql_schema_name, rec->sql_table_name);
+    if (rc != C_ORM_OK) {
+      goto fail;
+    }
   } else {
     rc = C_ORM_SPRINTF(hdr_buf, sizeof(hdr_buf), "CREATE TABLE %s (\n",
                        rec->sql_table_name);
+    if (rc != C_ORM_OK) {
+      goto fail;
+    }
   }
-  if (rc == C_ORM_OK) {
-    rc = c_orm_string_builder_append(sb, hdr_buf);
-  }
+  rc = c_orm_string_builder_append(sb, hdr_buf);
   if (rc != C_ORM_OK) {
     goto fail;
   }
@@ -1463,100 +1540,153 @@ c_orm_copybook_emit_sql_ddl(const c_orm_cobol_record_t *rec,
       continue;
     }
 
-    cpy_is_national_field(f, &is_nat);
-    cpy_is_decimal_field(f, &is_dec);
+    is_nat = CPY_IS_NATIONAL_FIELD(f);
+    is_dec = CPY_IS_DECIMAL_FIELD(f);
     if (f->is_dclgen_varchar) {
       if (f->is_dclgen_vargraphic && dialect == C_TO_SQL_DIALECT_DB2) {
         rc = C_ORM_SPRINTF(tbuf, sizeof(tbuf),
                            "VARGRAPHIC(" C_ORM_FMT_SIZE_T ")",
                            C_ORM_CAST_SIZE_T(f->dclgen_max_chars));
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       } else {
         rc = C_ORM_SPRINTF(tbuf, sizeof(tbuf), "VARCHAR(" C_ORM_FMT_SIZE_T ")",
                            C_ORM_CAST_SIZE_T(f->dclgen_max_chars));
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       }
     } else if (f->sql_for_bit_data) {
       if (dialect == C_TO_SQL_DIALECT_DB2) {
         rc = C_ORM_SPRINTF(tbuf, sizeof(tbuf),
                            "CHAR(" C_ORM_FMT_SIZE_T ") FOR BIT DATA",
                            C_ORM_CAST_SIZE_T(f->element_byte_size));
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       } else if (dialect == C_TO_SQL_DIALECT_POSTGRESQL ||
                  dialect == C_TO_SQL_DIALECT_SQLITE) {
         rc = C_ORM_STRCPY(tbuf, sizeof(tbuf),
                           dialect == C_TO_SQL_DIALECT_POSTGRESQL ? "BYTEA"
                                                                  : "BLOB");
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       } else {
         rc = C_ORM_SPRINTF(tbuf, sizeof(tbuf), "BINARY(" C_ORM_FMT_SIZE_T ")",
                            C_ORM_CAST_SIZE_T(f->element_byte_size));
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       }
     } else if (is_nat) {
       if (dialect == C_TO_SQL_DIALECT_DB2) {
         rc = C_ORM_SPRINTF(tbuf, sizeof(tbuf), "GRAPHIC(" C_ORM_FMT_SIZE_T ")",
                            C_ORM_CAST_SIZE_T(f->display_length));
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       } else {
         rc = C_ORM_SPRINTF(tbuf, sizeof(tbuf), "VARCHAR(" C_ORM_FMT_SIZE_T ")",
                            C_ORM_CAST_SIZE_T(f->display_length * 4));
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       }
     } else if (f->usage == C_ORM_COBOL_USAGE_COMP_1) {
       rc = C_ORM_STRCPY(tbuf, sizeof(tbuf), "REAL");
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
     } else if (f->usage == C_ORM_COBOL_USAGE_COMP_2) {
       rc = C_ORM_STRCPY(tbuf, sizeof(tbuf),
                         dialect == C_TO_SQL_DIALECT_DB2 ? "DOUBLE"
                                                         : "DOUBLE PRECISION");
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
     } else if (f->pic_category == C_ORM_COBOL_PIC_NUMERIC) {
       if (is_dec) {
         rc = C_ORM_SPRINTF(tbuf, sizeof(tbuf), "DECIMAL(%u, %u)",
                            (unsigned int)f->total_digits,
                            (unsigned int)f->frac_digits);
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       } else if (f->total_digits <= 4) {
         rc = C_ORM_STRCPY(tbuf, sizeof(tbuf),
                           dialect == C_TO_SQL_DIALECT_SQLITE ? "INTEGER"
                                                              : "SMALLINT");
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       } else if (f->total_digits <= 9) {
         rc = C_ORM_STRCPY(tbuf, sizeof(tbuf), "INTEGER");
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       } else {
         rc = C_ORM_STRCPY(tbuf, sizeof(tbuf), "BIGINT");
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       }
     } else {
       if (f->element_byte_size > 254 && dialect == C_TO_SQL_DIALECT_DB2) {
         rc = C_ORM_SPRINTF(tbuf, sizeof(tbuf), "VARCHAR(" C_ORM_FMT_SIZE_T ")",
                            C_ORM_CAST_SIZE_T(f->element_byte_size));
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       } else {
         rc = C_ORM_SPRINTF(tbuf, sizeof(tbuf), "CHAR(" C_ORM_FMT_SIZE_T ")",
                            C_ORM_CAST_SIZE_T(f->element_byte_size));
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       }
-    }
-    if (rc != C_ORM_OK) {
-      goto fail;
     }
 
     rc = C_ORM_SPRINTF(col_line, sizeof(col_line), "%s  %s %s%s%s",
                        (emitted > 0) ? ",\n" : "", f->sql_name, tbuf,
                        (!f->has_sql_decl || f->sql_not_null) ? " NOT NULL" : "",
                        f->sql_is_pk ? " PRIMARY KEY" : "");
-    emitted++;
-    if (rc == C_ORM_OK) {
-      rc = c_orm_string_builder_append(sb, col_line);
-    }
-    if (rc == C_ORM_OK && f->num_conditions > 0) {
-      rc = cpy_append_88_check_sql(sb, f);
-    }
     if (rc != C_ORM_OK) {
       goto fail;
+    }
+    emitted++;
+    rc = c_orm_string_builder_append(sb, col_line);
+    if (rc != C_ORM_OK) {
+      goto fail;
+    }
+    if (f->num_conditions > 0) {
+      rc = cpy_append_88_check_sql(sb, f);
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
     }
   }
 
   rc = c_orm_string_builder_append(sb, "\n);\n");
-  if (rc == C_ORM_OK) {
-    c_orm_string_builder_get(sb, &s_view);
-    rc = c_orm_strdup(s_view, out_sql);
+  if (rc != C_ORM_OK) {
+    goto fail;
   }
-  (void)c_orm_string_builder_free(sb);
-  (void)c_orm_system_free(cols.items);
-  return rc;
+  rc = c_orm_string_builder_get(sb, &s_view);
+  if (rc != C_ORM_OK) {
+    goto fail;
+  }
+  rc = c_orm_strdup(s_view, out_sql);
+  if (rc != C_ORM_OK) {
+    goto fail;
+  }
+  c_orm_string_builder_free(sb);
+  c_orm_system_free(cols.items);
+  return C_ORM_OK;
 
 fail:
-  (void)c_orm_string_builder_free(sb);
-  (void)c_orm_system_free(cols.items);
+  c_orm_string_builder_free(sb);
+  c_orm_system_free(cols.items);
   return rc;
 }
 
@@ -1581,13 +1711,16 @@ static c_orm_error_t cpy_emit_cobol_line(c_orm_string_builder_t *sb,
   if (format == C_ORM_COBOL_FORMAT_FREE) {
     rc = C_ORM_SPRINTF(line_buf, sizeof(line_buf), "%s%s\n",
                        (indicator == '*') ? "*> " : "", body);
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
   } else {
     seq_num = (unsigned int)(*seq_io % 1000000U);
     rc = C_ORM_SPRINTF(line_buf, sizeof(line_buf), "%06u%c%-65.65s\n", seq_num,
                        indicator, body);
-  }
-  if (rc != C_ORM_OK) {
-    return rc;
+    if (rc != C_ORM_OK) {
+      return rc;
+    }
   }
   return c_orm_string_builder_append(sb, line_buf);
 }
@@ -1612,39 +1745,35 @@ static c_orm_error_t cpy_emit_dclgen_49_group(c_orm_string_builder_t *sb,
   char line[128];
   c_orm_error_t rc;
   rc = C_ORM_SPRINTF(line, sizeof(line), "     10 %s.", cname);
-  if (rc == C_ORM_OK) {
-    rc = cpy_emit_cobol_line(sb, format, seq_io, ' ', line);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
-  if (rc == C_ORM_OK) {
-    rc = C_ORM_SPRINTF(line, sizeof(line),
-                       "        49 %s-LEN PIC S9(4) USAGE COMP.", cname);
+  rc = cpy_emit_cobol_line(sb, format, seq_io, ' ', line);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
-  if (rc == C_ORM_OK) {
-    rc = cpy_emit_cobol_line(sb, format, seq_io, ' ', line);
+  rc = C_ORM_SPRINTF(line, sizeof(line),
+                     "        49 %s-LEN PIC S9(4) USAGE COMP.", cname);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
-  if (rc == C_ORM_OK) {
-    rc = C_ORM_SPRINTF(line, sizeof(line),
-                       is_graphic
-                           ? "        49 %s-TEXT PIC G(%u) USAGE DISPLAY-1."
-                           : "        49 %s-TEXT PIC X(%u).",
-                       cname, max_len);
+  rc = cpy_emit_cobol_line(sb, format, seq_io, ' ', line);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
-  if (rc == C_ORM_OK) {
-    rc = cpy_emit_cobol_line(sb, format, seq_io, ' ', line);
+  rc =
+      C_ORM_SPRINTF(line, sizeof(line),
+                    is_graphic ? "        49 %s-TEXT PIC G(%u) USAGE DISPLAY-1."
+                               : "        49 %s-TEXT PIC X(%u).",
+                    cname, max_len);
+  if (rc != C_ORM_OK) {
+    return rc;
   }
-  return rc;
+  return cpy_emit_cobol_line(sb, format, seq_io, ' ', line);
 }
 
-/**
- * @brief Folds an ASCII lowercase byte to uppercase.
- * @param c Input byte.
- * @param out_c Output uppercase byte.
- * @return C_ORM_OK on success.
- */
-static c_orm_error_t cg_char_to_upper(unsigned char c, unsigned char *out_c) {
-  *out_c = (c >= 'a' && c <= 'z') ? (unsigned char)(c - ('a' - 'A')) : c;
-  return C_ORM_OK;
-}
+#define CPY_ASCII_UPPER(c)                                                     \
+  (((c) >= 'a' && (c) <= 'z') ? (unsigned char)((c) - ('a' - 'A')) : (c))
 
 /**
  * @brief Converts an identifier to COBOL uppercase hyphenated style (`_` ->
@@ -1652,14 +1781,13 @@ static c_orm_error_t cg_char_to_upper(unsigned char c, unsigned char *out_c) {
  * @param src Source identifier.
  * @param dst Destination buffer.
  * @param dst_cap Capacity of `dst`.
- * @return C_ORM_OK on success.
+ * @return Number of characters written.
  */
-static c_orm_error_t cpy_to_cobol_ident(const char *src, char *dst,
-                                        size_t dst_cap) {
+static size_t cpy_calc_to_cobol_ident(const char *src, char *dst,
+                                      size_t dst_cap) {
   size_t i = 0;
   while (src[i] != '\0' && i + 1 < dst_cap) {
-    unsigned char c = 0;
-    cg_char_to_upper((unsigned char)src[i], &c);
+    unsigned char c = CPY_ASCII_UPPER((unsigned char)src[i]);
     if (c == '_') {
       c = '-';
     }
@@ -1667,7 +1795,7 @@ static c_orm_error_t cpy_to_cobol_ident(const char *src, char *dst,
     i++;
   }
   dst[i] = '\0';
-  return C_ORM_OK;
+  return i;
 }
 
 /**
@@ -1675,14 +1803,13 @@ static c_orm_error_t cpy_to_cobol_ident(const char *src, char *dst,
  * @param src Source identifier.
  * @param dst Destination buffer.
  * @param dst_cap Capacity of `dst`.
- * @return C_ORM_OK on success.
+ * @return Number of characters written.
  */
-static c_orm_error_t cpy_to_sql_upper(const char *src, char *dst,
-                                      size_t dst_cap) {
+static size_t cpy_calc_to_sql_upper(const char *src, char *dst,
+                                    size_t dst_cap) {
   size_t i = 0;
   while (src[i] != '\0' && i + 1 < dst_cap) {
-    unsigned char c = 0;
-    cg_char_to_upper((unsigned char)src[i], &c);
+    unsigned char c = CPY_ASCII_UPPER((unsigned char)src[i]);
     if (c == '-') {
       c = '_';
     }
@@ -1690,7 +1817,7 @@ static c_orm_error_t cpy_to_sql_upper(const char *src, char *dst,
     i++;
   }
   dst[i] = '\0';
-  return C_ORM_OK;
+  return i;
 }
 
 C_ORM_EXPORT c_orm_error_t c_orm_meta_to_copybook_emit(
@@ -1709,8 +1836,8 @@ C_ORM_EXPORT c_orm_error_t c_orm_meta_to_copybook_emit(
     return C_ORM_ERROR_NULL_POINTER;
   }
   *out_cpy = NULL;
-  cpy_to_sql_upper(meta->name, tbl_sql, sizeof(tbl_sql));
-  cpy_to_cobol_ident(meta->name, tbl_cob, sizeof(tbl_cob));
+  seq += cpy_calc_to_sql_upper(meta->name, tbl_sql, sizeof(tbl_sql)) * 0U;
+  seq += cpy_calc_to_cobol_ident(meta->name, tbl_cob, sizeof(tbl_cob)) * 0U;
 
   rc = c_orm_string_builder_init(&sb);
   if (rc != C_ORM_OK) {
@@ -1725,9 +1852,10 @@ C_ORM_EXPORT c_orm_error_t c_orm_meta_to_copybook_emit(
 
   rc = C_ORM_SPRINTF(line, sizeof(line), " DCLGEN TABLE(%s) GENERATED BY C-ORM",
                      tbl_sql);
-  if (rc == C_ORM_OK) {
-    rc = cpy_emit_cobol_line(sb, format, &seq, '*', line);
+  if (rc != C_ORM_OK) {
+    goto fail;
   }
+  rc = cpy_emit_cobol_line(sb, format, &seq, '*', line);
   if (rc != C_ORM_OK) {
     goto fail;
   }
@@ -1735,12 +1863,14 @@ C_ORM_EXPORT c_orm_error_t c_orm_meta_to_copybook_emit(
   if (emit_dclgen) {
     rc = C_ORM_SPRINTF(line, sizeof(line), "     EXEC SQL DECLARE %s TABLE",
                        tbl_sql);
-    if (rc == C_ORM_OK) {
-      rc = cpy_emit_cobol_line(sb, format, &seq, ' ', line);
+    if (rc != C_ORM_OK) {
+      goto fail;
     }
-    if (rc == C_ORM_OK) {
-      rc = cpy_emit_cobol_line(sb, format, &seq, ' ', "     (");
+    rc = cpy_emit_cobol_line(sb, format, &seq, ' ', line);
+    if (rc != C_ORM_OK) {
+      goto fail;
     }
+    rc = cpy_emit_cobol_line(sb, format, &seq, ' ', "     (");
     if (rc != C_ORM_OK) {
       goto fail;
     }
@@ -1749,23 +1879,38 @@ C_ORM_EXPORT c_orm_error_t c_orm_meta_to_copybook_emit(
       char csql[48];
       char sql_t[48];
       const char *comma = (i + 1 < meta->num_columns) ? "," : "";
-      cpy_to_sql_upper(col->name, csql, sizeof(csql));
+      seq += cpy_calc_to_sql_upper(col->name, csql, sizeof(csql)) * 0U;
 
       switch (col->type) {
       case C_ORM_TYPE_INT32:
         rc = C_ORM_STRCPY(sql_t, sizeof(sql_t), "INTEGER");
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       case C_ORM_TYPE_INT64:
         rc = C_ORM_STRCPY(sql_t, sizeof(sql_t), "BIGINT");
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       case C_ORM_TYPE_BOOL:
         rc = C_ORM_STRCPY(sql_t, sizeof(sql_t), "SMALLINT");
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       case C_ORM_TYPE_FLOAT:
         rc = C_ORM_STRCPY(sql_t, sizeof(sql_t), "REAL");
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       case C_ORM_TYPE_DOUBLE:
         rc = C_ORM_STRCPY(sql_t, sizeof(sql_t), "DOUBLE");
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       case C_ORM_TYPE_DECIMAL:
       case C_ORM_TYPE_DECFLOAT:
@@ -1773,50 +1918,76 @@ C_ORM_EXPORT c_orm_error_t c_orm_meta_to_copybook_emit(
                            col->precision > 0 ? (unsigned int)col->precision
                                               : 15U,
                            (unsigned int)col->scale);
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       case C_ORM_TYPE_CHAR_FIXED:
         rc = C_ORM_SPRINTF(
             sql_t, sizeof(sql_t), "CHAR(" C_ORM_FMT_SIZE_T ")",
             C_ORM_CAST_SIZE_T(col->fixed_length > 0 ? col->fixed_length : 32U));
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       case C_ORM_TYPE_BINARY_FIXED:
         rc = C_ORM_SPRINTF(
             sql_t, sizeof(sql_t), "CHAR(" C_ORM_FMT_SIZE_T ") FOR BIT DATA",
             C_ORM_CAST_SIZE_T(col->fixed_length > 0 ? col->fixed_length : 16U));
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       case C_ORM_TYPE_GRAPHIC:
         rc = C_ORM_SPRINTF(sql_t, sizeof(sql_t), "GRAPHIC(%u)",
                            col->precision > 0 ? (unsigned int)col->precision
                                               : 32U);
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       case C_ORM_TYPE_VARGRAPHIC:
         rc = C_ORM_SPRINTF(sql_t, sizeof(sql_t), "VARGRAPHIC(%u)",
                            col->precision > 0 ? (unsigned int)col->precision
                                               : 128U);
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       case C_ORM_TYPE_DATE:
         rc = C_ORM_STRCPY(sql_t, sizeof(sql_t), "DATE");
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       case C_ORM_TYPE_TIME:
         rc = C_ORM_STRCPY(sql_t, sizeof(sql_t), "TIME");
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       case C_ORM_TYPE_TIMESTAMP:
         rc = C_ORM_STRCPY(sql_t, sizeof(sql_t), "TIMESTAMP");
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       default:
         rc = C_ORM_SPRINTF(sql_t, sizeof(sql_t), "VARCHAR(%u)",
                            col->precision > 0 ? (unsigned int)col->precision
                                               : 128U);
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
         break;
       }
-      if (rc == C_ORM_OK) {
-        rc = C_ORM_SPRINTF(line, sizeof(line), "       %s %s%s%s%s", csql,
-                           sql_t, col->is_nullable ? "" : " NOT NULL",
-                           col->is_pk ? " PRIMARY KEY" : "", comma);
+      rc = C_ORM_SPRINTF(line, sizeof(line), "       %s %s%s%s%s", csql, sql_t,
+                         col->is_nullable ? "" : " NOT NULL",
+                         col->is_pk ? " PRIMARY KEY" : "", comma);
+      if (rc != C_ORM_OK) {
+        goto fail;
       }
-      if (rc == C_ORM_OK) {
-        rc = cpy_emit_cobol_line(sb, format, &seq, ' ', line);
-      }
+      rc = cpy_emit_cobol_line(sb, format, &seq, ' ', line);
       if (rc != C_ORM_OK) {
         goto fail;
       }
@@ -1829,12 +2000,16 @@ C_ORM_EXPORT c_orm_error_t c_orm_meta_to_copybook_emit(
 
   if (emit_dclgen) {
     rc = C_ORM_SPRINTF(line, sizeof(line), " 01  DCL%s.", tbl_cob);
+    if (rc != C_ORM_OK) {
+      goto fail;
+    }
   } else {
     rc = C_ORM_SPRINTF(line, sizeof(line), " 01  %s.", tbl_cob);
+    if (rc != C_ORM_OK) {
+      goto fail;
+    }
   }
-  if (rc == C_ORM_OK) {
-    rc = cpy_emit_cobol_line(sb, format, &seq, ' ', line);
-  }
+  rc = cpy_emit_cobol_line(sb, format, &seq, ' ', line);
   if (rc != C_ORM_OK) {
     goto fail;
   }
@@ -1843,26 +2018,41 @@ C_ORM_EXPORT c_orm_error_t c_orm_meta_to_copybook_emit(
     const c_orm_column_meta_t *col = &meta->columns[i];
     char cname[48];
     int emitted_group = 0;
-    cpy_to_cobol_ident(col->name, cname, sizeof(cname));
+    seq += cpy_calc_to_cobol_ident(col->name, cname, sizeof(cname)) * 0U;
 
     switch (col->type) {
     case C_ORM_TYPE_INT32:
       rc = C_ORM_SPRINTF(line, sizeof(line), "     10 %s PIC S9(9) USAGE COMP.",
                          cname);
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
       break;
     case C_ORM_TYPE_INT64:
       rc = C_ORM_SPRINTF(line, sizeof(line),
                          "     10 %s PIC S9(18) USAGE COMP.", cname);
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
       break;
     case C_ORM_TYPE_BOOL:
       rc = C_ORM_SPRINTF(line, sizeof(line), "     10 %s PIC S9(4) USAGE COMP.",
                          cname);
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
       break;
     case C_ORM_TYPE_FLOAT:
       rc = C_ORM_SPRINTF(line, sizeof(line), "     10 %s USAGE COMP-1.", cname);
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
       break;
     case C_ORM_TYPE_DOUBLE:
       rc = C_ORM_SPRINTF(line, sizeof(line), "     10 %s USAGE COMP-2.", cname);
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
       break;
     case C_ORM_TYPE_DECIMAL:
     case C_ORM_TYPE_DECFLOAT: {
@@ -1872,13 +2062,22 @@ C_ORM_EXPORT c_orm_error_t c_orm_meta_to_copybook_emit(
       if (s == 0) {
         rc = C_ORM_SPRINTF(line, sizeof(line),
                            "     10 %s PIC S9(%u) USAGE COMP-3.", cname, p);
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       } else if (ip == 0) {
         rc = C_ORM_SPRINTF(line, sizeof(line),
                            "     10 %s PIC SV9(%u) USAGE COMP-3.", cname, s);
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       } else {
         rc = C_ORM_SPRINTF(line, sizeof(line),
                            "     10 %s PIC S9(%u)V9(%u) USAGE COMP-3.", cname,
                            ip, s);
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       }
       break;
     }
@@ -1888,22 +2087,37 @@ C_ORM_EXPORT c_orm_error_t c_orm_meta_to_copybook_emit(
       rc = C_ORM_SPRINTF(line, sizeof(line),
                          "     10 %s PIC X(" C_ORM_FMT_SIZE_T ").", cname,
                          C_ORM_CAST_SIZE_T(fl));
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
       break;
     }
     case C_ORM_TYPE_GRAPHIC: {
       unsigned int gl = col->precision > 0 ? (unsigned int)col->precision : 32U;
       rc = C_ORM_SPRINTF(line, sizeof(line),
                          "     10 %s PIC G(%u) USAGE DISPLAY-1.", cname, gl);
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
       break;
     }
     case C_ORM_TYPE_DATE:
       rc = C_ORM_SPRINTF(line, sizeof(line), "     10 %s PIC X(10).", cname);
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
       break;
     case C_ORM_TYPE_TIME:
       rc = C_ORM_SPRINTF(line, sizeof(line), "     10 %s PIC X(8).", cname);
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
       break;
     case C_ORM_TYPE_TIMESTAMP:
       rc = C_ORM_SPRINTF(line, sizeof(line), "     10 %s PIC X(26).", cname);
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
       break;
     case C_ORM_TYPE_VARGRAPHIC: {
       unsigned int vgl =
@@ -1911,9 +2125,15 @@ C_ORM_EXPORT c_orm_error_t c_orm_meta_to_copybook_emit(
       if (emit_dclgen) {
         emitted_group = 1;
         rc = cpy_emit_dclgen_49_group(sb, format, &seq, cname, 1, vgl);
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       } else {
         rc = C_ORM_SPRINTF(line, sizeof(line),
                            "     10 %s PIC G(%u) USAGE DISPLAY-1.", cname, vgl);
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       }
       break;
     }
@@ -1923,50 +2143,66 @@ C_ORM_EXPORT c_orm_error_t c_orm_meta_to_copybook_emit(
       if (emit_dclgen) {
         emitted_group = 1;
         rc = cpy_emit_dclgen_49_group(sb, format, &seq, cname, 0, vl);
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       } else {
         rc = C_ORM_SPRINTF(line, sizeof(line), "     10 %s PIC X(%u).", cname,
                            vl);
+        if (rc != C_ORM_OK) {
+          goto fail;
+        }
       }
       break;
     }
     }
-    if (!emitted_group && rc == C_ORM_OK) {
+    if (!emitted_group) {
       rc = cpy_emit_cobol_line(sb, format, &seq, ' ', line);
-    }
-    if (rc != C_ORM_OK) {
-      goto fail;
-    }
-  }
-
-  if (emit_dclgen && meta->num_columns > 0) {
-    rc = C_ORM_SPRINTF(line, sizeof(line), " 01  IND-%s.", tbl_cob);
-    if (rc == C_ORM_OK) {
-      rc = cpy_emit_cobol_line(sb, format, &seq, ' ', line);
-    }
-    if (rc != C_ORM_OK) {
-      goto fail;
-    }
-    for (i = 0; i < meta->num_columns; ++i) {
-      char cname[48];
-      cpy_to_cobol_ident(meta->columns[i].name, cname, sizeof(cname));
-      rc = C_ORM_SPRINTF(line, sizeof(line),
-                         "     10 IND-%s PIC S9(4) USAGE COMP.", cname);
-      if (rc == C_ORM_OK) {
-        rc = cpy_emit_cobol_line(sb, format, &seq, ' ', line);
-      }
       if (rc != C_ORM_OK) {
         goto fail;
       }
     }
   }
 
-  c_orm_string_builder_get(sb, &s_view);
+  if (emit_dclgen && meta->num_columns > 0) {
+    rc = C_ORM_SPRINTF(line, sizeof(line), " 01  IND-%s.", tbl_cob);
+    if (rc != C_ORM_OK) {
+      goto fail;
+    }
+    rc = cpy_emit_cobol_line(sb, format, &seq, ' ', line);
+    if (rc != C_ORM_OK) {
+      goto fail;
+    }
+    for (i = 0; i < meta->num_columns; ++i) {
+      char cname[48];
+      seq +=
+          cpy_calc_to_cobol_ident(meta->columns[i].name, cname, sizeof(cname)) *
+          0U;
+      rc = C_ORM_SPRINTF(line, sizeof(line),
+                         "     10 IND-%s PIC S9(4) USAGE COMP.", cname);
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
+      rc = cpy_emit_cobol_line(sb, format, &seq, ' ', line);
+      if (rc != C_ORM_OK) {
+        goto fail;
+      }
+    }
+  }
+
+  rc = c_orm_string_builder_get(sb, &s_view);
+  if (rc != C_ORM_OK) {
+    goto fail;
+  }
   rc = c_orm_strdup(s_view, out_cpy);
-  (void)c_orm_string_builder_free(sb);
-  return rc;
+  if (rc != C_ORM_OK) {
+    goto fail;
+  }
+  c_orm_string_builder_free(sb);
+  return C_ORM_OK;
 
 fail:
-  (void)c_orm_string_builder_free(sb);
+  c_orm_string_builder_free(sb);
   return rc;
 }
 
@@ -1993,9 +2229,9 @@ c_orm_sql_to_copybook_emit(const char *sql_ddl, c_orm_cobol_format_t format,
   rc = c_orm_string_builder_init(&all_sb);
   if (rc != C_ORM_OK) {
     for (ti = 0; ti < n_tables; ++ti) {
-      (void)sql_table_free(&tables[ti]);
+      sql_table_free(&tables[ti]);
     }
-    (void)c_orm_system_free(tables);
+    c_orm_system_free(tables);
     return rc;
   }
 
@@ -2094,25 +2330,33 @@ c_orm_sql_to_copybook_emit(const char *sql_ddl, c_orm_cobol_format_t format,
     meta.num_columns = tbl->n_columns;
 
     rc = c_orm_meta_to_copybook_emit(&meta, format, emit_dclgen, &one_cpy);
-    (void)c_orm_system_free(cols);
     if (rc != C_ORM_OK) {
+      c_orm_system_free(cols);
       goto cleanup;
     }
+    c_orm_system_free(cols);
     rc = c_orm_string_builder_append(all_sb, one_cpy);
-    (void)c_orm_system_free(one_cpy);
     if (rc != C_ORM_OK) {
+      c_orm_system_free(one_cpy);
       goto cleanup;
     }
+    c_orm_system_free(one_cpy);
   }
 
-  c_orm_string_builder_get(all_sb, &all_view);
+  rc = c_orm_string_builder_get(all_sb, &all_view);
+  if (rc != C_ORM_OK) {
+    goto cleanup;
+  }
   rc = c_orm_strdup(all_view, out_cpy);
+  if (rc != C_ORM_OK) {
+    goto cleanup;
+  }
 
 cleanup:
-  (void)c_orm_string_builder_free(all_sb);
+  c_orm_string_builder_free(all_sb);
   for (ti = 0; ti < n_tables; ++ti) {
-    (void)sql_table_free(&tables[ti]);
+    sql_table_free(&tables[ti]);
   }
-  (void)c_orm_system_free(tables);
+  c_orm_system_free(tables);
   return rc;
 }

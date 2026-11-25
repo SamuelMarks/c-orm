@@ -52,6 +52,12 @@ static enum greatest_test_res test_api_crud_string_and_int64_pks(void);
  * @return GREATEST test result.
  */
 TEST test_api_crud_string_and_int64_pks(void) {
+  static char c_mut_s0[] = "str_pk";
+  static char c_mut_s1[] = "str_name";
+  static char c_mut_s2[] = "int64_name";
+  static char c_mut_s3[] = "A";
+  static char c_mut_s4[] = "B";
+
   struct StringPkObj sobj;
   struct Int64PkObj iobj;
   c_orm_column_meta_t scols[2];
@@ -67,8 +73,8 @@ TEST test_api_crud_string_and_int64_pks(void) {
   memset(&smeta, 0, sizeof(smeta));
   memset(&imeta, 0, sizeof(imeta));
 
-  sobj.id = "str_pk";
-  sobj.name = "str_name";
+  sobj.id = c_mut_s0;
+  sobj.name = c_mut_s1;
   scols[0].name = "id";
   scols[0].type = C_ORM_TYPE_STRING;
   scols[0].offset = offsetof(struct StringPkObj, id);
@@ -86,7 +92,7 @@ TEST test_api_crud_string_and_int64_pks(void) {
   smeta.query_select_by_pk = "SELECT * FROM str_table WHERE id=?";
 
   iobj.id = 123456789;
-  iobj.name = "int64_name";
+  iobj.name = c_mut_s2;
   icols[0].name = "id";
   icols[0].type = C_ORM_TYPE_INT64;
   icols[0].offset = offsetof(struct Int64PkObj, id);
@@ -261,10 +267,10 @@ TEST test_api_crud_string_and_int64_pks(void) {
     memset(&mmeta, 0, sizeof(mmeta));
 
     marr[0].id = 1;
-    marr[0].name = "A";
+    marr[0].name = c_mut_s3;
     marr[0].score = 100;
     marr[1].id = 2;
-    marr[1].name = "B";
+    marr[1].name = c_mut_s4;
     marr[1].score = 200;
 
     mcols[0].name = "id";
@@ -493,6 +499,9 @@ static enum greatest_test_res test_api_batch_crud_deep_errors(void);
  * @return GREATEST test result.
  */
 TEST test_api_batch_crud_deep_errors(void) {
+  static char c_mut_s5[] = "u1";
+  static char c_mut_s6[] = "u2";
+
   struct Users items[2];
   c_orm_driver_vtable_t bvt;
   c_orm_db_t bdb;
@@ -513,9 +522,9 @@ TEST test_api_batch_crud_deep_errors(void) {
   memset(&bdb, 0, sizeof(bdb));
 
   items[0].id = 1;
-  items[0].username = "u1";
+  items[0].username = c_mut_s5;
   items[1].id = 2;
-  items[1].username = "u2";
+  items[1].username = c_mut_s6;
 
   bvt.prepare = mock_batch_prepare;
   bvt.step = mock_batch_step;
@@ -704,6 +713,8 @@ static enum greatest_test_res test_api_crud_missing_error_branches(void);
  * @return GREATEST test result.
  */
 TEST test_api_crud_missing_error_branches(void) {
+  static char c_mut_s7[] = "test_user";
+
   struct Users u;
   c_orm_driver_vtable_t custom_vt;
   c_orm_db_t custom_db;
@@ -711,7 +722,7 @@ TEST test_api_crud_missing_error_branches(void) {
 
   memset(&u, 0, sizeof(u));
   u.id = 1;
-  u.username = "test_user";
+  u.username = c_mut_s7;
 
   memcpy(&u_meta, &Users_meta, sizeof(u_meta));
 

@@ -17,23 +17,6 @@
 #include "c_orm_sqlite.h"
 #include "c_orm_uuid.h"
 #include "c_orm_sql.h"
-#include <greatest.h>
-
-#undef ASSERT_EQ_FMT
-#define ASSERT_EQ_FMT(exp, got, fmt) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef ASSERT_EQ
-#define ASSERT_EQ(exp, got) do { greatest_info.assertions++; if (!((exp) == (got))) { fprintf(stderr, "\nFAIL %s:%d: %s != %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef ASSERT
-#define ASSERT(cond) do { greatest_info.assertions++; if (!((cond) != 0)) { fprintf(stderr, "\nFAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef ASSERT_STR_EQ
-#define ASSERT_STR_EQ(exp, got) do { greatest_info.assertions++; if (strcmp((exp), (got)) != 0) { fprintf(stderr, "\nFAIL %s:%d: \"%s\" != \"%s\"\n", __FILE__, __LINE__, (exp), (got)); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef ASSERT_NEQ
-#define ASSERT_NEQ(exp, got) do { greatest_info.assertions++; if (!((exp) != (got))) { fprintf(stderr, "\nFAIL %s:%d: %s == %s\n", __FILE__, __LINE__, #exp, #got); return GREATEST_TEST_RES_FAIL; } } while ((void)0, 0)
-#undef RUN_TEST
-#define RUN_TEST(TEST) do { int should = 0; enum greatest_test_res res; greatest_test_pre(#TEST, &should); res = TEST(); greatest_test_post(res); } while((void)0, 0)
-#undef CHECK_CALL
-#define CHECK_CALL(res) do { do { enum greatest_test_res _rc = (res); greatest_info.assertions++; if (_rc != GREATEST_TEST_RES_PASS) { return _rc; } } while ((void)0, 0); } while ((void)0, 0)
-
 #include <stdio.h>
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
 #include <unistd.h>
@@ -47,6 +30,8 @@ extern __declspec(dllimport) void *__stdcall GetProcAddress(void *, const char *
 #endif
 #include <stdlib.h>
 #include <string.h>
+#include "test_greatest_coverage.h"
+#include "test_assert_zero_branch.h"
 
 #if defined(_MSC_VER)
 
@@ -122,17 +107,21 @@ TEST test_e2e_generate_schema(void) {
  * @return GREATEST test result.
  */
 TEST test_e2e_insert_user(void) {
+  static char c_mut_s0[] = "2026-03-14 12:00:00";
+  static char c_mut_s1[] = "smarks";
+  static char c_mut_s2[] = "samuel@example.com";
+
   struct Users u;
   c_orm_error_t err;
   int32_t age = 30;
   float score = 9.5f;
   bool is_active = true;
-  char *created_at = "2026-03-14 12:00:00";
+  char *created_at = c_mut_s0;
 
   memset(&u, 0, sizeof(u));
   u.id = 1;
-  u.username = "smarks";
-  u.email = "samuel@example.com";
+  u.username = c_mut_s1;
+  u.email = c_mut_s2;
   u.age = &age;
   u.score = &score;
   u.is_active = (void *)&is_active;
@@ -277,7 +266,7 @@ TEST test_query_builder_extensions(void) {
                 "created_at < CURRENT_TIMESTAMP LIMIT 10 OFFSET 5",
                 sql);
 
-  (void)c_orm_system_free(sql);
+  c_orm_system_free(sql);
   c_orm_select_builder_free(b);
   PASS();
 }
@@ -355,6 +344,10 @@ TEST test_mysql_stub(void) {
  * @return GREATEST test result.
  */
 TEST test_e2e_string_pk_and_oauth2(void) {
+  static char c_mut_s3[] = "atk_12345";
+  static char c_mut_s4[] = "rtk_09876";
+  static char c_mut_s5[] = "Bearer";
+
   struct Oauth2_tokens token;
   struct Oauth2_tokens fetched;
   c_orm_error_t err;
@@ -371,9 +364,9 @@ TEST test_e2e_string_pk_and_oauth2(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   memset(&token, 0, sizeof(token));
-  token.access_token = "atk_12345";
-  token.refresh_token = "rtk_09876";
-  token.token_type = "Bearer";
+  token.access_token = c_mut_s3;
+  token.refresh_token = c_mut_s4;
+  token.token_type = c_mut_s5;
   token.expires_in = &expires_in;
   token.created_at = &created_at;
 
@@ -428,6 +421,8 @@ TEST test_e2e_find_one_by_string(void) {
  * @return GREATEST test result.
  */
 TEST test_e2e_oauth2_helpers(void) {
+  static char c_mut_s6[] = "abc";
+
   c_orm_oauth2_token_t tok;
   int is_valid;
   c_orm_error_t err;
@@ -436,7 +431,7 @@ TEST test_e2e_oauth2_helpers(void) {
   int64_t t1, t2;
 
   memset(&tok, 0, sizeof(tok));
-  tok.access_token = "abc";
+  tok.access_token = c_mut_s6;
   tok.expires_in = 3600;
   tok.created_at = 1000000000;
 
@@ -457,8 +452,8 @@ TEST test_e2e_oauth2_helpers(void) {
   ASSERT(decrypted != NULL);
   ASSERT_STR_EQ("plain", decrypted);
 
-  (void)c_orm_system_free(encrypted);
-  (void)c_orm_system_free(decrypted);
+  c_orm_system_free(encrypted);
+  c_orm_system_free(decrypted);
 
   err = c_orm_oauth2_get_current_timestamp(&t1);
   ASSERT_EQ(C_ORM_OK, err);
@@ -479,6 +474,18 @@ TEST test_e2e_oauth2_helpers(void) {
  * @return GREATEST test result.
  */
 TEST test_e2e_verify_credentials(void) {
+  static char c_mut_s7[] = "user123";
+  static char c_mut_s8[] = "testuser";
+  static char c_mut_s9[] = "somesalt";
+  static char c_mut_s10[] = "client_id";
+  static char c_mut_s11[] = "client_secret";
+  static char c_mut_s12[] = "http://localhost";
+  static char c_mut_s13[] = "password";
+  static char c_mut_s14[] = "access123";
+  static char c_mut_s15[] = "refresh123";
+  static char c_mut_s16[] = "Bearer";
+  static char c_mut_s17[] = "user123";
+
   c_orm_db_t *auth_db = NULL;
   c_orm_error_t err;
   c_orm_user_t user;
@@ -495,13 +502,13 @@ TEST test_e2e_verify_credentials(void) {
     err = c_orm_user_hash_password("mysecretpassword", "somesalt", &pw_hash);
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
     memset(&user, 0, sizeof(user));
-    user.id = "user123";
-    user.username = "testuser";
+    user.id = c_mut_s7;
+    user.username = c_mut_s8;
     user.password_hash = pw_hash;
-    user.salt = "somesalt";
+    user.salt = c_mut_s9;
 
     err = c_orm_insert(auth_db, &c_orm_user_meta, &user);
-    (void)c_orm_system_free(pw_hash);
+    c_orm_system_free(pw_hash);
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
   }
 
@@ -523,22 +530,22 @@ TEST test_e2e_verify_credentials(void) {
     c_orm_oauth2_token_t token;
 
     memset(&client, 0, sizeof(client));
-    client.id = "client_id";
-    client.client_secret = "client_secret";
-    client.redirect_uris = "http://localhost";
-    client.grant_types = "password";
+    client.id = c_mut_s10;
+    client.client_secret = c_mut_s11;
+    client.redirect_uris = c_mut_s12;
+    client.grant_types = c_mut_s13;
 
     err = c_orm_insert(auth_db, &c_orm_oauth2_client_meta, &client);
 
     ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
     memset(&token, 0, sizeof(token));
-    token.access_token = "access123";
-    token.refresh_token = "refresh123";
-    token.token_type = "Bearer";
+    token.access_token = c_mut_s14;
+    token.refresh_token = c_mut_s15;
+    token.token_type = c_mut_s16;
     token.expires_in = 3600;
     token.created_at = 123456789;
-    token.user_id = "user123";
+    token.user_id = c_mut_s17;
 
     err = c_orm_insert(auth_db, &c_orm_token_meta, &token);
 
@@ -598,6 +605,11 @@ TEST test_e2e_validate_relations(void) {
  * @return GREATEST test result.
  */
 TEST test_e2e_build_relation_meta(void) {
+  static char c_mut_s18[] = "users";
+  static char c_mut_s19[] = "id";
+  static char c_mut_s20[] = "user_id";
+  static char c_mut_s21[] = "posts";
+
   struct sql_table_t table;
   struct sql_column_t cols[1];
   struct sql_constraint_t fks[1];
@@ -610,14 +622,14 @@ TEST test_e2e_build_relation_meta(void) {
   memset(fks, 0, sizeof(fks));
 
   fks[0].type = SQL_CONSTRAINT_FOREIGN_KEY;
-  fks[0].reference_table = "users";
-  fks[0].reference_column = "id";
+  fks[0].reference_table = c_mut_s18;
+  fks[0].reference_column = c_mut_s19;
 
-  cols[0].name = "user_id";
+  cols[0].name = c_mut_s20;
   cols[0].constraints = fks;
   cols[0].n_constraints = 1;
 
-  table.name = "posts";
+  table.name = c_mut_s21;
   table.columns = cols;
   table.n_columns = 1;
 
@@ -630,7 +642,7 @@ TEST test_e2e_build_relation_meta(void) {
   ASSERT_STR_EQ("id", relations[0].foreign_key);
   ASSERT_STR_EQ("user_id", relations[0].local_key);
 
-  (void)c_orm_system_free(relations);
+  c_orm_system_free(relations);
   PASS();
 }
 
@@ -668,6 +680,8 @@ TEST test_e2e_relation_meta_validation(void) {
  * @return GREATEST test result.
  */
 TEST test_e2e_lazy_load_macros(void) {
+  static char c_mut_s22[] = "already_loaded";
+
   /*
    * Tests Step 61, 62, 63
    * c_orm_load_relation explicitly, and C_ORM_LAZY_LOAD macro
@@ -686,15 +700,9 @@ TEST test_e2e_lazy_load_macros(void) {
   {
     int i;
     for (i = 0; i < 2; i++) {
-      if (i == 0) {
-        user.username = NULL;
-        C_ORM_LAZY_LOAD(NULL, &user, &Users_meta, 0, username, err);
-        ASSERT_EQ_FMT(C_ORM_ERROR_MEMORY, err, "%d");
-      } else {
-        user.username = "already_loaded";
-        C_ORM_LAZY_LOAD(NULL, &user, &Users_meta, 0, username, err);
-        ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
-      }
+      user.username = (i == 0) ? NULL : c_mut_s22;
+      C_ORM_LAZY_LOAD(NULL, &user, &Users_meta, 0, username, err);
+      ASSERT_EQ_FMT((i == 0) ? C_ORM_ERROR_MEMORY : C_ORM_OK, err, "%d");
     }
   }
 
@@ -706,6 +714,10 @@ TEST test_e2e_lazy_load_macros(void) {
  * @return GREATEST test result.
  */
 TEST test_e2e_c_orm_save_upsert(void) {
+  static char c_mut_s23[] = "upsert_user";
+  static char c_mut_s24[] = "upsert@example.com";
+  static char c_mut_s25[] = "upsert_user_updated";
+
   /*
    * Tests Step 98: Upsert based on PK presence
    */
@@ -719,8 +731,8 @@ TEST test_e2e_c_orm_save_upsert(void) {
   /* Insert - new user with no ID set explicitly (if auto increment, but we
    * hardcode for tests here) */
   user.id = 997;
-  user.username = "upsert_user";
-  user.email = "upsert@example.com";
+  user.username = c_mut_s23;
+  user.email = c_mut_s24;
 
   /* Because ID is set, c_orm_save routes to c_orm_update. Since it doesn't
    * exist, update fails returning NOT_FOUND usually Wait, sqlite update returns
@@ -732,7 +744,7 @@ TEST test_e2e_c_orm_save_upsert(void) {
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   /* Now we call c_orm_save which should update */
-  user.username = "upsert_user_updated";
+  user.username = c_mut_s25;
   err = c_orm_save(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -749,6 +761,10 @@ TEST test_e2e_c_orm_save_upsert(void) {
  * @return GREATEST test result.
  */
 TEST test_e2e_partial_updates(void) {
+  static char c_mut_s26[] = "partial_user";
+  static char c_mut_s27[] = "partial@example.com";
+  static char c_mut_s28[] = "updated_partial";
+
   /*
    * Tests Step 96: Partial updates via dirty tracking
    */
@@ -760,12 +776,12 @@ TEST test_e2e_partial_updates(void) {
   memset(&user, 0, sizeof(user));
   memset(&fetched, 0, sizeof(fetched));
   user.id = 888;
-  user.username = "partial_user";
-  user.email = "partial@example.com";
+  user.username = c_mut_s26;
+  user.email = c_mut_s27;
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
-  user.username = "updated_partial";
+  user.username = c_mut_s28;
   err = c_orm_update(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -782,6 +798,10 @@ TEST test_e2e_partial_updates(void) {
  * @return GREATEST test result.
  */
 TEST test_e2e_cascade_deletion(void) {
+  static char c_mut_s29[] = "cascade_user";
+  static char c_mut_s30[] = "cascade@example.com";
+  static char c_mut_s31[] = "A cascading post";
+
   /*
    * Tests Step 97: ORM-level cascade deletion
    */
@@ -793,14 +813,14 @@ TEST test_e2e_cascade_deletion(void) {
   memset(&post, 0, sizeof(post));
 
   user.id = 777;
-  user.username = "cascade_user";
-  user.email = "cascade@example.com";
+  user.username = c_mut_s29;
+  user.email = c_mut_s30;
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   post.id = 1;
   post.user_id = 777;
-  post.title = "A cascading post";
+  post.title = c_mut_s31;
   err = c_orm_insert(db, &Posts_meta, &post);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -817,6 +837,8 @@ TEST test_e2e_cascade_deletion(void) {
  * @return GREATEST test result.
  */
 TEST test_e2e_bulk_processing(void) {
+  static char c_mut_s32[] = "bulk@example.com";
+
   /*
    * Tests Steps 101/103: Bulk insertion and updating scaling bounds.
    */
@@ -825,7 +847,7 @@ TEST test_e2e_bulk_processing(void) {
   struct Users user;
 
   memset(&user, 0, sizeof(user));
-  user.email = "bulk@example.com";
+  user.email = c_mut_s32;
 
   err = c_orm_transaction_begin(db);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -910,7 +932,7 @@ TEST test_c_orm_relationship_filtering(void) {
   ASSERT(strstr(sql, "ILIKE") != NULL);
   ASSERT(strstr(sql, "EXISTS") != NULL);
 
-  (void)c_orm_system_free(sql);
+  c_orm_system_free(sql);
   c_orm_select_builder_free(b);
   PASS();
 }
@@ -933,7 +955,7 @@ TEST test_c_orm_array_in_clauses(void) {
   ASSERT(sql != NULL);
   ASSERT(strstr(sql, "IN") != NULL);
 
-  (void)c_orm_system_free(sql);
+  c_orm_system_free(sql);
   c_orm_select_builder_free(b);
   PASS();
 }
@@ -997,7 +1019,7 @@ TEST test_c_orm_json_dict_serialization(void) {
                 "%d");
   ASSERT(v_out != NULL);
   ASSERT_STR_EQ("alice", v_out->value.s_val);
-  (void)c_orm_system_free(json_str);
+  c_orm_system_free(json_str);
   ASSERT_EQ_FMT(C_ORM_OK, cdd_c_abstract_struct_free(&parsed), "%d");
   ASSERT_EQ_FMT(C_ORM_OK, cdd_c_abstract_struct_free(&dict), "%d");
   PASS();
@@ -1008,6 +1030,9 @@ TEST test_c_orm_json_dict_serialization(void) {
  * @return GREATEST test result.
  */
 TEST test_c_orm_runtime_validation(void) {
+  static char c_mut_s33[] = "toolong";
+  static char c_mut_s34[] = "test@example.com";
+
   /*
    * Tests Steps 154, 156, 157, 158, 159: Runtime validation mapping
    */
@@ -1016,8 +1041,8 @@ TEST test_c_orm_runtime_validation(void) {
 
   memset(&user, 0, sizeof(user));
   user.id = 123;
-  user.username = "toolong";
-  user.email = "test@example.com";
+  user.username = c_mut_s33;
+  user.email = c_mut_s34;
 
   /* c_orm_validate invokes underlying cdd-c validator which isn't dynamically
    * registered in our stub, but the wrapper returns OK ensuring API coverage.
@@ -1033,6 +1058,10 @@ TEST test_c_orm_runtime_validation(void) {
  * @return GREATEST test result.
  */
 TEST test_c_orm_composite_keys(void) {
+  static char c_mut_s35[] = "composite_user";
+  static char c_mut_s36[] = "composite@example.com";
+  static char c_mut_s37[] = "composite_user_updated";
+
   /*
    * Tests Steps 162-167: Composite key operations
    */
@@ -1043,8 +1072,8 @@ TEST test_c_orm_composite_keys(void) {
 
   memset(&user, 0, sizeof(user));
   user.id = 555;
-  user.username = "composite_user";
-  user.email = "composite@example.com";
+  user.username = c_mut_s35;
+  user.email = c_mut_s36;
 
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -1060,7 +1089,7 @@ TEST test_c_orm_composite_keys(void) {
   Users_free(&fetched);
 
   /* Update via composite */
-  user.username = "composite_user_updated";
+  user.username = c_mut_s37;
   err = c_orm_update_by_composite_key(db, &Users_meta, 1, keys, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -1085,6 +1114,9 @@ TEST test_c_orm_composite_keys(void) {
  * @return GREATEST test result.
  */
 TEST test_c_orm_uuid_generation(void) {
+  static char c_mut_s38[] = "rtk_uuid_test";
+  static char c_mut_s39[] = "Bearer";
+
   /* Step 168, 169, 170: UUID generation logic */
   char uuid_buf1[37];
   char uuid_buf2[37];
@@ -1111,8 +1143,8 @@ TEST test_c_orm_uuid_generation(void) {
   memset(&token, 0, sizeof(token));
   /* We leave access_token (which is PK) as NULL to trigger UUID generation */
   token.access_token = NULL;
-  token.refresh_token = "rtk_uuid_test";
-  token.token_type = "Bearer";
+  token.refresh_token = c_mut_s38;
+  token.token_type = c_mut_s39;
   token.expires_in = &expires_in;
 
   err = c_orm_insert(db, &Oauth2_tokens_meta, &token);
@@ -1129,13 +1161,13 @@ TEST test_c_orm_uuid_generation(void) {
   ASSERT_STR_EQ(token.access_token, fetched.access_token);
   ASSERT_STR_EQ("rtk_uuid_test", fetched.refresh_token);
 
-  (void)c_orm_system_free(fetched.access_token);
-  (void)c_orm_system_free(fetched.refresh_token);
-  (void)c_orm_system_free(fetched.token_type);
-  (void)c_orm_system_free(fetched.expires_in);
-  (void)c_orm_system_free(fetched.created_at);
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(fetched.access_token));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(fetched.refresh_token));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(fetched.token_type));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(fetched.expires_in));
+  ASSERT_EQ(C_ORM_OK, c_orm_system_free(fetched.created_at));
 
-  (void)c_orm_system_free(token.access_token);
+  c_orm_system_free(token.access_token);
 
   PASS();
 }
@@ -1145,6 +1177,10 @@ TEST test_c_orm_uuid_generation(void) {
  * @return GREATEST test result.
  */
 TEST test_c_orm_update_partial(void) {
+  static char c_mut_s40[] = "partial_target";
+  static char c_mut_s41[] = "partial_target@example.com";
+  static char c_mut_s42[] = "new_username";
+
   struct Users user;
   struct Users fetched;
   c_orm_error_t err;
@@ -1154,14 +1190,14 @@ TEST test_c_orm_update_partial(void) {
 
   memset(&user, 0, sizeof(user));
   user.id = 777;
-  user.username = "partial_target";
-  user.email = "partial_target@example.com";
+  user.username = c_mut_s40;
+  user.email = c_mut_s41;
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   memset(&user, 0, sizeof(user));
   user.id = 777;
-  user.username = "new_username";
+  user.username = c_mut_s42;
   err = c_orm_update_partial(db, &Users_meta, &user, fields, 1);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -1180,14 +1216,17 @@ TEST test_c_orm_update_partial(void) {
  * @return GREATEST test result.
  */
 TEST test_c_orm_exists_int32(void) {
+  static char c_mut_s43[] = "exists_user";
+  static char c_mut_s44[] = "exists@example.com";
+
   c_orm_error_t err;
   int exists = 0;
   struct Users user;
 
   memset(&user, 0, sizeof(user));
   user.id = 555;
-  user.username = "exists_user";
-  user.email = "exists@example.com";
+  user.username = c_mut_s43;
+  user.email = c_mut_s44;
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -1207,15 +1246,19 @@ TEST test_c_orm_exists_int32(void) {
  * @return GREATEST test result.
  */
 TEST test_c_orm_exists_string(void) {
+  static char c_mut_s45[] = "exists_string_token";
+  static char c_mut_s46[] = "rtk_exists";
+  static char c_mut_s47[] = "Bearer";
+
   c_orm_error_t err;
   int exists = 0;
   struct Oauth2_tokens token;
   int32_t expires_in = 3600;
 
   memset(&token, 0, sizeof(token));
-  token.access_token = "exists_string_token";
-  token.refresh_token = "rtk_exists";
-  token.token_type = "Bearer";
+  token.access_token = c_mut_s45;
+  token.refresh_token = c_mut_s46;
+  token.token_type = c_mut_s47;
   token.expires_in = &expires_in;
 
   err = c_orm_insert(db, &Oauth2_tokens_meta, &token);
@@ -1239,21 +1282,26 @@ TEST test_c_orm_exists_string(void) {
  * @return GREATEST test result.
  */
 TEST test_c_orm_find_all_paginated(void) {
+  static char c_mut_s48[] = "page_user1";
+  static char c_mut_s49[] = "page1@example.com";
+  static char c_mut_s50[] = "page_user2";
+  static char c_mut_s51[] = "page2@example.com";
+
   c_orm_error_t err;
   struct Users_Array arr;
   struct Users user;
 
   memset(&user, 0, sizeof(user));
   user.id = 200;
-  user.username = "page_user1";
-  user.email = "page1@example.com";
+  user.username = c_mut_s48;
+  user.email = c_mut_s49;
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   memset(&user, 0, sizeof(user));
   user.id = 201;
-  user.username = "page_user2";
-  user.email = "page2@example.com";
+  user.username = c_mut_s50;
+  user.email = c_mut_s51;
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
@@ -1277,6 +1325,11 @@ TEST test_c_orm_find_all_paginated(void) {
  * @return GREATEST test result.
  */
 TEST test_c_orm_statement_cache(void) {
+  static char c_mut_s52[] = "cached_user";
+  static char c_mut_s53[] = "cached@example.com";
+  static char c_mut_s54[] = "cached_user_2";
+  static char c_mut_s55[] = "cached2@example.com";
+
   struct Users user;
   c_orm_error_t err;
 
@@ -1288,16 +1341,16 @@ TEST test_c_orm_statement_cache(void) {
   /* Test insert with cache */
   memset(&user, 0, sizeof(user));
   user.id = 888;
-  user.username = "cached_user";
-  user.email = "cached@example.com";
+  user.username = c_mut_s52;
+  user.email = c_mut_s53;
   err = c_orm_insert(db, &Users_meta, &user);
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
 
   /* Second insert should reuse the cached insert statement */
   memset(&user, 0, sizeof(user));
   user.id = 889;
-  user.username = "cached_user_2";
-  user.email = "cached2@example.com";
+  user.username = c_mut_s54;
+  user.email = c_mut_s55;
   err = c_orm_insert(db, &Users_meta, &user);
 
   ASSERT_EQ_FMT(C_ORM_OK, err, "%d");
@@ -1360,7 +1413,6 @@ TEST test_e2e_disconnect(void) {
  * @param e2e_suite Suite runner function name.
  */
 SUITE(e2e_suite) {
-  static int recursed = 0;
   RUN_TEST(test_e2e_connect);
   RUN_TEST(test_e2e_generate_schema);
   RUN_TEST(test_e2e_insert_user);
@@ -1403,389 +1455,6 @@ SUITE(e2e_suite) {
   RUN_TEST(test_e2e_disconnect);
   RUN_TEST(test_e2e_disconnect);
   RUN_TEST(test_e2e_disconnect);
-
-  if (!recursed) {
-    recursed = 1;
-    greatest_set_test_filter("never_match_filter");
-    e2e_suite();
-    greatest_set_test_filter(NULL);
-    recursed = 0;
-  }
-}
-
-/**
- * @brief Macro instantiating Greatest test runner globals and state.
- */
-GREATEST_MAIN_DEFS();
-
-/**
- * @brief Dummy setup hook for Greatest internals testing.
- * @param udata User data pointer.
- */
-static void dummy_greatest_setup(void *udata) { (void)udata; }
-
-/**
- * @brief Dummy teardown hook for Greatest internals testing.
- * @param udata User data pointer.
- */
-static void dummy_greatest_teardown(void *udata) { (void)udata; }
-
-/**
- * @brief Dummy test suite for Greatest internals coverage.
- */
-static void dummy_suite(void) {}
-
-/**
- * @brief Exercises internal reporting and hook functions in Greatest framework.
- * @return Error code.
- */
-static c_orm_error_t test_greatest_internals_coverage(void) {
-  unsigned int v;
-  struct greatest_report_t rep;
-  int eq_out;
-  int should_run;
-  const char *str;
-  greatest_memory_cmp_env mem_env;
-  struct greatest_run_info saved_info;
-  greatest_type_info no_equal_ti;
-  char *fake_args[16];
-  size_t n;
-  int step_i;
-  unsigned char exp_buf[20];
-  unsigned char got_buf[20];
-  greatest_memory_cmp_env diff_env;
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
-  pid_t pid;
-  int status;
-#endif
-
-  v = 0;
-  eq_out = 0;
-  should_run = 0;
-  n = 1;
-  str = "abc";
-  mem_env.exp = (const unsigned char *)"a";
-  mem_env.got = (const unsigned char *)"a";
-  mem_env.size = 1;
-
-  memcpy(&saved_info, &greatest_info, sizeof(saved_info));
-  GREATEST_INIT();
-
-  /* Setup & teardown callbacks */
-  GREATEST_SET_SETUP_CB(dummy_greatest_setup, NULL);
-  dummy_greatest_setup(NULL);
-  GREATEST_SET_SETUP_CB(NULL, NULL);
-  GREATEST_SET_TEARDOWN_CB(dummy_greatest_teardown, NULL);
-  dummy_greatest_teardown(NULL);
-  GREATEST_SET_TEARDOWN_CB(NULL, NULL);
-
-  greatest_abort_on_fail();
-  greatest_stop_at_first_fail();
-  greatest_set_exact_name_match();
-  greatest_set_flag(GREATEST_FLAG_FIRST_FAIL);
-  greatest_list_only();
-
-  greatest_set_suite_filter(NULL);
-  greatest_set_test_filter(NULL);
-  greatest_set_test_exclude(NULL);
-  greatest_set_test_suffix(NULL);
-  greatest_set_verbosity(0);
-  greatest_get_verbosity(&v);
-  greatest_get_report(&rep);
-
-  greatest_info.prng[0].count = 0;
-  greatest_prng_init_second_pass(0, 0, &eq_out);
-  greatest_info.prng[0].count = 5;
-  greatest_prng_init_first_pass(0);
-  greatest_prng_init_second_pass(0, 0, &eq_out);
-  greatest_prng_init_second_pass(0, 12345, &eq_out);
-  for (step_i = 0; step_i < 20; step_i++) {
-    greatest_prng_step(0);
-  }
-
-  greatest_memory_equal_cb("a", "a", &mem_env);
-  greatest_memory_printf_cb("a", &mem_env);
-  memset(exp_buf, 'A', sizeof(exp_buf));
-  memset(got_buf, 'B', sizeof(got_buf));
-  exp_buf[17] = 0x01;
-  got_buf[17] = 0x02;
-  diff_env.exp = exp_buf;
-  diff_env.got = got_buf;
-  diff_env.size = 20;
-  greatest_memory_printf_cb(got_buf, &diff_env);
-  greatest_string_printf_cb(str, NULL);
-  greatest_string_equal_cb("a", "a", NULL);
-  greatest_string_equal_cb("a", "b", NULL);
-
-  /* greatest_name_match */
-  greatest_name_match("test", NULL, 1);
-  greatest_name_match("test", NULL, 0);
-  greatest_name_match("test", "", 1);
-  greatest_name_match("test", "", 0);
-  greatest_name_match("", "test", 0);
-  greatest_info.exact_name_match = 1;
-  greatest_name_match("testing", "test", 0);
-  greatest_name_match("test", "test", 0);
-  greatest_info.exact_name_match = 0;
-  greatest_name_match("abc", "b", 0);
-  greatest_name_match("abc", "d", 0);
-  greatest_name_match("a", "b", 0);
-  greatest_name_match("azb", "ab", 0);
-
-  /* greatest_buffer_test_name */
-  greatest_info.name_suffix = NULL;
-  greatest_buffer_test_name("short");
-  greatest_buffer_test_name(
-      "this_is_a_very_long_test_name_that_exceeds_the_internal_buffer_capacity"
-      "_of_sixty_four_bytes_completely");
-  greatest_info.name_suffix = "suffix";
-  greatest_buffer_test_name("short");
-  greatest_info.name_suffix =
-      "a_very_long_suffix_that_causes_the_suffix_to_be_truncated_because_it_"
-      "exceeds_sixty_four_characters";
-  greatest_buffer_test_name("short");
-  greatest_info.name_suffix = "suffix";
-  greatest_buffer_test_name(
-      "this_is_a_sixty_three_char_string_for_testing_the_len_plus_1_bound");
-  greatest_info.name_suffix = NULL;
-
-  /* greatest_test_pre */
-  greatest_info.flags = GREATEST_FLAG_LIST_ONLY;
-  greatest_set_test_filter(NULL);
-  greatest_set_test_exclude(NULL);
-  greatest_test_pre("test_name", &should_run);
-  greatest_set_test_filter("nomatch");
-  greatest_test_pre("test_name", &should_run);
-  greatest_set_test_filter(NULL);
-  greatest_set_test_exclude("test_name");
-  greatest_test_pre("test_name", &should_run);
-  greatest_set_test_exclude(NULL);
-  greatest_info.flags = 0;
-  greatest_info.flags |= GREATEST_FLAG_FIRST_FAIL;
-  greatest_info.suite.failed = 1;
-  greatest_test_pre("test_name", &should_run);
-  greatest_info.suite.failed = 0;
-  greatest_test_pre("test_name", &should_run);
-  greatest_info.flags = 0;
-  greatest_info.prng[1].random_order = 1;
-  greatest_info.prng[1].initialized = 0;
-  greatest_test_pre("test_name", &should_run);
-  greatest_info.prng[1].initialized = 1;
-  greatest_info.prng[1].count = 0;
-  greatest_info.prng[1].state = 5;
-  greatest_test_pre("test_name", &should_run);
-  greatest_info.prng[1].count = 5;
-  greatest_info.prng[1].state = 5;
-  greatest_test_pre("test_name", &should_run);
-  greatest_info.prng[1].random_order = 0;
-  greatest_info.running_test = 1;
-  greatest_test_pre("test_name", &should_run);
-  greatest_info.running_test = 0;
-  greatest_info.setup = dummy_greatest_setup;
-  greatest_test_pre("test_name", &should_run);
-  greatest_info.setup = NULL;
-
-  /* greatest_do_pass, do_fail, do_skip */
-  greatest_info.verbosity = 1;
-  greatest_info.msg = "custom_msg";
-  greatest_do_pass();
-  greatest_do_fail();
-  greatest_do_skip();
-  greatest_info.msg = NULL;
-  greatest_do_pass();
-  greatest_do_fail();
-  greatest_do_skip();
-  greatest_info.verbosity = 0;
-  greatest_info.msg = "custom_msg";
-  greatest_info.col = 1;
-  greatest_do_fail();
-  greatest_info.col = (unsigned int)-1;
-  greatest_do_fail();
-  greatest_info.msg = NULL;
-  greatest_do_fail();
-  greatest_do_pass();
-  greatest_do_skip();
-
-  /* greatest_test_post */
-  greatest_info.teardown = dummy_greatest_teardown;
-  greatest_test_post(GREATEST_TEST_RES_PASS);
-  greatest_info.teardown = NULL;
-  greatest_test_post(GREATEST_TEST_RES_FAIL);
-  greatest_test_post(GREATEST_TEST_RES_SKIP);
-  greatest_info.verbosity = 1;
-  greatest_test_post(GREATEST_TEST_RES_PASS);
-  greatest_info.verbosity = 0;
-  greatest_info.width = 1;
-  greatest_info.col = 0;
-  greatest_test_post(GREATEST_TEST_RES_PASS);
-  greatest_info.width = 80;
-  greatest_info.col = 0;
-  greatest_test_post(GREATEST_TEST_RES_PASS);
-
-  /* GREATEST_PRINT_REPORT */
-  greatest_info.flags = GREATEST_FLAG_LIST_ONLY;
-  GREATEST_PRINT_REPORT();
-  greatest_info.flags = 0;
-  GREATEST_PRINT_REPORT();
-
-  /* report_suite & update_counts_and_reset_suite */
-  greatest_info.suite.tests_run = 0;
-  report_suite();
-  greatest_info.suite.tests_run = 1;
-  report_suite();
-  greatest_info.suite.tests_run = 2;
-  report_suite();
-  update_counts_and_reset_suite();
-
-  /* greatest_suite_pre, greatest_suite_post, greatest_run_suite */
-  greatest_set_suite_filter("nomatch");
-  greatest_run_suite(dummy_suite, "suite1");
-  greatest_set_suite_filter(NULL);
-  greatest_info.flags |= GREATEST_FLAG_ABORT_ON_FAIL;
-  greatest_info.suite.failed = 1;
-  greatest_info.failed = 0;
-  greatest_suite_pre("suite2", &should_run);
-  greatest_info.suite.failed = 0;
-  greatest_info.failed = 1;
-  greatest_suite_pre("suite2", &should_run);
-  greatest_info.flags = 0;
-  greatest_info.failed = 0;
-  greatest_info.prng[0].random_order = 1;
-  greatest_info.prng[0].initialized = 0;
-  greatest_suite_pre("suite3", &should_run);
-  greatest_info.prng[0].initialized = 1;
-  greatest_info.prng[0].count = 0;
-  greatest_info.prng[0].state = 5;
-  greatest_suite_pre("suite3", &should_run);
-  greatest_info.prng[0].count = 5;
-  greatest_info.prng[0].state = 5;
-  greatest_suite_pre("suite3", &should_run);
-  greatest_info.prng[0].random_order = 0;
-  greatest_run_suite(dummy_suite, "suite4");
-
-  /* greatest_do_assert_equal_t */
-  no_equal_ti.equal = NULL;
-  no_equal_ti.print = NULL;
-  greatest_do_assert_equal_t("a", "a", NULL, NULL, &eq_out);
-  greatest_do_assert_equal_t("a", "a", &no_equal_ti, NULL, &eq_out);
-  greatest_do_assert_equal_t("a", "a", &greatest_type_info_string, NULL,
-                             &eq_out);
-  greatest_do_assert_equal_t("a", "b", &greatest_type_info_string, NULL,
-                             &eq_out);
-  no_equal_ti.equal = greatest_string_equal_cb;
-  greatest_do_assert_equal_t("a", "b", &no_equal_ti, NULL, &eq_out);
-
-  /* greatest_all_passed */
-  greatest_info.failed = 0;
-  greatest_all_passed(&eq_out);
-  greatest_info.failed = 1;
-  greatest_all_passed(&eq_out);
-
-  greatest_get_report(NULL);
-  greatest_string_equal_cb("a", "a", &n);
-  greatest_string_equal_cb("a", "b", &n);
-
-  /* greatest_usage */
-  greatest_usage("test");
-
-  /* greatest_parse_options */
-  fake_args[0] = "test";
-  fake_args[1] = "-s";
-  fake_args[2] = "s_filter";
-  fake_args[3] = "-t";
-  fake_args[4] = "t_filter";
-  fake_args[5] = "-x";
-  fake_args[6] = "x_filter";
-  fake_args[7] = "-e";
-  fake_args[8] = "-f";
-  fake_args[9] = "-a";
-  fake_args[10] = "-l";
-  fake_args[11] = "-v";
-  fake_args[12] = "positional";
-  greatest_parse_options(13, fake_args);
-
-  fake_args[1] = "--";
-  greatest_parse_options(2, fake_args);
-
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__CYGWIN__)
-  pid = fork();
-  if (pid == 0) {
-    char *h_args[3];
-    h_args[0] = "test";
-    h_args[1] = "-h";
-    h_args[2] = NULL;
-    greatest_parse_options(2, h_args);
-    exit(0);
-  }
-  waitpid(pid, &status, 0);
-
-  pid = fork();
-  if (pid == 0) {
-    char *help_args[3];
-    help_args[0] = "test";
-    help_args[1] = "--help";
-    help_args[2] = NULL;
-    greatest_parse_options(2, help_args);
-    exit(0);
-  }
-  waitpid(pid, &status, 0);
-
-  pid = fork();
-  if (pid == 0) {
-    char *s_args[2];
-    s_args[0] = "test";
-    s_args[1] = "-s";
-    greatest_parse_options(2, s_args);
-    exit(0);
-  }
-  waitpid(pid, &status, 0);
-
-  pid = fork();
-  if (pid == 0) {
-    char *t_args[2];
-    t_args[0] = "test";
-    t_args[1] = "-t";
-    greatest_parse_options(2, t_args);
-    exit(0);
-  }
-  waitpid(pid, &status, 0);
-
-  pid = fork();
-  if (pid == 0) {
-    char *x_args[2];
-    x_args[0] = "test";
-    x_args[1] = "-x";
-    greatest_parse_options(2, x_args);
-    exit(0);
-  }
-  waitpid(pid, &status, 0);
-
-  pid = fork();
-  if (pid == 0) {
-    char *z_args[2];
-    z_args[0] = "test";
-    z_args[1] = "-z";
-    greatest_parse_options(2, z_args);
-    exit(0);
-  }
-  waitpid(pid, &status, 0);
-
-  pid = fork();
-  if (pid == 0) {
-    char *u_args[2];
-    u_args[0] = "test";
-    u_args[1] = "--unknown";
-    greatest_parse_options(2, u_args);
-    exit(0);
-  }
-  waitpid(pid, &status, 0);
-#endif
-
-  memcpy(&greatest_info, &saved_info, sizeof(saved_info));
-  if (greatest_info.width == 0) {
-    greatest_info.width = 80;
-  }
-  return C_ORM_OK;
 }
 
 /** @brief Arena and UUID test suite. */
