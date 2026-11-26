@@ -46,7 +46,9 @@ const char *err_name = NULL;
 c_orm_error_t rc = c_orm_insert(db, &Users_meta, &user);
 
 if (rc != C_ORM_OK) {
-    (void)c_orm_error_to_string(rc, &err_name);
-    printf("Insert failed: %s (rc=%d)\n", err_name ? err_name : "unknown", (int)rc);
+    c_orm_error_t str_rc = c_orm_error_to_string(rc, &err_name);
+    printf("Insert failed: %s (rc=%d, str_rc=%d)\n",
+           (str_rc == C_ORM_OK && err_name) ? err_name : "unknown", (int)rc,
+           (int)str_rc);
 }
 ```

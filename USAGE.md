@@ -55,6 +55,7 @@ Binding parameters protects against SQL injection and leverages the LRU statemen
 ```c
 c_orm_query_t *stmt = NULL;
 c_orm_error_t rc;
+c_orm_error_t fin_rc;
 int has_row = 0;
 
 rc = c_orm_prepare_cached(db, "UPDATE users SET name = ? WHERE id = ?", &stmt);
@@ -66,7 +67,10 @@ if (rc == C_ORM_OK) {
   if (rc == C_ORM_OK) {
     rc = db->vtable->step(stmt, &has_row);
   }
-  (void)c_orm_finalize_cached(db, stmt);
+  fin_rc = c_orm_finalize_cached(db, stmt);
+  if (rc == C_ORM_OK) {
+    rc = fin_rc;
+  }
 }
 ```
 
@@ -104,14 +108,22 @@ if (rc == C_ORM_OK) {
   if (rc == C_ORM_OK) {
     rc = c_orm_query_to_sql(q, C_ORM_DIALECT_SQLITE, &sql_string, &params);
     if (rc == C_ORM_OK) {
-      printf("Generated SQL: %s
-", sql_string);
-      (void)c_orm_system_free(sql_string);
-      (void)c_orm_query_params_cleanup(&params);
+      c_orm_error_t free_rc;
+      printf("Generated SQL: %s\n", sql_string);
+      free_rc = c_orm_system_free(sql_string);
+      if (rc == C_ORM_OK)
+        rc = free_rc;
+      free_rc = c_orm_query_params_cleanup(&params);
+      if (rc == C_ORM_OK)
+        rc = free_rc;
     }
   }
 
-  (void)c_orm_query_free(q);
+  {
+    c_orm_error_t qfree_rc = c_orm_query_free(q);
+    if (rc == C_ORM_OK)
+      rc = qfree_rc;
+  }
 }
 ```
 
@@ -137,7 +149,7 @@ if (rc == C_ORM_OK) {
     struct CddCAbstractStruct *row = &abstract_arr.data[i];
     (void)row;
   }
-  (void)c_orm_abstract_free(&abstract_arr);
+  rc = c_orm_abstract_free(&abstract_arr);
 }
 ```
 
@@ -149,6 +161,7 @@ For multi-threaded services, `c_orm_pool_t` manages pre-warmed connections, maxi
 c_orm_pool_t *pool = NULL;
 c_orm_db_t *session = NULL;
 c_orm_error_t rc;
+c_orm_error_t cleanup_rc;
 
 /* min_conns=2, max_conns=8, timeout_ms=500 */
 rc = c_orm_pool_init("sqlite://my_database.db", 2, 8, 500, &pool);
@@ -156,9 +169,15 @@ if (rc == C_ORM_OK) {
   rc = c_orm_pool_acquire(pool, &session);
   if (rc == C_ORM_OK) {
     rc = c_orm_execute_raw(session, "SELECT 1");
-    (void)c_orm_pool_release(pool, session);
+    cleanup_rc = c_orm_pool_release(pool, session);
+    if (rc == C_ORM_OK) {
+      rc = cleanup_rc;
+    }
   }
-  (void)c_orm_pool_destroy(pool);
+  cleanup_rc = c_orm_pool_destroy(pool);
+  if (rc == C_ORM_OK) {
+    rc = cleanup_rc;
+  }
 }
 ```
 
@@ -227,8 +246,11 @@ if (rc == C_ORM_OK) {
       rc = c_orm_transaction_commit(db);
     }
   } else {
-    (void)c_orm_savepoint_rollback(db, "transfer_sp");
-    (void)c_orm_transaction_rollback(db);
+    c_orm_error_t rb_rc = c_orm_savepoint_rollback(db, "transfer_sp");
+    c_orm_error_t tx_rc = c_orm_transaction_rollback(db);
+    if (rb_rc != C_ORM_OK && tx_rc != C_ORM_OK) {
+      rc = rb_rc;
+    }
   }
 }
 ```
@@ -243,9 +265,9 @@ Define models inline with `C_ORM_STRUCT` (`c_orm_struct.h`) or generate them via
 #include "c_orm_struct.h"
 /* clang-format on */
 
-#define ACCOUNT_FIELDS(X, S)
-  X(S, C_ORM_TYPE_INT32, int32_t, id)
-  X(S, C_ORM_TYPE_STRING, char *, owner)
+#define ACCOUNT_FIELDS(X, S) \
+  X(S, C_ORM_TYPE_INT32, int32_t, id) \
+  X(S, C_ORM_TYPE_STRING, char *, owner) \
   X(S, C_ORM_TYPE_INT32, int32_t, version)
 
 C_ORM_STRUCT(Account, ACCOUNT_FIELDS)
@@ -256,6 +278,7 @@ c_orm_error_t run_account_crud(c_orm_db_t *db, const c_orm_table_meta_t *meta) {
   struct Account acct;
   struct Account fetched;
   c_orm_error_t rc;
+  c_orm_error_t free_rc;
 
   acct.id = 1;
   acct.owner = "Charlie";
@@ -273,9 +296,11 @@ c_orm_error_t run_account_crud(c_orm_db_t *db, const c_orm_table_meta_t *meta) {
   /* Increment version and perform optimistic update (returns C_ORM_ERROR_NOT_FOUND on conflict) */
   fetched.version += 1;
   rc = c_orm_update_optimistic(db, meta, "version", &fetched);
-  (void)c_orm_free_columns(meta, &fetched);
+  free_rc = c_orm_free_columns(meta, &fetched);
   if (rc != C_ORM_OK)
     return rc;
+  if (free_rc != C_ORM_OK)
+    return free_rc;
 
   return c_orm_delete_by_id_int32(db, meta, 1);
 }

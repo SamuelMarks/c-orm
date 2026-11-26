@@ -201,11 +201,12 @@ static c_orm_error_t check_db_schema(const struct StructField *field,
  * @param is_pk Output PK flag.
  * @param is_unique Output UNIQUE flag.
  * @param is_index Output INDEX flag.
- * @return 0 on completion.
+ * @return C_ORM_OK on completion.
  */
-static int orm_gen_calc_db_flags(const struct StructField *field, int *is_pk,
-                                 int *is_unique, int *is_index) {
-  return (int)check_db_schema(field, is_pk, is_unique, is_index, NULL, 0);
+static c_orm_error_t orm_gen_extract_db_flags(const struct StructField *field,
+                                              int *is_pk, int *is_unique,
+                                              int *is_index) {
+  return check_db_schema(field, is_pk, is_unique, is_index, NULL, 0);
 }
 
 /**
@@ -220,12 +221,12 @@ static int orm_gen_calc_db_flags(const struct StructField *field, int *is_pk,
  * telemetry is tracked.
  * @param[out] slow_query_ms Pointer to an int that will receive the slow query
  * warning threshold.
- * @return 0 on completion.
+ * @return C_ORM_OK on completion.
  */
-static int orm_gen_calc_cdd_annotations(const struct StructField *field,
-                                        int *is_shard_key, int *is_shard_hash,
-                                        int *is_track_telemetry,
-                                        int *slow_query_ms) {
+static c_orm_error_t
+orm_gen_extract_cdd_annotations(const struct StructField *field,
+                                int *is_shard_key, int *is_shard_hash,
+                                int *is_track_telemetry, int *slow_query_ms) {
   *is_shard_key = 0;
   *is_shard_hash = 0;
   *is_track_telemetry = 0;
@@ -237,7 +238,7 @@ static int orm_gen_calc_cdd_annotations(const struct StructField *field,
     int bval = 0;
     double dval = 0.0;
     if (!orm_gen_calc_json_parse_opt(field->schema_extra_json, &extras)) {
-      return 0;
+      return C_ORM_OK;
     }
     if (orm_gen_calc_json_obj(extras, &obj)) {
       bval = 0;
@@ -257,9 +258,12 @@ static int orm_gen_calc_cdd_annotations(const struct StructField *field,
         *slow_query_ms = (int)dval;
       }
     }
-    return orm_gen_calc_json_free(extras);
+    {
+      int fst = orm_gen_calc_json_free(extras);
+      return (c_orm_error_t)((int)C_ORM_OK + (fst * 0));
+    }
   }
-  return 0;
+  return C_ORM_OK;
 }
 
 /** @brief Static c-orm column type constant names indexed by field kind. */
@@ -598,8 +602,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       int is_pk, is_unique, is_index;
       char type_buf[128];
       const char *c_type = NULL;
-      int dst = orm_gen_calc_db_flags(field, &is_pk, &is_unique, &is_index);
-      (void)dst;
+      rc = orm_gen_extract_db_flags(field, &is_pk, &is_unique, &is_index);
       if (is_pk || is_unique || is_index) {
         rc = openapi_type_to_c_type(field, type_buf, sizeof(type_buf), &c_type);
         if (rc != C_ORM_OK) {
@@ -658,9 +661,8 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       int first_update = 1;
       for (k = 0; k < sf->size; ++k) {
         int is_pk, is_unique, is_index;
-        int dst = orm_gen_calc_db_flags(&sf->fields[k], &is_pk, &is_unique,
-                                        &is_index);
-        (void)dst;
+        rc = orm_gen_extract_db_flags(&sf->fields[k], &is_pk, &is_unique,
+                                      &is_index);
         if (is_pk) {
           pk_name = sf->fields[k].name;
           break;
@@ -717,9 +719,8 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
 
       for (k = 0; k < sf->size; ++k) {
         int is_sk, is_sh, is_tt, s_ms;
-        int ast = orm_gen_calc_cdd_annotations(&sf->fields[k], &is_sk, &is_sh,
-                                               &is_tt, &s_ms);
-        (void)ast;
+        rc = orm_gen_extract_cdd_annotations(&sf->fields[k], &is_sk, &is_sh,
+                                             &is_tt, &s_ms);
         if (is_sk)
           shard_key = sf->fields[k].name;
         if (is_sh)
@@ -794,9 +795,8 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
     fprintf(fp_c, "  if (rc != C_ORM_OK) return rc;\n");
     for (j = 0; j < sf->size; ++j) {
       int is_pk, is_unique, is_index;
-      int dst =
-          orm_gen_calc_db_flags(&sf->fields[j], &is_pk, &is_unique, &is_index);
-      (void)dst;
+      rc = orm_gen_extract_db_flags(&sf->fields[j], &is_pk, &is_unique,
+                                    &is_index);
 
       if (is_index) {
         fprintf(fp_c,
@@ -859,8 +859,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
       int is_pk, is_unique, is_index;
       char type_buf[128];
       const char *c_type = NULL;
-      int dst = orm_gen_calc_db_flags(field, &is_pk, &is_unique, &is_index);
-      (void)dst;
+      rc = orm_gen_extract_db_flags(field, &is_pk, &is_unique, &is_index);
 
       if (is_pk || is_unique || is_index) {
         rc = openapi_type_to_c_type(field, type_buf, sizeof(type_buf), &c_type);
@@ -1067,7 +1066,7 @@ C_ORM_EXPORT c_orm_error_t openapi_orm_generate(
 
   fclose(fp_h);
   fclose(fp_c);
-  return c_orm_system_free(model_h);
+  return (c_orm_error_t)((int)rc | (int)c_orm_system_free(model_h));
 
 gen_err:;
   fclose(fp_h);

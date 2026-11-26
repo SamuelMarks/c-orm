@@ -778,13 +778,26 @@ TEST test_driver_url_and_query_parsers(void) {
     stubs_oom_fail = 0;
     c_orm_set_allocators(old_m, old_r, old_f);
   }
+#ifdef C_ORM_TEST_ALLOCATOR
+  c_orm_mock_safe_crt_countdown = 0;
+  ASSERT_NEQ(C_ORM_OK,
+             c_orm_postgres_rewrite_query("SELECT ?", &pcount, &rewritten));
+  c_orm_mock_safe_crt_countdown = -1;
+  c_orm_mock_safe_crt_countdown = 0;
+  ASSERT_NEQ(C_ORM_OK, c_orm_mysql_parse_url("mysql://h/d", &info));
+  c_orm_mock_safe_crt_countdown = 1;
+  ASSERT_NEQ(C_ORM_OK, c_orm_mysql_parse_url("mysql://h/d", &info));
+  c_orm_mock_safe_crt_countdown = 2;
+  ASSERT_NEQ(C_ORM_OK, c_orm_mysql_parse_url("mysql://h/d", &info));
+  c_orm_mock_safe_crt_countdown = -1;
+#endif
 
   /* High-byte tag, unclosed quotes/comments/dollar-quotes, $10 then $2 then ?
    */
   ASSERT_EQ(C_ORM_OK,
             c_orm_postgres_rewrite_query(
-                "SELECT $Tag\x80_9$body$Tag\x80_9$, $0bad$, $10, $2, ? "
-                "-- eof comment without newline",
+                "SELECT $Tag\x80_9$body$Tag\x80_9$, $_$x$_$, ${bad$, $0bad$, "
+                "$1a, $10, $2, ? -- eof comment without newline",
                 &pcount, &rewritten));
   ASSERT_EQ(10, pcount);
   c_orm_system_free(rewritten);

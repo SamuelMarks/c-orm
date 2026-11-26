@@ -1125,8 +1125,13 @@ static c_orm_error_t sqlite_get_last_trace(c_orm_db_t *db,
       struct sqlite_db_data *data = (struct sqlite_db_data *)db->driver_data;
       const char *msg =
           data->last_error[0] ? data->last_error : sqlite3_errmsg(data->db);
+      c_orm_error_t rc;
       memcpy(data->last_trace, "[SQLite3] ", 10);
-      C_ORM_STRCPY(data->last_trace + 10, sizeof(data->last_trace) - 10, msg);
+      rc = C_ORM_STRNCPY(data->last_trace + 10, sizeof(data->last_trace) - 10,
+                         msg, sizeof(data->last_trace) - 11);
+      if (rc != C_ORM_OK) {
+        return rc;
+      }
       *out_trace = data->last_trace;
     } else {
       *out_trace = "[SQLite3] Invalid DB context";

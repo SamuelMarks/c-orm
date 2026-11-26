@@ -1025,7 +1025,7 @@ TEST test_oauth2_crypto_fail_open(void) {
 #else
   _mkdir("c_orm_token.dat");
 #endif
-  c_orm_store_token_secure(&t);
+  ASSERT_NEQ(C_ORM_OK, c_orm_store_token_secure(&t));
 #if !defined(_WIN32)
   rmdir("c_orm_token.dat");
 #else

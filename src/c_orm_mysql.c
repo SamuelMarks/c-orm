@@ -192,15 +192,25 @@ c_orm_mysql_parse_url(const char *url, c_orm_mysql_url_info_t *out_info) {
   const char *p;
   const char *qmark;
   size_t path_limit;
+  c_orm_error_t rc;
 
   if (!url || !out_info) {
     return C_ORM_ERROR_NULL_POINTER;
   }
 
   memset(out_info, 0, sizeof(*out_info));
-  C_ORM_STRCPY(out_info->host, sizeof(out_info->host), "127.0.0.1");
-  C_ORM_STRCPY(out_info->user, sizeof(out_info->user), "root");
-  C_ORM_STRCPY(out_info->dbname, sizeof(out_info->dbname), "test");
+  rc = C_ORM_STRCPY(out_info->host, sizeof(out_info->host), "127.0.0.1");
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+  rc = C_ORM_STRCPY(out_info->user, sizeof(out_info->user), "root");
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
+  rc = C_ORM_STRCPY(out_info->dbname, sizeof(out_info->dbname), "test");
+  if (rc != C_ORM_OK) {
+    return rc;
+  }
 
   p = url;
   if (strncmp(p, "mysql://", 8) == 0) {

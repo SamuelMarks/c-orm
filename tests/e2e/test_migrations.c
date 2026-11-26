@@ -2872,7 +2872,7 @@ TEST test_migrations_db2_odbc_and_dir_exhaustive(void) {
     ASSERT_EQ(0, remove("test_migs_ex_dir/000_m0.down.sql"));
     ASSERT_EQ(0, remove("test_migs_ex_dir/000_m0.sql"));
     ASSERT_EQ(0, remove("test_migs_ex_dir/nounderscore.sql"));
-#if !defined(_WIN32) && !defined(_MSC_VER)
+#if !defined(_WIN32) && !defined(_MSC_VER) && !defined(__CYGWIN__)
     ASSERT_EQ(0, remove("test_migs_ex_dir/a\\b"));
 #else
     ASSERT_EQ(0, remove("test_migs_ex_dir/ab"));

@@ -323,6 +323,11 @@ TEST test_c_orm_sqlite_operations_errors(void) {
   ASSERT_EQ(C_ORM_ERROR_UNKNOWN, vtable->get_last_error(NULL, &str));
   ASSERT_EQ(C_ORM_OK, vtable->get_last_trace(db, NULL));
   ASSERT_EQ(C_ORM_OK, vtable->get_last_trace(db, &str));
+#ifdef C_ORM_TEST_ALLOCATOR
+  c_orm_mock_safe_crt_countdown = 0;
+  ASSERT_NEQ(C_ORM_OK, vtable->get_last_trace(db, &str));
+  c_orm_mock_safe_crt_countdown = -1;
+#endif
   ASSERT_EQ(C_ORM_OK, vtable->get_last_trace(NULL, &str));
   ASSERT_EQ(C_ORM_ERROR_SQL, vtable->prepare(db, "INVALID SQL SYNTAX", &query));
   ASSERT_EQ(C_ORM_OK, vtable->get_last_trace(db, &str));

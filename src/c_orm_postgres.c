@@ -288,6 +288,7 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_rewrite_query(const char *sql,
 
     /* 6. Question-mark placeholder or escaped ?? */
     if (*p == '?') {
+      c_orm_error_t src;
       if (p[1] == '?') {
         *q++ = '?';
         p += 2;
@@ -297,7 +298,11 @@ C_ORM_EXPORT c_orm_error_t c_orm_postgres_rewrite_query(const char *sql,
       if (qmark_count > max_dollar_param) {
         max_dollar_param = qmark_count;
       }
-      C_ORM_SPRINTF(num_buf, sizeof(num_buf), "$%d", qmark_count);
+      src = C_ORM_SPRINTF(num_buf, sizeof(num_buf), "$%d", qmark_count);
+      if (src != C_ORM_OK) {
+        c_orm_system_free(new_sql);
+        return src;
+      }
       {
         size_t nlen = strlen(num_buf);
         memcpy(q, num_buf, nlen);
